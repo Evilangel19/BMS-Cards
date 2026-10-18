@@ -32,6 +32,7 @@ try:
         msf = pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())")
         o = json.loads(msf)
         check('the mission holds the package, the DTC with its edits apart, and the datacard with the manual values', o['format'] == 'bms-cards-mission' and len(o['package']['units']) > 3 and any(e['k'] == 'target_3' for e in o['dtc']['edits']) and 'ab0_4' in o['datacard']['manual'] and o['datacard']['manual']['ab0_4'] == 'ZZ99')
+        import re; check('the default name of the mission is package number + callsign (' + o['name'] + ')', re.match(r'^\d+ \S', o['name']) is not None)
         check('the weather travels in the mission', bool(o.get('weather') and o['weather'].get('fmap')) and bool(before['f'].get('atis')))
         print('  size', len(msf)); check('the mission is smaller than the whole campaign (only the package and what is near its route)', len(msf) < 1_600_000)
         try:

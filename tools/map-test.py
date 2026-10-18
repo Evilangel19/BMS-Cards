@@ -471,10 +471,10 @@ try:
         pg.click('[data-t=mp]'); pg.wait_for_timeout(600)
         check('and the map shows the change', any(x['name'] == 'Edited on page' for x in pg.evaluate("__app.mapV.dtcItems()")))
         msgs = []; pg.once('dialog', lambda d: (msgs.append(d.message), d.accept())); pg.click('[data-t=dtc]'); pg.wait_for_timeout(200); pg.click('#saveow'); pg.wait_for_timeout(400)
-        check('without the file location (not the desktop app) overwriting is refused with an explanation', msgs and 'desktop app' in msgs[0])
+        check('without the file location (not the desktop app) overwriting is refused with an explanation', msgs and 'location' in msgs[0])
         pg.evaluate("()=>{window.__w=[];__app.IO.fileExists=async()=>false;__app.IO.appDir=async()=>'C:/App';__app.IO.makeDir=async()=>{};__app.IO.writeBytes=async(p,b)=>{window.__w.push([p,b.length,new TextDecoder().decode(b)])}}")
         pg.evaluate("t=>__app.setDtcPath('C:/BMS/Config/Evil19_2_.ini', t)", ini); msgs2 = []; pg.once('dialog', lambda d: (msgs2.append(d.message), d.accept())); pg.click('#saveow'); pg.wait_for_timeout(600)
-        w = pg.evaluate("window.__w"); check('overwrite asks first, then writes the backup of the original in the program folder, then the file with the changes', msgs2 and 'Overwrite' in msgs2[0] and len(w) == 2 and w[0][0].endswith('.bak') and 'backup' in w[0][0] and not w[0][0].startswith('C:/BMS') and w[1][0] == 'C:/BMS/Config/Evil19_2_.ini' and 'Edited on page' in w[1][2] and 'Edited on page' not in w[0][2])
+        w = pg.evaluate("window.__w"); check('overwrite asks first, then writes the backup of the original in the program folder, then the file with the changes', msgs2 and 'Overwrite' in msgs2[0] and len(w) == 3 and w[0][0].endswith('.bak') and 'backup' in w[0][0] and not w[0][0].startswith('C:/BMS') and w[1][0] == 'C:/BMS/Config/Evil19_2_.ini' and 'Edited on page' in w[1][2] and 'Edited on page' not in w[0][2] and w[2][0].lower().endswith('.ini') and w[2][2] == w[1][2] and 'campaign files' in msgs2[0])
         check('after saving nothing is marked as changed', not pg.evaluate("__app.lines.some(l=>l.dirty)"))
         pg.click('[data-t=mp]'); pg.wait_for_timeout(500)
         # revert the DTC changes made on the map

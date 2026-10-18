@@ -405,15 +405,24 @@ async function dtcRevert(){
  for(let i=lines.length-1;i>=0;i--){const l=lines[i];if(!l.dirty)continue;if(!l.raw){lines.splice(i,1);continue}l.v=l.raw.slice(l.raw.indexOf('=')+1).trim();l.dirty=0}
  afterDtc('target_98',true);if($('fn'))$('fn').textContent=name}
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.
+// BMS reads the DTC of a campaign from <campaign name>.ini (and Autosave.ini when the campaign is opened): those files are written with the same DTC
+async function dtcCampaignFiles(){
+ const dirOf=p=>p.replace(/[\\/][^\\/]*$/,''),dirs=[...new Set([dirOf(DTCF.path),dtcDir(),(()=>{try{return campDir()}catch(e){return''}})()].filter(Boolean))],stem=C&&C.name?PJ.safeName(C.name):'',names=[stem&&stem+'.ini','Autosave.ini'].filter(Boolean),found=[];
+ for(const n of names)for(const d of dirs){const f=joinPath(d,n);if(f===DTCF.path)continue;try{if(await IO.fileExists(f))found.push(f)}catch(e){}}
+ if(stem&&!found.some(f=>f.toLowerCase().endsWith(stem.toLowerCase()+'.ini'))&&joinPath(dirs[0],stem+'.ini')!==DTCF.path)found.push(joinPath(dirs[0],stem+'.ini'));
+ return found}
+async function dtcBackupOnce(path,bytes){const bd=joinPath(joinPath(await IO.appDir(),'backup'),'dtc'),h=[...path].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7).toString(36),bak=joinPath(bd,path.split(/[\\/]/).pop()+'.'+h+'.bak');if(!(await IO.fileExists(bak))){await IO.makeDir(bd);await IO.writeBytes(bak,bytes)}}
 async function dtcOverwrite(){
  if(!lines.length)return alert('Open a DTC file first.');
- if(!DTCF||!DTCF.path)return alert('The location of this file is only known in the desktop app, so it cannot be overwritten here. Use "Save copy".');
+ if(!DTCF||!DTCF.path)return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings, or use "Save copy".');
  if(!lines.some(l=>l.dirty))return;
- if(!await confirm('Overwrite this file with your changes?\n\n'+DTCF.path+'\n\nThe original is kept once in the program folder (backup\\dtc), not in the BMS folder.'))return;
- try{const bd=joinPath(joinPath(await IO.appDir(),'backup'),'dtc'),h=[...DTCF.path].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7).toString(36),bak=joinPath(bd,DTCF.path.split(/[\\/]/).pop()+'.'+h+'.bak');if(!(await IO.fileExists(bak))){await IO.makeDir(bd);await IO.writeBytes(bak,DTCF.orig)}
+ let extra=[];try{extra=await dtcCampaignFiles()}catch(e){}
+ if(!await confirm('Overwrite this file with your changes?\n\n'+DTCF.path+(extra.length?'\n\nThe same DTC is written to the campaign files BMS loads in the game:\n'+extra.join('\n'):'')+'\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'))return;
+ try{await dtcBackupOnce(DTCF.path,DTCF.orig);
   const out=encodeDtc(dtcOut());await IO.writeBytes(DTCF.path,out);DTCF.orig=out;
+  for(const f of extra){try{let old=null;try{if(await IO.fileExists(f))old=await readBytes(f)}catch(e){}if(old)await dtcBackupOnce(f,old);await IO.writeBytes(f,out)}catch(e){}}
   lines.forEach(l=>{if(l.dirty){l.raw=l.k+'='+l.v;l.dirty=0}});
-  dtcBtns();$('fn').textContent=name+' · saved';appToast('DTC saved: '+DTCF.path);try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}
+  dtcBtns();$('fn').textContent=name+' · saved';appToast('DTC saved: '+DTCF.path+(extra.length?' (+ '+extra.length+' campaign file'+(extra.length>1?'s':'')+')':''));try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}
  }catch(e){alert('Could not write the file: '+(e&&e.message||e))}}
 
 
@@ -421,7 +430,8 @@ async function dtcOverwrite(){
    automatic and manual values), the program settings, the cards and a copy of the original kneeboards. The mission works without the campaign. */
 const MSFPREFS=['mapprefs.json','dtcprefs.json','dtcdefaults.json','mfddefault.json'];
 const enc8=t=>new TextEncoder().encode(t);
-function msfName(x){const p=x.label.split(' · ');return PJ.safeName((p[0]||'')+' '+(p[2]||''))}
+// default name of a mission: package number + callsign of the flight, e.g. "1301 Hawkeye 4"
+function msfName(x){const p=x.label.split(' · '),P=C&&C.byId&&C.byId[x.f.pkg.n+':'+x.f.pkg.c],no=(P&&P.campId)||x.f.pkg.n;return PJ.safeName(no+' '+(p[0]||''))}
 function msfCardKeys(){return Object.keys(F).filter(k=>typeof F[k]=='string'&&!/^__/.test(k)||k=='__taf')}
 async function wxPack(u8){const s=new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate')),b=new Uint8Array(await new Response(s).arrayBuffer());let t='';for(let i=0;i<b.length;i+=8192)t+=String.fromCharCode.apply(null,b.subarray(i,i+8192));return btoa(t)}
 async function wxBuild(f){try{await wxLoadKeys(wxKeys(f))}catch(e){}const series={};for(const k of wxKeys(f)){const w=WXS.get(k);if(w&&w.raw)series[k]=await wxPack(w.raw)}
@@ -430,7 +440,7 @@ async function wxUnpack(t){const b=Uint8Array.from(atob(t),c=>c.charCodeAt(0)),s
 async function msfBuild(){
  const i=+$('fsel').value||0,x=CL[i];if(!C||!x)throw new Error('Select a flight first (a campaign or a mission must be open).');
  const settings={config:CFG,prefs:{}};for(const n of MSFPREFS){const o=await loadPrefs(n);if(o)settings.prefs[n]=o}
- const dtc=lines.length?{name,enc:DTCF&&DTCF.enc||'utf-8',bom:!!(DTCF&&DTCF.bom),original:DTCTEXT,edits:PJ.dtcEditsAgainst(parseDtc(DTCTEXT),lines)}:null;
+ const dtc=lines.length?{name,path:DTCF&&DTCF.path||null,enc:DTCF&&DTCF.enc||'utf-8',bom:!!(DTCF&&DTCF.bom),original:DTCTEXT,edits:PJ.dtcEditsAgainst(parseDtc(DTCTEXT),lines)}:null;
  const final={},auto={};msfCardKeys().forEach(k=>{final[k]=F[k]});FD.forEach(d=>{auto[d.k]=(AUTO&&AUTO[d.k])||''});
  const manual=PJ.diffFields(AUTO||{},F,FD.map(d=>d.k));
  let aircraft=null;try{const an=C.D.ac[x.f.c.i],d=an&&await perfAcGet(an);if(d)aircraft={name:an,perf:d}}catch(e){}
@@ -452,12 +462,12 @@ async function msfCardsLoad(dir,merge){
   const slot=sl=>sl.kind=='pic'?(lib.has(sl.file)?{kind:'pic',mode:sl.mode,item:lib.get(sl.file)}:{kind:'empty',mode:'fill'}):{kind:sl.kind,mode:sl.mode};
   const rs=a=>a.map(r=>({left:slot(r.left),right:slot(r.right)}));KBS=rs(cj.slots);KBDEF=rs(cj.default||cj.slots);KBFMT=cj.fmt||'dxt1';KBFIT=!!cj.fit;return true}catch(e){return false}}
 // The cards (imported pictures and their arrangement) are kept in the program folder (cardmemory) and loaded when the program starts: they serve every flight and mission
-let KBMEMSIG='',KBMEMT=0;
+let KBMEMSIG='',KBMEMT=0,KBMEMOK=false;   // KBMEMOK: the memory has been read (or there is none yet); before that nothing may be written to it
 function kbMemLater(){if(!isDesktop())return;clearTimeout(KBMEMT);KBMEMT=setTimeout(kbMemSave,900)}
-async function kbMemSave(){try{const sg=a=>a.map(r=>[r.left.kind,r.left.item&&r.left.item.name,r.left.mode,r.right.kind,r.right.item&&r.right.item.name,r.right.mode]),sig=JSON.stringify([sg(KBS),sg(KBDEF),KBLIB.map(i=>[i.name,i.blob.size]),KBFMT,KBFIT]);if(sig===KBMEMSIG)return;
+async function kbMemSave(){if(!KBMEMOK)return;try{const sg=a=>a.map(r=>[r.left.kind,r.left.item&&r.left.item.name,r.left.mode,r.right.kind,r.right.item&&r.right.item.name,r.right.mode]),sig=JSON.stringify([sg(KBS),sg(KBDEF),KBLIB.map(i=>[i.name,i.blob.size]),KBFMT,KBFIT]);if(sig===KBMEMSIG)return;
   const dir=joinPath(await IO.appDir(),'cardmemory');await IO.makeDir(dir);await msfCards(dir);KBMEMSIG=sig}catch(e){}}
 async function kbMemLoad(){if(!isDesktop())return;try{const dir=joinPath(await IO.appDir(),'cardmemory');if(!(await IO.fileExists(joinPath(dir,PJ.missionFolder.cards))))return;
-  if(await msfCardsLoad(dir,false)){KBMEMSIG='';if(!$('kn').classList.contains('hide'))kbRender()}}catch(e){}}
+  if(await msfCardsLoad(dir,false)){KBMEMSIG='';if(!$('kn').classList.contains('hide'))kbRender()}}catch(e){}finally{KBMEMOK=true}}
 function appToast(m){let t=document.getElementById('apptoast');if(!t){t=document.createElement('div');t.id='apptoast';t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1000;background:#1a212bf8;border:1px solid #3ddc84;color:#e6edf3;border-radius:10px;padding:10px 20px;font-size:13px;box-shadow:0 10px 30px #000a;max-width:min(80%,640px);text-align:center;transition:opacity .25s';document.body.append(t)}
  t.textContent=m;t.style.opacity='1';t.style.display='';clearTimeout(t._t);t._t=setTimeout(()=>{t.style.opacity='0';t._t=setTimeout(()=>{t.style.display='none'},300)},5000)}
 async function msfSave(){
@@ -469,7 +479,6 @@ async function msfSave(){
   await IO.makeDir(dir);
   await IO.writeBytes(joinPath(dir,PJ.missionFolder.file(msf.name)),enc8(text));
   await IO.writeBytes(joinPath(dir,PJ.missionFolder.settings),enc8(JSON.stringify(msf.settings,null,1)));
-  await msfCards(dir);
   const src=joinPath(joinPath(app,'backup'),'kneeboard'),dst=joinPath(dir,PJ.missionFolder.kneeboardBackup);let nb=0;
   for(const e of await listDir(src)){if(e.isDirectory)continue;if(!nb)await IO.makeDir(dst);await IO.writeBytes(joinPath(dst,e.name),await readBytes(joinPath(src,e.name)));nb++}
   MSFDIR=dir;MSFSIG=msfSig();appToast('Mission saved in: '+dir);
@@ -486,10 +495,10 @@ async function msfLoad(text,file){
   try{mapV.setTanks(Array.isArray(p.tanks)?p.tanks:[])}catch(e){}
   let i=CL.findIndex(x=>x.f.id.n+':'+x.f.id.c==p.datacard.flight);if(i<0)i=0;
   $('fsel').innerHTML=CL.map((x,k)=>`<option value="${k}">${x.label}</option>`).join('');$('fsel').value=i;$('cinfo').textContent='Mission: '+p.name;
-  if(p.dtc){name=p.dtc.name||'DTC.ini';DTCF={path:null,enc:p.dtc.enc||'utf-8',bom:!!p.dtc.bom,orig:enc8(p.dtc.original)};parse(p.dtc.original);p.dtc.edits.forEach(e=>S(e.s,e.k,e.v));$('fn').textContent=name+' · from the mission';afterDtc('target_98',true);dtcBtns()}
+  if(p.dtc){name=p.dtc.name||'DTC.ini';let dpath=null;if(isDesktop()){const cs=[p.dtc.path,dtcDir()?joinPath(dtcDir(),name):''].filter(Boolean);for(const c of cs){try{if(await IO.fileExists(c)){dpath=c;break}}catch(e){}}if(!dpath&&cs.length)dpath=cs[cs.length-1]}   // the DTC of the mission is written where this computer keeps its DTC
+   DTCF={path:dpath,enc:p.dtc.enc||'utf-8',bom:!!p.dtc.bom,orig:enc8(p.dtc.original)};parse(p.dtc.original);p.dtc.edits.forEach(e=>S(e.s,e.k,e.v));$('fn').textContent=name+' · from the mission';afterDtc('target_98',true);dtcBtns()}
   atoSearch();apply(i,'fresh');
   const d=p.datacard;Object.assign(F,d.final||{});AUTO=Object.assign({},d.auto||AUTO);MANK=new Set(Object.keys(d.manual||{}));view();markMan();atoCloseState();atoSearch();MSFSIG=msfSig();
-  if(file&&file.path){const dir=file.path.replace(/[\\/][^\\/]*$/,'');if(await msfCardsLoad(dir)){try{kbRender()}catch(e){}}}
  }catch(e){alert('Could not open the mission: '+(e&&e.message||e))}finally{NOPERF=false}}
 $('msfsave').onclick=msfSave;
 // unsaved changes: the datacard fields typed by hand, the edited DTC lines; compared with what the last saved (or opened) mission held
@@ -1232,7 +1241,7 @@ async function openSettings(){
   try{await saveConfig(n);const changed=n.paths.bmsInstall!==CFG.paths.bmsInstall;const trk=n.squadron.trackers!==((CFG.squadron&&CFG.squadron.trackers)||'');CFG=n;applyAnim();if(trk)sqPage.restart();dlg.close();view();if(!$('kn').classList.contains('hide'))kbRender();if(changed)await loadGameData();fillCampaigns()}catch(e){alert('Could not save settings: '+(e&&e.message||e))}};
  no.onclick=()=>dlg.close();bar.append(no,ok);dlg.append(bar);dlg.showModal()}
 $('cfgbtn').onclick=openSettings;
-loadConfig().then(async r=>{CFG=r.config;applyAnim();if(r.warnings.length)alert('Settings: '+r.warnings.join('\n'));await loadGameData();await fillCampaigns();kbMemLoad()}).catch(()=>{});
+loadConfig().then(async r=>{CFG=r.config;applyAnim();if(r.warnings.length)alert('Settings: '+r.warnings.join('\n'));kbMemLoad();await loadGameData();await fillCampaigns()}).catch(()=>{});
 // our own number steppers (the browser's spin buttons are hidden by the CSS): a pair of small buttons after every number box, also for boxes drawn later
 function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.nst=1;const b=document.createElement('span');b.className='nst';b.innerHTML='<button type="button" tabindex="-1" title="Increase">▲</button><button type="button" tabindex="-1" title="Decrease">▼</button>';{const n=i.nextSibling,u=n&&n.nodeType==3&&n.textContent.trim();if(u)b.style.marginLeft='3px';(u?n:i).after(b)}
  b.onclick=e=>{const t=e.target.closest('button');if(!t)return;try{t===b.firstChild?i.stepUp():i.stepDown()}catch(x){}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}}

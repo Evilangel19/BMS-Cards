@@ -263,7 +263,7 @@ export async function shrinkImage(file, max = 128) {
 export function createSquadronPage(deps) {
   const {root, esc} = deps; const $ = s => root.querySelector(s);
   let pilot = null, lbkErr = '', recv = [], log = [], saveT = null, PB = null, pbErr = '', cSel = null;
-  let DB = {uid: randHex(8), squads: [], cur: '', cs: '', stun: true, turn: '', lbk: '', av: '', tab: 'members'};
+  let DB = {uid: randHex(8), squads: [], cur: '', cs: '', stun: false, turn: '', lbk: '', av: '', tab: 'members'};
   const swarms = new Map();   // squadron id -> swarm
   const say = t => { log.unshift(new Date().toTimeString().slice(0, 8) + '  ' + t); log = log.slice(0, 40); const l = $('#sqlog'); if (l) l.textContent = log.join('\n'); };
   const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { deps.store && deps.store.save(DB); } catch (e) { /* not saved */ } }, 300); };
@@ -332,8 +332,8 @@ export function createSquadronPage(deps) {
       onPeer: (p, ev) => { if (ev == 'joined') p.link.send({k: 'gone'}); }});
     gsw.set(g.secret, sw); sw.start();
   }
-  function deleteSquad(q) {
-    if (!confirm('Delete the squadron "' + q.name + '"?\n\nIt is removed for all its pilots: those online now at once, the others the next time they come online. No file on your computer is deleted.')) return;
+  async function deleteSquad(q) {
+    if (!await confirm('Delete the squadron "' + q.name + '"?\n\nIt is removed for all its pilots: those online now at once, the others the next time they come online. No file on your computer is deleted.')) return;
     const w = swarms.get(q.id); if (w) w.broadcast({k: 'gone'});
     const g = {secret: q.secret, name: q.name, ts: Date.now()}; DB.gone = [...(DB.gone || []), g]; save();
     setTimeout(() => { leave(q, 'Squadron "' + q.name + '" deleted.'); goneStart(g); }, 400);
@@ -429,8 +429,8 @@ export function createSquadronPage(deps) {
       <h4>Join a squadron</h4><textarea id="sqinvin" rows="2" placeholder="Squadron invite code (BCS.…)"></textarea><div class="bar"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
     box.querySelectorAll('.sqsqr').forEach(el => { const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => { DB.cur = q.id; save(); cSel = null; drawAll(); $('#sqhead').scrollIntoView({block: 'start'}); };
-      el.querySelector('[data-leave]').onclick = () => { if (owns(q)) { deleteSquad(q); return; } if (confirm('Leave the squadron "' + q.name + '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' + (owns(q) ? '' : ''))) leave(q); };
-      el.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => { const uid = b.closest('[data-uid]').dataset.uid; if (confirm('Remove ' + label(q.roster[uid]) + ' from "' + q.name + '"?')) kick(q, uid); });
+      el.querySelector('[data-leave]').onclick = async () => { if (owns(q)) { deleteSquad(q); return; } if (await confirm('Leave the squadron "' + q.name + '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' + (owns(q) ? '' : ''))) leave(q); };
+      el.querySelectorAll('[data-kick]').forEach(b => b.onclick = async () => { const uid = b.closest('[data-uid]').dataset.uid; if (await confirm('Remove ' + label(q.roster[uid]) + ' from "' + q.name + '"?')) kick(q, uid); });
     });
     $('#sqcreate').onclick = () => { const q = newSquadron($('#sqnew').value, DB.uid); mkMe(q); DB.squads.push(q); DB.cur = q.id; save(); swarmStart(q); drawAll(); say('Squadron "' + q.name + '" created.'); };
     $('#sqjoinsq').onclick = async () => { try { const q = await readSquadInvite($('#sqinvin').value); if (DB.squads.some(x => x.secret == q.secret)) throw new Error('You are already in this squadron.'); q.id = randHex(4); q.roster = {}; mkMe(q); DB.squads.push(q); DB.cur = q.id; save(); swarmStart(q); drawAll(); say('You joined ' + q.name + '.'); } catch (e) { $('#sqsqerr').textContent = String(e && e.message || e); } };
@@ -490,7 +490,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
 </div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
 <div class="sqc"><h3>Invite codes</h3><div id="sqinvs"></div></div>
-<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button><button class="btn g" id="sqnettest">Test my network</button></div><pre class="sqlog" id="sqnet" style="display:none;white-space:pre-wrap"></pre><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun" checked> Use a public STUN server</label></div></div>
+<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button><button class="btn g" id="sqnettest">Test my network</button></div><pre class="sqlog" id="sqnet" style="display:none;white-space:pre-wrap"></pre><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun"> Use a public STUN server</label></div></div>
 </div><div class="sqcol">
 <div class="sqc"><details id="sqdirect"><summary>Direct connection with two codes (no trackers)</summary>
  <div class="hint" style="margin-top:8px">When the trackers cannot be used: the pilots connect straight to each other by swapping two codes. Whoever creates the session leads it.</div>
@@ -543,10 +543,11 @@ export function createSquadronPage(deps) {
       if (o && o.uid) {
         DB = {...DB, ...o, squads: o.squads || []};
         if (o.squad && !DB.squads.length) { DB.squads = [{...o.squad, id: randHex(4), owner: DB.uid, leader: '', roster: o.roster || {}}]; DB.cur = DB.squads[0].id; }   // the first version kept one squadron
+        if (!DB.stunv) { DB.stun = false; DB.stunv = 1; }   // STUN is off by default (earlier versions had it on)
         delete DB.squad; delete DB.roster; DB.squads.forEach(q => { q.roster = q.roster || {}; });
       }
     } catch (e) { /* first start */ }
-    if ($('#sqturn')) $('#sqturn').value = DB.turn || ''; if ($('#sqstun')) $('#sqstun').checked = DB.stun !== false; if ($('#sqcs')) $('#sqcs').value = DB.cs || ''; save(); drawAll(); startAll();
+    if ($('#sqturn')) $('#sqturn').value = DB.turn || ''; if ($('#sqstun')) $('#sqstun').checked = !!DB.stun; if ($('#sqcs')) $('#sqcs').value = DB.cs || ''; save(); drawAll(); startAll();
   }
   const ready = init();
   return {S, ready, received: () => recv, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => { [...swarms.keys()].forEach(swarmStop); [...gsw.values()].forEach(w => w.stop()); gsw.clear(); }, restart: startAll};

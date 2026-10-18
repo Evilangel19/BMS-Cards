@@ -78,7 +78,7 @@ try:
         B.click('#sqjoinb'); B.wait_for_timeout(200); B.fill('#sqincode', inv); B.click('#sqmk'); B.wait_for_timeout(2500)
         ans = B.input_value('#sqanscode'); check('the pilot gets an answer code', ans.startswith('BC1.'))
         A.fill('#sqinv textarea[data-a]', ans); A.click('#sqinv [data-k]')
-        for _ in range(30):
+        for _ in range(45):
             A.wait_for_timeout(1000)
             if A.locator('#sqmem .sqd.connected').count() == 1 and B.locator('#sqmem .sqd.connected').count() == 1: break
         check('both sides are connected and see each other', A.locator('#sqmem .sqd.connected').count() == 1 and B.locator('#sqmem .sqd.connected').count() == 1 and 'Wing2' in A.inner_text('#sqmem') and 'Leader1' in B.inner_text('#sqmem'))

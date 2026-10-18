@@ -3,7 +3,7 @@
 import * as P from './airperf.js';
 import { fuelPlan, climbAltitude } from './fuelplan.js';
 
-const MODES = [['turn', 'Turn & energy'], ['cruise', 'Cruise & range'], ['field', 'Take-off & landing'], ['plan', 'Fuel plan']];
+const MODES = [['field', 'Take-off & landing'], ['cruise', 'Cruise & range'], ['turn', 'Turn & energy'], ['plan', 'Fuel plan']];
 const fmt = (v, d = 0) => Number(v).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}).replace(/,/g, ' ');
 const SL = {
   fuel: ['Fuel', ' lb', 0, 40000, 100], stores: ['Stores', ' lb', 0, 20000, 100], di: ['Drag index', '', 0, 300, 1], isa: ['Temperature', ' °C ISA', -40, 40, 1],
