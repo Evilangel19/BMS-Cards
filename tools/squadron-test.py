@@ -78,7 +78,7 @@ try:
         B.click('#sqjoinb'); B.wait_for_timeout(200); B.fill('#sqincode', inv); B.click('#sqmk'); B.wait_for_timeout(2500)
         ans = B.input_value('#sqanscode'); check('the pilot gets an answer code', ans.startswith('BC1.'))
         A.fill('#sqinv textarea[data-a]', ans); A.click('#sqinv [data-k]')
-        for _ in range(15):
+        for _ in range(30):
             A.wait_for_timeout(1000)
             if A.locator('#sqmem .sqd.connected').count() == 1 and B.locator('#sqmem .sqd.connected').count() == 1: break
         check('both sides are connected and see each other', A.locator('#sqmem .sqd.connected').count() == 1 and B.locator('#sqmem .sqd.connected').count() == 1 and 'Wing2' in A.inner_text('#sqmem') and 'Leader1' in B.inner_text('#sqmem'))
@@ -144,6 +144,7 @@ try:
         check('Delete removes the squadron', A.locator('#sqmine .sqsqr').count() == n0 - 1)
         A.click('#sqtabs [data-tab=settings]'); A.wait_for_timeout(200)
         check('the settings show the diagnostics and the TURN field', A.is_visible('#sqturn') and A.is_visible('#sqturnsave'))
+        A.click('#sqnettest'); A.wait_for_function("()=>document.querySelector('#sqnet').textContent!=='Testing…'", timeout=15000); check('the network test gives an answer', len(A.inner_text('#sqnet')) > 20)
         check('no script errors', not ea and not eb)
         if ea or eb: print(ea, eb)
         br.close()

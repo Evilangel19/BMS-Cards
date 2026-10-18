@@ -69,6 +69,23 @@ const STUN = [{urls: 'stun:stun.l.google.com:19302'}];
 export function parseTurn(text) {   // one server per line: turn:host:port user credential  (user and credential optional)
   return String(text || '').split(/\r?\n/).map(l => l.trim().split(/\s+/)).filter(a => /^turns?:/i.test(a[0] || '')).map(a => a[1] ? {urls: a[0], username: a[1], credential: a[2] || ''} : {urls: a[0]});
 }
+// Network test: asks two public STUN servers (and the TURN server, if any) for the addresses of this computer and tells what can be expected from the direct connection.
+export async function testNetwork(turn = []) {
+  if (typeof RTCPeerConnection == 'undefined') return {ok: false, text: 'This program cannot make direct connections here (no WebRTC).'};
+  const pc = new RTCPeerConnection({iceServers: [{urls: 'stun:stun.l.google.com:19302'}, {urls: 'stun:stun1.l.google.com:19302'}, ...turn]}), cands = [];
+  pc.onicecandidate = e => { if (e.candidate) cands.push(e.candidate.candidate); };
+  pc.createDataChannel('t'); await pc.setLocalDescription(await pc.createOffer()); await iceDone(pc, 7000); pc.close();
+  const P = cands.map(c => { const f = c.split(' '); const r = /raddr (\S+) rport (\d+)/.exec(c); return {type: f[7], addr: f[4], port: f[5], rport: r ? r[2] : ''}; });
+  const host = P.filter(x => x.type == 'host'), srf = P.filter(x => x.type == 'srflx'), rel = P.filter(x => x.type == 'relay');
+  const byLocal = {}; srf.forEach(x => { (byLocal[x.rport] = byLocal[x.rport] || new Set()).add(x.addr + ':' + x.port); });
+  const symmetric = Object.values(byLocal).some(v => v.size > 1), mdns = host.filter(x => /\.local$/.test(x.addr)).length;
+  const lines = [];
+  lines.push(host.length ? 'Local addresses: ' + host.length + (mdns ? ' (hidden by the system as .local names: pilots on a virtual LAN cannot reach them)' : '') + '.' : 'No local address found.');
+  lines.push(srf.length ? 'Public address seen by the STUN servers: ' + [...new Set(srf.map(x => x.addr))].join(', ') + '.' : 'The STUN servers did not answer: a firewall blocks UDP or there is no internet.');
+  if (srf.length) lines.push(symmetric ? 'Your router changes the public port for every destination (symmetric NAT, typical of CGNAT): a direct connection with another pilot will probably FAIL. A TURN server is needed.' : 'Your router keeps the same public port (a direct connection may work, unless the other pilot has a symmetric NAT).');
+  if (turn.length) lines.push(rel.length ? 'TURN server: working (a relayed connection is possible, it works even behind CGNAT).' : 'TURN server: no answer. Check address, user name and password.');
+  return {ok: true, host: host.length, srflx: srf.length, relay: rel.length, symmetric, mdns, text: lines.join('\n')};
+}
 export function createLink({stun = false, turn = [], onOpen = () => {}, onClose = () => {}, onMessage = () => {}} = {}) {
   const pc = new RTCPeerConnection({iceServers: [...(stun ? STUN : []), ...turn]});
   let dc = null, rx = {};
@@ -149,7 +166,7 @@ export function mergeRoster(mine, theirs) {
 // peer of the swarm, which answers with {action: 'announce', info_hash, peer_id, to_peer_id, offer_id, answer}; the tracker hands the answer back to the offerer.
 // A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
 export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn = [], onPeer = () => {}, onMessage = () => {}, onChange = () => {}, WS = globalThis.WebSocket, interval = 25000, offers = 3, allow = () => true}) {
-  const S = {peers: new Map(), socks: [], stopped: false, trackers: 0, tinfo: {}, diag: {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}}};
+  const S = {peers: new Map(), socks: [], stopped: false, trackers: 0, tinfo: {}, diag: {err: '', sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}}};
   let ih = '', myId = '', timer = null; const pending = new Map();   // offer_id -> {p, t}
   const rnd20 = () => bin(crypto.getRandomValues(new Uint8Array(20)));
   const mkLink = (pid, offerer = false) => {
@@ -173,7 +190,7 @@ export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn 
   };
   const announce = async ws => {
     if (ws.readyState !== 1 || S.stopped) return;
-    const list = (await Promise.all(Array.from({length: offers}, async () => { const id = rnd20(), p = mkLink(null, true); pending.set(id, {p, t: Date.now()}); try { return {offer_id: id, offer: await p.link.rawOffer()}; } catch (e) { pending.delete(id); S.peers.delete(p.challenge); return null; } }))).filter(Boolean);
+    const list = (await Promise.all(Array.from({length: offers}, async () => { const id = rnd20(), p = mkLink(null, true); pending.set(id, {p, t: Date.now()}); try { return {offer_id: id, offer: await p.link.rawOffer()}; } catch (e) { S.diag.err = 'offer: ' + (e && e.message || e); pending.delete(id); S.peers.delete(p.challenge); return null; } }))).filter(Boolean);
     if (ws.readyState === 1 && !S.stopped) { S.diag.sent += list.length; ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, uploaded: 0, downloaded: 0, left: 0, numwant: offers, offers: list})); }
   };
   const handle = async (ws, text) => {
@@ -181,10 +198,10 @@ export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn 
     if (m.info_hash !== ih || S.stopped) return;
     if (m.offer && m.peer_id && m.peer_id !== myId) {
       const p = mkLink(m.peer_id); S.diag.recv++;
-      try { S.diag.ans++; const ans = await p.link.rawAnswer(m.offer); ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, to_peer_id: m.peer_id, offer_id: m.offer_id, answer: ans})); } catch (e) { p.link.close(); S.peers.delete(p.challenge); }
+      try { S.diag.ans++; const ans = await p.link.rawAnswer(m.offer); ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, to_peer_id: m.peer_id, offer_id: m.offer_id, answer: ans})); } catch (e) { S.diag.err = 'answer: ' + (e && e.message || e); p.link.close(); S.peers.delete(p.challenge); }
     } else if (m.answer && pending.has(m.offer_id)) {
       const {p} = pending.get(m.offer_id); pending.delete(m.offer_id); S.diag.ansRecv++; p.pid = m.peer_id;
-      try { await p.link.rawAccept(m.answer); } catch (e) { p.link.close(); S.peers.delete(p.challenge); }
+      try { await p.link.rawAccept(m.answer); } catch (e) { S.diag.err = 'accept: ' + (e && e.message || e); p.link.close(); S.peers.delete(p.challenge); }
     }
   };
   const sweep = () => {   // offers nobody took, and links that never opened
@@ -425,7 +442,7 @@ export function createSquadronPage(deps) {
     const ice = Object.entries(D.ice).map(([k, v]) => k + ' ' + v).join(', ') || '—';
     const sizes = all.flatMap(w => Object.values(w.tinfo).map(i => i.peers)), alone = sizes.length && Math.max(...sizes) <= 1;
     const why = D.ok ? 'Pilots found and connected.' : alone ? 'The trackers see only you in this squadron: the other pilots are not online right now, or joined with a different invite code (copy it whole and join again).' : !D.recv && !D.ansRecv ? 'The trackers see other pilots but none has answered yet: wait a minute; if it persists the trackers may be dropping the offers (try other trackers in Settings).' : !D.open ? 'Pilots were found but the direct connection did not open: a router or a mobile network (CGNAT) is blocking it. Add a TURN server below.' : D.wrong ? 'A connection opened but the squadron code does not match.' : 'Connection opened but the pilot was not verified yet.';
-    return `<div class="sqdiag"><b>Diagnostics</b> <span class="hint" style="min-height:0">${esc(why)}</span><div class="hint" style="min-height:0">offers sent ${D.sent} · offers received ${D.recv} · answers sent ${D.ans} · answers received ${D.ansRecv} · links opened ${D.open} · closed ${D.closed} · verified ${D.ok} · wrong code ${D.wrong}<br>ICE states: ${esc(ice)}</div></div>`; };
+    return `<div class="sqdiag"><b>Diagnostics</b> <span class="hint" style="min-height:0">${esc(why)}</span><div class="hint" style="min-height:0">offers sent ${D.sent} · offers received ${D.recv} · answers sent ${D.ans} · answers received ${D.ansRecv} · links opened ${D.open} · closed ${D.closed} · verified ${D.ok} · wrong code ${D.wrong}<br>ICE states: ${esc(ice)}${all.some(w => w.diag.err) ? '<br>Last error: ' + esc(all.map(w => w.diag.err).find(Boolean)) : ''}</div></div>`; };
   function drawSettings() {
     const inv = $('#sqinvs'); if (inv) { inv.innerHTML = DB.squads.length ? '<div class="hint">Give the code of a squadron to the pilots who must join it.</div>' + DB.squads.map(q => `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g" data-cp>Copy the invite code</button></div></div>`).join('') : '<div class="hint">No squadron yet.</div>';
       inv.querySelectorAll('.sqi').forEach(async el => { const q = DB.squads.find(x => x.id == el.dataset.sid), code = await squadInvite(q); el.querySelector('[data-code]').value = code; el.querySelector('[data-cp]').onclick = () => copy(code); }); }
@@ -472,7 +489,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
 </div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
 <div class="sqc"><h3>Invite codes</h3><div id="sqinvs"></div></div>
-<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button></div><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun" checked> Use a public STUN server</label></div></div>
+<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button><button class="btn g" id="sqnettest">Test my network</button></div><pre class="sqlog" id="sqnet" style="display:none;white-space:pre-wrap"></pre><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun" checked> Use a public STUN server</label></div></div>
 </div><div class="sqcol">
 <div class="sqc"><details id="sqdirect"><summary>Direct connection with two codes (no trackers)</summary>
  <div class="hint" style="margin-top:8px">When the trackers cannot be used: the pilots connect straight to each other by swapping two codes. Whoever creates the session leads it.</div>
@@ -493,6 +510,7 @@ export function createSquadronPage(deps) {
     $('#sqfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await readLbk(f.name, new Uint8Array(await f.arrayBuffer())); };
     $('#sqlbk').onchange = () => readLbk($('#sqlbk').value);
     $('#sqcs').onchange = () => { DB.cs = $('#sqcs').value.trim(); save(); DB.squads.forEach(q => { mkMe(q); touchMember(q, DB.uid, () => {}); }); drawAll(); };
+    $('#sqnettest').onclick = async () => { const b = $('#sqnet'); b.style.display = ''; b.textContent = 'Testing…'; try { b.textContent = (await testNetwork(parseTurn($('#sqturn').value))).text; } catch (e) { b.textContent = 'Test failed: ' + (e && e.message || e); } };
     $('#sqturnsave').onclick = () => { DB.turn = $('#sqturn').value; save(); startAll(); say('TURN server saved.'); };
     $('#sqstun').onchange = () => { DB.stun = $('#sqstun').checked; save(); startAll(); };
     $('#sqpbopen').onclick = () => $('#sqpbfile').click();
