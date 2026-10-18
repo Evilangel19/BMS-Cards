@@ -164,6 +164,7 @@ export function mergeRoster(mine, theirs) {
 // ---------- the swarm: trackers pass the offers, the pilots of the squadron connect ----------
 // Protocol of the WebTorrent trackers (WebSocket, JSON): announce {action, info_hash, peer_id, offers: [{offer_id, offer}], numwant} -> the tracker hands each offer to another
 // peer of the swarm, which answers with {action: 'announce', info_hash, peer_id, to_peer_id, offer_id, answer}; the tracker hands the answer back to the offerer.
+// Every pilot announces as a downloader (left > 0): some trackers never match two seeders (left = 0) with each other.
 // A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
 export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn = [], onPeer = () => {}, onMessage = () => {}, onChange = () => {}, WS = globalThis.WebSocket, interval = 25000, offers = 3, allow = () => true}) {
   const S = {peers: new Map(), socks: [], stopped: false, trackers: 0, tinfo: {}, diag: {err: '', sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}}};
@@ -191,11 +192,11 @@ export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn 
   const announce = async ws => {
     if (ws.readyState !== 1 || S.stopped) return;
     const list = (await Promise.all(Array.from({length: offers}, async () => { const id = rnd20(), p = mkLink(null, true); pending.set(id, {p, t: Date.now()}); try { return {offer_id: id, offer: await p.link.rawOffer()}; } catch (e) { S.diag.err = 'offer: ' + (e && e.message || e); pending.delete(id); S.peers.delete(p.challenge); return null; } }))).filter(Boolean);
-    if (ws.readyState === 1 && !S.stopped) { S.diag.sent += list.length; ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, uploaded: 0, downloaded: 0, left: 0, numwant: offers, offers: list})); }
+    if (ws.readyState === 1 && !S.stopped) { S.diag.sent += list.length; ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, uploaded: 0, downloaded: 0, left: 1, numwant: offers, offers: list})); }
   };
   const handle = async (ws, text) => {
     let m; try { m = JSON.parse(text); } catch (e) { return; }
-    if (m.info_hash !== ih || S.stopped) return;
+    if (m.info_hash !== ih || S.stopped) { if (m.info_hash !== undefined && m.info_hash !== ih) S.diag.badhash = (S.diag.badhash || 0) + 1; return; }
     if (m.offer && m.peer_id && m.peer_id !== myId) {
       const p = mkLink(m.peer_id); S.diag.recv++;
       try { S.diag.ans++; const ans = await p.link.rawAnswer(m.offer); ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, to_peer_id: m.peer_id, offer_id: m.offer_id, answer: ans})); } catch (e) { S.diag.err = 'answer: ' + (e && e.message || e); p.link.close(); S.peers.delete(p.challenge); }
@@ -438,11 +439,11 @@ export function createSquadronPage(deps) {
   // ----- SETTINGS -----
   const trk = (sw, u) => { const i = sw && (sw.tinfo[u] || sw.tinfo[u.replace(/\/$/, '')] || sw.tinfo[u + '/']); return i ? (i.fail ? ' · refused: ' + esc(i.fail) : ' · ' + i.peers + ' in the swarm') : ' · no reply yet'; };
   const diagBox = () => { const all = [...swarms.values()]; if (!all.length) return '';
-    const D = all.reduce((a, w) => { for (const k of ['sent', 'recv', 'ans', 'ansRecv', 'open', 'closed', 'ok', 'wrong']) a[k] += w.diag[k]; for (const [k, v] of Object.entries(w.diag.ice)) a.ice[k] = (a.ice[k] || 0) + v; return a; }, {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}});
+    const D = all.reduce((a, w) => { for (const k of ['sent', 'recv', 'ans', 'ansRecv', 'open', 'closed', 'ok', 'wrong']) a[k] += w.diag[k]; a.badhash += w.diag.badhash || 0; for (const [k, v] of Object.entries(w.diag.ice)) a.ice[k] = (a.ice[k] || 0) + v; return a; }, {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, badhash: 0, ice: {}});
     const ice = Object.entries(D.ice).map(([k, v]) => k + ' ' + v).join(', ') || '—';
     const sizes = all.flatMap(w => Object.values(w.tinfo).map(i => i.peers)), alone = sizes.length && Math.max(...sizes) <= 1;
     const why = D.ok ? 'Pilots found and connected.' : alone ? 'The trackers see only you in this squadron: the other pilots are not online right now, or joined with a different invite code (copy it whole and join again).' : !D.recv && !D.ansRecv ? 'The trackers see other pilots but none has answered yet: wait a minute; if it persists the trackers may be dropping the offers (try other trackers in Settings).' : !D.open ? 'Pilots were found but the direct connection did not open: a router or a mobile network (CGNAT) is blocking it. Add a TURN server below.' : D.wrong ? 'A connection opened but the squadron code does not match.' : 'Connection opened but the pilot was not verified yet.';
-    return `<div class="sqdiag"><b>Diagnostics</b> <span class="hint" style="min-height:0">${esc(why)}</span><div class="hint" style="min-height:0">offers sent ${D.sent} · offers received ${D.recv} · answers sent ${D.ans} · answers received ${D.ansRecv} · links opened ${D.open} · closed ${D.closed} · verified ${D.ok} · wrong code ${D.wrong}<br>ICE states: ${esc(ice)}${all.some(w => w.diag.err) ? '<br>Last error: ' + esc(all.map(w => w.diag.err).find(Boolean)) : ''}</div></div>`; };
+    return `<div class="sqdiag"><b>Diagnostics</b> <span class="hint" style="min-height:0">${esc(why)}</span><div class="hint" style="min-height:0">offers sent ${D.sent} · offers received ${D.recv} · answers sent ${D.ans} · answers received ${D.ansRecv} · links opened ${D.open} · closed ${D.closed} · verified ${D.ok} · wrong code ${D.wrong}<br>ICE states: ${esc(ice)}${D.badhash ? '<br>Messages of another swarm: ' + D.badhash : ''}${all.some(w => w.diag.err) ? '<br>Last error: ' + esc(all.map(w => w.diag.err).find(Boolean)) : ''}</div></div>`; };
   function drawSettings() {
     const inv = $('#sqinvs'); if (inv) { inv.innerHTML = DB.squads.length ? '<div class="hint">Give the code of a squadron to the pilots who must join it.</div>' + DB.squads.map(q => `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g" data-cp>Copy the invite code</button></div></div>`).join('') : '<div class="hint">No squadron yet.</div>';
       inv.querySelectorAll('.sqi').forEach(async el => { const q = DB.squads.find(x => x.id == el.dataset.sid), code = await squadInvite(q); el.querySelector('[data-code]').value = code; el.querySelector('[data-cp]').onclick = () => copy(code); }); }
