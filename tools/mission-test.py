@@ -56,6 +56,8 @@ try:
         if diff: print('   differ:', diff[:8])
         check('the manual change is still marked as manual', 'ab0_4' in after['man'] and after['f']['ab0_4'] == 'ZZ99')
         check('the DTC is back with the edit applied', pg.evaluate("()=>{const l=__app.lines.find(l=>l.s=='STPT'&&l.k=='target_3');return !!l&&l.v.startsWith('123456')&&!!l.dirty}"))
+        pg.evaluate("()=>__app.lines.forEach(l=>{l.dirty=0})"); pg.wait_for_timeout(100)
+        check('an opened mission is not unsaved, and saving the DTC (the edited marks go out) does not make it so', pg.evaluate("()=>__app.unsaved()") is False)
         check('the weather is back (ATIS and TAF come from it)', pg.evaluate("()=>!!!!__app.WX&&__app.WX.X>0"))
         check('the weapons page can use the flight of the mission', pg.evaluate("()=>__app.C.units.some(u=>u.kind=='flight')"))
         # the weather of each hour: the maps of takeoff -> landing are stored and used by time

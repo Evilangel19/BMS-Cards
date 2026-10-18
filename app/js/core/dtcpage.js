@@ -209,7 +209,7 @@ export function createDtcPage(deps) {
       h += '<div class="dgrid wide">';
       if (secOn('NAV OFFSETS')) {
         const oa = lines().filter(l => l.s == 'NAV OFFSETS' && /^OA\d-\d+$/.test(l.k)).map(l => l.k).sort((x, y) => x.split('-')[1] - y.split('-')[1] || x[2] - y[2]);
-        h += '<div class="dstack">' + card('navm', 'Active reference', row('Mode', seg('NAV OFFSETS', 'Modesel', [['vrp', 'VRP'], ['vip', 'VIP']])), {}) + card('navv', 'Offsets', `<table class="dt"><tr><th></th><th>Bearing</th><th>Range</th><th>Elevation</th><th>4th</th></tr>${['VRP', 'VRPPUP', 'VIP', 'VIPPUP'].map(k => tr(k, 4)).join('')}</table>`, {}) + '</div>';
+        h += '<div class="dstack">' + card('navm', 'Active reference', row('Mode', seg('NAV OFFSETS', 'Modesel', [['vrp', 'VRP'], ['vip', 'VIP']])), {}) + card('navv', 'Offsets', `<table class="dt"><tr><th></th><th>Steerpoint</th><th>Bearing</th><th>Range</th><th>Elevation</th></tr>${['VRP', 'VRPPUP', 'VIP', 'VIPPUP'].map(k => tr(k, 4)).join('')}</table>`, {}) + '</div>';
         if (oa.length) h += card('navo', 'Offset aimpoints', `<table class="dt"><tr><th></th><th>1</th><th>2</th><th>3</th></tr>${oa.map(k => tr(k, 3)).join('')}</table>`, {});
       }
       return h + '</div>';

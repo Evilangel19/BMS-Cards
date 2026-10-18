@@ -17,6 +17,13 @@ const b3 = b => { let g = Math.round(b * 10) / 10; if (g === 0) g = 360; return 
 const nm2 = ft => (ft / FT_NM).toFixed(2) + ' nm';
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
 
+// a NAV OFFSETS value: steerpoint first for the four VIP / VRP rows (as the game and WDP write it), the older order (bearing, range, elevation, steerpoint) is recognised by its first value
+export function navRow(text, withStpt = true) {
+  const a = String(text || '').split(',').map(t => t.trim());
+  if (!withStpt) return {brg: a[0], rng: a[1], elev: a[2]};
+  if (a.length >= 4 && !/^\d{1,2}$/.test(a[0])) return {stpt: +a[3] || 0, brg: a[0], rng: a[1], elev: a[2]};
+  return {stpt: +a[0] || 0, brg: a[1], rng: a[2], elev: a[3]};
+}
 export function createWeaponsPage(deps) {
   const {esc} = deps;
   let st = {mode: 'popup', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
@@ -57,13 +64,16 @@ export function createWeaponsPage(deps) {
     st.fz.loaded = true;
   }
   // writes a value in the style already there (1/100 s delays and decimals are kept)
-  function putAgb(key, n) { const old = deps.G('FCC_AGB', key, ''); deps.S('FCC_AGB', key, String(old).includes('.') ? (+n).toFixed(6) : String(Math.round(n))); deps.changed('FCC_AGB', key); }
+  // every write to the DTC goes through wr(): in a dry run (dry is a list) it is only noted, to know whether Apply would change anything
+  let dry = null;
+  const wr = (sec, key, v) => { if (dry) dry.push([sec, key, String(v)]); else { deps.S(sec, key, String(v)); deps.changed(sec, key); } };
+  function putAgb(key, n) { const old = deps.G('FCC_AGB', key, ''); wr('FCC_AGB', key, String(old).includes('.') ? (+n).toFixed(6) : String(Math.round(n))); }
   function fzWrite() { // fuze delays and burst altitude of the profile, then the stick: pulses (stored minus one), spacing, single / pair, release angle (toss)
     const i = cur(), tell = [];
     Object.keys(FZ).forEach(k => { putAgb(fzKey(k), k == 'c2ba' ? st.fz[k] : st.fz[k] * 100); tell.push(fzKey(k)); });
     const pk = x => 'Profile' + st.fz.prof + '_' + x;
     putAgb(pk('Release_Pulse'), i.ripplePulses - 1); putAgb(pk('Release_Spacing'), i.stickSpacing); tell.push(pk('Release_Pulse'), pk('Release_Spacing'));
-    deps.S('FCC_AGB', pk('SGL/PAIR'), i.releaseMode == 'pair' ? '1' : '0'); deps.changed('FCC_AGB', pk('SGL/PAIR')); tell.push(pk('SGL/PAIR'));
+    wr('FCC_AGB', pk('SGL/PAIR'), i.releaseMode == 'pair' ? '1' : '0'); tell.push(pk('SGL/PAIR'));
     if (st.mode == 'toss') { putAgb(pk('Release_Angle'), i.releaseAngle); tell.push(pk('Release_Angle')); }
     return tell;
   }
@@ -240,21 +250,34 @@ export function createWeaponsPage(deps) {
     if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) { await deps.alert('This DTC has no NAV OFFSETS section.'); return; }
     const agb = deps.lines().some(l => l.s == 'FCC_AGB');
     const rows = Object.values(offsets()), tell = [];
-    const old = k => deps.G('NAV OFFSETS', k, '').split(',').map(x => x.trim());
-    // rows of other steerpoints are created when they are missing; VIP / VRP rows carry the steerpoint number as 4th value
-    const busy = rows.filter(x => exists('NAV OFFSETS', x.key) && (x.stpt ? +old(x.key)[3] === x.stpt || !+old(x.key)[3] : true) && old(x.key).slice(0, 2).some(v => +v));
-    const other = rows.filter(x => x.stpt && exists('NAV OFFSETS', x.key) && +old(x.key)[3] && +old(x.key)[3] !== x.stpt);
+    // VIP / VRP rows (and their PUP rows) are "steerpoint, bearing, range, elevation" as the game and WDP write them; OA rows are "bearing, range, elevation" and carry the steerpoint in their name.
+    // (Older versions of this program wrote bearing, range, elevation, steerpoint: still read.)
+    const old = x => navRow(deps.G('NAV OFFSETS', x.key, ''), !x.key.startsWith('OA'));
+    const busy = rows.filter(x => exists('NAV OFFSETS', x.key) && (x.stpt ? old(x).stpt === x.stpt || !old(x).stpt : true) && [old(x).brg, old(x).rng].some(v => +v));
+    const other = rows.filter(x => x.stpt && exists('NAV OFFSETS', x.key) && old(x).stpt && old(x).stpt !== x.stpt);
     const what = [...new Set([...busy, ...other])].map(x => x.key);
     if ((busy.length || other.length || agb) && !await deps.confirm((what.length ? 'Replace the values now in ' + what.join(', ') + (other.length ? ' (' + other.map(x => x.key).join(', ') + ' belong to another steerpoint)' : '') : 'Write the NAV OFFSETS') + (agb ? (what.length ? ', and' : ' and') + ' the fuze, burst altitude and stick settings of bomb profile ' + st.fz.prof : '') + '?')) return;
     rows.forEach(x => {
-      const o = old(x.key), len = x.key.startsWith('OA') ? 3 : 4, v = [String(x.row.brg), String(x.row.rng)];
-      for (let i = 2; i < len; i++) v.push(i == 3 && x.stpt ? String(x.stpt) : i == 2 && x.alt !== undefined ? String(Math.round(x.alt)) : (o[i] === undefined || o[i] === '' ? '0' : o[i]));
-      deps.S('NAV OFFSETS', x.key, v.join(',')); deps.changed('NAV OFFSETS', x.key); tell.push(x.key);
+      const o = old(x), el = x.alt !== undefined ? String(Math.round(x.alt)) : (o.elev === undefined || o.elev === '' ? '0' : o.elev), v = x.stpt ? [String(x.stpt), String(x.row.brg), String(x.row.rng), el] : [String(x.row.brg), String(x.row.rng), el];
+      wr('NAV OFFSETS', x.key, v.join(',')); tell.push(x.key);
     });
-    if (deps.G('NAV OFFSETS', 'Modesel', '') !== st.ref) { deps.S('NAV OFFSETS', 'Modesel', st.ref); deps.changed('NAV OFFSETS', 'Modesel'); tell.push('Modesel'); }
+    if (deps.G('NAV OFFSETS', 'Modesel', '') !== st.ref) { wr('NAV OFFSETS', 'Modesel', st.ref); tell.push('Modesel'); }
     if (agb) tell.push('Profile ' + st.fz.prof + ' (fuze, stick)'), fzWrite();
     st.applied = tell; st.card = cardInfo(); save(); draw(true); if (deps.applied) deps.applied();
   }
+  // does Apply have anything to write? (the rows and settings it would write, compared with the DTC)
+  function pending() {
+    if (!res || res.error || !ctx || !ctx.sp || !deps.lines().some(l => l.s == 'NAV OFFSETS')) return false;
+    const w = []; dry = w;
+    try {
+      Object.values(offsets()).forEach(x => { const o = navRow(deps.G('NAV OFFSETS', x.key, ''), !!x.stpt), el = x.alt !== undefined ? String(Math.round(x.alt)) : (o.elev === undefined || o.elev === '' ? '0' : o.elev); wr('NAV OFFSETS', x.key, (x.stpt ? [String(x.stpt), String(x.row.brg), String(x.row.rng), el] : [String(x.row.brg), String(x.row.rng), el]).join(',')); });
+      wr('NAV OFFSETS', 'Modesel', st.ref);
+      if (deps.lines().some(l => l.s == 'FCC_AGB')) fzWrite();
+    } catch (e) { return true; } finally { dry = null; }
+    const nz = v => String(v).replace(/\s+/g, '');
+    return w.some(([sec, k, v]) => !exists(sec, k) || nz(deps.G(sec, k, '')) !== nz(v));
+  }
+  const btn = () => { if (deps.applyBtn) deps.applyBtn.classList.toggle('nil', !pending()); };
 
   // ---------- page ----------
   const seg = (f, opts, cur) => `<span class="seg">${opts.map(([v, l]) => `<button type="button" class="${String(cur) === String(v) ? 'on' : ''}" data-set="${f}" data-v="${v}">${l}</button>`).join('')}</span>`;
@@ -312,10 +335,10 @@ export function createWeaponsPage(deps) {
     const fzc = fuzeCard(v, r.fuze, turn);
     return `<div class="wpt">${tiles}</div>${matResult(r)}
     <div class="wcard"><div class="wh"><h3>Vertical envelope</h3><span class="hint">altitudes AGL · distances to scale</span></div>${profile(r)}</div>
-    ${fzc}
-    <div class="wcard"><h3>Results</h3><div class="kv">${kv}</div></div>
     <div class="wcard"><h3>NAV OFFSETS</h3><table class="dt"><tr><th></th><th>Bearing</th><th>Range ft</th><th>Elev.</th></tr>${rowsH}</table>
-    <p class="hint wnote">${st.applied ? 'Written: ' + st.applied.join(', ') : 'Apply to the DTC (top right) writes these rows and the weapon settings. Missing rows are created.'}</p></div>`;
+    <p class="hint wnote">${st.applied ? 'Written: ' + st.applied.join(', ') : 'Apply to the DTC (top right) writes these rows and the weapon settings. Missing rows are created.'}</p></div>
+    ${fzc}
+    <div class="wcard"><h3>Results</h3><div class="kv">${kv}</div></div>`;
   }
 
   // the explanations sit in a hover tip beside the card title instead of taking room in the card
@@ -337,7 +360,7 @@ export function createWeaponsPage(deps) {
     document.body.classList.remove('onharm'); if (deps.harm) deps.harm.leave();
     compute(); bombData();
     const root = deps.root, i = cur();
-    if (deps.applyBtn) deps.applyBtn.classList.toggle('nil', !(res && !res.error));
+    btn();
     if (!keepLeft || !root.querySelector('.wpl')) {
       detachMap(); failed = false; pend = null; fit = true;
       const T = ctx.T;
@@ -434,5 +457,5 @@ export function createWeaponsPage(deps) {
     if (!ctx) return; const oldT = ctx.T, sig = c => JSON.stringify(c.T.map(x => [x.v, x.label]));
     try { const was = sig(ctx); ctx = gather(); st.tgt = remap(st.tgt, oldT, ctx.T); st.refPt = remap(st.refPt, oldT, ctx.T); compute(); if (deps.root.closest('.hide')) return; draw(sig(ctx) === was); } catch (e) { /* none */ }
   }
-  return {refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
+  return {refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
 }

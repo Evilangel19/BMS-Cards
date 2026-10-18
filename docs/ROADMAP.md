@@ -47,3 +47,9 @@ Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws 
 - Overwriting the DTC also writes `<campaign name>.ini` (created if missing) and `Autosave.ini` (if present) in the DTC / campaign folders, which BMS loads for a campaign (to confirm in game).
 - Cards are no longer saved in the mission folder; `cardmemory` is the only place (loaded at start, never written before it has been read).
 - Default mission name: package number + callsign (e.g. `1301 Hawkeye 4`).
+
+## Weapons, mission buttons (done, to verify on a real PC)
+- NAV OFFSETS: VIP / VIPPUP / VRP / VRPPUP are now written as `steerpoint,bearing,range,elevation` (the order the game and WDP use, e.g. `VRP=7,89.8,34248,1170`); the old order is still read. OA rows are `bearing,range,elevation` under `OA1-<steerpoint>`. Check in the game that VRP / VIP / OA1 / OA2 show up in the DED.
+- Weapons page: NAV OFFSETS card under the vertical envelope; Apply is dimmed when the DTC already holds what it would write.
+- BVR page: Fill datacard is on only when the datacard differs from the table.
+- Save mission no longer lights up after only saving the DTC of an opened mission.

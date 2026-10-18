@@ -90,10 +90,12 @@ export function createMissilesPage(deps) {
   // the table of the classes with the Fill datacard button (re-drawn alone while a slider moves)
   // Fill datacard is off until something is changed (classes, missile, conditions) after the page opened or after the last fill
   let tlBase = null; const tlSig = () => JSON.stringify([st.tl.cls, st.tl.std, st.bvr.msl]);
+  // Fill datacard is on only while the datacard differs from the table (the page asks the datacard); without that link, it compares with the last fill
+  const tlSame = () => deps.bvrSame ? !!deps.bvrSame(tlRows()) : tlSig() === tlBase;
   function tlTable() {
-    const {R, sel} = tlData(); if (tlBase === null) tlBase = tlSig(); const same = tlSig() === tlBase;
+    const {R, sel} = tlData(); if (tlBase === null) tlBase = tlSig(); const same = tlSame();
     const rows = R.map((r, i) => r ? `<tr data-tlsel="${i}" style="cursor:pointer${i === sel ? ';font-weight:700' : ''}" title="${esc(r.src + ' · ' + r.cat)} — click to draw the scheme"><td>${esc(r.cls)}</td><td>${f1(r.mtr)}</td><td>${f1(r.tr)}</td><td>${f1(r.dor)}</td><td>${f1(r.dr)}</td><td>${f1(r.mar)}</td><td>${f1(r.stern)}</td><td>${f1(r.fr)}</td><td style="text-align:left">${r.msl ? esc(r.msl) + (r.picked ? ' ★' : '') : 'Threat Guide'}</td></tr>` : '').join('');
-    return `<table class="wtl" style="border-spacing:8px 2px;border-collapse:separate"><tr><th>Class</th><th>MTR</th><th>TR</th><th>DOR</th><th>DR</th><th>MAR</th><th>STERN</th><th>FR</th><th style="text-align:left">Missile</th></tr>${rows}</table><div class="wrow"><button type="button" class="btn${same ? ' nil' : ''}" data-tlfill${same ? ' disabled title="Nothing changed since the last fill: change a class, the missile or the conditions first."' : ''}>Fill datacard</button></div>`;
+    return `<table class="wtl" style="border-spacing:8px 2px;border-collapse:separate"><tr><th>Class</th><th>MTR</th><th>TR</th><th>DOR</th><th>DR</th><th>MAR</th><th>STERN</th><th>FR</th><th style="text-align:left">Missile</th></tr>${rows}</table><div class="wrow"><button type="button" class="btn${same ? ' nil' : ''}" data-tlfill${same ? ' disabled title="The datacard already holds this table: change a class, the missile or the conditions first."' : ''}>Fill datacard</button></div>`;
   }
   // the left card: the table, the classes in a column and the standard conditions as sliders
   function tlCard() {
@@ -183,7 +185,7 @@ export function createMissilesPage(deps) {
         const k = e.target.dataset && e.target.dataset.tls; if (!k) return; const b = k.split('.')[1]; st.tl.std[b] = +e.target.value; save();
         const em = root.querySelector(`[data-tle="${b}"]`); if (em) em.textContent = (b == 'alt' ? fmt(e.target.value) : e.target.value) + STDU[b];
         const t = root.querySelector('#mstlt'); if (t) t.innerHTML = tlTable(); const sc = root.querySelector('#msch'); if (sc) sc.innerHTML = schemeCard(); });
-      root.addEventListener('click', e => { const q = e.target.closest && e.target.closest('[data-tlsel]'); if (q) { st.tl.sel = +q.dataset.tlsel; save(); draw(true); return; } if (e.target.closest && e.target.closest('[data-tlfill]') && deps.fillBvr && tlSig() !== tlBase) { deps.fillBvr(tlRows()); tlBase = tlSig(); const t = root.querySelector('#mstlt'); if (t) t.innerHTML = tlTable(); } }); }
+      root.addEventListener('click', e => { const q = e.target.closest && e.target.closest('[data-tlsel]'); if (q) { st.tl.sel = +q.dataset.tlsel; save(); draw(true); return; } if (e.target.closest && e.target.closest('[data-tlfill]') && deps.fillBvr && !tlSame()) { deps.fillBvr(tlRows()); tlBase = tlSig(); const t = root.querySelector('#mstlt'); if (t) t.innerHTML = tlTable(); } }); }
     const upd = () => { save(); draw(true); };
     root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode != b.dataset.mode) { st.mode = b.dataset.mode; save(); draw(false); } });
     root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { cur()[b.dataset.set] = ['lotg', 'eomg'].includes(b.dataset.set) ? +b.dataset.v : b.dataset.v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); save(); draw(b.dataset.set != 'mode'); });
