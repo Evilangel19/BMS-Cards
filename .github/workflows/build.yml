@@ -1,0 +1,33 @@
+name: build
+
+on:
+  push:
+    branches: [dev, main]
+  workflow_dispatch:
+
+jobs:
+  # The tests need copies of Falcon BMS data and of campaign files that are not in the repository (see .gitignore): they run on the computer of the developer only.
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm install
+      - run: npx tauri build --no-bundle
+      - name: Assemble portable folder
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist/BMS-Cards | Out-Null
+          Copy-Item src-tauri/target/release/bms-cards.exe dist/BMS-Cards/BMS-Cards.exe
+          Copy-Item config/config.default.json dist/BMS-Cards/config.json
+          Copy-Item CREDITS.md dist/BMS-Cards/CREDITS.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BMS-Cards-portable
+          path: dist/BMS-Cards

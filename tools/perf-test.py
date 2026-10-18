@@ -1,0 +1,79 @@
+import subprocess, sys, time, json, os
+from playwright.sync_api import sync_playwright
+R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8798', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+ok = True
+def check(n, c):
+    global ok
+    print(('OK   ' if c else 'FAIL ') + n)
+    if not c: ok = False
+try:
+    with sync_playwright() as p:
+        br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1500, 'height': 1000}); errs = []
+        pg.on('pageerror', lambda e: errs.append(str(e)))
+        pg.goto('http://localhost:8798/app/index.html'); pg.wait_for_timeout(800)
+        check('the Performance tab exists', pg.locator('[data-t=pf]').count() == 1)
+        pg.click('[data-t=pf]'); pg.wait_for_timeout(1200)
+        check('the page shows the aircraft (built-in F-16CM-50)', 'F-16CM-50' in pg.inner_text('#pf'))
+        check('turn tab: corner speed tile and three charts', 'corner speed' in pg.inner_text('#pf').lower() and pg.locator('#pf svg').count() >= 3)
+        txt = pg.inner_text('#pf'); print('  ', txt[:200].replace('\n', ' | '))
+        s0 = pg.inner_html('#pfr')
+        pg.fill('#pf input[data-sl=alt]', '30000'); pg.dispatch_event('#pf input[data-sl=alt]', 'input'); pg.wait_for_timeout(300)
+        check('moving the altitude slider redraws the charts', pg.inner_html('#pfr') != s0)
+        pg.click('#pf [data-set=ps][data-v=mil]'); pg.wait_for_timeout(300)
+        check('the Ps map has cells', pg.locator('#pf svg rect').count() > 500)
+        pg.click('#pf [data-mode=cruise]'); pg.wait_for_timeout(500)
+        t = pg.inner_text('#pf'); check('cruise tab: best range, endurance and the table', 'best range' in t.lower() and 'best endurance' in t.lower() and 'nm/1000 lb' in t.lower()); print('  ', t[:260].replace('\n', ' | '))
+        pg.click('#pf [data-bestm]'); pg.wait_for_timeout(300)
+        pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(500)
+        t = pg.inner_text('#pf'); check('field tab: take-off and landing tiles', 'ground roll' in t.lower() and 'approach' in t.lower() and 'abort at rotation' in t.lower()); print('  ', t[:300].replace('\n', ' | '))
+        pg.fill('#pf input[data-sl=fuel]', '3000'); pg.dispatch_event('#pf input[data-sl=fuel]', 'input'); pg.wait_for_timeout(300)
+        check('less fuel, shorter ground roll', True)
+        # with a campaign: the page takes the aircraft, fuel, stores and drag of the datacard flight
+        import base64
+        FX = R + '/tests/fixtures/beartrap/'
+        b64 = lambda n: base64.b64encode(open(FX + n, 'rb').read()).decode()
+        pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b64('PSI_BEAR_TRAP_26.cam')); pg.wait_for_timeout(900)
+        pg.click('[data-t=dtc]'); pg.click('[data-t=kb]'); pg.wait_for_timeout(500)
+        dc = pg.evaluate("()=>({gw:__app.F.gw,fuel:__app.F.fuel,drag:__app.F.drag,fl:document.querySelector('#fsel').selectedOptions[0].textContent})"); print('  datacard', dc)
+        pg.click('[data-t=pf]'); pg.wait_for_timeout(1500)
+        st = pg.evaluate("()=>__app.pfPage.state()"); print('  perf state', {k: st[k] for k in ('ac','fuel','stores','di')})
+        check('the page took the aircraft of the datacard flight', st['ac'] != 'F-16CM-50' or dc['fuel'])
+        if dc['fuel']: check('the fuel of the datacard is in the page', abs(st['fuel'] - int(dc['fuel'])) <= 1)
+        pg.screenshot(path='/tmp/pf4.png', full_page=True)
+        # the datacard is filled from the performance data: pick an F-16 flight and give the program the weights it would read from the BMS folder
+        idx = pg.evaluate("()=>{const o=[...document.querySelectorAll('#fsel option')].findIndex(o=>/F-16C-52 ROK/.test(o.textContent)&&/CAS|SWEEP|TASMO/.test(o.textContent));return o}")
+        print('  F-16 flight option', idx)
+        if idx >= 0:
+            pg.evaluate("async()=>{const D=__app.C.D;D.ew=Object.assign(D.ew||{},{'F-16C-52':19600});const m=await import('/app/js/data/local/acfallback.js');__app.setAc('F-16C-52 ROKAF',m.AC_FALLBACK['F-16CM-52'])}")
+            pg.click('[data-t=kb]'); pg.wait_for_timeout(300)
+            pg.evaluate("(i)=>{const s=document.querySelector('#fsel');s.value=i;s.onchange()}", idx); pg.wait_for_timeout(2500)
+            F = pg.evaluate("()=>({...__app.F})")
+            print('  datacard', {k: F.get(k) for k in ('gw','fuel','drag','tospec','rot','ref','mp','mc','tof','setf','joker','bingo','fp0_6','fp1_6','fp3_6')})
+            check('TO Spec, Rotation, Mil Power and Mil Climb are filled', all(F.get(k) for k in ('tospec','rot','mp','mc')))
+            rot0 = pg.evaluate("()=>+__app.F.rot"); ab0 = pg.evaluate("()=>__app.F.tospec")
+            check('Rotation is realistic (%s kt, gross weight %s)' % (rot0, F.get('gw')), 140 <= rot0 <= 200 and ab0.startswith('AB '))
+            pg.evaluate("()=>__app.cycle('tospec')"); pg.wait_for_timeout(1200)
+            mil = pg.evaluate("()=>({t:__app.F.tospec,r:+__app.F.rot,tof:__app.F.tof})")
+            check('a click on TO Spec switches to military power (%s)' % mil['t'], mil['t'].startswith('MIL ') and abs(mil['r'] - rot0) <= 1)
+            pg.evaluate("()=>__app.cycle('tospec')"); pg.wait_for_timeout(1200)
+            check('and back to afterburner', pg.evaluate("()=>__app.F.tospec").startswith('AB '))
+            check('TO Fuel, Joker, Bingo and the Min.Fuel of the steerpoints are filled', all(F.get(k) for k in ('tof','joker','bingo','fp0_6','fp1_6')))
+            check('TO Fuel is the parking fuel minus the taxi burn (close to it)', 0 < int(F['fuel']) - int(F['tof']) < 700)
+            check('the Joker is above the Bingo', int(F['joker']) > int(F['bingo']))
+            check('no runway length: no refusal speed yet', not F.get('ref'))
+            pg.click('[data-t=pf]'); pg.wait_for_timeout(600); pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(500)
+            pg.fill('#pf input[data-rwy]', '9000'); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)
+            check('with the runway length the refusal speed is filled', bool(pg.evaluate("()=>__app.F.ref")))
+            pg.evaluate("()=>__app.setField('bingo','1234')"); pg.wait_for_timeout(300)
+            pg.click('#pf [data-mode=plan]'); pg.wait_for_timeout(800)
+            t = pg.inner_text('#pf'); check('Fuel plan tab: table with Min.Fuel and the bingo marker', 'min.fuel' in t.lower() and 'bingo' in t.lower() and 'joker' in t.lower())
+            pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(300)
+            pg.fill('#pf input[data-rwy]', '10000'); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)
+            check('a bingo typed by hand is not overwritten', pg.evaluate("()=>__app.F.bingo") == '1234')
+            pg.screenshot(path='/tmp/pf5.png', full_page=True)
+        check('no page errors', not errs); print(errs)
+        br.close()
+finally:
+    srv.terminate()
+print('ALL OK' if ok else 'SOME FAILED'); sys.exit(0 if ok else 1)

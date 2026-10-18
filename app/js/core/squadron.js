@@ -1,0 +1,495 @@
+// Squadron page: the squadron (name, notes, a fixed roster), the pilots that are online (a green circle), the mission sent from one pilot to the others, the logbook of
+// each pilot and the squadron in the campaign (kills, aces, contribution).
+// Pilots find each other through public torrent-style trackers (WebSocket) that only pass the WebRTC offers and answers of the squadron swarm (its name is the hash of a
+// secret that only the squadron knows); everything else goes straight from pilot to pilot (WebRTC data channel). A direct connection by two codes swapped by hand stays
+// available when no tracker can be used.
+
+// ---------- logbook (.lbk) ----------
+// The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
+const LBK_KEY = 'Falcon is your Master';
+const lbkXor = (u8, enc) => {
+  const out = new Uint8Array(u8.length); let prev = 0x58;
+  for (let i = 0; i < u8.length; i++) {
+    const k = LBK_KEY.charCodeAt(i % LBK_KEY.length);
+    if (enc) { out[i] = u8[i] ^ prev ^ k; prev = out[i]; } else { out[i] = u8[i] ^ prev ^ k; prev = u8[i]; }
+  }
+  return out;
+};
+export const decodeLbk = u8 => lbkXor(u8, false);
+export const encodeLbk = u8 => lbkXor(u8, true);
+const cstr = (u8, o, n) => { let s = ''; for (let i = o; i < Math.min(u8.length, o + n); i++) { if (!u8[i]) break; s += String.fromCharCode(u8[i]); } return s.trim(); };
+// fields of a BMS 4.38 logbook (372 bytes): name, callsign, commentary (the motto), squadron and the statistics (the password is not read; the medals are not decoded yet)
+export const RANKS = ['2nd Lt', '1st Lt', 'Capt', 'Maj', 'Lt Col', 'Col', 'Brig Gen', 'Maj Gen', 'Lt Gen', 'Gen'];
+export function parseLbk(u8) {
+  if (!u8 || u8.length < 366) throw new Error('This does not look like a BMS logbook (.lbk).');
+  const d = decodeLbk(u8);
+  const o = {name: cstr(d, 0, 21), callsign: cstr(d, 21, 12), motto: cstr(d, 225, 120), squadron: cstr(d, 346, 20)};
+  const dv = new DataView(d.buffer, d.byteOffset, d.byteLength), u16 = a => dv.getUint16(a, true), i32 = a => dv.getInt32(a, true), f32 = a => Math.round(dv.getFloat32(a, true) * 1000) / 1000;
+  // offsets calibrated on a logbook seen in the game (Evil19: 219.3 h, 41 A-A, 553 A-G, 67 static, 1 naval, 127 missions ...)
+  o.stats = {rank: u16(80), hours: f32(72), ace: f32(76), commissioned: cstr(d, 45, 9), campaigns: [u16(100), u16(102), u16(104)], missions: u16(106), score: i32(108), lastMission: i32(112), consecutive: u16(116),
+    aa: u16(118), ag: u16(128), st: u16(130), nav: u16(132), dog: {won: u16(84), lost: u16(86), onWon: u16(88), onLost: u16(90), kills: u16(92), deaths: u16(94), onKills: u16(96), onDeaths: u16(98)}};
+  if (!o.name && !o.callsign) throw new Error('The logbook could not be decoded (no name and no callsign).');
+  return o;
+}
+
+// the logbooks to offer: Viper.lbk is the default of BMS (anyone who flies with it opens it by hand)
+// PhoneBkn.ini (User\Config): the servers of the multiplayer phone book, [Contact n] with Description, IPaddress, Voicehostip, VoicehostPwd, SetBwDownload, SetBwUpload
+export function parsePhoneBook(text) {
+  const out = []; let c = null;
+  for (const raw of String(text || '').replace(/^\uFEFF/, '').split(/\r?\n/)) {
+    const l = raw.trim(), h = /^\[contact\s*(\d+)\]$/i.exec(l);
+    if (h) { c = {n: +h[1], description: '', ip: '', voice: '', voicePwd: '', down: 0, up: 0}; out.push(c); continue; }
+    const m = c && /^([^=;#]+?)\s*=\s*(.*)$/.exec(l); if (!m) continue;
+    const k = m[1].toLowerCase(), v = m[2].trim();
+    if (k == 'description') c.description = v; else if (k == 'ipaddress') c.ip = v; else if (k == 'voicehostip') c.voice = v; else if (k == 'voicehostpwd') c.voicePwd = v;
+    else if (k == 'setbwdownload') c.down = +v || 0; else if (k == 'setbwupload') c.up = +v || 0;
+  }
+  return out;
+}
+export const lbkChoices = names => names.filter(n => /\.lbk$/i.test(n) && !/^viper\.lbk$/i.test(n));
+
+// ---------- codes (invite / answer) ----------
+const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000)); return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); };
+const unb64 = t => { const s = atob(t.replace(/-/g, '+').replace(/_/g, '/')); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u; };
+const pipe = async (u8, S) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(S)).arrayBuffer());
+export const zip = async text => { const u = new TextEncoder().encode(text); return typeof CompressionStream == 'function' ? 'z' + b64(await pipe(u, new CompressionStream('deflate-raw'))) : 'p' + b64(u); };
+export const unzip = async t => { const u = unb64(t.slice(1)); return new TextDecoder().decode(t[0] == 'z' ? await pipe(u, new DecompressionStream('deflate-raw')) : u); };
+export const pack = async (obj, tag = 'BC1') => tag + '.' + await zip(JSON.stringify(obj));
+export const unpack = async (code, tag = 'BC1') => { const c = String(code || '').replace(/\s+/g, ''); if (!c.startsWith(tag + '.')) throw new Error('This is not a code of this kind.'); return JSON.parse(await unzip(c.slice(tag.length + 1))); };
+const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, '0')).join('');
+const randHex = n => hex(crypto.getRandomValues(new Uint8Array(n)));
+const bin = u8 => { let s = ''; for (const b of u8) s += String.fromCharCode(b); return s; };
+const sha1 = async text => bin(new Uint8Array(await crypto.subtle.digest('SHA-1', new TextEncoder().encode(text))));
+const hmac = async (secret, text) => { const k = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name: 'HMAC', hash: 'SHA-256'}, false, ['sign']); return hex(new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(text)))); };
+
+// ---------- one connection ----------
+const iceDone = (pc, ms = 5000) => new Promise(res => { if (pc.iceGatheringState == 'complete') return res(); const t = setTimeout(res, ms); pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState == 'complete') { clearTimeout(t); res(); } }); });
+const CHUNK = 16000;
+const STUN = [{urls: 'stun:stun.l.google.com:19302'}];
+export function createLink({stun = false, onOpen = () => {}, onClose = () => {}, onMessage = () => {}} = {}) {
+  const pc = new RTCPeerConnection({iceServers: stun ? STUN : []});
+  let dc = null, rx = {};
+  const wire = ch => {
+    dc = ch; ch.bufferedAmountLowThreshold = 1 << 20;
+    ch.onopen = () => onOpen(); ch.onclose = () => onClose();
+    ch.onmessage = async e => {
+      let m; try { m = JSON.parse(e.data); } catch (x) { return; }
+      if (m.k == 'mp') { rx[m.id] = {name: m.name, n: m.n, parts: [], from: m.from}; }
+      else if (m.k == 'mc') { const r = rx[m.id]; if (!r) return; r.parts[m.i] = m.d; if (r.parts.filter(x => x !== undefined).length == r.n) { delete rx[m.id]; try { onMessage({k: 'mission', name: r.name, from: r.from, text: await unzip(r.parts.join(''))}); } catch (x) { onMessage({k: 'error', text: 'The mission received could not be read.'}); } } }
+      else onMessage(m);
+    };
+  };
+  pc.onconnectionstatechange = () => { if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) onClose(); };
+  const send = async o => { if (dc && dc.readyState == 'open') dc.send(JSON.stringify(o)); };
+  // the descriptions (what a tracker passes along) and the same wrapped in a code (what a pilot swaps by hand)
+  const rawOffer = async () => { wire(pc.createDataChannel('bms')); await pc.setLocalDescription(await pc.createOffer()); await iceDone(pc); return {type: 'offer', sdp: pc.localDescription.sdp}; };
+  const rawAnswer = async offer => { pc.ondatachannel = e => wire(e.channel); await pc.setRemoteDescription({type: 'offer', sdp: offer.sdp}); await pc.setLocalDescription(await pc.createAnswer()); await iceDone(pc); return {type: 'answer', sdp: pc.localDescription.sdp}; };
+  const rawAccept = async answer => pc.setRemoteDescription({type: 'answer', sdp: answer.sdp});
+  return {
+    pc, rawOffer, rawAnswer, rawAccept,
+    async invite() { const o = await rawOffer(); return pack({t: 'offer', sdp: o.sdp}); },
+    async accept(code) { const m = await unpack(code); if (m.t != 'answer') throw new Error('This is not an answer code (the pilot must send the code made after pasting the invite).'); await rawAccept(m); },
+    async join(code) { const m = await unpack(code); if (m.t != 'offer') throw new Error('This is not an invite code (it comes from the leader).'); const a = await rawAnswer(m); return pack({t: 'answer', sdp: a.sdp}); },
+    send,
+    async sendMission(text, name, from) {
+      if (!dc || dc.readyState != 'open') throw new Error('Not connected.');
+      const z = await zip(text), n = Math.ceil(z.length / CHUNK), id = Math.random().toString(36).slice(2);
+      dc.send(JSON.stringify({k: 'mp', id, name, n, from}));
+      for (let i = 0; i < n; i++) { if (dc.bufferedAmount > (1 << 20)) await new Promise(r => { dc.onbufferedamountlow = () => { dc.onbufferedamountlow = null; r(); }; }); dc.send(JSON.stringify({k: 'mc', id, i, d: z.slice(i * CHUNK, (i + 1) * CHUNK)})); }
+    },
+    get open() { return !!dc && dc.readyState == 'open'; },
+    close() { try { pc.close(); } catch (e) { /* closed */ } }
+  };
+}
+
+// ---------- a session: the leader with one link per pilot, or a pilot with one link to the leader ----------
+export function createSession({me, stun = () => false, onChange = () => {}, onMission = () => {}} = {}) {
+  const S = {role: null, links: [], err: ''};
+  const hello = l => l.link.send({k: 'hello', ...me()});
+  const add = () => {
+    const l = {id: Math.random().toString(36).slice(2, 7), peer: null, state: 'waiting', link: null};
+    l.link = createLink({stun: stun(),
+      onOpen: () => { l.state = 'connected'; hello(l); onChange(); },
+      onClose: () => { l.state = 'closed'; onChange(); },
+      onMessage: m => { if (m.k == 'hello') { l.peer = {name: m.name, callsign: m.callsign, squadron: m.squadron}; onChange(); } else if (m.k == 'mission') onMission({...m, who: l.peer}); else if (m.k == 'error') { S.err = m.text; onChange(); } }});
+    S.links.push(l); return l;
+  };
+  Object.assign(S, {
+    async lead() { S.end(); S.role = 'lead'; onChange(); },
+    async invite() { const l = add(); try { return {id: l.id, code: await l.link.invite()}; } catch (e) { S.drop(l.id); throw e; } },
+    async accept(id, code) { const l = S.links.find(x => x.id == id); if (!l) throw new Error('Unknown invite.'); await l.link.accept(code); l.state = 'connecting'; onChange(); },
+    async join(code) { S.end(); S.role = 'join'; const l = add(); try { const a = await l.link.join(code); l.state = 'connecting'; onChange(); return a; } catch (e) { S.end(); throw e; } },
+    async sendMission(text, name) { const who = me(); let n = 0; for (const l of S.links) if (l.link.open) { await l.link.sendMission(text, name, who); n++; } return n; },
+    drop(id) { const i = S.links.findIndex(x => x.id == id); if (i >= 0) { S.links[i].link.close(); S.links.splice(i, 1); onChange(); } },
+    end() { S.links.forEach(l => l.link.close()); S.links = []; S.role = null; S.err = ''; onChange(); }
+  });
+  Object.defineProperty(S, 'connected', {get: () => S.links.filter(l => l.link.open).length});
+  return S;
+}
+
+
+// ---------- the squadron: invite, roster ----------
+export const TRACKERS = ['wss://tracker.openwebtorrent.com', 'wss://tracker.webtorrent.dev', 'wss://tracker.btorrent.xyz'];
+export const parseTrackers = text => [...new Set(String(text || '').split(/[\s,;]+/).filter(u => /^wss?:\/\/[^\s/]+/i.test(u)))];
+export const newSquadron = (name, owner = '') => ({id: randHex(4), name: String(name || '').trim() || 'My squadron', motto: '', notes: '', secret: randHex(16), owner, leader: '', ts: Date.now(), roster: {}});
+export const squadInvite = sq => pack({n: sq.name, m: sq.motto, s: sq.secret, o: sq.owner || ''}, 'BCS');
+export async function readSquadInvite(code) { const o = await unpack(code, 'BCS'); if (!o.s || typeof o.s != 'string' || o.s.length < 16) throw new Error('This invite is not valid.'); return {name: o.n || 'Squadron', motto: o.m || '', notes: '', secret: o.s, owner: o.o || '', ts: 0}; }
+// a roster entry: uid (a pilot, stable), name, callsign, role, notes, ts (when it was last edited: the newer one wins when two pilots exchange their rosters)
+export function mergeRoster(mine, theirs) {
+  const out = {...mine}; let changed = false;
+  for (const [uid, m] of Object.entries(theirs || {})) { const o = out[uid]; if (!o || (m.ts || 0) > (o.ts || 0)) { out[uid] = {...(o || {}), ...m}; changed = true; } }
+  return {roster: out, changed};
+}
+
+// ---------- the swarm: trackers pass the offers, the pilots of the squadron connect ----------
+// Protocol of the WebTorrent trackers (WebSocket, JSON): announce {action, info_hash, peer_id, offers: [{offer_id, offer}], numwant} -> the tracker hands each offer to another
+// peer of the swarm, which answers with {action: 'announce', info_hash, peer_id, to_peer_id, offer_id, answer}; the tracker hands the answer back to the offerer.
+// A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
+export function createSwarm({secret, me, trackers = TRACKERS, stun = true, onPeer = () => {}, onMessage = () => {}, onChange = () => {}, WS = globalThis.WebSocket, interval = 25000, offers = 3, allow = () => true}) {
+  const S = {peers: new Map(), socks: [], stopped: false, trackers: 0};
+  let ih = '', myId = '', timer = null; const pending = new Map();   // offer_id -> {p, t}
+  const rnd20 = () => bin(crypto.getRandomValues(new Uint8Array(20)));
+  const mkLink = (pid, offerer = false) => {
+    let p;
+    const link = createLink({stun,
+      onOpen: () => { link.send({k: 'chal', n: p.challenge}); },
+      onClose: () => { if (S.peers.get(p.challenge) === p) { S.peers.delete(p.challenge); if (p.verified) { p.verified = false; if (!S.online().some(q => q.uid == p.uid)) onPeer(p, 'left'); } onChange(); } },
+      onMessage: async m => {
+        if (m.k == 'chal') { link.send({k: 'hello', proof: await hmac(secret, 'proof:' + m.n), ...me()}); }
+        else if (m.k == 'hello') {
+          if (m.proof !== await hmac(secret, 'proof:' + p.challenge)) { link.close(); return; }   // not of the squadron
+          // two pilots offer to each other at the same time: both links open, and both must keep the SAME one (the one offered by the pilot with the smaller id)
+          if (!allow(m.uid)) { link.close(); return; }   // removed from the squadron by its leader
+          const dup = [...S.peers.values()].find(q => q !== p && q.verified && q.uid == m.uid && q.link.open);
+          if (dup) { const keepNew = p.offerer ? me().uid < m.uid : m.uid < me().uid; if (!keepNew) { link.close(); return; } dup.verified = false; dup.link.close(); }
+          p.verified = true; p.uid = m.uid; p.profile = {name: m.name, callsign: m.callsign, squadron: m.squadron, uid: m.uid, st: m.st || null, av: m.av || ''}; onPeer(p, 'joined'); onChange();
+        } else if (p.verified) onMessage(p, m);
+      }});
+    p = {pid, offerer, link, uid: null, profile: null, verified: false, challenge: randHex(16), t: Date.now()}; S.peers.set(p.challenge, p); return p;
+  };
+  const announce = async ws => {
+    if (ws.readyState !== 1 || S.stopped) return;
+    const list = (await Promise.all(Array.from({length: offers}, async () => { const id = rnd20(), p = mkLink(null, true); pending.set(id, {p, t: Date.now()}); try { return {offer_id: id, offer: await p.link.rawOffer()}; } catch (e) { pending.delete(id); S.peers.delete(p.challenge); return null; } }))).filter(Boolean);
+    if (ws.readyState === 1 && !S.stopped) ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, uploaded: 0, downloaded: 0, left: 0, numwant: offers, offers: list}));
+  };
+  const handle = async (ws, text) => {
+    let m; try { m = JSON.parse(text); } catch (e) { return; }
+    if (m.info_hash !== ih || S.stopped) return;
+    if (m.offer && m.peer_id && m.peer_id !== myId) {
+      const p = mkLink(m.peer_id);
+      try { const ans = await p.link.rawAnswer(m.offer); ws.send(JSON.stringify({action: 'announce', info_hash: ih, peer_id: myId, to_peer_id: m.peer_id, offer_id: m.offer_id, answer: ans})); } catch (e) { p.link.close(); S.peers.delete(p.challenge); }
+    } else if (m.answer && pending.has(m.offer_id)) {
+      const {p} = pending.get(m.offer_id); pending.delete(m.offer_id); p.pid = m.peer_id;
+      try { await p.link.rawAccept(m.answer); } catch (e) { p.link.close(); S.peers.delete(p.challenge); }
+    }
+  };
+  const sweep = () => {   // offers nobody took, and links that never opened
+    const now = Date.now();
+    for (const [id, o] of pending) if (now - o.t > 60000) { pending.delete(id); if (!o.p.link.open) { o.p.link.close(); S.peers.delete(o.p.challenge); } }
+    for (const [k, p] of S.peers) if (!p.link.open && now - p.t > 90000) { p.link.close(); S.peers.delete(k); }
+  };
+  Object.assign(S, {
+    async start() {
+      ih = await sha1('bmscards-squadron:' + secret); myId = rnd20();
+      S.socks = trackers.map(url => { let ws; try { ws = new WS(url); } catch (e) { return null; }
+        const count = () => { S.trackers = S.socks.filter(w => w && w.readyState === 1).length; onChange(); };
+        ws.onopen = () => { count(); announce(ws); };
+        ws.onmessage = e => handle(ws, typeof e.data == 'string' ? e.data : '');
+        ws.onclose = count; ws.onerror = () => {}; return ws; }).filter(Boolean);
+      timer = setInterval(() => { sweep(); S.socks.forEach(announce); }, interval);
+    },
+    stop() { S.stopped = true; clearInterval(timer); S.socks.forEach(w => { try { w.close(); } catch (e) { /* closed */ } }); [...S.peers.values()].forEach(p => p.link.close()); S.peers.clear(); pending.clear(); },
+    online() { return [...S.peers.values()].filter(p => p.verified && p.link.open); },
+    byUid(uid) { return S.online().find(p => p.uid == uid) || null; },
+    broadcast(o) { S.online().forEach(p => p.link.send(o)); }
+  });
+  return S;
+}
+
+// ---------- the squadron in a campaign ----------
+// Every squadron of the campaign has 48 pilot records (kills in the air, on the ground, at sea, on land, missions flown). The names of the pilots are not in the file.
+const sum = (a, k) => a.reduce((s, p) => s + (p[k] || 0), 0);
+export function campaignSquadrons(C) {
+  if (!C || !C.units) return [];
+  const sqs = C.units.filter(u => u.kind == 'sqd' && u.pil).map(u => {
+    const pil = u.pil.map((p, slot) => ({...p, slot})).filter(p => p.ms || p.aa || p.ag || p.as || p.an);
+    const k = {aa: sum(pil, 'aa'), ag: sum(pil, 'ag'), as: sum(pil, 'as'), an: sum(pil, 'an')};
+    return {id: u.id.n, u, sqs: u.sqs || null, pilotsN: u.pil.length, name: (C.squads && C.squads[u.id.n]) || ('Squadron ' + u.id.n), owner: u.owner, mine: u.id.n == C.playerSq, pilots: pil.sort((a, b) => (b.aa + b.ag + b.as + b.an) - (a.aa + a.ag + a.as + a.an)), kills: k, total: k.aa + k.ag + k.as + k.an, missions: sum(pil, 'ms'), aces: pil.filter(p => p.aa >= 5)};
+  });
+  const team = {}; sqs.forEach(s => { team[s.owner] = (team[s.owner] || 0) + s.total; });
+  sqs.forEach(s => { s.share = team[s.owner] ? s.total / team[s.owner] : 0; });
+  return sqs.sort((a, b) => (b.mine - a.mine) || (b.total - a.total));
+}
+
+// ---------- images: the logo of a squadron and the avatar of a pilot ----------
+// A picture picked by the user (JPG, PNG or WebP) is shrunk to a small data URL (so it can travel with the roster); one received from another pilot is accepted only if it looks like one.
+export const okImg = u => typeof u == 'string' && u.length < 90000 && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(u);
+export async function shrinkImage(file, max = 128) {
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type || '') && !/\.(jpe?g|png|webp)$/i.test(file.name || '')) throw new Error('Pick a JPG, PNG or WebP image.');
+  const bmp = await createImageBitmap(file), k = Math.min(1, max / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k)); c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  let u = c.toDataURL('image/webp', 0.85); if (!u.startsWith('data:image/webp')) u = c.toDataURL('image/png');
+  if (!okImg(u)) throw new Error('The image is too big or could not be read.');
+  return u;
+}
+
+// ---------- the page ----------
+// Three sections: Members (the roster of a squadron, who is online, the mission, the squadron in the campaign), Me (my logbook, my squadrons and their moderation)
+// and Settings (invite codes, trackers, phone book, direct connection).
+// deps: {root, esc, store: {load() -> Promise<obj|null>, save(obj)}, lbk: {list(), read(name)} | null, phonebook: {read()} | null, campaign() -> C | null, squadInfo(unit) -> {owner, base},
+//        trackers() -> text, openSettings(), buildMission() -> {name, ...}, loadMission(text), toast(msg), swarm: {trackers, WS, interval} (tests)}
+export function createSquadronPage(deps) {
+  const {root, esc} = deps; const $ = s => root.querySelector(s);
+  let pilot = null, lbkErr = '', recv = [], log = [], saveT = null, PB = null, pbErr = '', cSel = null;
+  let DB = {uid: randHex(8), squads: [], cur: '', cs: '', stun: true, lbk: '', av: '', tab: 'members'};
+  const swarms = new Map();   // squadron id -> swarm
+  const say = t => { log.unshift(new Date().toTimeString().slice(0, 8) + '  ' + t); log = log.slice(0, 40); const l = $('#sqlog'); if (l) l.textContent = log.join('\n'); };
+  const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { deps.store && deps.store.save(DB); } catch (e) { /* not saved */ } }, 300); };
+  const cur = () => DB.squads.find(q => q.id == DB.cur) || DB.squads[0] || null;
+  const owns = q => !!q && q.owner == DB.uid;
+  const live = q => Object.values(q.roster).filter(r => !r.removed);
+  const mini = () => { const t = pilot && pilot.stats; return t ? {rk: t.rank, h: t.hours, m: t.missions, aa: t.aa, ag: t.ag, st: t.st, nav: t.nav, ace: t.ace} : null; };
+  const me = () => ({uid: DB.uid, name: pilot ? pilot.name : '', callsign: DB.cs || (pilot ? pilot.callsign : ''), squadron: pilot ? pilot.squadron : '', st: mini(), av: DB.av || ''});
+  const label = p => p ? ((p.callsign || p.name || 'Pilot') + (p.name && p.callsign ? ' · ' + p.name : '')) : '…';
+  const statLine = t => t ? (RANKS[t.rk] || '') + ' · ' + Math.round(t.h) + ' h · ' + t.aa + ' A-A · ' + t.ag + ' A-G' : '';
+  const copy = async t => { try { await navigator.clipboard.writeText(t); deps.toast && deps.toast('Copied.'); } catch (e) { deps.toast && deps.toast('Could not copy: select the text and copy it by hand.'); } };
+  const ago = t => { if (!t) return 'never'; const s = (Date.now() - t) / 1000; return s < 90 ? 'a moment ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
+  const onRecv = (m, who, sqName) => { recv.unshift({text: m.text, name: m.name, from: label(m.from || who), squad: sqName || ''}); say('Mission "' + m.name + '" received from ' + label(m.from || who) + '.'); drawMis(); deps.toast && deps.toast('Mission received: ' + m.name); };
+  const mkMe = q => { const m = me(), r = q.roster[DB.uid]; if (!r) q.roster[DB.uid] = {uid: DB.uid, name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av, role: '', notes: '', ts: Date.now(), lastSeen: Date.now()}; else Object.assign(r, {name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av}); };
+
+  const avDraw = () => { const b = $('#sqavbox'); if (b) b.innerHTML = okImg(DB.av) ? `<img class="sqav big" src="${DB.av}" alt="">` : '<span class="sqav big"></span>'; };
+  const avDone = () => { avDraw(); DB.squads.forEach(q => { mkMe(q); q.roster[DB.uid].ts = Date.now(); const w = swarms.get(q.id); if (w) w.broadcast({k: 'hello2', ...me()}); }); save(); drawAll(); };
+
+  // ----- direct session (two codes swapped by hand) -----
+  const S = createSession({me, stun: () => !!DB.stun, onChange: () => drawSession(), onMission: m => onRecv(m, m.who, '')});
+
+  // ----- the swarms: one per squadron -----
+  const meta = q => ({name: q.name, motto: q.motto, notes: q.notes, owner: q.owner, leader: q.leader, logo: q.logo || '', ts: q.ts});
+  const rosterOut = q => Object.fromEntries(Object.entries(q.roster).map(([k, r]) => { const {av, ...x} = r; return [k, x]; }));   // the avatars travel only in the hello of each pilot
+  function swarmStart(q) {
+    swarmStop(q.id); if (typeof RTCPeerConnection == 'undefined') return;
+    const sw = createSwarm({secret: q.secret, me, stun: !!DB.stun, trackers: trackerList(), WS: (deps.swarm && deps.swarm.WS) || globalThis.WebSocket, interval: (deps.swarm && deps.swarm.interval) || 25000,
+      allow: uid => !(q.roster[uid] && q.roster[uid].removed),
+      onPeer: (p, ev) => {
+        if (ev == 'joined') {
+          const r = q.roster[p.uid], pr = p.profile, now = Date.now();
+          if (!r) { q.roster[p.uid] = {uid: p.uid, name: pr.name, callsign: pr.callsign, pilotSquadron: pr.squadron, stats: pr.st, av: okImg(pr.av) ? pr.av : '', role: '', notes: '', ts: now, lastSeen: now}; say(label(pr) + ' joined ' + q.name + '.'); }
+          else { Object.assign(r, {name: pr.name || r.name, callsign: pr.callsign || r.callsign, pilotSquadron: pr.squadron || r.pilotSquadron, stats: pr.st || r.stats, av: okImg(pr.av) ? pr.av : r.av, lastSeen: now}); say(label(pr) + ' is online (' + q.name + ').'); }
+          p.link.send({k: 'sync', squad: meta(q), roster: rosterOut(q)}); save();
+        } else if (q.roster[p.uid]) { q.roster[p.uid].lastSeen = Date.now(); say(label(p.profile) + ' went offline (' + q.name + ').'); save(); }
+        drawAll();
+      },
+      onMessage: (p, m) => {
+        if (m.k == 'sync') {
+          let ch = false;
+          if (m.squad && (m.squad.ts || 0) > (q.ts || 0) && (!q.owner || m.squad.owner == q.owner)) { Object.assign(q, {name: m.squad.name, motto: m.squad.motto, notes: m.squad.notes, owner: m.squad.owner || q.owner, leader: m.squad.leader || '', logo: okImg(m.squad.logo) ? m.squad.logo : '', ts: m.squad.ts}); ch = true; }
+          if (!q.owner && m.squad && m.squad.owner) { q.owner = m.squad.owner; ch = true; }
+          const r = mergeRoster(q.roster, m.roster); if (r.changed) { q.roster = r.roster; ch = true; }
+          if (q.roster[DB.uid] && q.roster[DB.uid].removed) { leave(q, 'You were removed from ' + q.name + ' by its leader.'); return; }
+          if (ch) { save(); drawAll(); }
+        } else if (m.k == 'hello2') { const r = q.roster[p.uid]; if (r && okImg(m.av) || r && !m.av) { r.av = m.av || ''; drawAll(); }
+        } else if (m.k == 'mission') onRecv(m, p.profile, q.name);
+        else if (m.k == 'error') { S.err = m.text; drawSession(); }
+      },
+      onChange: () => drawAll()});
+    swarms.set(q.id, sw); sw.start(); say('Looking for the pilots of ' + q.name + '…');
+  }
+  function swarmStop(id) { const w = swarms.get(id); if (w) { w.stop(); swarms.delete(id); } }
+  const trackerList = () => { if (deps.swarm && deps.swarm.trackers) return deps.swarm.trackers; const l = parseTrackers(deps.trackers && deps.trackers()); return l.length ? l : TRACKERS; };
+  const startAll = () => DB.squads.forEach(swarmStart);
+  const pushSync = q => { const w = swarms.get(q.id); if (w) w.broadcast({k: 'sync', squad: meta(q), roster: rosterOut(q)}); };
+  const touchSquad = q => { q.ts = Date.now(); save(); pushSync(q); };
+  const touchMember = (q, uid, f) => { const r = q.roster[uid]; if (!r) return; f(r); r.ts = Date.now(); save(); pushSync(q); };
+  function leave(q, why) { swarmStop(q.id); DB.squads = DB.squads.filter(x => x !== q); if (DB.cur == q.id) DB.cur = DB.squads[0] ? DB.squads[0].id : ''; save(); say(why || 'You left ' + q.name + '.'); if (why && deps.toast) deps.toast(why); drawAll(); }
+  const kick = (q, uid) => { const r = q.roster[uid]; if (!r) return; const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); r.removed = true; r.ts = Date.now(); if (q.leader == uid) { q.leader = ''; q.ts = Date.now(); } save(); pushSync(q); say(label(r) + ' was removed from ' + q.name + '.'); if (p) setTimeout(() => p.link.close(), 800); drawAll(); };
+
+  // ----- my pilot (logbook) -----
+  const statsBox = t => { if (!t) return ''; const c = (n, l) => `<div><b>${n}</b><span>${l}</span></div>`, d = t.dog;
+    return `<div class="sqcards">${c(RANKS[t.rank] || '—', 'rank')}${c(t.hours.toFixed(1), 'flight hours')}${c(t.missions, 'missions')}${c(t.aa, 'A-A kills')}${c(t.ag, 'A-G kills')}${c(t.st, 'static')}${c(t.nav, 'naval')}${c(t.ace.toFixed(3), 'ace factor')}${c(t.score, 'total score')}${c(t.campaigns.join('/'), 'campaigns')}${c(d.won + '/' + d.lost, 'dogfights won/lost')}${c(d.kills + '/' + d.deaths, 'dogfight kills/deaths')}</div><div class="hint">${t.commissioned ? 'Commissioned ' + esc(t.commissioned) + '. ' : ''}Medals are not read yet.</div>`; };
+  const pilotBox = () => { const b = $('#sqpilot'); if (b) b.innerHTML = pilot
+    ? `<div class="sqkv"><span>Name</span><b>${esc(pilot.name || '—')}</b><span>Callsign</span><b>${esc(pilot.callsign || '—')}</b><span>Squadron</span><b>${esc(pilot.squadron || '—')}</b>${pilot.motto ? `<span>Motto</span><b>${esc(pilot.motto)}</b>` : ''}</div>${statsBox(pilot.stats)}`
+    : `<div class="hint">${esc(lbkErr || 'No logbook read yet.')}</div>`; };
+  async function readLbk(name, u8) {
+    try { pilot = parseLbk(u8 || await deps.lbk.read(name)); DB.lbk = name; if (!DB.cs) DB.cs = pilot.callsign; lbkErr = ''; if ($('#sqcs')) $('#sqcs').value = DB.cs; DB.squads.forEach(q => { mkMe(q); q.roster[DB.uid].ts = Date.now(); pushSync(q); }); save(); }
+    catch (e) { pilot = null; lbkErr = String(e && e.message || e); }
+    pilotBox(); drawAll();
+  }
+  async function loadLbks() {
+    let names = []; try { names = deps.lbk ? lbkChoices(await deps.lbk.list()) : []; } catch (e) { names = []; }
+    const sel = $('#sqlbk'); sel.innerHTML = names.map(n => `<option>${esc(n)}</option>`).join(''); sel.style.display = names.length > 1 ? '' : 'none';
+    if (!names.length) { lbkErr = deps.lbk ? 'No personal logbook (.lbk, other than the default Viper.lbk) in the Config folder of Falcon BMS: use "Open logbook…".' : 'Use "Open logbook…" and pick your .lbk file (User\\Config of Falcon BMS).'; pilotBox(); return; }
+    const pick = names.includes(DB.lbk) ? DB.lbk : names[0]; sel.value = pick; await readLbk(pick);
+  }
+
+  // ----- MEMBERS: the roster -----
+  function drawMembers() {
+    const box = $('#sqhead'); if (!box) return; const q = cur();
+    if (!q) { box.innerHTML = '<div class="hint">You are not in a squadron yet: create one or join with an invite code in the Me section.</div>'; return; }
+    const sw = swarms.get(q.id), on = sw ? sw.online() : [], onUid = new Set(on.map(p => p.uid)), m = me(), own = owns(q);
+    const list = live(q).filter(r => r.uid != DB.uid).sort((a, b) => (onUid.has(b.uid) - onUid.has(a.uid)) || String(a.callsign || a.name).localeCompare(String(b.callsign || b.name)));
+    const canSend = !q.leader || q.leader == DB.uid;
+    const row = (r, isMe) => { const o = isMe || onUid.has(r.uid), ed = own || isMe;
+      return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">LEADER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
+      <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
+      <td class="sqa"><button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`; };
+    box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
+      <div class="sqhead">${okImg(q.logo) ? `<img class="sqlogo" src="${q.logo}" alt="">` : '<span class="sqlogo"></span>'}<input id="sqname" value="${esc(q.name)}" maxlength="40" class="sqbig"${own ? '' : ' disabled'}><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"${own ? '' : ' disabled'}></div>
+      <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
+      <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
+      <table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${row(q.roster[DB.uid] || {uid: DB.uid}, true)}${list.map(r => row(r, false)).join('')}</tbody></table>
+      ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}
+      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') : ''}</div>`;
+    $('#sqsel').onchange = e => { DB.cur = e.target.value; save(); cSel = null; drawAll(); };
+    const st = (id, f) => { $(id).onchange = e => { q[f] = e.target.value; touchSquad(q); }; };
+    st('#sqname', 'name'); st('#sqmotto', 'motto'); st('#sqnotes', 'notes');
+    box.querySelectorAll('tr[data-uid]').forEach(tr => { const uid = tr.dataset.uid;
+      tr.querySelectorAll('input[data-f]').forEach(i => i.onchange = () => { mkMe(q); touchMember(q, uid, r => { r[i.dataset.f] = i.value; }); });
+      const ld = tr.querySelector('[data-lead]'); if (ld) ld.onclick = () => { q.leader = q.leader == uid ? '' : uid; touchSquad(q); drawAll(); };
+      const sd = tr.querySelector('[data-send]'); if (sd) sd.onclick = async () => { try { const mm = await deps.buildMission(), p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); if (!p) throw new Error('This pilot is not online any more.'); await p.link.sendMission(JSON.stringify(mm), mm.name, me()); say('Mission "' + mm.name + '" sent to ' + label(p.profile) + '.'); deps.toast && deps.toast('Mission sent to ' + label(p.profile) + '.'); } catch (e) { S.err = String(e && e.message || e); say('Error: ' + S.err); drawSession(); } };
+    });
+    $('#sqcopyinv').onclick = async () => copy(await squadInvite(q));
+    if (own) { $('#sqlogo').onclick = () => $('#sqlogofile').click();
+      const lx = $('#sqlogox'); if (lx) lx.onclick = () => { q.logo = ''; touchSquad(q); drawAll(); }; }
+  }
+  function drawMis() {
+    const box = $('#sqrecv'); if (!box) return; const q = cur(), sw = q && swarms.get(q.id), n = sw ? sw.online().length : 0;
+    const lead = q && q.leader && q.roster[q.leader];
+    $('#sqleadinfo').textContent = !q ? 'Create or join a squadron to send missions.' : !q.leader ? 'No mission leader chosen: the squadron leader can pick one with the ☆ button in the roster.' : q.leader == DB.uid ? 'You are the mission leader: you can send the mission.' : 'Mission leader: ' + label(lead) + '. Only the leader sends the mission.';
+    const bc = $('#sqbcast'); bc.disabled = !n || !(q && (!q.leader || q.leader == DB.uid)); bc.textContent = 'Send my mission to everybody online' + (n ? ' (' + n + ')' : '');
+    box.innerHTML = recv.length ? recv.map((r, i) => `<div class="sqm"><span><b>${esc(r.name)}</b> from ${esc(r.from)}${r.squad ? ' · ' + esc(r.squad) : ''}</span><button class="btn g gn" data-load="${i}">Load</button></div>`).join('') : '<div class="hint">No mission received.</div>';
+    box.querySelectorAll('[data-load]').forEach(b => b.onclick = async () => { const r = recv[+b.dataset.load]; try { await deps.loadMission(r.text); say('Mission "' + r.name + '" loaded.'); } catch (e) { S.err = String(e && e.message || e); } drawSession(); });
+  }
+
+  // ----- MEMBERS: the squadron of the player in the campaign -----
+  function drawCamp() {
+    const box = $('#sqcamp'); if (!box) return;
+    const C = deps.campaign && deps.campaign(), list = campaignSquadrons(C), s = list.find(x => x.mine);
+    if (!s) { box.innerHTML = '<div class="hint">Open a campaign (Map or Datacard tab) to see the squadron of the player: base, losses, missions and kills.</div>'; return; }
+    const info = (deps.squadInfo && deps.squadInfo(s.u)) || {}, k = s.kills, q = s.sqs, n = v => v === undefined || v === null ? '—' : esc(v);
+    box.innerHTML = `<div style="overflow-x:auto"><table class="dt sqdt"><tr><th rowspan="2">Squadron</th><th colspan="4" class="gc">Squadron</th><th colspan="3" class="gc">Losses and missions</th><th colspan="5" class="gf">Kills</th></tr>
+      <tr><th class="gc">Owner</th><th class="gc">Base</th><th class="gc">Pilots</th><th class="gc">Aces</th><th class="gc">Missions</th><th class="gc">Aircraft lost</th><th class="gc">Pilots lost</th><th class="gf">A-A</th><th class="gf">A-G</th><th class="gf">Naval</th><th class="gf">Stationary</th><th class="gf">Share</th></tr>
+      <tr><td><b>${esc(s.name)}</b></td><td>${n(info.owner)}</td><td>${n(info.base)}</td><td>${s.pilotsN}</td><td>${s.aces.length}</td><td>${n(q && q.missions)}</td><td>${n(q && q.acLoss)}</td><td>${n(q && q.pilotLoss)}</td><td>${k.aa}</td><td>${k.ag}</td><td>${k.as}</td><td>${k.an}</td><td>${Math.round(s.share * 1000) / 10}%</td></tr></table></div>
+      <div class="hint">Kills are the sum of the pilot records of the squadron (aces: 5 or more air kills). Aircraft, experience, morale, supply and mission rating are not read yet.</div>`;
+  }
+
+  // ----- ME: my squadrons -----
+  function drawMine() {
+    const box = $('#sqmine'); if (!box) return;
+    const rows = DB.squads.map(q => { const sw = swarms.get(q.id), on = sw ? sw.online().length : 0, own = owns(q), mem = live(q).filter(r => r.uid != DB.uid);
+      return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g" data-open>Open</button><button class="btn g rd" data-leave>Leave</button></div>
+      ${own && mem.length ? `<div class="sqmod"><div class="hint">Moderation: remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</div>` : ''}</div>`; }).join('');
+    box.innerHTML = (rows || '<div class="hint">You are not in any squadron.</div>') + `<h4>Create a squadron</h4><div class="bar"><input id="sqnew" placeholder="Name of the new squadron" maxlength="40" style="width:240px"><button class="btn g gn" id="sqcreate">Create</button></div>
+      <h4>Join a squadron</h4><textarea id="sqinvin" rows="2" placeholder="Squadron invite code (BCS.…)"></textarea><div class="bar"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
+    box.querySelectorAll('.sqsqr').forEach(el => { const q = DB.squads.find(x => x.id == el.dataset.sid);
+      el.querySelector('[data-open]').onclick = () => { DB.cur = q.id; save(); cSel = null; drawAll(); $('#sqhead').scrollIntoView({block: 'start'}); };
+      el.querySelector('[data-leave]').onclick = () => { if (confirm('Leave the squadron "' + q.name + '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' + (owns(q) ? '\n\nYou created it: it stays active for the other pilots, but nobody can moderate it any more.' : ''))) leave(q); };
+      el.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => { const uid = b.closest('[data-uid]').dataset.uid; if (confirm('Remove ' + label(q.roster[uid]) + ' from "' + q.name + '"?')) kick(q, uid); });
+    });
+    $('#sqcreate').onclick = () => { const q = newSquadron($('#sqnew').value, DB.uid); mkMe(q); DB.squads.push(q); DB.cur = q.id; save(); swarmStart(q); drawAll(); say('Squadron "' + q.name + '" created.'); };
+    $('#sqjoinsq').onclick = async () => { try { const q = await readSquadInvite($('#sqinvin').value); if (DB.squads.some(x => x.secret == q.secret)) throw new Error('You are already in this squadron.'); q.id = randHex(4); q.roster = {}; mkMe(q); DB.squads.push(q); DB.cur = q.id; save(); swarmStart(q); drawAll(); say('You joined ' + q.name + '.'); } catch (e) { $('#sqsqerr').textContent = String(e && e.message || e); } };
+  }
+
+  // ----- SETTINGS -----
+  function drawSettings() {
+    const inv = $('#sqinvs'); if (inv) { inv.innerHTML = DB.squads.length ? '<div class="hint">Give the code of a squadron to the pilots who must join it.</div>' + DB.squads.map(q => `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g" data-cp>Copy the invite code</button></div></div>`).join('') : '<div class="hint">No squadron yet.</div>';
+      inv.querySelectorAll('.sqi').forEach(async el => { const q = DB.squads.find(x => x.id == el.dataset.sid), code = await squadInvite(q); el.querySelector('[data-code]').value = code; el.querySelector('[data-cp]').onclick = () => copy(code); }); }
+    const cn = $('#sqconn'); if (cn) { const l = trackerList(), sw = [...swarms.values()][0], up = new Set(sw ? sw.socks.filter(w => w.readyState == 1).map(w => w.url.replace(/\/$/, '')) : []);
+      cn.innerHTML = `<div class="hint">Trackers in use (the pilots of a squadron find each other through them):</div>${l.map(u => `<div class="sqm"><i class="sqd ${up.has(u.replace(/\/$/, '')) ? 'connected' : 'closed off'}"></i><span>${esc(u)}</span><em>${up.has(u.replace(/\/$/, '')) ? 'connected' : sw ? 'not connected' : '—'}</em></div>`).join('')}<div class="bar" style="margin-top:8px"><button class="btn g" id="sqtrk">Change the trackers in Settings…</button></div>`;
+      $('#sqtrk').onclick = () => deps.openSettings && deps.openSettings(); }
+  }
+  const bw = v => v ? (v >= 1e6 ? (v / 1e6).toFixed(1) + ' Mb/s' : Math.round(v / 1000) + ' kb/s') : '—';
+  function drawPb() {
+    const box = $('#sqpb'); if (!box) return;
+    if (!PB) { box.innerHTML = `<div class="hint">${esc(pbErr || 'No phone book read yet.')}</div>`; return; }
+    box.innerHTML = PB.length ? `<table class="sqt"><thead><tr><th>Server</th><th>Address</th><th>Voice</th><th>Download</th><th>Upload</th><th></th></tr></thead><tbody>${PB.map((c, i) => `<tr><td><b>${esc(c.description || 'Contact ' + c.n)}</b></td><td>${esc(c.ip)}</td><td>${esc(c.voice)}${c.voicePwd ? ' 🔒' : ''}</td><td class="sqs">${bw(c.down)}</td><td class="sqs">${bw(c.up)}</td><td class="sqa"><button class="btn g" data-pb="${i}" title="Copy the address of the server">Copy address</button></td></tr>`).join('')}</tbody></table>` : '<div class="hint">The phone book has no contacts.</div>';
+    box.querySelectorAll('[data-pb]').forEach(b => b.onclick = () => copy(PB[+b.dataset.pb].ip));
+  }
+  async function loadPb() { try { const t = deps.phonebook ? await deps.phonebook.read() : null; if (t != null) { PB = parsePhoneBook(t); pbErr = ''; } else pbErr = deps.phonebook ? 'PhoneBkn.ini not found in the Config folder of Falcon BMS: use "Open phone book…".' : 'Use "Open phone book…" and pick PhoneBkn.ini (User\\Config of Falcon BMS).'; } catch (e) { pbErr = 'PhoneBkn.ini could not be read: use "Open phone book…".'; } drawPb(); }
+  function drawSession() {
+    if (!$('#sqrole')) return;
+    const members = S.links.map(l => `<div class="sqm"><i class="sqd ${l.state}"></i><span>${esc(label(l.peer) === '…' ? 'Pilot ' + l.id : label(l.peer))}</span><em>${l.state}</em><button class="btn g" data-drop="${l.id}">Remove</button></div>`).join('');
+    $('#sqrole').textContent = S.role == 'lead' ? 'You lead this session' : S.role == 'join' ? 'You joined a session' : 'No session';
+    $('#sqlead').style.display = S.role ? 'none' : ''; $('#sqjoinb').style.display = S.role ? 'none' : ''; $('#sqend').style.display = S.role ? '' : 'none';
+    $('#sqleadp').style.display = S.role == 'lead' ? '' : 'none'; $('#sqjoinp').style.display = S.role == 'join' ? '' : 'none';
+    $('#sqmem').innerHTML = members || '<div class="hint">Nobody connected yet.</div>';
+    $('#sqmem').querySelectorAll('[data-drop]').forEach(b => b.onclick = () => S.drop(b.dataset.drop));
+    $('#sqerr').textContent = S.err || '';
+    $('#sqsend').style.display = S.role == 'lead' ? '' : 'none'; $('#sqsend').disabled = !S.connected;
+  }
+
+  const TABS = [['members', 'Members'], ['me', 'Me'], ['settings', 'Settings']];
+  const showTab = () => { const t = TABS.some(x => x[0] == DB.tab) ? DB.tab : 'members'; root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t)); root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t)); };
+  const drawAll = () => { showTab(); avDraw(); drawMembers(); drawMis(); drawCamp(); drawMine(); drawSettings(); drawSession(); drawPb(); };
+  const guard = fn => async () => { try { S.err = ''; await fn(); } catch (e) { S.err = String(e && e.message || e); say('Error: ' + S.err); } drawSession(); };
+  const sentMsg = (m, n) => { say('Mission "' + m.name + '" sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); deps.toast && deps.toast('Mission sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); };
+  function build() {
+    root.innerHTML = `<div class="sqw">
+<div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+<div class="sqpane" data-pane="members">
+<div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
+<div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button></div><h4>Received</h4><div id="sqrecv"></div></div>
+<div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
+</div><div class="sqpane" data-pane="me">
+<div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
+</div><div class="sqpane" data-pane="settings">
+<div class="sqc"><h3>Invite codes</h3><div id="sqinvs"></div></div>
+<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun" checked> Use a public STUN server</label></div></div>
+<div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
+<div class="sqc"><details id="sqdirect"><summary>Direct connection with two codes (no trackers)</summary>
+ <div class="hint" style="margin-top:8px">When the trackers cannot be used: the pilots connect straight to each other by swapping two codes. Whoever creates the session leads it.</div>
+ <h3 style="margin-top:10px">Session <small id="sqrole"></small></h3>
+ <div class="bar"><button class="btn g gn" id="sqlead">Lead a session</button><button class="btn g" id="sqjoinb">Join a session</button><button class="btn g rd" id="sqend" style="display:none">Leave</button></div>
+ <div id="sqleadp" style="display:none"><div class="bar" style="margin:10px 0 6px"><button class="btn g" id="sqadd">＋ Add a pilot</button></div><div id="sqinv"></div></div>
+ <div id="sqjoinp" style="display:none"><div class="hint" style="margin:10px 0 4px">1. Paste the invite code of the leader. 2. Send the answer code back to the leader.</div>
+  <textarea id="sqincode" rows="3" placeholder="Invite code from the leader"></textarea><div class="bar"><button class="btn g gn" id="sqmk">Create the answer code</button></div>
+  <textarea id="sqanscode" rows="3" readonly placeholder="Your answer code appears here" style="display:none"></textarea><div class="bar"><button class="btn g" id="sqcpa" style="display:none">Copy the answer code</button></div></div>
+ <h4>Connected</h4><div id="sqmem"></div><div class="bar"><button class="btn g gn" id="sqsend" style="display:none">Send my mission to the session</button></div><div class="err" id="sqerr"></div></details></div>
+<div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div>`;
+    $('#sqtabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { DB.tab = b.dataset.tab; save(); showTab(); } };
+    $('#sqlogofile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; const q = cur(); if (!f || !owns(q)) return; try { q.logo = await shrinkImage(f, 128); touchSquad(q); drawAll(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
+    $('#sqavb').onclick = () => $('#sqavfile').click();
+    $('#sqavfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { DB.av = await shrinkImage(f, 96); avDone(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
+    $('#sqavx').onclick = () => { DB.av = ''; avDone(); };
+    $('#sqopen').onclick = () => $('#sqfile').click();
+    $('#sqfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await readLbk(f.name, new Uint8Array(await f.arrayBuffer())); };
+    $('#sqlbk').onchange = () => readLbk($('#sqlbk').value);
+    $('#sqcs').onchange = () => { DB.cs = $('#sqcs').value.trim(); save(); DB.squads.forEach(q => { mkMe(q); touchMember(q, DB.uid, () => {}); }); drawAll(); };
+    $('#sqstun').onchange = () => { DB.stun = $('#sqstun').checked; save(); startAll(); };
+    $('#sqpbopen').onclick = () => $('#sqpbfile').click();
+    $('#sqpbfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) { PB = parsePhoneBook(await f.text()); pbErr = ''; drawPb(); } };
+    $('#sqbcast').onclick = guard(async () => { const q = cur(), sw = q && swarms.get(q.id); if (!sw) return; const m = await deps.buildMission(), t = JSON.stringify(m); let n = 0; for (const p of sw.online()) { await p.link.sendMission(t, m.name, me()); n++; } sentMsg(m, n); });
+    // direct connection
+    $('#sqlead').onclick = guard(async () => { await S.lead(); say('Direct session started: you are the leader.'); });
+    $('#sqjoinb').onclick = () => { S.end(); S.role = 'join'; drawSession(); };
+    $('#sqend').onclick = () => { S.end(); say('You left the direct session.'); };
+    $('#sqadd').onclick = guard(async () => {
+      const r = await S.invite(); const d = document.createElement('div'); d.className = 'sqi';
+      d.innerHTML = `<div class="hint">Invite for a new pilot: send him this code, then paste the answer he sends back.</div><textarea rows="3" readonly>${esc(r.code)}</textarea><div class="bar"><button class="btn g" data-c>Copy the invite</button></div><textarea rows="3" data-a placeholder="Answer code of the pilot"></textarea><div class="bar"><button class="btn g gn" data-k>Connect</button><button class="btn g" data-x>Cancel</button></div><div class="err" data-e></div>`;
+      d.querySelector('[data-c]').onclick = () => copy(r.code);
+      d.querySelector('[data-x]').onclick = () => { S.drop(r.id); d.remove(); };
+      d.querySelector('[data-k]').onclick = async () => { try { await S.accept(r.id, d.querySelector('[data-a]').value); say('Answer accepted: connecting…'); d.remove(); } catch (e) { d.querySelector('[data-e]').textContent = String(e && e.message || e); } };
+      $('#sqinv').append(d); say('Invite created.');
+    });
+    $('#sqmk').onclick = guard(async () => { const a = await S.join($('#sqincode').value); $('#sqanscode').value = a; $('#sqanscode').style.display = ''; $('#sqcpa').style.display = ''; S.role = 'join'; say('Answer created: send it to the leader.'); });
+    $('#sqcpa').onclick = () => copy($('#sqanscode').value);
+    $('#sqsend').onclick = guard(async () => { const m = await deps.buildMission(); sentMsg(m, await S.sendMission(JSON.stringify(m), m.name)); });
+    $('#sqlog').textContent = log.join('\n');
+    drawAll();
+  }
+  build();
+  // the saved squadrons, rosters and settings; the swarms start as soon as they are known
+  async function init() {
+    try {
+      const o = deps.store && await deps.store.load();
+      if (o && o.uid) {
+        DB = {...DB, ...o, squads: o.squads || []};
+        if (o.squad && !DB.squads.length) { DB.squads = [{...o.squad, id: randHex(4), owner: DB.uid, leader: '', roster: o.roster || {}}]; DB.cur = DB.squads[0].id; }   // the first version kept one squadron
+        delete DB.squad; delete DB.roster; DB.squads.forEach(q => { q.roster = q.roster || {}; });
+      }
+    } catch (e) { /* first start */ }
+    if ($('#sqstun')) $('#sqstun').checked = DB.stun !== false; if ($('#sqcs')) $('#sqcs').value = DB.cs || ''; save(); drawAll(); startAll();
+  }
+  const ready = init();
+  return {S, ready, received: () => recv, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => [...swarms.keys()].forEach(swarmStop), restart: startAll};
+}

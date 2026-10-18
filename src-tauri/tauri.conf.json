@@ -1,0 +1,34 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "BMS Cards",
+  "version": "0.1.0",
+  "identifier": "com.ciga10.bmscards",
+  "build": {
+    "frontendDist": "../app"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "BMS Cards",
+        "width": 1500,
+        "height": 950,
+        "minWidth": 1100,
+        "minHeight": 700
+      }
+    ],
+    "security": {
+      "csp": null
+    },
+    "withGlobalTauri": true
+  },
+  "bundle": {
+    "active": false,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ]
+  }
+}

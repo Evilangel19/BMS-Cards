@@ -1,0 +1,13 @@
+import { parseBombDat, parseBombList, cbuFootprint } from '../app/js/bmsdata/bombdata.js';
+import { FALLBACK } from '../app/js/data/local/bombfallback.js';
+let n = 0, bad = 0;
+const ck = (name, ok) => { n++; if (!ok) { bad++; console.log('FAIL', name); } };
+const dat = '# Version 1.1\n0 # Data Format Version\n\ncbuStrengthModel 1\ncbuLethalHeight 600\ncbuIneffectiveHeight 7000\ncbuDamageDiameterBurstAltMultiplier 1.2\ncbuMaxDamageDiameter 2100\n\npsFeatureImpact $cluster_bomb\n';
+const d = parseBombDat(dat);
+ck('CBU-87 file parsed (same as the built-in numbers)', JSON.stringify(d) === JSON.stringify(FALLBACK['CBU-87']));
+ck('a file without cluster data gives null', parseBombDat('0 # v\npsBombImpact _gp500lb\n') === null);
+ck('list: count line skipped', JSON.stringify(parseBombList('3\nDefault\nCBU\nCBU-87\n')) === '["Default","CBU","CBU-87"]');
+const a = cbuFootprint(d, 1000), b = cbuFootprint(d, 3000), c = cbuFootprint(d, 500), z = cbuFootprint(d, 8000);
+ck('diameter = altitude x multiplier, capped', a.diameter === 1200 && b.diameter === 2100 && c.diameter === 600);
+ck('effect: full below the lethal height, none above the ineffective one, linear between', c.effect === 1 && z.effect === 0 && Math.abs(a.effect - 6000 / 6400) < 1e-9);
+console.log(bad ? 'bombdata: ' + bad + ' FAILED' : 'bombdata: ' + n + '/' + n + ' checks passed'); process.exit(bad ? 1 : 0);

@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "paths": {
+    "bmsInstall": "",
+    "campaigns": "",
+    "dtc": "",
+    "exportDir": "",
+    "kneeboardDir": "",
+    "missions": ""
+  },
+  "export": {
+    "fileName": "kneeboard"
+  },
+  "ui": {
+    "animations": true,
+    "showMfd34": false
+  },
+  "mission": {
+    "radiusNm": 60
+  },
+  "squadron": {
+    "trackers": ""
+  },
+  "theater": "",
+  "language": "en"
+}
