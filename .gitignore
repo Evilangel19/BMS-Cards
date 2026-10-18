@@ -11,3 +11,4 @@ app/mdc/blank.jpg
 legacy/
 tests/fixtures/
 tests/golden/
+__pycache__/
