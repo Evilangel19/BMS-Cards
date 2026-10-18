@@ -48,6 +48,7 @@ try:
         check('after Apply the button is dimmed (nothing left to write)', 'nil' in (pg.get_attribute('#wpapply', 'class') or '').split())
         check('Apply writes TGT-to-PUP (VRPPUP) with a bearing and a range', ln('VRPPUP') and float(ln('VRPPUP').split(',')[2]) > 1000)
         check('Apply writes the OA rows of the steerpoint', ln('OA1-4') and float(ln('OA1-4').split(',')[1]) > 100 and ln('OA2-4') and float(ln('OA2-4').split(',')[1]) > 100)
+        check('pop-up: OA1 is the top of the climb (far from the target, high), not the aim-off point', float(ln('OA1-4').split(',')[1]) > 8000 and float(ln('OA1-4').split(',')[2]) > 1500)
         pg.click('[data-set=ref][data-v="vip"]'); pg.wait_for_timeout(150)
         pg.click('#wpapply'); pg.wait_for_timeout(400)
         check('VIP reference writes VIPPUP', ln('VIPPUP') and float(ln('VIPPUP').split(',')[2]) > 1000)

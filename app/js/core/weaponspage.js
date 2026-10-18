@@ -224,7 +224,8 @@ export function createWeaponsPage(deps) {
     const noVrp = r.kind == 'toss' && !r.hasTurn && !vip;
     if (!noVrp) o.ref = vip ? {key: 'VIP', label: 'VIP → TGT', row: offsetRow(ctx.vipPos, ctx.tPos), stpt: n, alt: elv('tgt')} : {key: 'VRP', label: 'TGT → VRP', row: offsetRow(ctx.tPos, r.vrp), stpt: n, alt: elv('vrp')};
     if (sp) {
-      o.oa1 = {key: 'OA1-' + n, label: 'OA1 · STPT ' + n, row: offsetRow(sp, r.oa), alt: elv('oa')}; if (r.oa2) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n, row: offsetRow(sp, r.oa2), alt: r.oa2Alt};
+      // pop-up: OA1 is the top of the climb (the pull-down point) at the pull-down altitude (MSL); the other modes keep it on the aim-off point
+      o.oa1 = st.mode == 'popup' && r.pdp ? {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + ' · pull-down', row: offsetRow(sp, r.pdp), alt: r.v.pulldownAltitude + (elv('tgt') || 0)} : {key: 'OA1-' + n, label: 'OA1 · STPT ' + n, row: offsetRow(sp, r.oa), alt: elv('oa')}; if (r.oa2) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n, row: offsetRow(sp, r.oa2), alt: r.oa2Alt};
     }
     return o;
   }
