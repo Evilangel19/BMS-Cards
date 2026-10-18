@@ -301,11 +301,25 @@ export function createSquadronPage(deps) {
   }
   function swarmStop(id) { const w = swarms.get(id); if (w) { w.stop(); swarms.delete(id); } }
   const trackerList = () => { if (deps.swarm && deps.swarm.trackers) return deps.swarm.trackers; const l = parseTrackers(deps.trackers && deps.trackers()); return l.length ? l : TRACKERS; };
-  const startAll = () => DB.squads.forEach(swarmStart);
+  const startAll = () => { DB.squads.forEach(swarmStart); DB.gone = (DB.gone || []).filter(g => Date.now() - g.ts < 120 * 864e5); [...gsw.values()].forEach(w => w.stop()); gsw.clear(); DB.gone.forEach(goneStart); };
   const pushSync = q => { const w = swarms.get(q.id); if (w) w.broadcast({k: 'sync', squad: meta(q), roster: rosterOut(q)}); };
   const touchSquad = q => { q.ts = Date.now(); save(); pushSync(q); };
   const touchMember = (q, uid, f) => { const r = q.roster[uid]; if (!r) return; f(r); r.ts = Date.now(); save(); pushSync(q); };
   function leave(q, why) { swarmStop(q.id); DB.squads = DB.squads.filter(x => x !== q); if (DB.cur == q.id) DB.cur = DB.squads[0] ? DB.squads[0].id : ''; save(); say(why || 'You left ' + q.name + '.'); if (why && deps.toast) deps.toast(why); drawAll(); }
+  // deleting a squadron: the pilots online are told at once; the others when they next come online (the program keeps a small watch on the old squadron for 120 days)
+  const gsw = new Map();
+  function goneStart(g) {
+    if (gsw.has(g.secret) || typeof RTCPeerConnection == 'undefined') return;
+    const sw = createSwarm({secret: g.secret, me, stun: !!DB.stun, turn: parseTurn(DB.turn), trackers: trackerList(), WS: (deps.swarm && deps.swarm.WS) || globalThis.WebSocket, interval: (deps.swarm && deps.swarm.interval) || 25000,
+      onPeer: (p, ev) => { if (ev == 'joined') p.link.send({k: 'gone'}); }});
+    gsw.set(g.secret, sw); sw.start();
+  }
+  function deleteSquad(q) {
+    if (!confirm('Delete the squadron "' + q.name + '"?\n\nIt is removed for all its pilots: those online now at once, the others the next time they come online. No file on your computer is deleted.')) return;
+    const w = swarms.get(q.id); if (w) w.broadcast({k: 'gone'});
+    const g = {secret: q.secret, name: q.name, ts: Date.now()}; DB.gone = [...(DB.gone || []), g]; save();
+    setTimeout(() => { leave(q, 'Squadron "' + q.name + '" deleted.'); goneStart(g); }, 400);
+  }
   const kick = (q, uid) => { const r = q.roster[uid]; if (!r) return; const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); r.removed = true; r.ts = Date.now(); if (q.leader == uid) { q.leader = ''; q.ts = Date.now(); } save(); pushSync(q); say(label(r) + ' was removed from ' + q.name + '.'); if (p) setTimeout(() => p.link.close(), 800); drawAll(); };
 
   // ----- my pilot (logbook) -----
@@ -341,15 +355,22 @@ export function createSquadronPage(deps) {
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
       <td class="sqa"><button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`; };
     box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
-      <div class="sqhead">${okImg(q.logo) ? `<img class="sqlogo" src="${q.logo}" alt="">` : '<span class="sqlogo"></span>'}<input id="sqname" value="${esc(q.name)}" maxlength="40" class="sqbig"${own ? '' : ' disabled'}><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"${own ? '' : ' disabled'}></div>
+      <div class="sqhead">${okImg(q.logo) ? `<img class="sqlogo" src="${q.logo}" alt="">` : '<span class="sqlogo"></span>'}<div class="sqtt"><div class="sqtitle" id="sqtitle">${esc(q.name)}</div><div class="hint" id="sqmottot" style="min-height:0">${esc(q.motto || (own ? 'No motto yet' : ''))}</div></div></div>
+      ${own ? `<div class="sqedit" id="sqedit" hidden><input id="sqname" value="${esc(q.name)}" maxlength="40" placeholder="Name of the squadron"><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"><button class="btn g gn" id="sqeditok">Save</button><button class="btn g" id="sqeditx">Cancel</button></div>` : ''}
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
       <table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${row(q.roster[DB.uid] || {uid: DB.uid}, true)}${list.map(r => row(r, false)).join('')}</tbody></table>
       ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}
-      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') : ''}</div>`;
+      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
     $('#sqsel').onchange = e => { DB.cur = e.target.value; save(); cSel = null; drawAll(); };
     const st = (id, f) => { $(id).onchange = e => { q[f] = e.target.value; touchSquad(q); }; };
-    st('#sqname', 'name'); st('#sqmotto', 'motto'); st('#sqnotes', 'notes');
+    st('#sqnotes', 'notes');
+    if (own) {
+      $('#sqrename').onclick = () => { $('#sqedit').hidden = false; $('#sqname').focus(); $('#sqname').select(); };
+      $('#sqeditx').onclick = () => { $('#sqedit').hidden = true; };
+      $('#sqeditok').onclick = () => { const n = $('#sqname').value.trim(); if (!n) { $('#sqname').focus(); return; } q.name = n.slice(0, 40); q.motto = $('#sqmotto').value.trim().slice(0, 80); touchSquad(q); drawAll(); };
+      $('#sqdelete').onclick = () => deleteSquad(q);
+    }
     box.querySelectorAll('tr[data-uid]').forEach(tr => { const uid = tr.dataset.uid;
       tr.querySelectorAll('input[data-f]').forEach(i => i.onchange = () => { mkMe(q); touchMember(q, uid, r => { r[i.dataset.f] = i.value; }); });
       const ld = tr.querySelector('[data-lead]'); if (ld) ld.onclick = () => { q.leader = q.leader == uid ? '' : uid; touchSquad(q); drawAll(); };
@@ -390,7 +411,7 @@ export function createSquadronPage(deps) {
       <h4>Join a squadron</h4><textarea id="sqinvin" rows="2" placeholder="Squadron invite code (BCS.…)"></textarea><div class="bar"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
     box.querySelectorAll('.sqsqr').forEach(el => { const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => { DB.cur = q.id; save(); cSel = null; drawAll(); $('#sqhead').scrollIntoView({block: 'start'}); };
-      el.querySelector('[data-leave]').onclick = () => { if (owns(q)) { if (confirm('Delete the squadron "' + q.name + '"?\n\nIt disappears from this program and from the pilots who are online now; the others will find it still listed and can leave it themselves. No file on your computer is deleted.')) { const w = swarms.get(q.id); if (w) w.broadcast({k: 'gone'}); setTimeout(() => leave(q, 'Squadron "' + q.name + '" deleted.'), 400); } return; } if (confirm('Leave the squadron "' + q.name + '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' + (owns(q) ? '\n\nYou created it: it stays active for the other pilots, but nobody can moderate it any more.' : ''))) leave(q); };
+      el.querySelector('[data-leave]').onclick = () => { if (owns(q)) { deleteSquad(q); return; } if (confirm('Leave the squadron "' + q.name + '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' + (owns(q) ? '' : ''))) leave(q); };
       el.querySelectorAll('[data-kick]').forEach(b => b.onclick = () => { const uid = b.closest('[data-uid]').dataset.uid; if (confirm('Remove ' + label(q.roster[uid]) + ' from "' + q.name + '"?')) kick(q, uid); });
     });
     $('#sqcreate').onclick = () => { const q = newSquadron($('#sqnew').value, DB.uid); mkMe(q); DB.squads.push(q); DB.cur = q.id; save(); swarmStart(q); drawAll(); say('Squadron "' + q.name + '" created.'); };
@@ -446,10 +467,11 @@ export function createSquadronPage(deps) {
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
-</div><div class="sqpane" data-pane="settings">
+<div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
+</div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
 <div class="sqc"><h3>Invite codes</h3><div id="sqinvs"></div></div>
 <div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button></div><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun" checked> Use a public STUN server</label></div></div>
-<div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
+</div><div class="sqcol">
 <div class="sqc"><details id="sqdirect"><summary>Direct connection with two codes (no trackers)</summary>
  <div class="hint" style="margin-top:8px">When the trackers cannot be used: the pilots connect straight to each other by swapping two codes. Whoever creates the session leads it.</div>
  <h3 style="margin-top:10px">Session <small id="sqrole"></small></h3>
@@ -459,7 +481,7 @@ export function createSquadronPage(deps) {
   <textarea id="sqincode" rows="3" placeholder="Invite code from the leader"></textarea><div class="bar"><button class="btn g gn" id="sqmk">Create the answer code</button></div>
   <textarea id="sqanscode" rows="3" readonly placeholder="Your answer code appears here" style="display:none"></textarea><div class="bar"><button class="btn g" id="sqcpa" style="display:none">Copy the answer code</button></div></div>
  <h4>Connected</h4><div id="sqmem"></div><div class="bar"><button class="btn g gn" id="sqsend" style="display:none">Send my mission to the session</button></div><div class="err" id="sqerr"></div></details></div>
-<div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div>`;
+<div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div></div></div>`;
     $('#sqtabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { DB.tab = b.dataset.tab; save(); showTab(); } };
     $('#sqlogofile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; const q = cur(); if (!f || !owns(q)) return; try { q.logo = await shrinkImage(f, 128); touchSquad(q); drawAll(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
     $('#sqavb').onclick = () => $('#sqavfile').click();
@@ -506,5 +528,5 @@ export function createSquadronPage(deps) {
     if ($('#sqturn')) $('#sqturn').value = DB.turn || ''; if ($('#sqstun')) $('#sqstun').checked = DB.stun !== false; if ($('#sqcs')) $('#sqcs').value = DB.cs || ''; save(); drawAll(); startAll();
   }
   const ready = init();
-  return {S, ready, received: () => recv, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => [...swarms.keys()].forEach(swarmStop), restart: startAll};
+  return {S, ready, received: () => recv, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => { [...swarms.keys()].forEach(swarmStop); [...gsw.values()].forEach(w => w.stop()); gsw.clear(); }, restart: startAll};
 }

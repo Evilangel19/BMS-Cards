@@ -53,7 +53,7 @@ try:
         A, ea = start(br); B, eb = start(br)
         check('the Squadron tab exists in the three sections Members, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 10)
         check('the tabs Members, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
-        for n, vis in (('me', '#sqpilot'), ('settings', '#sqpb'), ('members', '#sqhead')):
+        for n, vis in (('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
             check('tab %s shows its section only' % n, A.is_visible(vis) and A.locator('.sqpane:visible').count() == 1)
         for pg in (A, B): pg.add_style_tag(content='.sqpane.hide{display:flex!important}')
@@ -92,7 +92,7 @@ try:
         # ---- squadron through the (mock) tracker ----
         check('the top bar with the DTC and mission buttons is hidden in the Squadron tab', not A.is_visible('#mainbar'))
         A.fill('#sqnew', 'Red Devils'); A.click('#sqcreate'); A.wait_for_timeout(400)
-        check('the squadron is created: name field and roster with me', A.input_value('#sqname') == 'Red Devils' and 'Leader1' in A.inner_text('#sqros'))
+        check('the squadron is created: name field and roster with me', A.inner_text('#sqtitle') == 'Red Devils' and 'Leader1' in A.inner_text('#sqros'))
         A.fill('#sqnew', 'Second Squadron'); A.click('#sqcreate'); A.wait_for_timeout(300)
         check('more squadrons can be created (selector and list in Me)', A.locator('#sqmine .sqsqr').count() == 2 and A.locator('#sqsel option').count() == 2)
         A.select_option('#sqsel', label='Red Devils (yours)'); A.wait_for_timeout(300)
@@ -100,15 +100,15 @@ try:
         check('the invite code of each squadron is in Settings (BCS)', code.startswith('BCS.') and A.locator('#sqinvs .sqi').count() == 2)
         check('Settings shows the trackers in use', 'ws://localhost:8772' in A.inner_text('#sqconn'))
         B.fill('#sqinvin', code); B.click('#sqjoinsq'); B.wait_for_timeout(300)
-        check('the squadron joined by invite is listed, not owned', B.locator('#sqmine .sqsqr').count() == 1 and 'member' in B.inner_text('#sqmine') and not B.is_enabled('#sqname'))
+        check('the squadron joined by invite is listed, not owned', B.locator('#sqmine .sqsqr').count() == 1 and 'member' in B.inner_text('#sqmine') and B.locator('#sqrename').count() == 0 and B.locator('#sqdelete').count() == 0)
         for _ in range(30):
             A.wait_for_timeout(1000)
             if A.locator('#sqros tr[data-uid] .sqd.connected').count() == 2 and B.locator('#sqros tr[data-uid] .sqd.connected').count() == 2: break
         print('connected after ~%ds' % (_ + 1))
         check('both see the other online (green) in the roster', A.locator('#sqros tr[data-uid] .sqd.connected').count() == 2 and B.locator('#sqros tr[data-uid] .sqd.connected').count() == 2)
         check('the roster has both pilots on both sides', 'Wing2' in A.inner_text('#sqhead') and 'Leader1' in B.inner_text('#sqhead'))
-        B.wait_for_timeout(300); A.fill('#sqname', 'Blue Devils'); A.press('#sqname', 'Tab'); B.wait_for_timeout(1500)
-        check('the new squadron name reaches the other pilot', B.input_value('#sqname') == 'Blue Devils')
+        B.wait_for_timeout(300); A.click('#sqrename'); A.fill('#sqname', 'Blue Devils'); A.click('#sqeditok'); check('the new name shows at once for the creator', A.inner_text('#sqtitle') == 'Blue Devils' and 'Blue Devils' in A.inner_text('#sqsel')); B.wait_for_timeout(1500)
+        check('the new squadron name reaches the other pilot', B.inner_text('#sqtitle') == 'Blue Devils')
         A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').fill('Wingman'); A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').press('Tab'); A.wait_for_timeout(2500)
         check('the role set in the roster reaches the pilot', 'Wingman' in B.evaluate("JSON.stringify(__app.sq.db().squads)"))
         import base64
@@ -140,7 +140,7 @@ try:
         check('a removed pilot cannot come back with the invite', A.locator('#sqros tr[data-uid]').count() == 1)
         n0 = A.locator('#sqmine .sqsqr').count()
         check('the creator sees Delete (not Leave) on his squadron', A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('[data-leave]').inner_text() == 'Delete')
-        A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('[data-leave]').click(); A.wait_for_timeout(1200)
+        A.click('#sqtabs [data-tab=members]'); A.click('#sqdelete'); A.wait_for_timeout(1200); A.click('#sqtabs [data-tab=me]')
         check('Delete removes the squadron', A.locator('#sqmine .sqsqr').count() == n0 - 1)
         A.click('#sqtabs [data-tab=settings]'); A.wait_for_timeout(200)
         check('the settings show the diagnostics and the TURN field', A.is_visible('#sqturn') and A.is_visible('#sqturnsave'))
