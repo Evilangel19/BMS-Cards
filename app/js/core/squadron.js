@@ -149,7 +149,7 @@ export function mergeRoster(mine, theirs) {
 // peer of the swarm, which answers with {action: 'announce', info_hash, peer_id, to_peer_id, offer_id, answer}; the tracker hands the answer back to the offerer.
 // A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
 export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn = [], onPeer = () => {}, onMessage = () => {}, onChange = () => {}, WS = globalThis.WebSocket, interval = 25000, offers = 3, allow = () => true}) {
-  const S = {peers: new Map(), socks: [], stopped: false, trackers: 0, diag: {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}}};
+  const S = {peers: new Map(), socks: [], stopped: false, trackers: 0, tinfo: {}, diag: {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}}};
   let ih = '', myId = '', timer = null; const pending = new Map();   // offer_id -> {p, t}
   const rnd20 = () => bin(crypto.getRandomValues(new Uint8Array(20)));
   const mkLink = (pid, offerer = false) => {
@@ -198,7 +198,7 @@ export function createSwarm({secret, me, trackers = TRACKERS, stun = true, turn 
       S.socks = trackers.map(url => { let ws; try { ws = new WS(url); } catch (e) { return null; }
         const count = () => { S.trackers = S.socks.filter(w => w && w.readyState === 1).length; onChange(); };
         ws.onopen = () => { count(); announce(ws); };
-        ws.onmessage = e => handle(ws, typeof e.data == 'string' ? e.data : '');
+        ws.onmessage = e => { const t = typeof e.data == 'string' ? e.data : ''; try { const m = JSON.parse(t); if (m && m.action == 'announce' && !m.offer && !m.answer) S.tinfo[url] = {peers: (m.complete || 0) + (m.incomplete || 0), fail: m['failure reason'] || '', at: Date.now()}; else if (m && m['failure reason']) S.tinfo[url] = {peers: 0, fail: m['failure reason'], at: Date.now()}; } catch (x) { /* not JSON */ } handle(ws, t); };
         ws.onclose = count; ws.onerror = () => {}; return ws; }).filter(Boolean);
       timer = setInterval(() => { sweep(); S.socks.forEach(announce); }, interval);
     },
@@ -419,16 +419,18 @@ export function createSquadronPage(deps) {
   }
 
   // ----- SETTINGS -----
+  const trk = (sw, u) => { const i = sw && (sw.tinfo[u] || sw.tinfo[u.replace(/\/$/, '')] || sw.tinfo[u + '/']); return i ? (i.fail ? ' · refused: ' + esc(i.fail) : ' · ' + i.peers + ' in the swarm') : ' · no reply yet'; };
   const diagBox = () => { const all = [...swarms.values()]; if (!all.length) return '';
     const D = all.reduce((a, w) => { for (const k of ['sent', 'recv', 'ans', 'ansRecv', 'open', 'closed', 'ok', 'wrong']) a[k] += w.diag[k]; for (const [k, v] of Object.entries(w.diag.ice)) a.ice[k] = (a.ice[k] || 0) + v; return a; }, {sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {}});
     const ice = Object.entries(D.ice).map(([k, v]) => k + ' ' + v).join(', ') || '—';
-    const why = D.ok ? 'Pilots found and connected.' : !D.recv && !D.ansRecv ? 'No other pilot has answered yet: they must be online in the same squadron (same invite code) and use the same trackers.' : !D.open ? 'Pilots were found but the direct connection did not open: a router or a mobile network (CGNAT) is blocking it. Add a TURN server below.' : D.wrong ? 'A connection opened but the squadron code does not match.' : 'Connection opened but the pilot was not verified yet.';
+    const sizes = all.flatMap(w => Object.values(w.tinfo).map(i => i.peers)), alone = sizes.length && Math.max(...sizes) <= 1;
+    const why = D.ok ? 'Pilots found and connected.' : alone ? 'The trackers see only you in this squadron: the other pilots are not online right now, or joined with a different invite code (copy it whole and join again).' : !D.recv && !D.ansRecv ? 'The trackers see other pilots but none has answered yet: wait a minute; if it persists the trackers may be dropping the offers (try other trackers in Settings).' : !D.open ? 'Pilots were found but the direct connection did not open: a router or a mobile network (CGNAT) is blocking it. Add a TURN server below.' : D.wrong ? 'A connection opened but the squadron code does not match.' : 'Connection opened but the pilot was not verified yet.';
     return `<div class="sqdiag"><b>Diagnostics</b> <span class="hint" style="min-height:0">${esc(why)}</span><div class="hint" style="min-height:0">offers sent ${D.sent} · offers received ${D.recv} · answers sent ${D.ans} · answers received ${D.ansRecv} · links opened ${D.open} · closed ${D.closed} · verified ${D.ok} · wrong code ${D.wrong}<br>ICE states: ${esc(ice)}</div></div>`; };
   function drawSettings() {
     const inv = $('#sqinvs'); if (inv) { inv.innerHTML = DB.squads.length ? '<div class="hint">Give the code of a squadron to the pilots who must join it.</div>' + DB.squads.map(q => `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g" data-cp>Copy the invite code</button></div></div>`).join('') : '<div class="hint">No squadron yet.</div>';
       inv.querySelectorAll('.sqi').forEach(async el => { const q = DB.squads.find(x => x.id == el.dataset.sid), code = await squadInvite(q); el.querySelector('[data-code]').value = code; el.querySelector('[data-cp]').onclick = () => copy(code); }); }
     const cn = $('#sqconn'); if (cn) { const l = trackerList(), sw = [...swarms.values()][0], up = new Set(sw ? sw.socks.filter(w => w.readyState == 1).map(w => w.url.replace(/\/$/, '')) : []);
-      cn.innerHTML = `<div class="hint">Trackers in use (the pilots of a squadron find each other through them):</div>${l.map(u => `<div class="sqm"><i class="sqd ${up.has(u.replace(/\/$/, '')) ? 'connected' : 'closed off'}"></i><span>${esc(u)}</span><em>${up.has(u.replace(/\/$/, '')) ? 'connected' : sw ? 'not connected' : '—'}</em></div>`).join('')}<div class="bar" style="margin-top:8px"><button class="btn g" id="sqtrk">Change the trackers in Settings…</button></div>${diagBox()}`;
+      cn.innerHTML = `<div class="hint">Trackers in use (the pilots of a squadron find each other through them):</div>${l.map(u => `<div class="sqm"><i class="sqd ${up.has(u.replace(/\/$/, '')) ? 'connected' : 'closed off'}"></i><span>${esc(u)}</span><em>${up.has(u.replace(/\/$/, '')) ? 'connected' + trk(sw, u) : sw ? 'not connected' : '—'}</em></div>`).join('')}<div class="bar" style="margin-top:8px"><button class="btn g" id="sqtrk">Change the trackers in Settings…</button></div>${diagBox()}`;
       $('#sqtrk').onclick = () => deps.openSettings && deps.openSettings();
     }
   }
