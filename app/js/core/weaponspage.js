@@ -434,5 +434,5 @@ export function createWeaponsPage(deps) {
     if (!ctx) return; const oldT = ctx.T, sig = c => JSON.stringify(c.T.map(x => [x.v, x.label]));
     try { const was = sig(ctx); ctx = gather(); st.tgt = remap(st.tgt, oldT, ctx.T); st.refPt = remap(st.refPt, oldT, ctx.T); compute(); if (deps.root.closest('.hide')) return; draw(sig(ctx) === was); } catch (e) { /* none */ }
   }
-  return {refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, spec, apply, card: () => st.card};
+  return {refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
 }

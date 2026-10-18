@@ -437,6 +437,10 @@ async function wxPack(u8){const s=new Blob([u8]).stream().pipeThrough(new Compre
 async function wxBuild(f){try{await wxLoadKeys(wxKeys(f))}catch(e){}const series={};for(const k of wxKeys(f)){const w=WXS.get(k);if(w&&w.raw)series[k]=await wxPack(w.raw)}
  if(!(WX&&WX.raw)&&!Object.keys(series).length)return null;const o={};if(WX&&WX.raw)o.fmap=await wxPack(WX.raw);if(Object.keys(series).length)o.series=series;return o}
 async function wxUnpack(t){const b=Uint8Array.from(atob(t),c=>c.charCodeAt(0)),s=new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'));return new Uint8Array(await new Response(s).arrayBuffer())}
+const jclone=o=>{try{return JSON.parse(JSON.stringify(o))}catch(e){return null}};
+// the weapons data (Weapons page, HARM and BVR pages): an attack profile travels with the mission
+function msfWeapons(){try{return {wp:jclone(wpPage.state()),harm:jclone(harmPage.state()),bvr:jclone(msPage.state())}}catch(e){return null}}
+async function msfMapshot(u){if(!u){MAPSHOT=null;return}try{const im=await loadImg(u),c=document.createElement('canvas');c.width=im.naturalWidth;c.height=im.naturalHeight;c.getContext('2d').drawImage(im,0,0);MAPSHOT=c}catch(e){}}
 async function msfBuild(){
  const i=+$('fsel').value||0,x=CL[i];if(!C||!x)throw new Error('Select a flight first (a campaign or a mission must be open).');
  const settings={config:CFG,prefs:{}};for(const n of MSFPREFS){const o=await loadPrefs(n);if(o)settings.prefs[n]=o}
@@ -444,7 +448,7 @@ async function msfBuild(){
  const final={},auto={};msfCardKeys().forEach(k=>{final[k]=F[k]});FD.forEach(d=>{auto[d.k]=(AUTO&&AUTO[d.k])||''});
  const manual=PJ.diffFields(AUTO||{},F,FD.map(d=>d.k));
  let aircraft=null;try{const an=C.D.ac[x.f.c.i],d=an&&await perfAcGet(an);if(d)aircraft={name:an,perf:d}}catch(e){}
- return PJ.buildMission({app:'BMS Cards',name:msfName(x),flight:x.f.id.n+':'+x.f.id.c,snapshot:PJ.snapshotCampaign(C,x.f,{radiusNm:CFG.mission.radiusNm}),dtc,datacard:{label:x.label,auto,manual,final},settings,weather:await wxBuild(x.f),aircraft,tanks:mapV.tanks()})}
+ return PJ.buildMission({app:'BMS Cards',name:msfName(x),flight:x.f.id.n+':'+x.f.id.c,snapshot:PJ.snapshotCampaign(C,x.f,{radiusNm:CFG.mission.radiusNm}),dtc,datacard:{label:x.label,auto,manual,final},settings,weather:await wxBuild(x.f),aircraft,tanks:mapV.tanks(),weapons:msfWeapons(),mapshot:MAPSHOT?MAPSHOT.toDataURL('image/png'):null})}
 // cards: the pictures go into cards/, the arrangement into cards.json
 async function msfCards(dir){
  const cd=joinPath(dir,'cards');await IO.makeDir(cd);const files=new Map();let n=0;
@@ -479,8 +483,6 @@ async function msfSave(){
   await IO.makeDir(dir);
   await IO.writeBytes(joinPath(dir,PJ.missionFolder.file(msf.name)),enc8(text));
   await IO.writeBytes(joinPath(dir,PJ.missionFolder.settings),enc8(JSON.stringify(msf.settings,null,1)));
-  const src=joinPath(joinPath(app,'backup'),'kneeboard'),dst=joinPath(dir,PJ.missionFolder.kneeboardBackup);let nb=0;
-  for(const e of await listDir(src)){if(e.isDirectory)continue;if(!nb)await IO.makeDir(dst);await IO.writeBytes(joinPath(dst,e.name),await readBytes(joinPath(src,e.name)));nb++}
   MSFDIR=dir;MSFSIG=msfSig();appToast('Mission saved in: '+dir);
  }catch(e){alert('Could not save the mission: '+(e&&e.message||e))}}
 async function msfLoad(text,file){
@@ -498,7 +500,8 @@ async function msfLoad(text,file){
   if(p.dtc){name=p.dtc.name||'DTC.ini';let dpath=null;if(isDesktop()){const cs=[p.dtc.path,dtcDir()?joinPath(dtcDir(),name):''].filter(Boolean);for(const c of cs){try{if(await IO.fileExists(c)){dpath=c;break}}catch(e){}}if(!dpath&&cs.length)dpath=cs[cs.length-1]}   // the DTC of the mission is written where this computer keeps its DTC
    DTCF={path:dpath,enc:p.dtc.enc||'utf-8',bom:!!p.dtc.bom,orig:enc8(p.dtc.original)};parse(p.dtc.original);p.dtc.edits.forEach(e=>S(e.s,e.k,e.v));$('fn').textContent=name+' · from the mission';afterDtc('target_98',true);dtcBtns()}
   atoSearch();apply(i,'fresh');
-  const d=p.datacard;Object.assign(F,d.final||{});AUTO=Object.assign({},d.auto||AUTO);MANK=new Set(Object.keys(d.manual||{}));view();markMan();atoCloseState();atoSearch();MSFSIG=msfSig();
+  const w=p.weapons;if(w){try{w.wp&&wpPage.setState(w.wp);w.harm&&harmPage.setState(w.harm);w.bvr&&msPage.setState(w.bvr)}catch(e){}}
+  const d=p.datacard;Object.assign(F,d.final||{});await msfMapshot(p.mapshot);AUTO=Object.assign({},d.auto||AUTO);MANK=new Set(Object.keys(d.manual||{}));view();markMan();atoCloseState();atoSearch();MSFSIG=msfSig();
  }catch(e){alert('Could not open the mission: '+(e&&e.message||e))}finally{NOPERF=false}}
 $('msfsave').onclick=msfSave;
 // unsaved changes: the datacard fields typed by hand, the edited DTC lines; compared with what the last saved (or opened) mission held
@@ -1247,5 +1250,5 @@ function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.nst=1;co
  b.onclick=e=>{const t=e.target.closest('button');if(!t)return;try{t===b.firstChild?i.stepUp():i.stepDown()}catch(x){}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}}
 document.querySelectorAll('input[type=number]').forEach(stepper);
 new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
-window.__app={sq:sqPage,missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';OBJC=null},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
+window.__app={sq:sqPage,wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';OBJC=null},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
 </script></body></html>

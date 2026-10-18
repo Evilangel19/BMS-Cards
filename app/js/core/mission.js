@@ -77,9 +77,9 @@ export function applyDtcEdits(original, edits) {
 }
 
 // ---- the mission file ----
-export function buildMission({app = '', name = '', flight = null, snapshot = null, dtc = null, datacard = null, settings = null, weather = null, aircraft = null, tanks = null, created = null}) {
+export function buildMission({app = '', name = '', flight = null, snapshot = null, dtc = null, datacard = null, settings = null, weather = null, aircraft = null, tanks = null, weapons = null, mapshot = null, created = null}) {
   return {format: MISSION_FORMAT, version: MISSION_VERSION, created: created || new Date().toISOString(), saved: new Date().toISOString(), app, name,
-    package: snapshot, dtc, datacard: datacard ? {...datacard, flight} : null, settings, weather, aircraft, tanks};
+    package: snapshot, dtc, datacard: datacard ? {...datacard, flight} : null, settings, weather, aircraft, tanks, weapons, mapshot};
 }
 export function parseMission(text) {
   let o; try { o = JSON.parse(text); } catch (e) { return {error: 'The file is not valid JSON.'}; }
@@ -91,5 +91,5 @@ export function parseMission(text) {
 // the manual changes of the datacard: the fields that differ from the automatic values
 export const diffFields = (auto, final, keys) => { const o = {}; (keys || Object.keys(final)).forEach(k => { if ((final[k] || '') !== ((auto || {})[k] || '')) o[k] = final[k] || ''; }); return o; };
 // file and folder names of a mission
-export const missionFolder = {file: n => n + MISSION_EXT, settings: 'settings.json', cards: 'cards.json', kneeboardBackup: 'kneeboard-backup'};
+export const missionFolder = {file: n => n + MISSION_EXT, settings: 'settings.json', cards: 'cards.json'};
 export const safeName = s => String(s || 'mission').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mission';

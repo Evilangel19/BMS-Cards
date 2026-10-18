@@ -29,7 +29,11 @@ try:
         pg.wait_for_timeout(900)
         check('Save mission lights up after a change', 'nil' not in pg.get_attribute('#msfsave', 'class'))
         before = pg.evaluate("()=>({f:{...__app.F}, fl:document.querySelector('#fsel').selectedOptions[0].textContent})")
+        pg.evaluate("()=>{__app.wpPage.setState({mode:'toss'});__app.msPage.setState({mode:'bvr'});const c=document.createElement('canvas');c.width=564;c.height=752;const x=c.getContext('2d');x.fillStyle='#f00';x.fillRect(0,0,564,752);__app.MAPSHOT=c}")
         msf = pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())")
+        mj = json.loads(msf)
+        check('the mission holds the weapons data and the map image', mj['weapons']['wp']['mode'] == 'toss' and mj['weapons']['bvr']['mode'] == 'bvr' and mj['mapshot'].startswith('data:image/png'))
+        check('no kneeboard backup folder name in the mission', pg.evaluate("()=>!JSON.stringify(__app.missionExt).includes('backup')"))
         o = json.loads(msf)
         check('the mission holds the package, the DTC with its edits apart, and the datacard with the manual values', o['format'] == 'bms-cards-mission' and len(o['package']['units']) > 3 and any(e['k'] == 'target_3' for e in o['dtc']['edits']) and 'ab0_4' in o['datacard']['manual'] and o['datacard']['manual']['ab0_4'] == 'ZZ99')
         import re; check('the default name of the mission is package number + callsign (' + o['name'] + ')', re.match(r'^\d+ \S', o['name']) is not None)
@@ -44,6 +48,7 @@ try:
         pg.goto('http://localhost:8797/app/index.html'); pg.wait_for_timeout(800)
         check('without the campaign there is no flight', pg.evaluate("()=>!__app.C"))
         pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
+        check('weapons data and map image restored', pg.evaluate("()=>__app.wpPage.state().mode=='toss'&&__app.msPage.state().mode=='bvr'&&!!__app.MAPSHOT&&__app.MAPSHOT.width==564"))
         after = pg.evaluate("()=>({f:{...__app.F}, fl:document.querySelector('#fsel').selectedOptions[0].textContent, man:[...__app.MANK]})")
         keys = [k for k in before['f'] if isinstance(before['f'][k], str) and not k.startswith('__')]
         diff = [k for k in keys if before['f'][k] != after['f'].get(k)]

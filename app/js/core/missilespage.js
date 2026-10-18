@@ -201,5 +201,5 @@ export function createMissilesPage(deps) {
     if (st.em && !E.some(x => x.v === st.em)) { const o = lastE.find(x => x.v === st.em), m = o && E.find(x => Math.abs(x.n - o.n) < 1 && Math.abs(x.e - o.e) < 1); if (m) st.em = m.v; }
     const same = sig(E) === sig(lastE); lastE = E; draw(same);
   }
-  return {refresh, rows: tlRows, calc: c => { load(); return c ? timeline(c, DB, st.tl.std, st.bvr.msl) : null; }, render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(false); }, root: deps.root, leave: detachMap, state: () => st, result: () => res};
+  return {refresh, rows: tlRows, calc: c => { load(); return c ? timeline(c, DB, st.tl.std, st.bvr.msl) : null; }, render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(false); }, root: deps.root, leave: detachMap, state: () => st, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o, mode: deps.only || o.mode || st.mode}; save(); refresh(); } }, result: () => res};
 }
