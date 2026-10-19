@@ -2,7 +2,7 @@
 
 ## To implement
 1. **Squadron page**: v96 done: squadron (name, motto, notes), fixed roster with role/notes, green dot when a pilot is online (public WebTorrent trackers + WebRTC, squadron secret in the `BCS.` invite), mission sent to one pilot or all online, campaign section (kills, aces, share per squadron). Logbook statistics decoded (v97, medals not yet: needs a logbook with known medals), server list from PhoneBkn.ini, trackers editable in Settings. Squadron page v98: Members / Me / Settings, several squadrons, moderation. Still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted), test with the real trackers and two PCs over the internet (STUN).
-2. **OpenTaxiway-based airbase data** (the last big section: airport charts; to discuss and decide after a test, see below): runway length and width, taxi chart for the kneeboard, taxi time from the real distance. It would also give the "refusal runway length" item.
+2. **Airport charts** (OpenTaxiway-style): not wanted for now; everyone can load the AIP picture. The runway length, the data that mattered for the calculations, now comes automatically from the objective files (done, see below); taxi time is not wanted.
 3. **MDC autofill**: removed for now (the MDC is filled by hand); to be redone later.
 4. ~~AGPL-3.0 licence~~ done: the repo is public (`Ciga10/BMS-Cards`), no BMS data inside. Work goes to the `dev` branch; `main` only at the official beta.
 5. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser; sections vary (the UOAF `bms_html_briefing` project and EZBoards both read it).
@@ -20,7 +20,7 @@
 - Screenshot angle: proportions on datacard and kneeboard at several angles with the real map.
 
 ## Assumptions made when reading BMS files (to confirm)
-- Runway length: not in the files read; typed on the Performance page. Runway headings from the ATC files (no L/R); without an ATC file heading = number x 10 (magnetic or true unknown).
+- Runway length: read from the objective files (OCD PHD/PDX, Type 8 corners; checked only on Osan: 9,004 x 149 ft); typed on the Performance page it overrides. Runway headings from the ATC files (no L/R); without an ATC file heading = number x 10 (magnetic or true unknown).
 - Airbase elevation from the AIP table; terrain elevation format deduced (little-endian signed 16-bit feet); never checked on real data.
 - Misdata: ownship speed in ft/s, third axis = target altitude, table multiplier; mean missile speed Mach 2.2 (HARM) and 2.5 (BVR); Rmax against aspect is an estimate (R = Rhead (Vm+Vt cos a)/(Vm+Vt)).
 - Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
@@ -40,12 +40,15 @@
 - Weather map: the real fmap grid is turned by the map grid convergence; the cells are drawn axis-aligned (as the Map weather filter). Temperature and pressure exist only at the surface.
 
 ## Done on 2026-10-19 (all on `dev`)
+- Runway length automatic (objective files PHD/PDX), used by the Performance page and the refusal speed.
 - Wind layers at the manual altitudes; fmap reader with every field; fuel plan uses the wind aloft per leg.
 - Weather tab on the Map page's Leaflet map: filters (conditions, wind, temperature, pressure, clouds, visibility), wind barbs only in Wind, Time & altitude panel on the map (time slider with DEP / TOT / LAND, wind altitude slider only in Wind, opacity slider), airbases with ATIS / TAF, route table, winds aloft, Fill datacard.
 - HARM: Target Isolate and Glide Inhibit as two independent switches (manual table).
 - Settings: own satellite layer (XYZ tile provider; EOX stays the default).
 - BVR Timeline: Shot card under the datacard, drawing smaller. Datacard first tab. Open Mission button in the same green as Open DTC.
 - Decided not to correct: the 103 ft latitude text offset and non-interpolated elevations (see Small open items).
+
+- Runway size from `OCD_nnnnn/PHD+PDX` (done 2026-10-19): to check on the real PC with other bases (Kunsan, Seoul/RKSS ...) against the AIP; only Osan was checked. Bases without an ATC file get no automatic length (type it).
 
 ## OpenTaxiway (github.com/oakdesign/OpenTaxiway)
 Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws flat primitives as SVG/OBJ; it can go from a CampID (e.g. Osan) to the taxiway model through CampObjData.XML, OCD/FED and Falcon4_CT.xml. Useful for runway size and taxi charts. It is Python and the app is JavaScript/Tauri, and BMS data cannot be shipped, so the way is a small BML reader written in JavaScript (MIT is compatible with AGPL; LZ4/LZMA needed), reading the user's install at run time. First a test with one airbase (BML file + XML files) against known runway lengths.

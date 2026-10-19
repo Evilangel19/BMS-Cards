@@ -7,6 +7,8 @@ const tag = (b, k) => { const q = b.match(new RegExp('<' + k + '>([^<]*)<')); re
 const decode = s => s.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'");
 export const pad5 = n => String(n).padStart(5, '0');
 export const fedPath = n => `ObjectiveRelatedData/OCD_${pad5(n)}/FED_${pad5(n)}.XML`;
+export const phdPath = n => `ObjectiveRelatedData/OCD_${pad5(n)}/PHD_${pad5(n)}.XML`;
+export const pdxPath = n => `ObjectiveRelatedData/OCD_${pad5(n)}/PDX_${pad5(n)}.XML`;
 export const ocdPath = n => `ObjectiveRelatedData/OCD_${pad5(n)}/OCD_${pad5(n)}.XML`;
 // CampObjData.XML -> [{id, name, ocd, n, e}]
 export const parseObjectives = xml => [...xml.matchAll(/<CampObj CampId="(\d+)">([\s\S]*?)<\/CampObj>/g)].map(m => ({id: +m[1], name: decode(tag(m[2], 'CampName')).trim(), ocd: +tag(m[2], 'OcdIndex'), n: +tag(m[2], 'PositionX'), e: +tag(m[2], 'PositionY')}));

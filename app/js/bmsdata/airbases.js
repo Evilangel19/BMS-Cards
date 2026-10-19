@@ -2,12 +2,12 @@
 // Stations+Ils.dat (frequencies, used for ILS only when the AIP is not available).
 import { aipFor } from './aip.js';
 
-// One ATC file (Data\TerrData\ATC\<name>.dat) -> { campId, ends: [{ qfu: '06', hdg: 59 }] } (parallel runways repeat the numbers)
+// One ATC file (Data\TerrData\ATC\<name>.dat) -> { campId, ends: [{ qfu: '06', hdg: 59, id: 0 }] } (parallel runways repeat the numbers; id = the database runway number, which the objective files use for the runway size)
 export function parseAtc(text) {
   const t = text.replace(/\r/g, '');
   const id = t.match(/#\s*CampID[^\n]*\n\s*(\d+)/);
   if (!id) return null;
-  const ends = [...t.matchAll(/#\s*RUNWAY:\s*\d+\s+HDG:\s*(\d+)\s+QFU:\s*(\d+)/g)].map(m => ({ qfu: m[2].padStart(2, '0'), hdg: +m[1] }));
+  const ends = [...t.matchAll(/#\s*RUNWAY:\s*(\d+)\s+HDG:\s*(\d+)\s+QFU:\s*(\d+)/g)].map(m => ({ qfu: m[3].padStart(2, '0'), hdg: +m[2], id: +m[1] }));
   return ends.length ? { campId: id[1], ends } : null;
 }
 

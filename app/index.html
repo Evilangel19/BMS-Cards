@@ -271,10 +271,11 @@ import {DEFAULTS,mergeConfig} from './js/config/config.js';
 import {pdfTextItems,pdfOpen,pdfRender} from './js/platform/pdf.js';
 import {parseAip} from './js/bmsdata/aip.js';
 import {parseAtc,buildAirbases} from './js/bmsdata/airbases.js';
+import {parseRunways,runwayLengths} from './js/bmsdata/runways.js';
 import {loadPrefs,savePrefs,loadConfig,saveConfig,pickFile,pickFiles,onFilesDropped,onCloseGuard,pickFolder,saveBlob as saveFile,isDesktop,findFiles,readBytes,detectBms,listDir,join as joinPath,writeBytes,fileExists,makeDir,appDir,readRange,fileSize} from './js/platform/desktop.js';
 import {parseBombDat,parseBombList} from './js/bmsdata/bombdata.js';
 import {parseTheaterValues,heightSpec,heightsAt} from './js/bmsdata/heightmap.js';
-import {parseObjectives,parseOcdCt,parseFcdNames,parseFed,featuresOf,fedPath,ocdPath,readTarget,targetLine} from './js/core/targets.js';
+import {parseObjectives,parseOcdCt,parseFcdNames,parseFed,featuresOf,fedPath,ocdPath,phdPath,pdxPath,readTarget,targetLine} from './js/core/targets.js';
 import {openTargetPicker} from './js/core/targetpicker.js';
 import {parseCt,FILES,OPTIONAL,allNames,pathFor,ENCODING,buildTables,parseTheaterList,parseTdf,theaterDirs,parseAircraftData} from './js/bmsdata/bmsdata.js';
 let CFG=mergeConfig(undefined).config;
@@ -575,7 +576,7 @@ function freqOwners(){const m=new Map(),add=(f,l)=>{if(f&&/^\d/.test(f)&&l&&!m.h
  for(let i=0;i<3;i++){const n=F[`ab${i}_0`];add(F[`ab${i}_2`],n&&n+' GND');add(F[`ab${i}_3`],n&&n+' APP')}
  return m}
 function bvRow(i,cls){const r=cls&&msPage&&msPage.calc?msPage.calc(cls):null;[r&&r.mtr,r&&r.fr,r&&r.mar,r&&r.dr,r&&r.dor].forEach((x,j)=>{const kk=`bv${i}_${j+1}`;F[kk]=x==null?'':String(Math.round(x));if(AUTO)MANK.add(kk);const e=FD.find(z=>z.k==kk);if(e&&e.el)e.el.value=F[kk]})}
-function setField(k,v,from){F[k]=v;if(k=='gw'||k=='fuel'||k=='drag')perfLater();if(/^bv\d_0$/.test(k)){const bi=+k[2];bvRow(bi,v)}if(AUTO){MANK.add(k);if(k=='ab0_4')MANK.add('atis')}if(k=='ab0_4'&&wxAt(F.__dep&&F.__dep[3])&&F.__dep){F.atis=CAM.atisText(wxAt(F.__dep[3]),F.__dep,F.ab0_4)+(F.__taf?'\n'+F.__taf:'');const ea=FD.find(z=>z.k=='atis');if(ea&&ea.el)ea.el.value=F.atis}
+function setField(k,v,from){F[k]=v;if(k=='gw'||k=='fuel'||k=='drag'||k=='ab0_5')perfLater();if(/^bv\d_0$/.test(k)){const bi=+k[2];bvRow(bi,v)}if(AUTO){MANK.add(k);if(k=='ab0_4')MANK.add('atis')}if(k=='ab0_4'&&wxAt(F.__dep&&F.__dep[3])&&F.__dep){F.atis=CAM.atisText(wxAt(F.__dep[3]),F.__dep,F.ab0_4)+(F.__taf?'\n'+F.__taf:'');const ea=FD.find(z=>z.k=='atis');if(ea&&ea.el)ea.el.value=F.atis}
  const d=FD.find(z=>z.k==k);if(d&&d.el&&d.el!==from&&d.el.value!==v)d.el.value=v;markMan();draw();if(MIR[k]&&DCS[MIR[k].grp])pushOne(k)}
 function buildForm(){const f=$('form');f.innerHTML='';const gr={};FD.forEach(d=>(gr[d.grp]=gr[d.grp]||[]).push(d));
  for(const g in gr){const dt=document.createElement('details');dt.innerHTML='<summary>'+g+'</summary>';const w=document.createElement('div');
@@ -818,12 +819,19 @@ const sqPage=createSquadronPage({esc,root:$('sq'),toast:appToast,
 const pfPage=createPerfPage({esc,root:$('pf'),wind:(x,y,t,a)=>wxWind(x,y,t,a),aircraft:{list:async()=>{const f=await acFolder(),a=new Set([...(f?f.names:Object.keys(CAM.D.acfb)),...Object.keys(MSFAC)]);return [...a].sort()},get:perfAcGet},
  loadout:()=>{const x=CL[+$('fsel').value];if(!x||!C)return null;return{ac:C.D.ac[x.f.c.i],gw:+F.gw||0,fuel:+F.fuel||0,drag:+F.drag||0}},
  flightPlan:()=>{const x=C&&CL[+$('fsel').value];if(!x||!x.f.wps)return null;return{wps:x.f.wps,labels:x.f.wps.map((_,i)=>F['fp'+i+'_0']||'')}},
- runway:{get:()=>{const d=F.__dep;return d?{id:d[0],name:d[0]+(F.ab0_0?' · '+F.ab0_0:''),ft:PERFP.rwy[d[0]]||0}:null},set:v=>{const d=F.__dep;if(!d)return;if(v>0)PERFP.rwy[d[0]]=v;else delete PERFP.rwy[d[0]];perfSave();perfFill(+$('fsel').value||0)}},
+ runway:{get:()=>{const d=F.__dep;if(!d)return null;const a=rwyAuto(d);return{id:d[0],name:d[0]+(F.ab0_0?' · '+F.ab0_0:''),ft:rwyFt(d),man:PERFP.rwy[d[0]]||0,auto:a?a.ft:0,wid:a?a.w:0}},set:v=>{const d=F.__dep;if(!d)return;if(v>0)PERFP.rwy[d[0]]=v;else delete PERFP.rwy[d[0]];perfSave();perfFill(+$('fsel').value||0)}},
  prefs:{get:()=>({reserve:PERFP.reserve,joker:PERFP.joker}),set:o=>{PERFP.reserve=o.reserve;PERFP.joker=o.joker;perfSave();clearTimeout(PFT);PFT=setTimeout(()=>perfFill(+$('fsel').value||0),500)}}});
 /* Datacard fields from the performance data: TO Spec, Rotation, Refusal, Mil Power, Mil Climb, TO Fuel, Joker, Bingo and the Min.Fuel of every steerpoint. Fields the user typed are left alone. */
 const TAXIMIN=10;   // minutes of engine start and taxi at idle between the parking spot and the take-off roll (estimate)
 let PERFP={rwy:{},reserve:1500,joker:1000},PFT=0,NOPERF=false;
 loadPrefs('perfprefs.json').then(o=>{if(o&&typeof o=='object')PERFP=Object.assign(PERFP,o,{rwy:Object.assign({},o.rwy)});if(PERFP.joker===500)PERFP.joker=1000}).catch(()=>{});
+// Runway sizes read from the objective files of the airbases (RL: campId -> {ends: {'09': {ft, w}}, max}); the length typed on the Performance page wins over them
+let RL={};
+const rwyAuto=d=>{const r=d&&RL[d[0]];if(!r)return null;const n=parseInt(F.ab0_5),k=isNaN(n)?'':String(n).padStart(2,'0');return r.ends[k]||r.max};
+const rwyFt=d=>d?(PERFP.rwy[d[0]]||(rwyAuto(d)||{}).ft||0):0;
+async function loadRunways(atc){try{RL={};if(!OBJDIR||!atc.length)return;const dec=b=>new TextDecoder('utf-8').decode(b),ids=new Set(atc.map(a=>a.campId)),objs=parseObjectives(dec(await readBytes(OBJCAMP||jp(OBJDIR,'CampObjData.XML')))).filter(o=>ids.has(String(o.id))),byOcd={},rwl={};
+ for(let i=0;i<objs.length;i+=10)await Promise.all(objs.slice(i,i+10).map(async o=>{try{if(!byOcd[o.ocd])byOcd[o.ocd]=parseRunways(dec(await readBytes(jp(OBJDIR,...phdPath(o.ocd).split('/')))),dec(await readBytes(jp(OBJDIR,...pdxPath(o.ocd).split('/')))));rwl[o.id]=byOcd[o.ocd]}catch(e){}}));
+ RL=runwayLengths(atc,rwl);try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}}catch(e){RL={}}}
 const perfSave=()=>{try{savePrefs('perfprefs.json',PERFP)}catch(e){}};
 async function perfCalc(i){
  const f=C&&CL[i]&&CL[i].f;if(!f||!f.wps||f.wps.length<2)return null;
@@ -831,7 +839,7 @@ async function perfCalc(i){
  const ty=an.replace(/\s*ROK\w*$/,''),ew=C.D.ew&&C.D.ew[ty],gw=+F.gw||0,fuel=+F.fuel||0,di=+F.drag||0;if(!ew||!gw)return null;
  const stores=Math.max(0,gw-ew-fuel),d=F.__dep,elev=+F.ab0_4||0;let hw=0,dIsa=0;
  const wxd=wxAt(d&&d[3]);if(wxd&&d){try{const w=wxd.at(d[1],d[2]);dIsa=w.t-(15-1.9812*elev/1000);const rn=parseInt(F.ab0_5);if(!isNaN(rn)&&w.spd>=3)hw=w.spd*Math.cos((rn*10-w.hdg)*Math.PI/180)}catch(e){}}
- const rwy=d&&PERFP.rwy[d[0]]||0,to=PA.takeoff(ac,{W:gw,elev,dIsa,hw,power:TOPOWER,di}),alt=climbAltitude(f.wps);
+ const rwy=rwyFt(d),to=PA.takeoff(ac,{W:gw,elev,dIsa,hw,power:TOPOWER,di}),alt=climbAltitude(f.wps);
  let taxi=300;try{const id=PA.engine(ac,elev,0,'idle');if(id&&id.ff>0)taxi=id.ff*TAXIMIN/60}catch(e){}
  return{ac,to,taxi,rpm:PA.milRpm(ac),refusal:rwy?PA.refusal(ac,{W:gw,elev,dIsa,hw,power:TOPOWER,di,rwy}):null,climb:PA.climbSchedule(ac,{W:gw,dIsa,di,to:alt}),
   plan:fuelPlan(ac,f.wps,{empty:ew,stores,di,dIsa,reserve:PERFP.reserve,jokerMargin:PERFP.joker,loaded:fuel,wind:wxWind})}}
@@ -1058,7 +1066,7 @@ async function loadGameData(reloadTheaters=true){
    const atc=[];if(atcDir)for(const e of await listDir(atcDir)){if(e.isDirectory||!/\.dat$/i.test(e.name))continue;const a=parseAtc(new TextDecoder('latin1').decode(await readBytes(jp(atcDir,e.name))));if(a)atc.push(a)}
    let aipList=null;if(paths['KTO_AIP.pdf']){try{aipList=parseAip(await pdfTextItems(await readBytes(paths['KTO_AIP.pdf'])));if(!aipList.length)aipList=null}catch(e){aipList=null}}
    if(atc.length||aipList){const b=buildAirbases({atc,aipList,ob:CAM.D.ob,ab:CAM.D.ab});CAM.D.ap=b.ap;CAM.D.api=b.api;CAM.D.el=Object.assign({},CAM.D.el,b.el);CAM.D.tn=Object.assign({},CAM.D.tn,b.tn);
-    acInfo+=' Runways: '+Object.keys(b.ap).length+' airbases ('+atc.length+' ATC files, AIP '+(aipList?'read':'not found')+').'}
+    acInfo+=' Runways: '+Object.keys(b.ap).length+' airbases ('+atc.length+' ATC files, AIP '+(aipList?'read':'not found')+').';loadRunways(atc)}
    else{acInfo+=' Runways: no ATC files or AIP found.';warn.push('Runways: no ATC files or AIP found (runway lengths and airbase data will be missing).')}}catch(e){acInfo+=' Runways could not be read ('+(e&&e.message||e)+').';warn.push('Runways could not be read: '+(e&&e.message||e))}
   try{const data=jp(inst,'Data');let dir=TH&&TH.sim?jp(data,TH.sim,'Acdata'):jp(data,'Sim','Acdata');
    let ents=await listDir(dir);if(!ents.length){const f=(await findFiles(inst,['F-16CM-40.txtpb'],6))['F-16CM-40.txtpb'];if(f){dir=f.replace(/[\\/][^\\/]*$/,'');ents=await listDir(dir)}}
@@ -1270,5 +1278,5 @@ function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.nst=1;co
  b.onclick=e=>{const t=e.target.closest('button');if(!t)return;try{t===b.firstChild?i.stepUp():i.stepDown()}catch(x){}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}}
 document.querySelectorAll('input[type=number]').forEach(stepper);
 new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
-window.__app={sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';OBJC=null},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
+window.__app={setRl:o=>{RL=o;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}},sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';OBJC=null},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
 </script></body></html>
