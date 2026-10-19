@@ -22,7 +22,7 @@
 - Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
 - Weather: wind direction is where it comes FROM; the 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual table; real maps may differ from the default shape). Layer altitudes were only checked against the manual, not against the game.
 - Weather condition: 0 sunny, 1 fair, 2 poor, 3 inclement (BMS wiki); the real files carry 1-3 (and a few 4s in one file): the 4 is drawn as inclement.
-- Weather page: the offline base map (sea, land, coast, rivers, borders; Korea projection) is under the cells, so other theaters would be misplaced; no terrain picture. Temperature and pressure exist only at the surface.
+- Weather page: it uses the map of the Map page (base map and layers chosen there), so the theater support is the one of that map. The cells are an axis-aligned image over lat/lon bounds (as the Map weather filter), the real grid is turned by the map grid convergence (small). Temperature and pressure exist only at the surface.
 - Only the Korea theater was checked; add-on theaters are untested.
 
 ## Small open items
