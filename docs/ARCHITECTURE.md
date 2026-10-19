@@ -596,7 +596,7 @@ New tab **Missiles** (`core/missilespage.js`, maths in `core/airmissile.js`, num
 - Weapon-map filter button, four states: Map filters (as the Map page) → No filters (every layer off, only the envelope) → Plan → Plan + PPT.
 - TOSS side view: the level ingress is cut to a short stub (`max(3000, min(12000, 35 % of the climb extent))`), scale kept equal on both axes within 620 × 520 px, the SAM box is clipped to 1.25 × the highest point of the path; the box scrolls both ways (`.wpvs`, max-height 540).
 - VIP far from the attack (> 3 × the attack extent + 5 nm) stays out of the map fit and is labelled with its distance and bearing.
-- HARM: colour legend, LOTG and EOMG on their own rows, schematic vertical envelope (launch, loft, seeker opens, glide with the seeker wide open) shown when Target Isolate / LOTG / EOMG is active.
+- HARM: colour legend, two independent switches as in the manual: Target Isolate (TI, stops the flex) and Glide Inhibit (GI, stops LOTG; EOMG stays possible unless TI is on too). Default Off/Off = glides and flexes; the page tells what the HARM page shows (TI, TI highlighted, NC, SD). Schematic vertical envelope (launch, loft, seeker opens, flex, glide with the seeker wide open) always shown; state fields `iso` / `gi` (0/1), `harmOpt()` derives flex / LOTG / EOMG.
 - BVR timeline: each class lists the radar missiles it carries (`CLASSES[].ms`); the missile selected on the page replaces the class's best one when it carries it (table column "Missile", ★ = the selected one). Banzai track has its aircraft triangle.
 
 ## v75 – edit lock, route numbering, scrolling side view

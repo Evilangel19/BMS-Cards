@@ -50,7 +50,7 @@ const HAS_FOV = 60;   // HAS: the seeker sees 120 deg in all (manual 4.2.5.1.6)
 // HARM shot at an emitter: maximum range for the launch (BMS table), the range along the line to the emitter at the bearing off the nose chosen
 // (footprint of the submode in POS / HAD; HAS has its seeker limit), the launch point, the margin to the emitter's own ring and the loft angle
 export function harmShot(m, tab, o) {
-  const v = {alt: 25000, speed: 450, tgtAlt: 0, heading: 360, shotPct: 90, ringNm: 0, mode: 'pos', sub: 'EOM', offNose: 0, ti: 'off', lotg: 0, eomg: 0, ...o}, emitter = o.emitter;
+  const v = {alt: 25000, speed: 450, tgtAlt: 0, heading: 360, shotPct: 90, ringNm: 0, mode: 'pos', sub: 'EOM', offNose: 0, iso: 0, gi: 0, ...o}, emitter = o.emitter;
   const rMax = rmax(m, v.alt, v.speed * KT, v.tgtAlt); if (rMax == null) return {error: 'This missile has no range table.'};
   const has = v.mode === 'has', f = has ? (off180(v.offNose) <= HAS_FOV ? 1 : 0) : footprintFactor(v.sub, v.offNose), rTh = rMax * f, shot = rTh * v.shotPct / 100;
   const bearingTo = norm(v.heading + v.offNose), launch = project(emitter, bearingTo + 180, shot), ring = v.ringNm * NM;
