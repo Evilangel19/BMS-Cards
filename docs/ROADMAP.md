@@ -53,3 +53,4 @@ Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws 
 - Weapons page: NAV OFFSETS card under the vertical envelope; Apply is dimmed when the DTC already holds what it would write.
 - BVR page: Fill datacard is on only when the datacard differs from the table.
 - Save mission no longer lights up after only saving the DTC of an opened mission.
+- Weapons: OA1 button at the end of the attack profile (and of the HADB / TOSS cards): pop-up = top of climb (pull-down point) or aim-off point; HADB / TOSS = PUP or line-up point. It drives the OA1 row, the plan drawing (diamond) and the side view (small triangle).

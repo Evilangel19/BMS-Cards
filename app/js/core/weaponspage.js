@@ -26,7 +26,7 @@ export function navRow(text, withStpt = true) {
 }
 export function createWeaponsPage(deps) {
   const {esc} = deps;
-  let st = {mode: 'popup', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
+  let st = {mode: 'popup', oa1: 'top', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
   try { const o = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (o) st = {...st, ...o, inp: {...DEFAULTS, ...o.inp, heading: (o.inp && o.inp.heading) || 360}, hadb: {...HADB_DEFAULTS, ...o.hadb}, toss: {...TOSS_DEFAULTS, ...o.toss}, map: {...st.map, ...o.map}, mat: {...st.mat, ...o.mat}, fz: {...st.fz, ...o.fz}}; } catch (e) { /* none */ }
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* none */ } };
   let res = null, ctx = null, mapNote = '', el = null, elKey = '', elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
@@ -123,6 +123,21 @@ export function createWeaponsPage(deps) {
   function detachMap() { if (!M) return; try { M.WL.remove(); } catch (e) { /* none */ } M = null; try { deps.detach(); } catch (e) { /* none */ } }
   function applyOp() { if (!M) return; const o = st.map.on ? st.map.op / 100 : 0; ['tilePane', 'coastP'].forEach(k => { const p = M.map.getPane(k); if (p) p.style.opacity = o; }); }
   // what the horizontal view draws: lines per phase, marks, arrows, labels. The pop-up builds it here, HADB and TOSS bring their own (strike.js)
+  // OA1 (set by the OA1 button of the attack profile): the top of the manoeuvre (pop-up: the pull-down point, HADB / TOSS: the PUP)
+  // or the other reference (pop-up: the aim-off point, HADB / TOSS: the line-up point before the VIP)
+  const oa1Top = () => st.oa1 !== 'aim';
+  const oa1Pos = r => st.mode == 'popup' ? (oa1Top() ? r.pdp : r.oa) : (oa1Top() ? r.pup : r.oa);
+  const oa1Names = () => st.mode == 'popup' ? [['top', 'Top of climb'], ['aim', 'Aim-off point']] : [['top', 'PUP'], ['aim', 'Line-up point']];
+  // the drawing of the plan: the diamond of OA1 goes where the button says
+  function oa1Plan(D, r) {
+    let marks = D.marks.filter(m => m[1] !== 'OA1'), segs = D.segs;
+    if (oa1Top()) {
+      const t = oa1Pos(r), i = marks.findIndex(m => m[0] === t);
+      if (i >= 0) marks[i] = [t, (marks[i][1] ? marks[i][1] + ' · ' : '') + 'OA1', '#a78bfa', 'dia', ...marks[i].slice(4)]; else marks.push([t, 'OA1', '#a78bfa', 'dia']);
+      if (st.mode == 'popup') segs = segs.filter(z => !(z[0] == 'egress' && z[1][1] === r.oa));
+    } else marks.push([r.oa, 'OA1', '#a78bfa', 'dia']);
+    return {...D, marks, segs};
+  }
   function popupDraw(r, vip) {
     const v = r.v, mid = (a, b) => ({n: (a.n + b.n) / 2, e: (a.e + b.e) / 2});
     return {segs: [...(r.firstArc ? [['ingress', r.firstArc]] : []), ['ingress', [r.vrp, r.pup]], ['climb', [r.climbStart, r.pdp]], ['pull', r.arc], ['dive', [r.map, r.release]], ['fall', [r.release, r.target]],
@@ -134,7 +149,7 @@ export function createWeaponsPage(deps) {
       labels: [[mid(r.climbStart, r.pdp), 'Climb ' + h3(v.pullHeading) + '°', 'left', [-8, 0]], [mid(r.map, r.release), 'Attack ' + h3(v.attackHeading) + '°', 'right', [8, 0]]]};
   }
   function drawMap(r) {
-    const {L, map, WL} = M, RN = map._wpR, v = r.v, vip = st.ref == 'vip' ? ctx.vipPos : null, ll = p => deps.ll(p.n, p.e), D0 = r.draw || popupDraw(r, vip), D = vip && dist(vip, r.target) > 50 && !D0.marks.some(m => m[0] === vip) ? {...D0, segs: [...D0.segs, ['ref', [vip, r.target]]], marks: [...D0.marks, [vip, 'VIP · reference', '#f0b040', 'big']]} : D0, mid = (a, b) => ({n: (a.n + b.n) / 2, e: (a.e + b.e) / 2});
+    const {L, map, WL} = M, RN = map._wpR, v = r.v, vip = st.ref == 'vip' ? ctx.vipPos : null, ll = p => deps.ll(p.n, p.e), D0 = oa1Plan(r.draw || popupDraw(r, vip), r), D = vip && dist(vip, r.target) > 50 && !D0.marks.some(m => m[0] === vip) ? {...D0, segs: [...D0.segs, ['ref', [vip, r.target]]], marks: [...D0.marks, [vip, 'VIP · reference', '#f0b040', 'big']]} : D0, mid = (a, b) => ({n: (a.n + b.n) / 2, e: (a.e + b.e) / 2});
     WL.clearLayers();
     const geo = [r.target, ...D.segs.filter(z => z[0] != 'ref').flatMap(z => z[1]), ...D.marks.filter(m => !vip || m[0] !== vip).map(m => m[0]), ...(r.oa2 ? [r.oa2] : [])], ext = Math.max(...geo.map(p => dist(p, r.target)));
     const farVip = !!vip && dist(vip, r.target) > 3 * ext + 5 * FT_NM, all = [...geo, ...(vip && !farVip ? [vip] : [])];   // a VIP far from the attack stays out of the fit: the view stays on the attack
@@ -198,7 +213,12 @@ export function createWeaponsPage(deps) {
       const ig = spec.segs.find(z => z[0] == 'ingress'), pupX = ig ? ig[1][ig[1].length - 1][0] : 0, endX = Math.max(...spec.segs.flatMap(z => z[1].map(p => p[0]))), stub = Math.max(3000, Math.min(12000, (endX - pupX) * .35));
       spec.segs = spec.segs.map(z => z[0] == 'ingress' ? [z[0], z[1].map(p => [Math.max(p[0], pupX - stub), p[1]])] : z);
     }
-    const pts = spec.segs.flatMap(z => z[1]);
+    // OA1 in the side view (small isosceles triangle): top of climb = the pull-down point; PUP; the aim-off point on the ground past the target; the line-up point on the ingress
+    const ig0 = spec.segs.find(z => z[0] == 'ingress'), igEnd = ig0 && ig0[1][ig0[1].length - 1], igStart = ig0 && ig0[1][0];
+    let oa1 = null;
+    if (oa1Top()) oa1 = st.mode == 'popup' ? [spec.marks.find(m => /^PDWN/.test(m[1]))[0][0], r.v.pulldownAltitude] : igEnd ? [igEnd[0], igEnd[1]] : null;
+    else oa1 = st.mode == 'popup' ? [r.v.aod, 0] : igStart ? [Math.min(igEnd[0], igStart[0] + 6000), igStart[1]] : null;
+    const pts = [...spec.segs.flatMap(z => z[1]), ...(oa1 ? [oa1] : [])];
     const x0 = Math.min(...pts.map(p => p[0])) - 300, x1 = Math.max(400, ...pts.map(p => p[0])), top = Math.max(...pts.map(p => p[1])), ymax = Math.max(top, r.mat && !r.mat.missing ? Math.min(r.mat.samMax, top * 1.25) : 0) * 1.15;
     let W = 360, H, sx, sy;
     if (r.kind == 'toss') { const s = Math.min((620 - 56) / (x1 - x0), (520 - 44) / ymax); W = Math.max(360, Math.round((x1 - x0) * s + 56)); H = Math.max(220, Math.round(ymax * s + 44)); sx = sy = s; }   // kept to scale: at most 620 x 520, readable at any length; the view scrolls sideways
@@ -212,8 +232,8 @@ export function createWeaponsPage(deps) {
     const seg4 = (d, k) => `<path d="${d}" fill="none" stroke="${PH[k][1]}" stroke-width="2.6"${PH[k][2] ? ` stroke-dasharray="${PH[k][2]}"` : ''}/>`;
     return `<div class="wpvs"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wpv"${r.kind == 'toss' && W > 360 ? ' data-wide' : ''} role="img" aria-label="Side profile of the attack">
       <rect width="${W}" height="${H}" rx="6" fill="#0f1419"/><path d="M0 ${py(0)} H${W}" stroke="#2a3441"/><g stroke="#2a3441" stroke-dasharray="2 4" fill="#8b98a8" font-size="9" font-family="system-ui,sans-serif">${grid}</g>
-      ${bubble}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${spec.marks.map(m => dot(m[0], m[2])).join('')}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
-      <g fill="#9aa8b8" font-size="10" font-family="system-ui,sans-serif">${spec.marks.map(m => tx(m[0], m[1], m[3] === undefined ? 6 : m[3], m[4] === undefined ? -6 : m[4])).join('')}${tx([0, 0], spec.tgt, -70, -8)}</g></svg></div>${legend(legendKeys(false))}`;
+      ${bubble}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${spec.marks.map(m => dot(m[0], m[2])).join('')}${oa1 ? `<path d="M${px(oa1[0]).toFixed(1)} ${(py(oa1[1]) - 7).toFixed(1)} l5.5 12 h-11z" fill="#a78bfa" stroke="#111" stroke-width="1.5"><title>OA1</title></path>` : ''}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      <g fill="#9aa8b8" font-size="10" font-family="system-ui,sans-serif">${spec.marks.map(m => tx(m[0], m[1], m[3] === undefined ? 6 : m[3], m[4] === undefined ? -6 : m[4])).join('')}${oa1 ? tx(oa1, 'OA1', 8, 14) : ''}${tx([0, 0], spec.tgt, -70, -8)}</g></svg></div>${legend(legendKeys(false))}`;
   }
 
   // ---------- NAV OFFSETS ----------
@@ -224,8 +244,11 @@ export function createWeaponsPage(deps) {
     const noVrp = r.kind == 'toss' && !r.hasTurn && !vip;
     if (!noVrp) o.ref = vip ? {key: 'VIP', label: 'VIP → TGT', row: offsetRow(ctx.vipPos, ctx.tPos), stpt: n, alt: elv('tgt')} : {key: 'VRP', label: 'TGT → VRP', row: offsetRow(ctx.tPos, r.vrp), stpt: n, alt: elv('vrp')};
     if (sp) {
-      // pop-up: OA1 is the top of the climb (the pull-down point) at the pull-down altitude (MSL); the other modes keep it on the aim-off point
-      o.oa1 = st.mode == 'popup' && r.pdp ? {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + ' · pull-down', row: offsetRow(sp, r.pdp), alt: r.v.pulldownAltitude + (elv('tgt') || 0)} : {key: 'OA1-' + n, label: 'OA1 · STPT ' + n, row: offsetRow(sp, r.oa), alt: elv('oa')}; if (r.oa2) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n, row: offsetRow(sp, r.oa2), alt: r.oa2Alt};
+      // OA1 follows the button of the attack profile: the top of the manoeuvre (pop-up: pull-down point at the pull-down altitude, HADB / TOSS: the PUP at the ingress altitude, MSL) or the other reference
+      const tg = elv('tgt') || 0, igE = r.vert && r.vert.segs.find(z => z[0] == 'ingress'), pupAlt = igE ? igE[1][igE[1].length - 1][1] : r.v.ingressAltitude;
+      o.oa1 = oa1Top() ? {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + (st.mode == 'popup' ? ' · top of climb' : ' · PUP'), row: offsetRow(sp, oa1Pos(r)), alt: (st.mode == 'popup' ? r.v.pulldownAltitude : pupAlt) + tg}
+        : {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + (st.mode == 'popup' ? ' · aim-off' : ' · line-up'), row: offsetRow(sp, r.oa), alt: elv('oa')};
+      if (r.oa2) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n, row: offsetRow(sp, r.oa2), alt: r.oa2Alt};
     }
     return o;
   }
@@ -233,7 +256,7 @@ export function createWeaponsPage(deps) {
   // the drawing for the Map page's DTC filter: phases with their colours, in the page's own north / east feet (the caller converts)
   function spec() {
     try { compute(); } catch (e) { return null; }
-    if (!res || res.error || !ctx.t) return null; const r = res, vip = st.ref == 'vip' ? ctx.vipPos : null, D = r.draw || popupDraw(r, vip);
+    if (!res || res.error || !ctx.t) return null; const r = res, vip = st.ref == 'vip' ? ctx.vipPos : null, D = oa1Plan(r.draw || popupDraw(r, vip), r);
     return {segs: D.segs.map(([k, pts]) => ({k, color: PH[k][1], dash: PH[k][2], pts})), marks: [...D.marks.map(m => ({p: m[0], label: m[1], color: m[2], r: m[3] == 'big' ? 6 : 4})), {p: r.target, label: ctx.t.name || 'Target', color: '#fff', r: 6, perm: true}]};
   }
   // what the datacard shows in its Delivery section (OA1 / OA2 values come from the NAV OFFSETS rows)
@@ -398,14 +421,16 @@ export function createWeaponsPage(deps) {
         <div class="slr"><label>SAM max alt.</label><input type="range" min="2000" max="150000" step="500" value="${st.mat.samMax}" data-mat="samMax"><em data-em="samMax">${fmt(st.mat.samMax)} ft</em></div>
         <div class="slr"><label>SAM min alt.</label><input type="range" min="0" max="10000" step="100" value="${st.mat.samMin}" data-mat="samMin"><em data-em="samMin">${fmt(st.mat.samMin)} ft</em></div>` : ''}
         <p class="hint wnote">SAM altitudes start from the BMS Threat Guide values of the chosen threat (SA-2, SA-3...); move the sliders to set your own.</p><p class="hint wnote">Medium altitude toss: the release is planned outside the SAM's range ring, or above its top, so that the loft carries the bomb to the target. It needs a PPT of the DTC with a range ring (the steerpoint references stay as they are). SAM altitudes are above the target. While MAT is on the ingress altitude goes up to 50 000 ft.</p></div>`;
+      const oa1Row = `<div class="wrow"><label>OA1</label><span class="seg">${oa1Names().map(([v, l]) => `<button type="button" class="${(st.oa1 !== 'aim' ? 'top' : 'aim') === v ? 'on' : ''}" data-oa1="${v}">${l}</button>`).join('')}</span></div>`;
       let mid;
       if (md == 'hadb') mid = `<div class="wcard"><h3>Release</h3>${sl(['diveAngle', 'releaseAltitude', 'releaseSpeed', 'timeOnFinal'])}<p class="hint wnote">High altitude dive bombing: roll in at the VIP, turn and dive onto the target. The ingress altitude is not chosen: release altitude, dive angle and tracking time give it. Speeds are true airspeed.</p></div>
-        <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}<p class="hint wnote">The ingress heading is the attack heading turned away by the angle off. Fly over OA1 and the VIP, at the VIP turn in with the chosen G.</p></div>${egressCard}${weaponCard}`;
+        <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">The ingress heading is the attack heading turned away by the angle off. Fly over OA1 and the VIP, at the VIP turn in with the chosen G.</p></div>${egressCard}${weaponCard}`;
       else if (md == 'toss') mid = `<div class="wcard"><h3>Release</h3>${sl(['releaseAngle', 'ingressAltitude', 'ingressSpeed', 'releaseSpeed', 'releaseExtra'])}<p class="hint wnote">Low altitude toss: level at the ingress altitude, at the VIP pull up to the release angle, release, turn away. The release altitude is the lowest the pull-up gives plus the extra climb. Speeds are true airspeed.</p></div>${matCard}
-        <div class="wcard"><h3>Line-up and turn</h3>${sl(['heading'])}${sideRow('Turn')}${sl(['angleOff'])}${gRow('Pull-up G')}${sl(['oa1ToVip'])}<p class="hint wnote">Angle off 0 = no turn before the line-up (then there are no VRP and OA2). Otherwise the ingress comes in turned away by the angle off, VRP is where the turn starts and OA2 lines up with it.</p></div>${egressCard}${weaponCard}`;
+        <div class="wcard"><h3>Line-up and turn</h3>${sl(['heading'])}${sideRow('Turn')}${sl(['angleOff'])}${gRow('Pull-up G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">Angle off 0 = no turn before the line-up (then there are no VRP and OA2). Otherwise the ingress comes in turned away by the angle off, VRP is where the turn starts and OA2 lines up with it.</p></div>${egressCard}${weaponCard}`;
       else mid = `<div class="wcard"><h3>Attack profile</h3>${SL.slice(0, 5).map(x => slider(x[0], x[1], x[2], x[3])).join('')}
           ${sideRow('Turn')}${gRow('Turn G')}
           <div class="wrow"><label>Heading of</label>${seg('headingMode', [['attack', 'Attack run'], ['ingress', 'Climb']], i.headingMode)}</div>${slider('heading', 'Heading', '°', 0)}
+          ${oa1Row}
           <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
         <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: all as chosen on the Map page, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
@@ -437,6 +462,7 @@ export function createWeaponsPage(deps) {
       if (f == 'ref') { root.querySelector('.wvip').hidden = v != 'vip'; const vr = root.querySelector('.wvrp'); if (vr) vr.hidden = v != 'vrp'; }
       st.applied = null; upd();
     });
+    root.querySelectorAll('[data-oa1]').forEach(b => b.onclick = () => { st.oa1 = b.dataset.oa1; root.querySelectorAll('[data-oa1]').forEach(x => x.classList.toggle('on', x.dataset.oa1 === st.oa1)); st.applied = null; save(); draw(true); });
     root.querySelectorAll('input[data-sl]').forEach(inp => { inp.oninput = () => { const f = inp.dataset.sl, x = sliderOf(f); cur()[f] = NM[f] ? Math.round(+inp.value * FT_NM) : +inp.value; if (f == 'egressHeading') cur().egressTurn = 'set'; const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmt(inp.value, x[3]) + x[2]; const nb = root.querySelector(`[data-slnum="${f}"]`); if (nb) nb.value = inp.value; st.applied = null; upd(); }; });
     root.querySelectorAll('input[data-slnum]').forEach(nb => nb.onchange = () => { const f = nb.dataset.slnum, [a, b] = lim(f); let n = Math.round(+nb.value); if (isNaN(n)) n = cur()[f]; n = Math.min(b, Math.max(a, n)); nb.value = n; cur()[f] = n; if (f == 'egressHeading') cur().egressTurn = 'set'; const sl = root.querySelector(`input[data-sl="${f}"]`); if (sl) sl.value = n; st.applied = null; upd(); });
     root.querySelectorAll('input[data-fz]').forEach(inp => inp.oninput = () => { const k = inp.dataset.fz; st.fz[k] = +inp.value; root.querySelector(`[data-fzem="${k}"]`).textContent = k == 'c2ba' ? fmt(st.fz[k]) + ' ft' : st.fz[k].toFixed(2) + ' s'; upd(); });
