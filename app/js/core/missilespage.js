@@ -68,7 +68,8 @@ export function createMissilesPage(deps) {
   function tlRows() { return st.tl.cls.map(c => c ? timeline(c, DB, st.tl.std, st.bvr.msl) : null); }
   // the scheme of the two flow charts: range down the page (the adversary at the top), the lines MTR > TR > DOR > DR > MAR > STERN WEZ, and the Launch-and-Leave (Skate / Short Skate) and Launch-and-Decide (Banzai / abort) tracks
   function scheme(r) {
-    const W = 440, H = 470, top = 34, bot = H - 40, max = r.mtr + 6, y = d => top + d / max * (bot - top), X0 = 112;
+    // one scale for every table (8.17 px per nm): a longer MTR makes the drawing taller instead of squeezing it (at least as tall as for 42.5 nm)
+    const W = 440, K = 8.17, max = Math.max(r.mtr + 6, 48.5), top = 34, bot = top + max * K, H = bot + 40, y = d => top + d * K, X0 = 112;
     const L = [['MTR', r.mtr, 'Minimum Targeting Range'], ['TR', r.tr, 'Transition Range'], ['DOR', r.dor, 'Desired Out Range'], ['DR', r.dr, 'Decision Range'], ['MAR', r.mar, 'Minimum Abort Range'], ['STERN WEZ', r.stern, 'Stern weapon employment zone']];
     const col = {MTR: '#a78bfa', TR: '#60a5fa', DOR: '#34d399', DR: '#fbbf24', MAR: '#fb923c', 'STERN WEZ': '#f87171'};
     const lines = L.map(([k, v, t]) => `<path d="M${X0} ${y(v).toFixed(1)}H${W - 10}" stroke="${col[k]}" stroke-dasharray="4 4" opacity=".7"/><text x="${W - 12}" y="${(y(v) - 4).toFixed(1)}" text-anchor="end" fill="${col[k]}" font-weight="700" font-size="11">${k} ${f1(v)} nm</text>`).join('');
@@ -95,7 +96,7 @@ export function createMissilesPage(deps) {
   const tlSame = () => deps.bvrSame ? !!deps.bvrSame(tlRows()) : tlSig() === tlBase;
   function tlTable() {
     const {R, sel} = tlData(); if (tlBase === null) tlBase = tlSig(); const same = tlSame();
-    const rows = R.map((r, i) => r ? `<tr data-tlsel="${i}" style="cursor:pointer${i === sel ? ';font-weight:700' : ''}" title="${esc(r.src + ' · ' + r.cat)} — click to draw the scheme"><td>${esc(r.cls)}</td><td>${f1(r.mtr)}</td><td>${f1(r.tr)}</td><td>${f1(r.dor)}</td><td>${f1(r.dr)}</td><td>${f1(r.mar)}</td><td>${f1(r.stern)}</td><td>${f1(r.fr)}</td><td style="text-align:left">${r.msl ? esc(r.msl) + (r.picked ? ' ★' : '') : 'Threat Guide'}</td></tr>` : '').join('');
+    const rows = R.map((r, i) => r ? `<tr data-tlsel="${i}" style="cursor:pointer${i === sel ? ';font-weight:700;color:#ffe680' : ''}" title="${esc(r.src + ' · ' + r.cat)} — click to draw the scheme"><td>${esc(r.cls)}</td><td>${f1(r.mtr)}</td><td>${f1(r.tr)}</td><td>${f1(r.dor)}</td><td>${f1(r.dr)}</td><td>${f1(r.mar)}</td><td>${f1(r.stern)}</td><td>${f1(r.fr)}</td><td style="text-align:left">${r.msl ? esc(r.msl) + (r.picked ? ' ★' : '') : 'Threat Guide'}</td></tr>` : '').join('');
     return `<table class="wtl" style="border-spacing:8px 2px;border-collapse:separate"><tr><th>Class</th><th>MTR</th><th>TR</th><th>DOR</th><th>DR</th><th>MAR</th><th>STERN</th><th>FR</th><th style="text-align:left">Missile</th></tr>${rows}</table><div class="wrow"><button type="button" class="btn${same ? ' nil' : ''}" data-tlfill${same ? ' disabled title="The datacard already holds this table: change a class, the missile or the conditions first."' : ''}>Fill datacard</button></div>`;
   }
   // the left card: the table, the classes in a column and the standard conditions as sliders
