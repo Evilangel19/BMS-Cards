@@ -32,7 +32,7 @@ export const MAP_LAYERS = [
   ['sf', 'Friendly SAM range', false, 'SAM range'], ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
-  ['wx', 'Weather (fmap, winds at 20,000 ft)', false, 'Display'],
+  ['wx', 'Weather (fmap, winds at 18,000 ft)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
@@ -1127,8 +1127,8 @@ export function createMap(host, deps) {
 
   // redraw the data layers for the campaign / selected flight / faction
   // WEATHER: the .fmap of the campaign as a soft veil (poor = grey, inclement = dark) and wind arrows every 4 cells. The wind of the file is the direction it comes
-  // FROM, so the arrow points the other way. The 10 wind layers are taken as 5,000 ft steps (index 4 = 20,000 ft).
-  const WX_LV = 4;
+  // FROM, so the arrow points the other way. The 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet (BMS manual): layer 5 = 18,000 ft.
+  const WX_LV = 5;
   let WXK = null;
   function weather() {
     if (!map || !G.wx) return;

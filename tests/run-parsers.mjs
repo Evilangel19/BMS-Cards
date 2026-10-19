@@ -26,6 +26,16 @@ for (const [set, f] of Object.entries(files)) {
   for (const [f, sq] of [['beartrap/PSI_BEAR_TRAP_26.cam', 8687], ['evilkorea/EvilKorea.cam', 6185]]) {
     n++; const c = CAM.openCam(new Uint8Array(fs.readFileSync(fx(f))), CAM.D, f);
     if (c.playerSq !== sq || c.playerTeam !== 1) { bad++; console.log('FAIL player faction', f, c.playerSq, c.playerTeam); } } }
+// weather map: layers at the altitudes of the BMS manual, nearest layer to an altitude, header, fields
+{ const { parseFmap, WX_ALT, wxLevel } = await import('../app/js/parsers/fmap.js');
+  const w = parseFmap(new Uint8Array(fs.readFileSync(fx('evilkorea/EvilKorea.fmap')))), c = w.at(500, 500), p = w.profile(500, 500), g = (name, v) => { n++; if (!v) { bad++; console.log('FAIL', name); } };
+  g('fmap size 59x59', w.X === 59 && w.Y === 59);
+  g('fmap 10 wind layers 0-50000 ft', WX_ALT.length === 10 && WX_ALT[0] === 0 && WX_ALT[5] === 18000 && WX_ALT[9] === 50000 && p.length === 10);
+  g('fmap nearest layer', wxLevel(0) === 0 && wxLevel(20000) === 5 && wxLevel(21000) === 6 && wxLevel(35000) === 8 && wxLevel(90000) === 9 && wxLevel(-100) === 0);
+  g('fmap wind() = the profile layer', w.wind(500, 500, 29000).lv === 7 && w.wind(500, 500, 29000).spd === p[7].spd && w.wind(500, 500, 29000).hdg === p[7].hdg);
+  g('fmap at() = cell()', c.t === w.cell(Math.floor(500 / w.cs), Math.floor(500 / w.cs)).t && c.spd === p[0].spd);
+  g('fmap fields in range', c.dens >= 1 && c.dens <= 13 && c.size >= 0 && c.size <= 5 && (c.tcu === 0 || c.tcu === 1) && (c.shower === 0 || c.shower === 1) && c.fogEnd > 0 && c.fogEnd <= 60 && c.cond >= 0 && c.cond <= 3);
+  g('fmap header', w.hdr.contrail.length === 4 && w.hdr.contrail.every(v => v > 10000 && v < 60000) && w.hdr.wind.spd >= 0); }
 // error handling
 for (const [name, fn] of [['twx too short', () => parseTwx(new ArrayBuffer(8))], ['twx bad date', () => parseTwx(new ArrayBuffer(728))]]) {
   n++; try { fn(); bad++; console.log('FAIL', name, '(no error)'); } catch (e) { /* expected */ }

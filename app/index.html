@@ -814,7 +814,7 @@ const sqPage=createSquadronPage({esc,root:$('sq'),toast:appToast,
  phonebook:isDesktop()?{read:async()=>{const d=dtcDir();if(!d)return null;const n=(await listDir(d)).find(e=>!e.isDirectory&&/^phonebkn\.ini$/i.test(e.name));return n?new TextDecoder().decode(await readBytes(joinPath(d,n.name))):null}}:null,
  store:{load:()=>loadPrefs('squadron.json'),save:o=>savePrefs('squadron.json',o)},campaign:()=>C,swarm:window.__swarmTest,
  buildMission:()=>msfBuild(),loadMission:t=>msfLoad(t,null)});
-const pfPage=createPerfPage({esc,root:$('pf'),aircraft:{list:async()=>{const f=await acFolder(),a=new Set([...(f?f.names:Object.keys(CAM.D.acfb)),...Object.keys(MSFAC)]);return [...a].sort()},get:perfAcGet},
+const pfPage=createPerfPage({esc,root:$('pf'),wind:(x,y,t,a)=>wxWind(x,y,t,a),aircraft:{list:async()=>{const f=await acFolder(),a=new Set([...(f?f.names:Object.keys(CAM.D.acfb)),...Object.keys(MSFAC)]);return [...a].sort()},get:perfAcGet},
  loadout:()=>{const x=CL[+$('fsel').value];if(!x||!C)return null;return{ac:C.D.ac[x.f.c.i],gw:+F.gw||0,fuel:+F.fuel||0,drag:+F.drag||0}},
  flightPlan:()=>{const x=C&&CL[+$('fsel').value];if(!x||!x.f.wps)return null;return{wps:x.f.wps,labels:x.f.wps.map((_,i)=>F['fp'+i+'_0']||'')}},
  runway:{get:()=>{const d=F.__dep;return d?{id:d[0],name:d[0]+(F.ab0_0?' · '+F.ab0_0:''),ft:PERFP.rwy[d[0]]||0}:null},set:v=>{const d=F.__dep;if(!d)return;if(v>0)PERFP.rwy[d[0]]=v;else delete PERFP.rwy[d[0]];perfSave();perfFill(+$('fsel').value||0)}},
@@ -833,7 +833,7 @@ async function perfCalc(i){
  const rwy=d&&PERFP.rwy[d[0]]||0,to=PA.takeoff(ac,{W:gw,elev,dIsa,hw,power:TOPOWER,di}),alt=climbAltitude(f.wps);
  let taxi=300;try{const id=PA.engine(ac,elev,0,'idle');if(id&&id.ff>0)taxi=id.ff*TAXIMIN/60}catch(e){}
  return{ac,to,taxi,rpm:PA.milRpm(ac),refusal:rwy?PA.refusal(ac,{W:gw,elev,dIsa,hw,power:TOPOWER,di,rwy}):null,climb:PA.climbSchedule(ac,{W:gw,dIsa,di,to:alt}),
-  plan:fuelPlan(ac,f.wps,{empty:ew,stores,di,dIsa,reserve:PERFP.reserve,jokerMargin:PERFP.joker,loaded:fuel})}}
+  plan:fuelPlan(ac,f.wps,{empty:ew,stores,di,dIsa,reserve:PERFP.reserve,jokerMargin:PERFP.joker,loaded:fuel,wind:wxWind})}}
 async function perfFill(i){
  if(NOPERF||!C||!CL[i]||!AUTO)return;const k=CURK;let r;try{r=await perfCalc(i)}catch(e){return}
  if(!r||CURK!==k||!AUTO)return;
@@ -928,6 +928,8 @@ let THEATERS=[],TH=null;
 const WXS=new Map(),WXDIR={files:null};
 const wxKey=ms=>{const t=Math.floor(ms/1000);return(Math.floor(t/86400)+1)*10000+Math.floor((t%86400)/3600)*100};
 const wxAt=ms=>(ms!=null&&WXS.get(wxKey(ms)))||WX;
+// wind aloft at a position (km), time and altitude (ft): the layer nearest to the altitude, from the map of that hour
+const wxWind=(x,y,t,a)=>{const w=wxAt(t);return w&&w.wind?w.wind(x,y,a):null};
 const wxKeys=f=>{const ts=[];((f&&f.wps)||[]).forEach(p=>{if(p.arr)ts.push(p.arr);if(p.dep)ts.push(p.dep)});if(!ts.length)return[];const a=Math.min(...ts),b=Math.max(...ts),o=[];for(let t=Math.floor(a/3600000)*3600000;t<=b;t+=3600000)o.push(wxKey(t));return o};
 async function wxList(){const c=[];try{const cd=campDir();if(cd)c.push(jp(cd,'WeatherMapsUpdates'));const bi=CFG.paths.bmsInstall;if(bi)c.push(jp(bi,'Data','Campaign','WeatherMapsUpdates'))}catch(e){}
  for(const d of c){try{const es=await listDir(d),m={};es.forEach(e=>{const x=/^(\d+)\.fmap$/i.exec(e.name);if(!e.isDirectory&&x)m[+x[1]]=joinPath(d,e.name)});if(Object.keys(m).length)return m}catch(e){}}return{}}

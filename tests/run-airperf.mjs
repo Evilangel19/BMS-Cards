@@ -67,4 +67,12 @@ const r9 = P.refusal(ac, {W: 33000, rwy: 9000, di: 20, power: 'ab'}), r5 = P.ref
 ok(r9 > r5 && r5 > r1 && r9 <= 225 && P.refusal(ac, {W: 33000, di: 20}) === null, 'refusal speed grows with the runway (' + [r1, r5, r9].map(v => v.toFixed(0)).join(' / ') + ' kt) and needs its length');
 const slow = [wp(0, 0, 0, 0, 0, 1), wp(0, 28, 2100, 10 * 60000, 0, 0), wp(0, 56, 2100, 3.5 * H, 3.5 * H + 20 * 60000, 17), wp(0, 0, 0, 3.5 * H + 50 * 60000, 0, 7)];
 const fp6 = fuelPlan(ac, slow, {stores: 2500, di: 30, reserve: 1500}); ok(fp6.toFuel < 14000 && fp6.rows[1].min <= fp6.toFuel, 'a leg with hours of slack in the plan is not flown at 5 kt (to-fuel ' + fp6.toFuel + ' lb)');
+// wind aloft: the headwind of each leg turns the planned ground speed into an airspeed
+{ let asked = []; const wnd = (x, y, t, a) => { asked.push(a); return {spd: 60, hdg: 0, alt: Math.round(a / 1000) * 1000}; };   // 60 kt from the north
+  const fw = fuelPlan(ac, plan, {stores: 2500, di: 30, reserve: 1500, jokerMargin: 500, wind: wnd});
+  ok(Math.abs(fw.rows[1].hw - 60) < 1e-6 && Math.abs(fw.rows[3].hw + 60) < 1e-6 && fw.rows[0].hw === 0, 'wind: headwind going north (+60), tailwind coming back (-60), nothing on the first point');
+  ok(fw.rows[1].wind && fw.rows[1].wind.spd === 60, 'wind: the wind used by the leg is reported');
+  ok(asked[0] === (0 + 22000) / 2, 'wind: the leg asks for the wind at its mean altitude (' + asked[0] + ' ft)');
+  ok(fw.rows[1].mach > fp.rows[1].mach && fw.rows[3].mach < fp.rows[3].mach, 'wind: the same ground speed is a higher Mach into the wind and a lower one with the tail wind');
+  const nw = fuelPlan(ac, plan, {stores: 2500, di: 30, reserve: 1500, jokerMargin: 500, wind: () => null}); ok(nw.toFuel === fp.toFuel, 'wind: no wind data leaves the plan as it was'); }
 console.log(`airperf: ${n - f}/${n} checks passed`); process.exit(f ? 1 : 0);
