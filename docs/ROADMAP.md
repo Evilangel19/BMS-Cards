@@ -1,8 +1,8 @@
-# BMS Cards: open items (updated 2026-10-18)
+# BMS Cards: open items (updated 2026-10-19)
 
 ## To implement
 1. **Squadron page**: v96 done: squadron (name, motto, notes), fixed roster with role/notes, green dot when a pilot is online (public WebTorrent trackers + WebRTC, squadron secret in the `BCS.` invite), mission sent to one pilot or all online, campaign section (kills, aces, share per squadron). Logbook statistics decoded (v97, medals not yet: needs a logbook with known medals), server list from PhoneBkn.ini, trackers editable in Settings. Squadron page v98: Members / Me / Settings, several squadrons, moderation. Still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted), test with the real trackers and two PCs over the internet (STUN).
-2. **OpenTaxiway-based airbase data** (to decide after a test, see below): runway length and width, taxi chart for the kneeboard, taxi time from the real distance.
+2. **OpenTaxiway-based airbase data** (the last big section: airport charts; to discuss and decide after a test, see below): runway length and width, taxi chart for the kneeboard, taxi time from the real distance. It would also give the "refusal runway length" item.
 3. **MDC autofill**: removed for now (the MDC is filled by hand); to be redone later.
 4. ~~AGPL-3.0 licence~~ done: the repo is public (`Ciga10/BMS-Cards`), no BMS data inside. Work goes to the `dev` branch; `main` only at the official beta.
 5. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser; sections vary (the UOAF `bms_html_briefing` project and EZBoards both read it).
@@ -12,7 +12,10 @@
 - Terrain elevation (HeightMap.raw) against the airbase elevations of the AIP; Misdata units; VIP; physical toss; performance numbers.
 - Missiles: 2-3 DLZ readings in the cockpit against Rmax / DLZ / MAR of the Missiles page.
 - Take-off fuel: Min.Fuel never above the fuel on board (legs under 300 kt are flown at 300 kt); TO Fuel with 10 min of taxi (~300 lb).
-- Hourly weather maps (`WeatherMapsUpdates`) and the wind layers (5,000 ft steps assumed).
+- Hourly weather maps (`WeatherMapsUpdates`) and the wind layers: the 10 layers (0-50,000 ft, BMS manual) against the game; the Weather tab (conditions, wind barbs, temperature, pressure, clouds, visibility) against the game's weather map; the fuel plan consumption with the winds aloft.
+- HARM: Target Isolate / Glide Inhibit behave as the manual table (default glides and flexes; TI no flex; GI no LOTG but EOMG; both neither). The one doubtful point is EOMG with TI off and GI on (NC): the forum thread on the manual table says yes, one user could not see it in a test. The manual pages 468-474 could not be read from here.
+- Own satellite layer (Settings): try a real provider (address, key, credit, deepest zoom) on the Map, Weapons and Weather pages.
+- Datacard is now the first tab and the page open at start (Data Cartridge second); BVR Timeline has the Shot card under the datacard.
 - Cards in memory (`cardmemory`) come back after a restart; opening a mission file merges its cards.
 - Screenshot angle: proportions on datacard and kneeboard at several angles with the real map.
 
@@ -23,6 +26,7 @@
 - Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
 - Weather: wind direction is where it comes FROM; the 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual table; real maps may differ from the default shape). Layer altitudes were only checked against the manual, not against the game.
 - Weather condition: 0 sunny, 1 fair, 2 poor, 3 inclement (BMS wiki); the real files carry 1-3 (and a few 4s in one file): the 4 is drawn as inclement.
+- HARM switches: two independent switches (Target Isolate, Glide Inhibit) from the manual table (BMS 4.38 manual, HARM page); the side view is schematic.
 - Weather page: it uses the map of the Map page (base map and layers chosen there), so the theater support is the one of that map. The cells are an axis-aligned image over lat/lon bounds (as the Map weather filter), the real grid is turned by the map grid convergence (small). Temperature and pressure exist only at the surface.
 - Only the Korea theater was checked; add-on theaters are untested.
 
@@ -31,6 +35,17 @@
   Elevations: the game writes interpolated values with decimals (`-5078.497070`, `-3095.777344`, `-10.030000`); we read one sample of `HeightMap.raw` (floor, whole feet): 5078 / 3080 / 16 against 5078.5 / 3095.8 / 10.0 (the game's own screen shows 3075 for the second one). The differences are the slope between samples (+6 and -16 ft): bilinear interpolation of the 4 neighbours would be the next step; `Theater.txt` and `HeightMap.raw` of Korea are needed to choose the scheme (side or side-1 spacing, half-pixel) by matching these three values.
 - A saved mission weighs about 1.5-2 MB with the hourly weather maps.
 - The git remote prints a "repository moved" notice (harmless; the environment resets the address).
+
+- Ideas not yet written down in detail (to define with the user): objective faction colours on the map; Mil Climb schedule; time at which a unit is spotted; low-altitude radar; refusal runway length (see OpenTaxiway); MDC autofill (item 3); medals in the logbook `.lbk` (item 1); online squadron connection on real PCs; a "Allow in Windows Firewall" button; own tracker / TURN.
+- Weather map: the real fmap grid is turned by the map grid convergence; the cells are drawn axis-aligned (as the Map weather filter). Temperature and pressure exist only at the surface.
+
+## Done on 2026-10-19 (all on `dev`)
+- Wind layers at the manual altitudes; fmap reader with every field; fuel plan uses the wind aloft per leg.
+- Weather tab on the Map page's Leaflet map: filters (conditions, wind, temperature, pressure, clouds, visibility), wind barbs only in Wind, Time & altitude panel on the map (time slider with DEP / TOT / LAND, wind altitude slider only in Wind, opacity slider), airbases with ATIS / TAF, route table, winds aloft, Fill datacard.
+- HARM: Target Isolate and Glide Inhibit as two independent switches (manual table).
+- Settings: own satellite layer (XYZ tile provider; EOX stays the default).
+- BVR Timeline: Shot card under the datacard, drawing smaller. Datacard first tab. Open Mission button in the same green as Open DTC.
+- Decided not to correct: the 103 ft latitude text offset and non-interpolated elevations (see Small open items).
 
 ## OpenTaxiway (github.com/oakdesign/OpenTaxiway)
 Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws flat primitives as SVG/OBJ; it can go from a CampID (e.g. Osan) to the taxiway model through CampObjData.XML, OCD/FED and Falcon4_CT.xml. Useful for runway size and taxi charts. It is Python and the app is JavaScript/Tauri, and BMS data cannot be shipped, so the way is a small BML reader written in JavaScript (MIT is compatible with AGPL; LZ4/LZMA needed), reading the user's install at run time. First a test with one airbase (BML file + XML files) against known runway lengths.
