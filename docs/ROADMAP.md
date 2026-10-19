@@ -20,7 +20,9 @@
 - Airbase elevation from the AIP table; terrain elevation format deduced (little-endian signed 16-bit feet); never checked on real data.
 - Misdata: ownship speed in ft/s, third axis = target altitude, table multiplier; mean missile speed Mach 2.2 (HARM) and 2.5 (BVR); Rmax against aspect is an estimate (R = Rhead (Vm+Vt cos a)/(Vm+Vt)).
 - Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
-- Weather: wind direction is where it comes FROM; 10 wind layers every 5,000 ft (index 4 = 20,000 ft).
+- Weather: wind direction is where it comes FROM; the 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual table; real maps may differ from the default shape). Layer altitudes were only checked against the manual, not against the game.
+- Weather condition: 0 sunny, 1 fair, 2 poor, 3 inclement (BMS wiki); the real files carry 1-3 (and a few 4s in one file): the 4 is drawn as inclement.
+- Weather page: no base map under the cells (a coast line / terrain picture could be added); temperature and pressure exist only at the surface.
 - Only the Korea theater was checked; add-on theaters are untested.
 
 ## Small open items
