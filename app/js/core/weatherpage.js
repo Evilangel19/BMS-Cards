@@ -4,10 +4,12 @@
 // deps: {root, esc, flight() -> {wps, labels, alt, dep, tot, land, hours: [ms of each hourly map], bases: [{role, name, x, y, ms, elev, rwy, ils, atis}], taf} | null,
 //        at(ms) -> fmap | null (the map of that hour, or the campaign map), fill() (write ATIS, TAF and runways), fillState() -> {diff}}
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
+import { tmFwd } from '../rules/geo.js';
+import basemap from '../data/basemap.js';
 
 const MODES = [['cond', 'Weather'], ['wind', 'Wind'], ['temp', 'Temperature'], ['press', 'Pressure'], ['cloud', 'Clouds'], ['vis', 'Visibility']];
-const S = 14;                                             // pixels per cell on the canvas
-const PAL = {0: [236, 240, 245, .62], 1: [34, 168, 52, .56], 2: [186, 176, 38, .62], 3: [150, 24, 38, .72]};   // sunny white, fair green, poor yellow, inclement red (as the game)
+const S = 14, BSTEP = 4;                                  // pixels per cell on the canvas; a barb every BSTEP cells
+const PAL = {0: [0, 0, 0, 0], 1: [34, 168, 52, .56], 2: [186, 176, 38, .62], 3: [150, 24, 38, .72]};   // sunny: nothing (the base map shows), fair green, poor yellow, inclement red (as the game)
 const NOTE = ['Clear', 'Fair', 'Poor', 'Inclement'], NCOL = ['#7ee2a8', '#7ee2a8', '#f0c46a', '#ff9a9a'], NBG = ['#16362a', '#16362a', '#3a2f12', '#4a1d1d'];
 const fmt = (v, d = 0) => Number(v).toLocaleString('en-US', {minimumFractionDigits: d, maximumFractionDigits: d}).replace(/,/g, ' ');
 const z2 = v => String(v).padStart(2, '0'), hhmm = ms => { const s = Math.floor(ms / 1000); return z2((s % 86400) / 3600 | 0) + ':' + z2((s % 3600) / 60 | 0); };
@@ -30,7 +32,7 @@ export function createWeatherPage(deps) {
   const rgba = c => `rgba(${c[0]},${c[1]},${c[2]},${c[3]})`;
   const legend = (mode, W, lv) => {
     const bar = (sts, a, b, u) => `<span class="wxlg"><i style="background:linear-gradient(90deg,${sts.map(s => rgba(s[1])).join(',')})"></i><span>${a}</span><span style="margin-left:auto">${b} ${u}</span></span>`;
-    if (mode == 'cond') return WX_COND.map((n, i) => `<span class="wxlk"><i style="background:${rgba([PAL[i][0], PAL[i][1], PAL[i][2], 1])}"></i>${n}</span>`).join('');
+    if (mode == 'cond') return WX_COND.map((n, i) => `<span class="wxlk"><i style="${i ? 'background:' + rgba([PAL[i][0], PAL[i][1], PAL[i][2], 1]) : 'background:transparent;border:1px solid #cfd8e2;box-sizing:border-box'}"></i>${n}</span>`).join('');
     if (mode == 'wind') return bar(RW, '0', '90', 'kt at ' + fmt(WX_ALT[lv]) + ' ft');
     if (mode == 'temp') return bar(RT, '−20', '40', '°C at the surface');
     if (mode == 'press') return `<span class="wxlk"><i style="background:rgba(120,150,230,.6)"></i>low → high pressure (this map: ${fmt(W.pr[0], 0)} to ${fmt(W.pr[1], 0)} mbar)</span>`;
@@ -45,29 +47,50 @@ export function createWeatherPage(deps) {
     if (mode == 'cloud') return c.cu >= 9999 ? [0, 0, 0, 0] : [255, 255, 255, .12 + .6 * Math.min(1, c.dens / 13)];
     return ramp(RV, c.fogEnd);
   };
-  function barb(x, cx, cy, hdg, spd, L) {                 // meteorological barb: the staff points to where the wind comes from
-    if (spd < 2.5) { x.beginPath(); x.arc(cx, cy, 1.8, 0, 6.3); x.stroke(); return; }
-    const a = hdg * Math.PI / 180, ux = Math.sin(a), uy = -Math.cos(a), px = -uy, py = ux, ex = cx + ux * L, ey = cy + uy * L, B = 4.2;
-    x.beginPath(); x.moveTo(cx, cy); x.lineTo(ex, ey); x.stroke();
-    let r = Math.round(spd / 5) * 5, d = 0; x.beginPath();
-    while (r >= 50) { const sx = ex - ux * d, sy = ey - uy * d; x.moveTo(sx, sy); x.lineTo(sx + px * B - ux * 2, sy + py * B - uy * 2); x.lineTo(sx - ux * 3, sy - uy * 3); r -= 50; d += 3.5; }
-    while (r >= 10) { const sx = ex - ux * d, sy = ey - uy * d; x.moveTo(sx, sy); x.lineTo(sx + px * B - ux * 1.5, sy + py * B - uy * 1.5); r -= 10; d += 2.4; }
-    if (r >= 5) { if (d == 0) d = 2.4; const sx = ex - ux * d, sy = ey - uy * d; x.moveTo(sx, sy); x.lineTo(sx + px * B * .55 - ux * .8, sy + py * B * .55 - uy * .8); }
-    x.stroke();
+  // meteorological barb as a path: the staff points to where the wind comes from; a half barb is 5 kt, a full one 10, a pennant 50
+  function barb(cx, cy, hdg, spd, L, B) {
+    const p = new Path2D();
+    if (spd < 2.5) { p.moveTo(cx + 3.2, cy); p.arc(cx, cy, 3.2, 0, 6.3); return p; }
+    const a = hdg * Math.PI / 180, ux = Math.sin(a), uy = -Math.cos(a), px = -uy, py = ux, ex = cx + ux * L, ey = cy + uy * L;
+    p.moveTo(cx, cy); p.lineTo(ex, ey);
+    let r = Math.round(spd / 5) * 5, d = 0;
+    while (r >= 50) { const sx = ex - ux * d, sy = ey - uy * d; p.moveTo(sx, sy); p.lineTo(sx + px * B - ux * B * .4, sy + py * B - uy * B * .4); p.lineTo(sx - ux * B * .7, sy - uy * B * .7); p.closePath(); r -= 50; d += B * .85; }
+    while (r >= 10) { const sx = ex - ux * d, sy = ey - uy * d; p.moveTo(sx, sy); p.lineTo(sx + px * B - ux * B * .35, sy + py * B - uy * B * .35); r -= 10; d += B * .5; }
+    if (r >= 5) { if (d == 0) d = B * .5; const sx = ex - ux * d, sy = ey - uy * d; p.moveTo(sx, sy); p.lineTo(sx + px * B * .55 - ux * B * .2, sy + py * B * .55 - uy * B * .2); }
+    return p;
+  }
+  // the base map under the cells: sea, land, coast, lakes, rivers and borders of the offline map (Korea projection), drawn once
+  let BASE = null;
+  function baseMap(W) {
+    const key = W.X + 'x' + W.Y + '/' + W.cs; if (BASE && BASE.key == key) return BASE;
+    const mk = () => { const c = document.createElement('canvas'); c.width = W.X * S; c.height = W.Y * S; return c; }, under = mk(), over = mk(), w = under.width, h = under.height, u = under.getContext('2d'), o = over.getContext('2d');
+    const pt = q => { const m = tmFwd(q[1], q[0]); return [(m[0] / 1000 + 512) / W.cs * S, (W.Y - (m[1] / 1000 + 512) / W.cs) * S]; };
+    const path = (rings, close) => { const p = new Path2D(); rings.forEach(r => { let on = false; r.forEach(q => { const c = pt(q); if (c[0] < -400 || c[0] > w + 400 || c[1] < -400 || c[1] > h + 400) { on = false; return; } if (on) p.lineTo(c[0], c[1]); else { p.moveTo(c[0], c[1]); on = true; } }); if (close) p.closePath(); }); return p; };
+    u.fillStyle = '#0f1d2b'; u.fillRect(0, 0, w, h);
+    const land = path(basemap.land, true), lakes = path(basemap.lakes || [], true);
+    u.fillStyle = '#2b3744'; u.fill(land); u.fillStyle = '#0f1d2b'; u.fill(lakes);               // under the cells: sea, land, lakes
+    o.lineJoin = 'round'; o.strokeStyle = '#3f78ad'; o.lineWidth = 1; o.globalAlpha = .85; o.stroke(path(basemap.rivers || [], false)); o.stroke(lakes); o.globalAlpha = 1;   // over the cells: rivers, coast, borders
+    o.strokeStyle = 'rgba(8,14,22,.8)'; o.lineWidth = 3.2; o.stroke(land); o.strokeStyle = '#e4ebf2'; o.lineWidth = 1.5; o.stroke(land);
+    o.setLineDash([6, 4]); o.strokeStyle = 'rgba(8,14,22,.7)'; o.lineWidth = 3; o.stroke(path(basemap.borders, false)); o.strokeStyle = '#ffd98a'; o.lineWidth = 1.3; o.stroke(path(basemap.borders, false)); o.setLineDash([]);
+    BASE = {key, under, over}; return BASE;
   }
   const prOf = W => { if (!W.pr) { let a = 1e9, b = -1e9; for (let j = 0; j < W.Y; j++) for (let i = 0; i < W.X; i++) { const p = W.cell(i, j).p; if (p < a) a = p; if (p > b) b = p; } W.pr = [a, b]; } return W.pr; };
   const pos = (W, p) => [p.x / W.cs * S, (W.Y - p.y / W.cs) * S];
 
   function paint(cv, W, fl, lv, mode) {
     prOf(W); const x = cv.getContext('2d'); cv.width = W.X * S; cv.height = W.Y * S;
-    x.fillStyle = '#1b2735'; x.fillRect(0, 0, cv.width, cv.height);
+    const bm = baseMap(W); x.drawImage(bm.under, 0, 0);
     for (let j = 0; j < W.Y; j++) for (let i = 0; i < W.X; i++) {
       const c = W.cell(i, j, lv), col = cellColor(c, mode, W); if (!col[3]) continue;
       x.fillStyle = rgba(col); x.fillRect(i * S, (W.Y - 1 - j) * S, S, S);
     }
-    if (st.barbs) {
-      x.strokeStyle = 'rgba(255,255,255,.88)'; x.fillStyle = 'rgba(255,255,255,.88)'; x.lineWidth = 1.2; x.lineJoin = 'round';
-      for (let j = 0; j < W.Y; j++) for (let i = 0; i < W.X; i++) { const c = W.cell(i, j, lv); barb(x, (i + .5) * S, (W.Y - 1 - j + .5) * S, c.hdg, c.spd, S * .62); }
+    x.drawImage(bm.over, 0, 0);                          // coast, rivers and borders over the cells
+    if (st.barbs) {                                      // fewer, bigger barbs: one every 4 cells, with a dark outline
+      x.lineJoin = 'round'; x.lineCap = 'round';
+      for (let j = 1; j < W.Y; j += BSTEP) for (let i = 1; i < W.X; i += BSTEP) {
+        const c = W.cell(i, j, lv), p = barb((i + .5) * S, (W.Y - 1 - j + .5) * S, c.hdg, c.spd, S * 2.6, S * .72);
+        x.strokeStyle = 'rgba(8,14,22,.85)'; x.lineWidth = 4; x.stroke(p); x.strokeStyle = '#fff'; x.fillStyle = '#fff'; x.lineWidth = 1.9; x.stroke(p); x.fill(p);
+      }
     }
     if (fl && fl.wps && fl.wps.length) {
       const P = fl.wps.map(p => pos(W, p)), end = fl.wps.findIndex((p, i) => i > 0 && p.act == 7), n = end > 0 ? end + 1 : fl.wps.length;
@@ -101,7 +124,7 @@ export function createWeatherPage(deps) {
     const fillBtn = fl && deps.fill ? `<button type="button" class="btn ${fd && fd.diff ? 'bl' : 'g'}${fd && !fd.diff ? ' nil' : ''}" data-fill title="Write ATIS, TAF and runways of the flight again from the weather maps of the right hours (fields you typed by hand are replaced). Dimmed when the datacard already holds them.">Fill datacard (ATIS, TAF, runways)</button>` : '';
     const marks = [];
     if (fl && t0 != null) [['DEP', fl.dep, '#8cc4ff'], ['TOT', fl.tot, '#ffe680'], ['LAND', fl.land, '#7ee2a8']].forEach(([n, v, c]) => { if (v != null && v >= t0 && v <= t1) marks.push({n, v, c, p: (v - t0) / (t1 - t0) * 100}); });
-    const slider = t0 == null ? '<p class="hint">The campaign map is used: no hourly maps for this flight.</p>' : `<div class="wxtm"><div class="wxmk">${marks.map(m => `<span style="left:${m.p}%;background:${m.c}">${m.n} ${hhmm(m.v)}</span>`).join('')}</div><input type="range" id="wxms" min="${t0}" max="${t1}" step="60000" value="${ms}"><div class="wxtk">${hrs.map(h => `<span style="left:${(h - t0) / (t1 - t0) * 100}%">${z2((h / 3600000 | 0) % 24)}</span>`).join('')}</div></div>`;
+    const slider = t0 == null ? '<p class="hint">The campaign map is used: no hourly maps for this flight.</p>' : `<div class="wxtm"><div class="wxmk">${marks.map((m, k) => `<span style="left:${Math.min(92, Math.max(8, m.p))}%;top:${k % 2 * 22}px;background:${m.c}">${m.n} ${hhmm(m.v)}</span>`).join('')}</div><input type="range" id="wxms" min="${t0}" max="${t1}" step="60000" value="${ms}"><div class="wxtk">${hrs.map(h => `<span style="left:${(h - t0) / (t1 - t0) * 100}%">${z2((h / 3600000 | 0) % 24)}</span>`).join('')}</div></div>`;
     const lvTicks = WX_ALT.map((a, i) => `<button type="button" class="${i == lv ? 'on' : ''}" data-lv="${i}">${a ? a / 1000 : 'SFC'}</button>`).join('');
     const bases = fl && fl.bases.length ? fl.bases.map(b => `<div class="wxb"><div><span class="hint">${b.role}</span> <b>${esc(b.name)}</b><span class="hint" style="float:right">${b.rwy ? 'RWY ' + esc(b.rwy) : ''}${b.ils ? ' · ILS ' + esc(b.ils) : ''} ${b.ms != null ? ' · ' + hhmm(b.ms) + 'Z' : ''}</span></div><div class="wxa">${esc(b.atis)}</div></div>`).join('') + (fl.taf ? `<div class="wxb"><div class="hint">TARGET FORECAST</div><div class="wxa">${esc(fl.taf)}</div></div>` : '') : '<p class="hint">Pick a flight in the Datacard to see its airbases.</p>';
     const rte = fl && fl.wps.length ? (() => {
@@ -115,10 +138,9 @@ export function createWeatherPage(deps) {
     const prof = tg ? (deps.at(tg.arr || ms) || W).profile(tg.x, tg.y) : W.profile(W.X * W.cs / 2, W.Y * W.cs / 2), mx = Math.max(20, ...prof.map(p => p.spd));
     const aloft = prof.map(p => `<div class="wxw${p.lv == lv ? ' on' : ''}" data-lv="${p.lv}"><span>${p.alt ? fmt(p.alt) + ' ft' : 'Surface'}</span><div class="wxbar"><u style="width:${p.spd / mx * 100}%"></u></div><b>${wind(p.hdg, p.spd)} kt</b></div>`).join('');
     root.innerHTML = `${tabs}<div class="wxtop"><span class="hint">${fl ? esc(fl.title || '') : 'campaign weather'}${ms != null ? ' · day ' + dayOf(ms) + ' · ' + hhmm(ms) + 'Z' : ''}</span><span style="flex:1"></span><label class="wxck"><input type="checkbox" id="wxbarbs"${st.barbs ? ' checked' : ''}> Wind barbs</label>${fillBtn}</div>
-<div class="wxg"><div class="wxl"><div class="wcard"><h3>Map · ${MODES.find(m => m[0] == st.mode)[1]}</h3><div class="wxcvw"><canvas id="wxcv"></canvas></div><div class="wxleg">${legend(st.mode, W, lv)}</div><div class="hint wxinfo" id="wxinfo">Move over the map for the data of a cell.</div></div>
-<div class="wcard"><h3>Time</h3>${slider}</div>
-<div class="wcard"><h3>Altitude of the wind (ft ×1000)${st.lv == null ? ' · from the flight plan' : ''}</h3><div class="wxlv">${lvTicks}</div><div class="hint">${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : 'The wind is read from the 10 layers of the map; the barbs and the Wind colours show the layer selected here.'}</div></div></div>
-<div class="wxr"><div class="wcard"><h3>Airbases</h3>${bases}</div><div class="wcard"><h3>Along the route</h3>${rte}</div><div class="wcard"><h3>Winds aloft${tg ? ' · ' + esc(((fl.labels && fl.labels[fl.wps.indexOf(tg)]) || 'target') + ' (STPT ' + (fl.wps.indexOf(tg) + 1) + ')') : ''}</h3>${aloft}<div class="hint wxnote">Layers at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet. Direction is where the wind comes from.</div></div></div></div>`;
+<div class="wxg"><div class="wxl"><div class="wcard"><h3>Map · ${MODES.find(m => m[0] == st.mode)[1]}</h3><div class="wxcvw"><canvas id="wxcv"></canvas></div><div class="wxleg">${legend(st.mode, W, lv)}</div><div class="hint wxinfo" id="wxinfo">Move over the map for the data of a cell.</div></div></div>
+<div class="wxr"><div class="wcard"><h3>Airbases</h3>${bases}</div><div class="wcard"><h3>Along the route</h3>${rte}</div><div class="wcard"><h3>Winds aloft${tg ? ' · ' + esc(((fl.labels && fl.labels[fl.wps.indexOf(tg)]) || 'target') + ' (STPT ' + (fl.wps.indexOf(tg) + 1) + ')') : ''}</h3>${aloft}<div class="hint wxnote">Layers at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet. Direction is where the wind comes from.</div></div><div class="wcard"><h3>Time</h3>${slider}</div>
+<div class="wcard"><h3>Altitude of the wind (ft ×1000)${st.lv == null ? ' · from the flight plan' : ''}</h3><div class="wxlv">${lvTicks}</div><div class="hint">${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : 'The wind is read from the 10 layers of the map; the barbs and the Wind colours show the layer selected here.'}</div></div></div></div>`;
     const cv = root.querySelector('#wxcv'); paint(cv, W, fl, lv, st.mode); cur = {W, lv};
     const info = root.querySelector('#wxinfo');
     cv.onmousemove = e => { const Wc = cur.W, r = cv.getBoundingClientRect(), i = Math.floor((e.clientX - r.left) / r.width * Wc.X), j = Wc.Y - 1 - Math.floor((e.clientY - r.top) / r.height * Wc.Y); if (i >= 0 && j >= 0 && i < Wc.X && j < Wc.Y) info.innerHTML = cellInfo(Wc.cell(i, j, lv), lv, i, j, Wc); };
@@ -129,5 +151,5 @@ export function createWeatherPage(deps) {
     const sl = root.querySelector('#wxms'); if (sl) { sl.oninput = () => { st.ms = +sl.value; const W2 = deps.at(st.ms); root.querySelector('.wxtop .hint').textContent = (fl && fl.title ? fl.title + ' · ' : '') + 'day ' + dayOf(st.ms) + ' · ' + hhmm(st.ms) + 'Z'; if (W2 && W2 !== cur.W) { cur.W = W2; paint(cv, W2, fl, lv, st.mode); } }; sl.onchange = () => { st.ms = +sl.value; save(); draw(); }; }
     const fb = root.querySelector('[data-fill]'); if (fb) fb.onclick = () => { if (fb.classList.contains('nil')) return; deps.fill(); draw(); };
   }
-  return {render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(); }, state: () => st, setState: o => { st = {...st, ...o}; save(); }, root: deps.root, draw};
+  return {base: () => cur && baseMap(cur.W).under, render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(); }, state: () => st, setState: o => { st = {...st, ...o}; save(); }, root: deps.root, draw};
 }

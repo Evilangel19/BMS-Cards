@@ -22,10 +22,12 @@
 - Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
 - Weather: wind direction is where it comes FROM; the 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual table; real maps may differ from the default shape). Layer altitudes were only checked against the manual, not against the game.
 - Weather condition: 0 sunny, 1 fair, 2 poor, 3 inclement (BMS wiki); the real files carry 1-3 (and a few 4s in one file): the 4 is drawn as inclement.
-- Weather page: no base map under the cells (a coast line / terrain picture could be added); temperature and pressure exist only at the surface.
+- Weather page: the offline base map (sea, land, coast, rivers, borders; Korea projection) is under the cells, so other theaters would be misplaced; no terrain picture. Temperature and pressure exist only at the surface.
 - Only the Korea theater was checked; add-on theaters are untested.
 
 ## Small open items
+- **Target coordinates and elevations vs the game (test of 2026-10-19, left as it is on purpose).** Three targets were put in the game and in the program (Hamgyong P-14, Seonginbong, Jinhae helobase). The north/east feet written in the DTC are the same as the game's (checked on the game's `target_96..98` lines). What differs is only the text we show: the latitude of our feet -> lat/lon conversion (`tmInv` / `tmFwd`, origin 38.5 N 127.5 E) is 0.017' (103 ft, about 31 m) south of the game's, equal at 35, 37 and 39 N, with the longitude equal (within 0.001'). Bombs follow the DTC, so nothing is wrong in flight and the lat/lon is a reminder: not corrected. If it is ever corrected: add about 103.2 ft (31.5 m) to the northing in both directions of the conversion.
+  Elevations: the game writes interpolated values with decimals (`-5078.497070`, `-3095.777344`, `-10.030000`); we read one sample of `HeightMap.raw` (floor, whole feet): 5078 / 3080 / 16 against 5078.5 / 3095.8 / 10.0 (the game's own screen shows 3075 for the second one). The differences are the slope between samples (+6 and -16 ft): bilinear interpolation of the 4 neighbours would be the next step; `Theater.txt` and `HeightMap.raw` of Korea are needed to choose the scheme (side or side-1 spacing, half-pixel) by matching these three values.
 - A saved mission weighs about 1.5-2 MB with the hourly weather maps.
 - The git remote prints a "repository moved" notice (harmless; the environment resets the address).
 
