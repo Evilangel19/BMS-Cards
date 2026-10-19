@@ -48,7 +48,7 @@
 - BVR Timeline: Shot card under the datacard, drawing smaller. Datacard first tab. Open Mission button in the same green as Open DTC.
 - Decided not to correct: the 103 ft latitude text offset and non-interpolated elevations (see Small open items).
 
-- Runway size from `OCD_nnnnn/PHD+PDX` (done 2026-10-19): to check on the real PC with other bases (Kunsan, Seoul/RKSS ...) against the AIP; only Osan was checked. Bases without an ATC file get no automatic length (type it).
+- Runway size from `OCD_nnnnn/PHD+PDX` (done 2026-10-19): read on the real PC by the user: Wonju 8,980, Kunsan 9,018, Gwangju 9,300, Osan 9,004, Daegu 8,998, Cheongju 9,001, Iwakuni 8,005 ft (all within 0.2-0.3% of the real runways; Gimpo not tried, no flight). Still to compare with the AIP of the game. Bases without an ATC file get no automatic length (type it).
 
 ## OpenTaxiway (github.com/oakdesign/OpenTaxiway)
 Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws flat primitives as SVG/OBJ; it can go from a CampID (e.g. Osan) to the taxiway model through CampObjData.XML, OCD/FED and Falcon4_CT.xml. Useful for runway size and taxi charts. It is Python and the app is JavaScript/Tauri, and BMS data cannot be shipped, so the way is a small BML reader written in JavaScript (MIT is compatible with AGPL; LZ4/LZMA needed), reading the user's install at run time. First a test with one airbase (BML file + XML files) against known runway lengths.
