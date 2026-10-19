@@ -5,6 +5,7 @@
 2. **OpenTaxiway-based airbase data** (to decide after a test, see below): runway length and width, taxi chart for the kneeboard, taxi time from the real distance.
 3. **MDC autofill**: removed for now (the MDC is filled by hand); to be redone later.
 4. ~~AGPL-3.0 licence~~ done: the repo is public (`Ciga10/BMS-Cards`), no BMS data inside. Work goes to the `dev` branch; `main` only at the official beta.
+5. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser; sections vary (the UOAF `bms_html_briefing` project and EZBoards both read it).
 
 ## To check on the real PC
 - Datacard: positions of the cells; MDC layout against the game.

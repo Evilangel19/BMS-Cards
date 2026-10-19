@@ -16,7 +16,7 @@ try:
         pg = br.new_page(viewport={'width': 1500, 'height': 900}, reduced_motion='reduce')
         import dialogs; dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto('http://localhost:8773/app/index.html'); pg.wait_for_timeout(800)
+        pg.goto('http://localhost:8773/app/index.html'); pg.wait_for_timeout(800); pg.click('[data-t=dtc]'); pg.wait_for_timeout(300)
         ln = lambda k: pg.evaluate("k=>{const l=__app.lines.find(l=>l.k==k);return l?l.v:null}", k)
         cls = lambda sel: pg.evaluate("s=>document.querySelector(s).className", sel)
         nil = lambda sel: 'nil' in cls(sel).split()
@@ -191,7 +191,7 @@ try:
         pg.once('dialog', lambda d: d.accept()); pg.click('[data-def="mfd:load"]'); pg.wait_for_timeout(400)
         check('Load puts the default back', ln('Display0-0-1') == '6')
         # v47: flight plan never editable (file route without a campaign), defaults for EWS / Systems, MFD 3-4, missile values, HARM colours
-        pg.reload(); pg.wait_for_timeout(800); pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_6.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
+        pg.reload(); pg.wait_for_timeout(800); pg.click('[data-t=dtc]'); pg.wait_for_timeout(300); pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_6.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
         go('stpt'); vt = pg.inner_text('[data-card=fplan]')
         check('without a campaign the flight plan shows the route points of the file, read-only, no North/East ft columns', 'FLIGHT PLAN IN THE FILE' in vt.upper() and pg.locator('[data-card=fplan] input').count() == 0 and 'North (ft)' not in pg.inner_text('#view') and pg.locator('[data-card=route]').count() == 0)
         hd = pg.evaluate("[...document.querySelectorAll('[data-card=fplan] th')].map(x=>x.textContent)")

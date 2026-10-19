@@ -35,7 +35,7 @@ function barbPath(cx, cy, hdg, spd, L, B) {
 
 export function createWeatherPage(deps) {
   const esc = deps.esc, KEY = 'wxstate2';
-  let st = {mode: 'cond', lv: null, ms: null, open: true};
+  let st = {mode: 'cond', lv: null, ms: null, open: true, op: 100};
   try { const o = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (o) st = {...st, ...o}; } catch (e) { /* none */ }
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* none */ } };
   let cur = null, M = null, tok = 0, view = null;          // cur: what is drawn {W, lv, fl}; M: the borrowed map {L, map, group, box, on}; view: bounds kept between two drawings of the page
@@ -68,7 +68,7 @@ export function createWeatherPage(deps) {
   function layers() {
     if (!M || !cur) return;
     const {L, map, group} = M, {W, lv} = cur, mode = st.mode, cs = W.cs;
-    group.clearLayers();
+    group.clearLayers(); const pn = map.getPane('wxP'); if (pn) pn.style.opacity = st.op / 100;
     const cv = document.createElement('canvas'); cv.width = W.X; cv.height = W.Y; const x = cv.getContext('2d'), im = x.createImageData(W.X, W.Y);
     for (let j = 0; j < W.Y; j++) for (let i = 0; i < W.X; i++) { const c = cellColor(W.cell(i, j, lv), mode, W); im.data.set([c[0], c[1], c[2], Math.round(c[3] * 255)], 4 * ((W.Y - 1 - j) * W.X + i)); }
     x.putImageData(im, 0, 0);
@@ -94,7 +94,7 @@ export function createWeatherPage(deps) {
   }
   function mapDown() {
     tok++; if (!M) return;
-    try { view = M.map.getBounds(); M.map.off('mousemove', M.mv); M.map.off('zoomend', M.zm); M.group.remove(); } catch (e) { /* none */ }
+    try { const pn = M.map.getPane('wxP'); if (pn) pn.style.opacity = ''; view = M.map.getBounds(); M.map.off('mousemove', M.mv); M.map.off('zoomend', M.zm); M.group.remove(); } catch (e) { /* none */ }
     M = null; try { deps.detach(); } catch (e) { /* none */ }
   }
 
@@ -110,7 +110,7 @@ export function createWeatherPage(deps) {
     if (fl && t0 != null) [['DEP', fl.dep, '#8cc4ff'], ['TOT', fl.tot, '#ffe680'], ['LAND', fl.land, '#7ee2a8']].forEach(([n, v, c]) => { if (v != null && v >= t0 && v <= t1) marks.push({n, v, c, p: (v - t0) / (t1 - t0) * 100}); });
     const slider = t0 == null ? '<p class="hint" style="margin:0 0 8px">The campaign map is used: no hourly maps for this flight.</p>' : `<div class="wxtm"><div class="wxmk">${marks.map((m, k) => `<span style="left:${Math.min(88, Math.max(12, m.p))}%;top:${k % 2 * 22}px;background:${m.c}">${m.n} ${hhmm(m.v)}</span>`).join('')}</div><input type="range" id="wxms" min="${t0}" max="${t1}" step="60000" value="${ms}"><div class="wxtk">${hrs.map(h => `<span style="left:${(h - t0) / (t1 - t0) * 100}%">${z2((h / 3600000 | 0) % 24)}</span>`).join('')}</div></div>`;
     const lvTicks = WX_ALT.map((a, i) => `<button type="button" class="${i == lv ? 'on' : ''}" data-lv="${i}">${a ? a / 1000 : 'SFC'}</button>`).join('');
-    return `<div class="wxph">Time <b id="wxtl">${ms != null ? 'day ' + dayOf(ms) + ' · ' + hhmm(ms) + 'Z' : ''}</b></div>${slider}<div class="wxph" style="margin-top:6px">Altitude of the wind (ft ×1000)${st.lv == null ? ' · from the flight plan' : ''}</div><div class="wxlv">${lvTicks}</div>${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : ''}<p class="hint wxnote" style="margin:6px 0 0">The wind layers are shown, as barbs, in the Wind tab.</p>`;
+    return `<div class="wxph">Time <b id="wxtl">${ms != null ? 'day ' + dayOf(ms) + ' · ' + hhmm(ms) + 'Z' : ''}</b></div>${slider}<div class="wxph" style="margin-top:6px">Altitude of the wind (ft ×1000)${st.lv == null ? ' · from the flight plan' : ''}</div><div class="wxlv">${lvTicks}</div>${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : ''}<div class="wxph" style="margin-top:8px">Weather opacity <b id="wxopl">${st.op}%</b></div><input type="range" id="wxop" min="10" max="100" step="5" value="${st.op}" style="width:100%;accent-color:#3ddc84" aria-label="Weather opacity"><p class="hint wxnote" style="margin:6px 0 0">The wind layers are shown, as barbs, in the Wind tab.</p>`;
   };
   const alofts = (s, W) => {
     const {fl, ms, lv} = s, tg = fl && fl.wps.length ? (fl.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || fl.wps[Math.min(1, fl.wps.length - 1)]) : null;
@@ -158,6 +158,7 @@ export function createWeatherPage(deps) {
   function wirePanel() {
     const root = deps.root, sl = root.querySelector('#wxms');
     root.querySelectorAll('#wxpp [data-lv]').forEach(b => b.onclick = () => { st.lv = +b.dataset.lv; save(); upd(true); });
+    const op = root.querySelector('#wxop'); if (op) { op.oninput = () => { st.op = +op.value; const pn = M && M.map.getPane('wxP'); if (pn) pn.style.opacity = st.op / 100; const l = root.querySelector('#wxopl'); if (l) l.textContent = st.op + '%'; }; op.onchange = save; }
     const au = root.querySelector('#wxpp [data-auto]'); if (au) au.onclick = () => { st.lv = null; save(); upd(true); };
     if (sl) {
       sl.oninput = () => { st.ms = +sl.value; const s = stateOf(), W2 = deps.at(st.ms), l = root.querySelector('#wxtl'); if (l) l.textContent = 'day ' + dayOf(st.ms) + ' · ' + hhmm(st.ms) + 'Z'; if (W2 && cur && W2 !== cur.W) { cur = {W: W2, lv: s.lv, fl: s.fl}; layers(); } };
