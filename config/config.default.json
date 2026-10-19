@@ -21,6 +21,13 @@
   "squadron": {
     "trackers": ""
   },
+  "map": {
+    "satOn": false,
+    "satUrl": "",
+    "satKey": "",
+    "satAttr": "",
+    "satMaxZoom": 18
+  },
   "theater": "",
   "language": "en"
 }

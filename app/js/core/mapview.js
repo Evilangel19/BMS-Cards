@@ -87,6 +87,13 @@ export function createMap(host, deps) {
   const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), PREF.on || {}), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
   st = mkSt();
   const persist = () => { store.set(PREF); if (deps.savePrefs) deps.savePrefs(PREF); };
+  // the satellite layer: the built-in one (Sentinel-2 by EOX) or, when it is switched on in the Settings, the user's own tile provider
+  const satDef = () => {
+    const c = deps.satCfg && deps.satCfg();
+    if (c && c.satOn && /\{z\}/.test(c.satUrl || '') && /\{x\}/.test(c.satUrl) && /\{y\}/.test(c.satUrl)) return {label: 'Satellite (your provider, online)', url: c.satUrl.replace(/\{key\}/g, encodeURIComponent(c.satKey || '')), attr: deps.esc(c.satAttr || ''), maxNative: Math.max(5, Math.min(22, +c.satMaxZoom || 18))};
+    return BASES.sat;
+  };
+  const baseDef = k => k == 'sat' ? satDef() : BASES[k];
   const save = () => { Object.assign(PREF, {base: st.base, coastLight: st.cl, on: st.on, closed: st.closed, dtcOpen: st.dtcOpen, dtcFilOpen: st.dtcFilOpen, dtcFilMem: st.dtcFilMem, baseOpen: st.baseOpen, filOpen: st.filOpen}); persist(); };
   const $ = id => host.querySelector('#' + id);
 
@@ -213,7 +220,7 @@ export function createMap(host, deps) {
   // The levels (base maps) have their own menu (top left of the map, next to the zoom buttons). Opens downward from its button.
   function baseMenu() {
     const m = $('mpbase');
-    m.innerHTML = Object.entries(BASES).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${b.label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
+    m.innerHTML = Object.entries(BASES).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${baseDef(k).label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
     // opacity of the base map (pictures, tiles, coastlines): the data stay as they are
     m.insertAdjacentHTML('beforeend', `<label class="mpr" title="Opacity of the base map: 0 = only the flat background"><span class="lt">Map opacity</span><input type="range" id="mpbgo" min="0" max="100" value="${st.on.bgop == null ? 100 : st.on.bgop}" style="flex:1;min-width:0"></label>`);
     $('mpbgo').oninput = () => { st.on.bgop = +$('mpbgo').value; save(); bgOp(); }; bgOp();
@@ -552,7 +559,7 @@ export function createMap(host, deps) {
     if (TL) { map.removeLayer(TL); TL = null; }
     if (OV) { map.removeLayer(OV); OV = null; }
     map.removeLayer(G.coastD); map.removeLayer(G.coastL); G.coast = st.cl ? G.coastL : G.coastD; note('');
-    const b = BASES[st.base];
+    const b = baseDef(st.base);
     host.classList.toggle('sat', st.base != 'coast'); host.classList.toggle('cl', st.base == 'coast' && st.cl); setPalette();
     if (st.base == 'coast') { G.coast.addTo(map); return; }
     if (st.base == 'bms' || st.base == 'img' || st.base == 'sky') {
@@ -561,7 +568,7 @@ export function createMap(host, deps) {
       catch (e) { if (tok == baseTok) note(e.message); }
       return;
     }
-    TL = L.tileLayer(b.url, {maxZoom: 18, maxNativeZoom: 13, subdomains: b.sub || 'abc', attribution: b.attr || '', crossOrigin: true});
+    TL = L.tileLayer(b.url, {maxZoom: 18, maxNativeZoom: Math.min(18, b.maxNative || 13), subdomains: b.sub || 'abc', attribution: b.attr || '', crossOrigin: true});
     TL.on('tileerror', () => note('No tiles received: check the internet connection.')); TL.on('tileload', () => note('')); TL.addTo(map); TL.bringToBack();
   }
   // objectives (factories, power plants, radars ...): read when a type is first switched on and drawn as dots, white whatever the owner. The state comes from the
@@ -1191,6 +1198,8 @@ export function createMap(host, deps) {
     tanks: () => (PREF.tanks || []).slice(),
     setTanks: a => { PENDTK = a; if (map) { mergeTanks(); dtc(); sync(); } },
     detach: () => detach(), toggleEdit: () => setEdit(!EDIT), isEdit: () => EDIT, cyclePlan, planMode: () => PLANMODE,
+    // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
+    rebase: () => { if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } if (st.base == 'sat') setBase(); },
     underlay: () => { const c = OV && OV._url; if (!c || !c.getContext || !OV.getBounds) return null; const b = OV.getBounds(); return {canvas: c, bounds: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; }
   };
 }

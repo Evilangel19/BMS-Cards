@@ -22,6 +22,13 @@ export const DEFAULTS = {
   squadron: {
     trackers: '',       // WebTorrent trackers (ws:// or wss://, one per line or separated by spaces) used to find the pilots of the squadron; empty = the built-in public ones
   },
+  map: {
+    satOn: false,       // true = the satellite layer of the maps uses the provider below instead of the built-in one (Sentinel-2 by EOX)
+    satUrl: '',         // tile address with {z}, {x}, {y} (and {key} if the provider needs a key); the provider must allow CORS
+    satKey: '',         // key (token) put in place of {key} in the address
+    satAttr: '',        // credit shown on the map (the provider's terms usually require it)
+    satMaxZoom: 18,     // deepest zoom the provider has real tiles for (deeper zooms enlarge them)
+  },
   theater: '',          // name of the selected theater (empty = first one found)
   language: 'en',
 };
