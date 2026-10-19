@@ -109,8 +109,9 @@ export function createWeatherPage(deps) {
     const {fl, hrs, t0, t1, ms, auto, lv} = s, marks = [];
     if (fl && t0 != null) [['DEP', fl.dep, '#8cc4ff'], ['TOT', fl.tot, '#ffe680'], ['LAND', fl.land, '#7ee2a8']].forEach(([n, v, c]) => { if (v != null && v >= t0 && v <= t1) marks.push({n, v, c, p: (v - t0) / (t1 - t0) * 100}); });
     const slider = t0 == null ? '<p class="hint" style="margin:0 0 8px">The campaign map is used: no hourly maps for this flight.</p>' : `<div class="wxtm"><div class="wxmk">${marks.map((m, k) => `<span style="left:${Math.min(88, Math.max(12, m.p))}%;top:${k % 2 * 22}px;background:${m.c}">${m.n} ${hhmm(m.v)}</span>`).join('')}</div><input type="range" id="wxms" min="${t0}" max="${t1}" step="60000" value="${ms}"><div class="wxtk">${hrs.map(h => `<span style="left:${(h - t0) / (t1 - t0) * 100}%">${z2((h / 3600000 | 0) % 24)}</span>`).join('')}</div></div>`;
-    const lvTicks = WX_ALT.map((a, i) => `<button type="button" class="${i == lv ? 'on' : ''}" data-lv="${i}">${a ? a / 1000 : 'SFC'}</button>`).join('');
-    return `<div class="wxph">Time <b id="wxtl">${ms != null ? 'day ' + dayOf(ms) + ' · ' + hhmm(ms) + 'Z' : ''}</b></div>${slider}<div class="wxph" style="margin-top:6px">Altitude of the wind (ft ×1000)${st.lv == null ? ' · from the flight plan' : ''}</div><div class="wxlv">${lvTicks}</div>${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : ''}<div class="wxph" style="margin-top:8px">Weather opacity <b id="wxopl">${st.op}%</b></div><input type="range" id="wxop" min="10" max="100" step="5" value="${st.op}" style="width:100%;accent-color:#3ddc84" aria-label="Weather opacity"><p class="hint wxnote" style="margin:6px 0 0">The wind layers are shown, as barbs, in the Wind tab.</p>`;
+    const lab = a => a ? a / 1000 : 'SFC', pos = i => i / (WX_ALT.length - 1) * 100;
+    const altBlock = st.mode != 'wind' ? '' : `<div class="wxph" style="margin-top:6px">Altitude of the wind (ft ×1000)<b id="wxalh">${st.lv == null ? ' · from the flight plan' : ''}</b></div><div class="wxtm" id="wxlv"><div class="wxmk"><span id="wxlvp" style="left:${Math.min(92, Math.max(8, pos(lv)))}%;background:#3ddc84">${lv ? fmt(WX_ALT[lv]) + ' ft' : 'Surface'}</span></div><input type="range" id="wxlvs" min="0" max="${WX_ALT.length - 1}" step="1" value="${lv}" aria-label="Altitude of the wind"><div class="wxtk">${WX_ALT.map((a, i) => `<span data-t="${i}" style="left:${pos(i)}%${i == lv ? ';color:#3ddc84;font-weight:700' : ''}">${lab(a)}</span>`).join('')}</div></div>${fl && fl.alt ? `<button type="button" class="btn g sm" data-auto>Nearest to the flight plan (${fmt(fl.alt)} ft → ${WX_ALT[auto] ? WX_ALT[auto] / 1000 + 'k' : 'surface'})</button>` : ''}`;
+    return `<div class="wxph">Time <b id="wxtl">${ms != null ? 'day ' + dayOf(ms) + ' · ' + hhmm(ms) + 'Z' : ''}</b></div>${slider}${altBlock}<div class="wxph" style="margin-top:8px">Weather opacity <b id="wxopl">${st.op}%</b></div><input type="range" id="wxop" min="10" max="100" step="5" value="${st.op}" style="width:100%;accent-color:#3ddc84" aria-label="Weather opacity">${st.mode == 'wind' ? '' : '<p class="hint wxnote" style="margin:6px 0 0">The altitude of the wind can be chosen in the Wind tab.</p>'}`;
   };
   const alofts = (s, W) => {
     const {fl, ms, lv} = s, tg = fl && fl.wps.length ? (fl.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || fl.wps[Math.min(1, fl.wps.length - 1)]) : null;
@@ -157,7 +158,16 @@ export function createWeatherPage(deps) {
   }
   function wirePanel() {
     const root = deps.root, sl = root.querySelector('#wxms');
-    root.querySelectorAll('#wxpp [data-lv]').forEach(b => b.onclick = () => { st.lv = +b.dataset.lv; save(); upd(true); });
+    const ls = root.querySelector('#wxlvs');
+    if (ls) {
+      ls.oninput = () => {
+        st.lv = +ls.value; const n = WX_ALT.length - 1, p = root.querySelector('#wxlvp'), h = root.querySelector('#wxalh');
+        if (p) { p.style.left = Math.min(92, Math.max(8, st.lv / n * 100)) + '%'; p.textContent = st.lv ? fmt(WX_ALT[st.lv]) + ' ft' : 'Surface'; } if (h) h.textContent = '';
+        root.querySelectorAll('#wxlv .wxtk span').forEach(t => { const on = +t.dataset.t == st.lv; t.style.color = on ? '#3ddc84' : ''; t.style.fontWeight = on ? '700' : ''; });
+        upd(false);
+      };
+      ls.onchange = save;
+    }
     const op = root.querySelector('#wxop'); if (op) { op.oninput = () => { st.op = +op.value; const pn = M && M.map.getPane('wxP'); if (pn) pn.style.opacity = st.op / 100; const l = root.querySelector('#wxopl'); if (l) l.textContent = st.op + '%'; }; op.onchange = save; }
     const au = root.querySelector('#wxpp [data-auto]'); if (au) au.onclick = () => { st.lv = null; save(); upd(true); };
     if (sl) {
@@ -167,7 +177,7 @@ export function createWeatherPage(deps) {
   }
   function wire() {
     const root = deps.root;
-    root.querySelectorAll('#wxtabs [data-mode]').forEach(b => b.onclick = () => { st.mode = b.dataset.mode; save(); upd(false); });
+    root.querySelectorAll('#wxtabs [data-mode]').forEach(b => b.onclick = () => { const w = (st.mode == 'wind') != (b.dataset.mode == 'wind'); st.mode = b.dataset.mode; save(); upd(w); });
     root.querySelectorAll('#wxal [data-lv]').forEach(b => b.onclick = () => { st.lv = +b.dataset.lv; save(); upd(true); });
     const pb = root.querySelector('#wxpb'), pp = root.querySelector('#wxpp'); if (pb) pb.onclick = () => { st.open = !st.open; save(); pp.style.display = st.open ? '' : 'none'; pb.querySelector('i').textContent = st.open ? '▴' : '▾'; };
     const fb = root.querySelector('[data-fill]'); if (fb) fb.onclick = () => { if (fb.classList.contains('nil')) return; deps.fill(); draw(); };
