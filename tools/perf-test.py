@@ -71,7 +71,7 @@ try:
             pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(300)
             pg.fill('#pf input[data-rwy]', '10000'); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)
             check('a bingo typed by hand is not overwritten', pg.evaluate("()=>__app.F.bingo") == '1234')
-            dep = pg.evaluate("()=>__app.F.__dep[0]")
+            dep = pg.evaluate("()=>__app.F.__ab[0][0]")
             pg.evaluate("([d])=>__app.setRl({[d]:{ends:{},max:{ft:9004,w:149}}})", [dep]); pg.wait_for_timeout(800)
             check('a length typed by hand wins over the game files', pg.locator('#pf input[data-rwy]').input_value() == '10000' and 'typed by you' in pg.inner_text('#pf'))
             pg.fill('#pf input[data-rwy]', ''); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)

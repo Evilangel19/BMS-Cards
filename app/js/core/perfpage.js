@@ -24,7 +24,7 @@ export function createPerfPage(deps) {
   const kv = (a, b, bad) => `<span>${a}</span><b${bad ? ' class="wbad"' : ''}>${b}</b>`;
   const tile = (a, b, s) => `<div class="tile"><span>${a}</span><b>${b}</b>${s ? `<small class="hint">${s}</small>` : ''}</div>`;
   const rwMan = () => { const r = deps.runway && deps.runway.get(); return r ? r.man || 0 : st.rwy || 0; }, rwAuto = () => { const r = deps.runway && deps.runway.get(); return r && r.auto || 0; };
-  const rwHint = () => { const r = deps.runway && deps.runway.get(); if (!r) return 'to compare'; return esc(r.name) + (r.man ? ' · typed by you (empty = the game files)' : r.auto ? ' · from the game files (' + fmt(r.auto) + ' × ' + fmt(r.wid) + ' ft), type a length to override' : '') + ' · for the refusal speed'; };
+  const rwHint = () => { const r = deps.runway && deps.runway.get(); if (!r) return 'to compare'; return esc(r.name) + (r.man ? ' · typed by you (empty = the game files)' : r.auto ? ' · from the game files (' + fmt(r.auto) + ' × ' + fmt(r.wid) + ' ft), type a length to override' : ' · no size from the game files (' + (r.info || '?') + ')') + ' · for the refusal speed'; };
   const runwayFt = () => { const r = deps.runway && deps.runway.get(); return r ? r.ft || 0 : st.rwy || 0; };
   const empty = () => ac ? ac.af.emptyLb : 0;
   const gw = () => empty() + st.fuel + st.stores;

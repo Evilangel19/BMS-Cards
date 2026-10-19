@@ -819,19 +819,20 @@ const sqPage=createSquadronPage({esc,root:$('sq'),toast:appToast,
 const pfPage=createPerfPage({esc,root:$('pf'),wind:(x,y,t,a)=>wxWind(x,y,t,a),aircraft:{list:async()=>{const f=await acFolder(),a=new Set([...(f?f.names:Object.keys(CAM.D.acfb)),...Object.keys(MSFAC)]);return [...a].sort()},get:perfAcGet},
  loadout:()=>{const x=CL[+$('fsel').value];if(!x||!C)return null;return{ac:C.D.ac[x.f.c.i],gw:+F.gw||0,fuel:+F.fuel||0,drag:+F.drag||0}},
  flightPlan:()=>{const x=C&&CL[+$('fsel').value];if(!x||!x.f.wps)return null;return{wps:x.f.wps,labels:x.f.wps.map((_,i)=>F['fp'+i+'_0']||'')}},
- runway:{get:()=>{const d=F.__dep;if(!d)return null;const a=rwyAuto(d);return{id:d[0],name:d[0]+(F.ab0_0?' · '+F.ab0_0:''),ft:rwyFt(d),man:PERFP.rwy[d[0]]||0,auto:a?a.ft:0,wid:a?a.w:0}},set:v=>{const d=F.__dep;if(!d)return;if(v>0)PERFP.rwy[d[0]]=v;else delete PERFP.rwy[d[0]];perfSave();perfFill(+$('fsel').value||0)}},
+ runway:{get:()=>{const d=F.__dep;if(!d)return null;const a=rwyAuto(d);return{id:d[0],name:d[0]+(F.ab0_0?' · '+F.ab0_0:''),ft:rwyFt(d),man:PERFP.rwy[d[0]]||0,auto:a?a.ft:0,wid:a?a.w:0,info:RLI}},set:v=>{const d=F.__dep;if(!d)return;if(v>0)PERFP.rwy[d[0]]=v;else delete PERFP.rwy[d[0]];perfSave();perfFill(+$('fsel').value||0)}},
  prefs:{get:()=>({reserve:PERFP.reserve,joker:PERFP.joker}),set:o=>{PERFP.reserve=o.reserve;PERFP.joker=o.joker;perfSave();clearTimeout(PFT);PFT=setTimeout(()=>perfFill(+$('fsel').value||0),500)}}});
 /* Datacard fields from the performance data: TO Spec, Rotation, Refusal, Mil Power, Mil Climb, TO Fuel, Joker, Bingo and the Min.Fuel of every steerpoint. Fields the user typed are left alone. */
 const TAXIMIN=10;   // minutes of engine start and taxi at idle between the parking spot and the take-off roll (estimate)
 let PERFP={rwy:{},reserve:1500,joker:1000},PFT=0,NOPERF=false;
 loadPrefs('perfprefs.json').then(o=>{if(o&&typeof o=='object')PERFP=Object.assign(PERFP,o,{rwy:Object.assign({},o.rwy)});if(PERFP.joker===500)PERFP.joker=1000}).catch(()=>{});
 // Runway sizes read from the objective files of the airbases (RL: campId -> {ends: {'09': {ft, w}}, max}); the length typed on the Performance page wins over them
-let RL={};
-const rwyAuto=d=>{const r=d&&RL[d[0]];if(!r)return null;const n=parseInt(F.ab0_5),k=isNaN(n)?'':String(n).padStart(2,'0');return r.ends[k]||r.max};
+let RL={},RLI='not read yet';   // RLI: what happened when the sizes were read (shown on the Performance page when a base has none)
+const rwyAuto=d=>{const r=d&&F.__ab&&F.__ab[0]&&RL[F.__ab[0][0]];   // the campaign id of the departure airbase is F.__ab[0][0] (F.__dep starts with the ICAO code)
+  if(!r)return null;const n=parseInt(F.ab0_5),k=isNaN(n)?'':String(n).padStart(2,'0');return r.ends[k]||r.max};
 const rwyFt=d=>d?(PERFP.rwy[d[0]]||(rwyAuto(d)||{}).ft||0):0;
-async function loadRunways(atc){try{RL={};if(!OBJDIR||!atc.length)return;const dec=b=>new TextDecoder('utf-8').decode(b),ids=new Set(atc.map(a=>a.campId)),objs=parseObjectives(dec(await readBytes(OBJCAMP||jp(OBJDIR,'CampObjData.XML')))).filter(o=>ids.has(String(o.id))),byOcd={},rwl={};
- for(let i=0;i<objs.length;i+=10)await Promise.all(objs.slice(i,i+10).map(async o=>{try{if(!byOcd[o.ocd])byOcd[o.ocd]=parseRunways(dec(await readBytes(jp(OBJDIR,...phdPath(o.ocd).split('/')))),dec(await readBytes(jp(OBJDIR,...pdxPath(o.ocd).split('/')))));rwl[o.id]=byOcd[o.ocd]}catch(e){}}));
- RL=runwayLengths(atc,rwl);try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}}catch(e){RL={}}}
+async function loadRunways(atc){try{RL={};if(!OBJDIR){RLI='Falcon4_CT.xml (objects folder) not found';return}if(!atc.length){RLI='no ATC files';return}RLI='reading…';const dec=b=>new TextDecoder('utf-8').decode(b),ids=new Set(atc.map(a=>a.campId)),objs=parseObjectives(dec(await readBytes(OBJCAMP||jp(OBJDIR,'CampObjData.XML')))).filter(o=>ids.has(String(o.id))),byOcd={},rwl={};let err='';
+ for(let i=0;i<objs.length;i+=10)await Promise.all(objs.slice(i,i+10).map(async o=>{try{if(!byOcd[o.ocd])byOcd[o.ocd]=parseRunways(dec(await readBytes(jp(OBJDIR,...phdPath(o.ocd).split('/')))),dec(await readBytes(jp(OBJDIR,...pdxPath(o.ocd).split('/')))));rwl[o.id]=byOcd[o.ocd]}catch(e){err=err||o.id+': '+(e&&e.message||e)}}));
+ RL=runwayLengths(atc,rwl);RLI=Object.keys(RL).length+' of '+atc.length+' ATC airbases have a runway size ('+objs.length+' found in CampObjData)'+(err?'; first error '+err:'');try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}}catch(e){RL={};RLI='error: '+(e&&e.message||e)}}
 const perfSave=()=>{try{savePrefs('perfprefs.json',PERFP)}catch(e){}};
 async function perfCalc(i){
  const f=C&&CL[i]&&CL[i].f;if(!f||!f.wps||f.wps.length<2)return null;
