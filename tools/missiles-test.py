@@ -111,8 +111,8 @@ try:
         if shots: pg.screenshot(path=shots + '/bvr.png')
         # BVR layout: table + parameters on the left, drawing in the middle, shot under it; the sliders of the standard conditions work while dragging
         pg.click('[data-t=ms]'); pg.wait_for_timeout(400)
-        bx = lambda q: pg.evaluate("q=>{const r=document.querySelector(q).getBoundingClientRect();return {x:r.x,y:r.y,w:r.width}}", q)
-        check('BVR: table on the left, drawing in the middle, the shot section and results on the right of the drawing', bx('#mstlbox')['x'] < bx('#msch')['x'] and bx('#ms .wpl')['x'] > bx('#msch')['x'] + 300 and pg.locator('#mstlbox select[data-tl^="cls."]').count() == 4)
+        bx = lambda q: pg.evaluate("q=>{const r=document.querySelector(q).getBoundingClientRect();return {x:r.x,y:r.y,w:r.width,h:r.height}}", q)
+        check('BVR: table and, under it, the shot section on the left, the drawing in the middle, the results on the right, all starting at the same height', bx('#mstlbox')['x'] < bx('#msch')['x'] and abs(bx('#ms .wpl')['x'] - bx('#mstlbox')['x']) < 2 and bx('#ms .wpl')['y'] > bx('#mstlbox')['y'] + bx('#mstlbox')['h'] - 2 and bx('#ms #msr')['x'] > bx('#msch')['x'] + 300 and abs(bx('#mstlbox')['y'] - bx('#msch')['y']) < 4 and abs(bx('#ms #msr .tile')['y'] - bx('#msch')['y']) < 4 and pg.locator('#mstlbox select[data-tl^="cls."]').count() == 4)
         pg.evaluate("()=>{window.__s=document.querySelector('#ms input[data-tls=\\'std.alt\\']');const e=window.__s;e.value=15000;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
         check('BVR: the altitude slider keeps its element while moving and the value is shown', pg.evaluate("()=>document.querySelector('#ms input[data-tls=\\'std.alt\\']')===window.__s") and '15 000' in pg.inner_text('#mstlbox'))
         # HARM: changing the emitter works (no error) and moves the selected steerpoint
