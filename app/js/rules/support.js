@@ -3,8 +3,17 @@ import {ord,acOf,actName,els0,hms,nearObj} from '../core/flight.js';
 import {geoLL,hmN,locXY} from './geo.js';
 function svc(C,f){const B=[0,1,2,3,4,7,8],w=f.wps,a=w.find(p=>!B.includes(p.act));if(!a)return null;
  const g=w.filter(p=>p.act==a.act),st=g[0].arr,en=g[g.length-1].dep||g[g.length-1].arr,nm=actName(w,w.indexOf(g[0]),C.D.S[300+f.omis]||'');
- const o=[14,15,16,17,19].includes(a.act)?nearObj(C,g[0].x,g[0].y):null;
- return{tm:!st?'':([14,15,16,17,19].includes(a.act)?hms(st):hmN(st)+' - '+hmN(en)),tgt:(o&&o[1])||nm,ll:o?geoLL(C,o[2],o[3]):''}}
+ const gnd=[14,15,16,17,19].includes(a.act),mn=C.D.S[300+f.omis]||'';
+ // missions against ground units (DEAD, SEAD, CAS, BAI, SCAR): the target is the hostile battalion at the attack point (a radar or a site next to it must not take its place)
+ const bn=gnd&&/^(DEAD|SEAD|CAS|BAI|SCAR)$/.test(mn)?hostileGnd(C,f,g[0].x,g[0].y):null;
+ const o=gnd&&!bn?nearObj(C,g[0].x,g[0].y):null;
+ return{tm:!st?'':(gnd?hms(st):hmN(st)+' - '+hmN(en)),tgt:bn?bn.name:(o&&o[1])||nm,ll:bn?geoLL(C,bn.u.x,bn.u.y):o?geoLL(C,o[2],o[3]):''}}
+// the hostile ground unit (battalion) closest to a point, within km; null when there is none
+function hostileGnd(C,f,x,y,km=1){let b=null,bd=km;const allied=(p,q)=>p==q||(p<4&&q<4);
+ C.units.forEach(u=>{if(u.kind!='gnd'||u.nameId==null||allied(u.owner,f.owner))return;const d=Math.hypot(u.x-x,u.y-y);if(d<bd){bd=d;b=u}});
+ return b?{u:b,d:bd,name:gndName(C,b)}:null}
+// "1153rd AAA Battalion": ordinal + category of the unit class (air defence categories are battalions)
+function gndName(C,u){const c=(C.D.gu&&C.D.gu[u.c.i])||(C.D.un&&C.D.un[u.c.i]&&C.D.un[u.c.i][0])||'';return (ord(u.nameId)+' '+c+(/^(AAA|Air Defense|SHORAD|Missile)$/.test(c)?' Battalion':'')).trim()}
 function pickTankers(C,f,P){const el=els0(C,f),all=el.flatMap(e=>e.wps),ts=all.map(p=>p.arr).filter(Boolean),a=ts.length?Math.min(...ts):-1e15,b=all.length?Math.max(...all.map(p=>p.dep||p.arr)):1e15;
  const win=u=>{let g=u.wps.filter(p=>p.act==24);if(!g.length)g=u.wps.filter(p=>p.arr);return g.length?[g[0].arr,g[g.length-1].dep||g[g.length-1].arr]:[0,0]};
  const asg=P&&P.tanker&&C.byId[P.tanker.n+':'+P.tanker.c],ty=u=>acOf(C,u),probe=/F\/A-18|F-18|EF-18|CF-188|AV-8|Harrier/i.test(ty(f));
