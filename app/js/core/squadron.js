@@ -19,6 +19,7 @@ export const decodeLbk = u8 => lbkXor(u8, false);
 export const encodeLbk = u8 => lbkXor(u8, true);
 const cstr = (u8, o, n) => { let s = ''; for (let i = o; i < Math.min(u8.length, o + n); i++) { if (!u8[i]) break; s += String.fromCharCode(u8[i]); } return s.trim(); };
 // fields of a BMS 4.38 logbook (372 bytes): name, callsign, commentary (the motto), squadron and the statistics (the password is not read; the medals are not decoded yet)
+export const RANK_AB = ['2nd Lt.', '1st Lt.', 'Capt.', 'Maj.', 'Lt. Col.', 'Col.', 'Brig. Gen.', 'Maj. Gen.', 'Lt. Gen.', 'Gen.'];
 export const RANKS = ['2nd Lt', '1st Lt', 'Capt', 'Maj', 'Lt Col', 'Col', 'Brig Gen', 'Maj Gen', 'Lt Gen', 'Gen'];
 export function parseLbk(u8) {
   if (!u8 || u8.length < 366) throw new Error('This does not look like a BMS logbook (.lbk).');
@@ -565,5 +566,5 @@ export function createSquadronPage(deps) {
     if ($('#sqturn')) $('#sqturn').value = DB.turn || ''; if ($('#sqstun')) $('#sqstun').checked = !!DB.stun; if ($('#sqcs')) $('#sqcs').value = DB.cs || ''; save(); drawAll(); startAll();
   }
   const ready = init();
-  return {S, ready, received: () => recv, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => { [...swarms.keys()].forEach(swarmStop); [...gsw.values()].forEach(w => w.stop()); gsw.clear(); }, restart: startAll};
+  return {S, ready, received: () => recv, roster: () => { const q = cur(); if (!q) return []; const seen = new Set(); return live(q).filter(r => r.name && String(r.name).trim()).map(r => { const rk = r.stats && r.stats.rk; const ab = RANK_AB[rk] || ''; return (ab ? ab + ' ' : '') + String(r.name).trim(); }).filter(l => !seen.has(l) && seen.add(l)).sort((a, b) => a.localeCompare(b)); }, refresh: () => { if (!pilot) loadLbks(); if (!PB) loadPb(); drawAll(); }, pilot: () => pilot, me, db: () => DB, swarm: () => { const q = cur(); return q ? swarms.get(q.id) : null; }, swarms: () => swarms, phonebook: () => PB, stop: () => { [...swarms.keys()].forEach(swarmStop); [...gsw.values()].forEach(w => w.stop()); gsw.clear(); }, restart: startAll};
 }
