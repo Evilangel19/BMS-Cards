@@ -43,6 +43,16 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
   ck('some enemies are spotted, some are not', U.some(u => !u.ally && u.spotted) && U.some(u => !u.ally && !u.spotted));
   ck('SAM units have a name and a range', sam.length > 20 && sam.every(u => u.name && u.rng > 0 && ['Air Defense', 'SHORAD'].includes(u.cat)));
   ck('SA-2 ring is 30 km', sam.some(u => /SA-2/.test(u.name) && u.rng === 30));
+  { // FCR: the class names the slot of the radar vehicle, the roster (2 bits per slot) the count of vehicles left
+    const saved = {}; const cls = [...new Set(sam.map(m => m.u.c.i))];
+    cls.forEach(c => { saved[c] = CAM.D.un[c]; CAM.D.un[c] = [...CAM.D.un[c].slice(0, 3), 3]; });
+    const u0 = sam[0].u, r0 = u0.roster;
+    u0.roster = (r0 | (1 << 6)) >>> 0; const withFcr = mapUnits(C, C.playerTeam).find(m => m.u === u0);
+    u0.roster = (r0 & ~(3 << 6)) >>> 0; const lost = mapUnits(C, C.playerTeam).find(m => m.u === u0);
+    ck('a SAM with a radar vehicle left has an FCR, one without it is marked noFcr', withFcr.noFcr === false && lost.noFcr === true);
+    ck('a class without a radar slot (-1) is never marked', (() => { cls.forEach(c => { CAM.D.un[c] = [...CAM.D.un[c].slice(0, 3), -1]; }); return mapUnits(C, C.playerTeam).every(m => !m.noFcr); })());
+    u0.roster = r0; cls.forEach(c => { CAM.D.un[c] = saved[c]; });
+  }
   ck('unit positions in the theater region', U.every(u => u.ll[0] > 25 && u.ll[0] < 50 && u.ll[1] > 115 && u.ll[1] < 140));
   const fl = C.units.filter(u => u.kind == 'flight' && u.wps.length > 2);
   ck('campaign time is read (day 4, 11:00:53)', C.now === 298853532 && Math.floor(C.now / 86400000) + 1 === 4);

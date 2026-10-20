@@ -59,12 +59,13 @@ export const allyOf = (C, x, y) => {
 export const spottedBy = (u, teams) => teams.some(t => ((u.spA | 0) >> t) & 1);
 const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 
-// Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, ally, spotted}] seen from team `view`.
+// Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, noFcr, ally, spotted}] seen from team `view`.
+// noFcr: a SAM unit whose fire control radar vehicle is gone (the class names the slot of that vehicle, the roster has 2 bits of count per slot): it cannot engage, so no ring and no automatic threat.
 export function mapUnits(C, view) {
   const D = C.D, mates = [0, 1, 2, 3, 4, 5, 6, 7].filter(t => allyOf(C, t, view));
   return C.units.filter(u => (u.kind == 'gnd' || u.kind == 'sea') && u.c).map(u => {
     const i = (D.un || {})[u.c.i] || ['?', 0, 0], ally = allyOf(C, u.owner, view);
-    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], sam: SAMCAT.has(i[0]) && i[1] > 0, ally, spotted: ally || spottedBy(u, mates)};
+    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], sam: SAMCAT.has(i[0]) && i[1] > 0, noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0, ally, spotted: ally || spottedBy(u, mates)};
   });
 }
 

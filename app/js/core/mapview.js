@@ -371,7 +371,7 @@ export function createMap(host, deps) {
     if (auUsed('ppt')) return toast('The automatic threats are already in the DTC.', true);
     const C = deps.getC(), f = deps.getSel(), r = C && f ? flightRoute(C, f) : [];
     if (!r.length) return toast('Select a flight with a flight plan first: the SAMs crossing it are added.', true);
-    const cand = UL.filter(m => m.sam && !m.ally && crossesRoute(r, m.u.x, m.u.y, m.rng)).sort((a, b) => b.rng - a.rng);
+    const cand = UL.filter(m => m.sam && !m.noFcr && !m.ally && crossesRoute(r, m.u.x, m.u.y, m.rng)).sort((a, b) => b.rng - a.rng);
     const old = P.ppt.filter(p => !p.empty && isSamPpt(p.name)); old.forEach(p => deps.dtc.clear('ppt', p.slot));   // the SAM threats of the DTC are replaced
     if (!cand.length) { dtc(); return toast((old.length ? old.length + ' SAM threats removed. ' : '') + 'No enemy SAM crosses the flight plan of the selected flight, so no threat was added.', !!old.length ? false : true); }
     let added = 0, dup = 0, full = 0; AU.ppt = [];
@@ -651,7 +651,7 @@ export function createMap(host, deps) {
     UL.forEach(m => { if (m.sam) { const k = pptForUnit(m.name); if (k >= 0 && PPT[k][1] > 1000) m.rng = Math.round(PPT[k][1] / FT_KM * 10) / 10; } });   // same ring as the pre-planned threat of the list
     UL.forEach(m => {
       const s = unitSymbol(m.cat, side(m.ally, m.owner));
-      const tip = '<b>' + deps.esc(m.bn) + '</b><br>' + deps.esc(m.name) + ' · ' + deps.esc(m.cat) + ' · ' + deps.esc(teamName(C.D, m.owner)) + (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '');
+      const tip = '<b>' + deps.esc(m.bn) + '</b><br>' + deps.esc(m.name) + ' · ' + deps.esc(m.cat) + ' · ' + deps.esc(teamName(C.D, m.owner)) + (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') + (m.noFcr ? '<br><b style="color:#ff8a8a">No FCR</b>' : '');
       const mk = L.marker(m.ll, {icon: L.divIcon({className: 'nsym', html: s.html + '<i class="nm">' + deps.esc(m.bn) + '</i>', iconSize: [s.w, s.h]}), keyboard: false, zIndexOffset: m.sam ? 800 + Math.round(Math.min(m.rng || 0, 190)) : m.ally ? 0 : 200}).bindTooltip(tip, {direction: 'top', offset: [0, -s.h / 2]});   // exact position; when icons overlap the SAM / air defense units are on top (the dangerous ones), the longest range on top (SA-10 over SHORAD), then the enemy ones
       if (!m.ally) mk.bindPopup(() => ro(samPopup(m)), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 190});   // an enemy unit can become a PPT threat
       m.mk = mk; if (m.sam) G.su.addLayer(mk); else mk.addTo(G[m.ally ? 'uf' : 'ue']);
@@ -666,7 +666,7 @@ export function createMap(host, deps) {
     const L = window.L; ['sf', 'se'].forEach(k => G[k].clearLayers()); SAMR = [];
     if (!C) return;
     const r = f ? flightRoute(C, f) : [], only = !!st.on.sx && r.length > 0; SX = only; UL.forEach(m => { m.hit = false; });
-    UL.filter(m => m.sam).forEach(m => {
+    UL.filter(m => m.sam && !m.noFcr).forEach(m => {   // no FCR: no ring
       const hit = !m.ally && only && crossesRoute(r, m.u.x, m.u.y, m.rng); m.hit = hit; if (!m.ally && only && !hit) return;
       if (!m.ally && pptCovers(m)) return;   // its red PPT ring is drawn instead
       const sty = pal.sam[m.ally ? 'ally' : 'foe'], fo = (st.on.ringfill == null ? 8 : st.on.ringfill) / 100;
