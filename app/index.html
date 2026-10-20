@@ -571,7 +571,13 @@ function dcSync(g,on){DCS[g]=!!on;try{savePrefs('dtcprefs.json',{sync:DCS})}catc
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
 function mirrorToCard(sec,key){(MIRK[sec+'|'+key]||[]).forEach(k=>{const m=MIR[k],v=m.to(G(sec,key,''));F[k]=v;if(AUTO)AUTO[k]=v;MANK.delete(k);const d=FD.find(z=>z.k==k);if(d&&d.el)d.el.value=v;
   if(k=='bingo'){F.joker=String(Math.round(+v)+1000);if(AUTO)AUTO.joker=F.joker;MANK.delete('joker');const j=FD.find(z=>z.k=='joker');if(j&&j.el)j.el.value=F.joker}});markMan();draw()}
-function dtcChanged(sec,key,fromCard){dtcBtns();try{if(mapV.isReady()){mapV.refreshDtcButtons();if(sec=='STPT')mapV.refreshDtc()}}catch(e){}if(!fromCard)mirrorToCard(sec,key)}
+// Primary target of the datacard: STPT 99 (handled with the secondary, STPT 98) or, without it, the first weapon target of the DTC; with neither, the one of the flight
+let PRIW=false;
+const hasPri99=()=>{const q=G('STPT','target_98','').split(',').map(x=>x.trim());return q.length>=4&&+q[3]>=0&&!!(+q[0]||+q[1])};
+function wpnPri(){if(!lines.length)return;if(hasPri99()){PRIW=false;return}
+ let w=null;for(let n=0;n<100&&!w;n++){if(!lines.some(l=>l.s=='STPT'&&l.k==='wpntarget_'+n))continue;const t=readTarget(G('STPT','wpntarget_'+n,''));if(t&&(t.n||t.e))w={name:(t.name&&!/^not set$/i.test(t.name))?t.name:'WPN TGT '+(n+1),ll:CAM.geoLL(C,t.e/FT_KM,t.n/FT_KM)}}
+ if(w){F.pri=w.name;F.ll1=w.ll;PRIW=true}else if(PRIW){F.pri=(AUTO&&AUTO.pri)||'';F.ll1=(AUTO&&AUTO.ll1)||'';PRIW=false}}
+function dtcChanged(sec,key,fromCard){dtcBtns();if(sec=='STPT'&&/^wpntarget_/.test(key)){wpnPri();try{draw()}catch(e){}}try{if(mapV.isReady()){mapV.refreshDtcButtons();if(sec=='STPT')mapV.refreshDtc()}}catch(e){}if(!fromCard)mirrorToCard(sec,key)}
 // who uses each frequency: the flights of the package, the support flights and the airbases of the datacard being shown
 function freqOwners(){const m=new Map(),add=(f,l)=>{if(f&&/^\d/.test(f)&&l&&!m.has(f))m.set(f,l)};
  for(let i=0;i<5;i++){const cs=F[`pk${i}_0`];add(F[`pk${i}_2`],cs&&cs+' · UHF');add(F[`pk${i}_3`],cs&&cs+' · VHF')}
@@ -720,15 +726,15 @@ function applyDTC(fl){if(!lines.length)return;const g=(s,k)=>G(s,k,'');
     if(s.length)out.push((q=>String(Math.floor(q/36e5)%24).padStart(2,'0')+':'+String(Math.floor(q/6e4)%60).padStart(2,'0'))(T)+' '+s.join(' '))});
    if(out.length)F.free=(F.free?F.free+'\n\n':'')+'IFF from '+out.slice(0,3).join(' | ')+(show3?' (M3 Leader)':'')}}
  [['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([k,fk,lk,dn])=>{const s=g('STPT',k).split(',').map(x=>x.trim());
-  if(s.length>=4&&+s[3]>=0&&(+s[0]||+s[1])&&C){F[fk]=(s[4]&&!/^not set$/i.test(s[4]))?s[4]:dn;F[lk]=CAM.geoLL(C,+s[1]/3280.84,+s[0]/3280.84)}})}
+  if(s.length>=4&&+s[3]>=0&&(+s[0]||+s[1])&&C){F[fk]=(s[4]&&!/^not set$/i.test(s[4]))?s[4]:dn;F[lk]=CAM.geoLL(C,+s[1]/3280.84,+s[0]/3280.84)}});wpnPri()}
 /* ATO column: mission categories > packages > flights, for one faction at a time. The player's faction (from the campaign's player squadron) is selectable; other factions can be read but are locked (red). Only F-16 flights fill the datacard. */
 // a DTC steerpoint was changed on the map: keep the DTC page and the datacard (STPT 98 / 99 -> secondary / primary) in step
 function dtcSet(g,slot,patch,fromPage){const k=dtcKey(g,slot);S('STPT',k,dtcValue(g,G('STPT',k,''),patch));afterDtc(k,fromPage)}
 function dtcClear(g,slot,fromPage){const k=dtcKey(g,slot);S('STPT',k,dtcEmpty(g));afterDtc(k,fromPage)}
 function dtcBtns(){const d=lines.some(l=>l.dirty);[['saveow',!d],['dtcrev',!d]].forEach(([i,n])=>{const b=$(i);if(b)b.classList.toggle('nil',n)})}
 function afterDtc(k,fromPage){dtcBtns();try{wpPage&&wpPage.refresh&&wpPage.refresh()}catch(e){}try{view()}catch(e){}if(fromPage){try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}}
- if(C&&/^target_9[78]$/.test(k)){[['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([kk,fk,lk,dn])=>{const q=G('STPT',kk).split(',').map(x=>x.trim());
-  if(q.length>=4&&+q[3]>=0&&(+q[0]||+q[1])){F[fk]=(q[4]&&!/^not set$/i.test(q[4]))?q[4]:dn;F[lk]=CAM.geoLL(C,+q[1]/3280.84,+q[0]/3280.84)}else{F[fk]='';F[lk]=''}});draw()}}
+ if(C&&/^(target_9[78]|wpntarget_\d+)$/.test(k)){[['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([kk,fk,lk,dn])=>{const q=G('STPT',kk).split(',').map(x=>x.trim());
+  if(q.length>=4&&+q[3]>=0&&(+q[0]||+q[1])){F[fk]=(q[4]&&!/^not set$/i.test(q[4]))?q[4]:dn;F[lk]=CAM.geoLL(C,+q[1]/3280.84,+q[0]/3280.84)}else{F[fk]='';F[lk]=''}});wpnPri();draw()}}
 const mapV=createMap($('mpbody'),{objects:{list:()=>{const d=targetData();return d?d.objectives():Promise.reject(new Error('Needs the BMS install folder (desktop app, Settings).'))},features:o=>targetData().features(o)},attack:()=>{const a=wpPage&&wpPage.spec&&wpPage.spec();if(!a)return null;const ll=p=>mapV.toLL(p.e/3280.84,p.n/3280.84);return{segs:a.segs.map(z=>({color:z.color,dash:z.dash,pts:z.pts.map(ll)})),marks:a.marks.map(m=>({ll:ll(m.p),label:m.label,color:m.color,r:m.r,perm:m.perm}))}},selectFlight:f=>{const e=ATOL.find(z=>z.f===f);if(!e||VIEW!=PLAYER||e.heli)return false;const k=CL.findIndex(x=>x.f===f);if(k<0)return false;$('fsel').value=k;apply(k);return true},getC:()=>C,getWx:()=>WX,getSel:()=>ATOSEL,dtc:{points:()=>dtcPoints(lines),wtargets:()=>wtList(),wtAdd:()=>wtAdd(),wtPut:t=>wtPut(t),elev:async t=>{try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;return h&&h[0]!==null&&h[0]!==undefined?h[0]:0}catch(e){return 0}},wtClear:n=>{S('STPT','wpntarget_'+n,targetLine(null));dtcChanged('STPT','wpntarget_'+n)},fileName:()=>name,dirty:()=>lines.some(l=>l.dirty),open:()=>$('open').click(),overwrite:()=>dtcOverwrite(),revert:()=>dtcRevert(),canOverwrite:()=>!!(DTCF&&DTCF.path),
  set:(g,slot,patch)=>dtcSet(g,slot,patch,false),clear:(g,slot)=>dtcClear(g,slot,false)},
  satCfg:()=>CFG.map,loadPrefs:()=>loadPrefs('mapprefs.json'),savePrefs:o=>savePrefs('mapprefs.json',o),

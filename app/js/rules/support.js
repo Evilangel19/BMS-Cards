@@ -12,8 +12,8 @@ function svc(C,f){const B=[0,1,2,3,4,7,8],w=f.wps,a=w.find(p=>!B.includes(p.act)
 function hostileGnd(C,f,x,y,km=1){let b=null,bd=km;const allied=(p,q)=>p==q||(p<4&&q<4);
  C.units.forEach(u=>{if(u.kind!='gnd'||u.nameId==null||allied(u.owner,f.owner))return;const d=Math.hypot(u.x-x,u.y-y);if(d<bd){bd=d;b=u}});
  return b?{u:b,d:bd,name:gndName(C,b)}:null}
-// "1153rd AAA Battalion": ordinal + category of the unit class (air defence categories are battalions)
-function gndName(C,u){const c=(C.D.gu&&C.D.gu[u.c.i])||(C.D.un&&C.D.un[u.c.i]&&C.D.un[u.c.i][0])||'';return (ord(u.nameId)+' '+c+(/^(AAA|Air Defense|SHORAD|Missile)$/.test(c)?' Battalion':'')).trim()}
+// "1153rd AAA Battalion": ordinal + category of the unit class + Battalion
+function gndName(C,u){const c=(C.D.gu&&C.D.gu[u.c.i])||(C.D.un&&C.D.un[u.c.i]&&C.D.un[u.c.i][0])||'';return (ord(u.nameId)+' '+c+' Battalion').replace(/\s+/g,' ').trim()}
 function pickTankers(C,f,P){const el=els0(C,f),all=el.flatMap(e=>e.wps),ts=all.map(p=>p.arr).filter(Boolean),a=ts.length?Math.min(...ts):-1e15,b=all.length?Math.max(...all.map(p=>p.dep||p.arr)):1e15;
  const win=u=>{let g=u.wps.filter(p=>p.act==24);if(!g.length)g=u.wps.filter(p=>p.arr);return g.length?[g[0].arr,g[g.length-1].dep||g[g.length-1].arr]:[0,0]};
  const asg=P&&P.tanker&&C.byId[P.tanker.n+':'+P.tanker.c],ty=u=>acOf(C,u),probe=/F\/A-18|F-18|EF-18|CF-188|AV-8|Harrier/i.test(ty(f));
@@ -26,6 +26,6 @@ function jtacPick(C,f){if(!/CAS$/.test(C.D.S[300+f.omis]||''))return null;
  const ally=o=>o==f.owner||(o<4&&f.owner<4),g=C.units.filter(u=>u.kind=='gnd'),en=g.filter(u=>u.owner>=4&&!ally(u.owner));if(!en.length)return null;
  const dm=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y)/1.852;let best=null;
  g.filter(u=>ally(u.owner)&&C.D.gu[u.c.i]).forEach(u=>{const dt=Math.min(...tg.map(p=>dm(u,p))),de=Math.min(...en.map(e=>dm(u,e)));
-  if((dt<=10||de<=6)&&dt<=30&&(!best||dt<best.d))best={u,cat:C.D.gu[u.c.i],name:ord(u.nameId)+' '+C.D.gu[u.c.i],d:dt,loc:locXY(C,u.x,u.y)}});return best}
+  if((dt<=10||de<=6)&&dt<=30&&(!best||dt<best.d))best={u,cat:C.D.gu[u.c.i],name:ord(u.nameId)+' '+C.D.gu[u.c.i]+' Battalion',d:dt,loc:locXY(C,u.x,u.y)}});return best}
 function jtac(C,f,uhf6){if(!uhf6)return null;const b=jtacPick(C,f);return b&&{cat:b.cat,name:b.name,d:b.d,loc:b.loc}}
 export {svc,pickTankers,jtac,jtacPick};
