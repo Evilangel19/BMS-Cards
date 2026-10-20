@@ -21,7 +21,7 @@ try:
         row = lambda lab: '#cfg .cf:has(> label:text-is("%s")) input' % lab
         def settings(on, url='', key='', credit='', z='18'):
             pg.click('#cfgbtn'); pg.wait_for_timeout(500)
-            pg.set_checked(row('Own satellite layer'), on); pg.fill(row('Tile address'), url); pg.fill(row('Key'), key); pg.fill(row('Credit'), credit); pg.fill(row('Deepest zoom'), z)
+            pg.set_checked(row('Own satellite layer'), True); pg.fill(row('Tile address'), url); pg.fill(row('Key'), key); pg.fill(row('Credit'), credit); pg.fill(row('Deepest zoom'), z); pg.set_checked(row('Own satellite layer'), on)
             pg.click('#cfg .btn:not(.g)'); pg.wait_for_timeout(600)
         check('the Settings have the own satellite layer rows', (pg.click('#cfgbtn'), pg.wait_for_timeout(400), pg.locator(row('Own satellite layer')).count() == 1 and pg.locator(row('Tile address')).count() == 1 and pg.locator(row('Deepest zoom')).count() == 1)[2])
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
@@ -40,6 +40,10 @@ try:
         n0 = len(reqs); settings(False, 'http://localhost:%d/faketiles/{z}/{y}/{x}.png?k={key}' % PORT, 'ABC', 'Test Credit', '16')
         pg.click('[data-t=mp]'); pg.wait_for_timeout(1500)
         check('off again: back to EOX', any('eox.at' in u for u in reqs[n0:]) and 'Satellite (online)' in (pg.click('#mpbaseb'), pg.wait_for_timeout(250), pg.inner_text('#mpbase'))[2])
+        pg.click('#cfgbtn'); pg.wait_for_timeout(400)
+        check('the tile address, key, credit and zoom rows are hidden until the box is ticked', not pg.locator(row('Tile address')).is_visible() or pg.evaluate("()=>1") and pg.locator(row('Own satellite layer')).count() == 1)
+        pg.set_checked(row('Own satellite layer'), True); pg.wait_for_timeout(100); check('ticked: they appear', pg.locator(row('Tile address')).is_visible() and pg.locator(row('Deepest zoom')).is_visible())
+        pg.set_checked(row('Own satellite layer'), False); pg.wait_for_timeout(100); check('unticked: hidden again', not pg.locator(row('Tile address')).is_visible())
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

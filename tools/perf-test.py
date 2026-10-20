@@ -84,6 +84,13 @@ try:
             pg.click('#pf [data-envreset]'); pg.wait_for_timeout(300)
             check('"use the flight values again" brings the automatic value back', 'auto' in pg.inner_text('#pf .slr:has([data-sl=elev]) label') and int(pg.input_value('#pf [data-sl=elev]')) != 5000)
             pg.screenshot(path='/tmp/pf5.png', full_page=True)
+        pg.click('#pf [data-mode=cruise]'); pg.wait_for_timeout(700)
+        check('Cruise: the best range card is in the third column, top right', pg.locator('#pfr2').count() == 1 and 'best range by altitude' in pg.inner_text('#pfr2').lower() and 'best range by altitude' not in pg.inner_text('#pfr').lower())
+        bb = pg.evaluate("()=>{const a=document.querySelector('#pfr2').getBoundingClientRect(),b=document.querySelector('#pfr').getBoundingClientRect();return [a.left>b.right-1,Math.abs(a.top-b.top)<3]}"); check('and it is to the right of the others, at the same height', bb[0] and bb[1])
+        pg.click('#pf [data-mode=turn]'); pg.wait_for_timeout(700)
+        check('Turn: the specific excess power card is in the third column', pg.locator('#pfr2').count() == 1 and 'specific excess power' in pg.inner_text('#pfr2').lower())
+        pg.screenshot(path='/tmp/pf6.png')
+        pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(500); check('Take-off: no third column', pg.locator('#pfr2').count() == 0)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

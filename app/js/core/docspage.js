@@ -63,7 +63,7 @@ export function createDocsPage(deps) {
   function dirHtml(n, lvl, charts) {
     const ic = charts ? icaoOf(n.name) : '', open = S.q.trim() || S.open.has(n.path);
     const items = n.dirs.map(d => dirHtml(d, lvl + 1, charts)).join('') + n.files.map(f => fileRow(f, ic ? chartName(f.name) : clean(f.name))).join('');
-    return `<details class="dcd${lvl == 0 ? ' dcm' : ''}" data-p="${esc(n.path)}"${open ? ' open' : ''}><summary>${esc(clean(n.name))}${ic ? ` <small>${esc(ic)}</small>` : ''}<em>${count(n)}</em></summary><div class="dcb">${items}</div></details>`;
+    return `<details class="dcd${lvl == 0 ? ' dcm' : ''}${n.files.length ? ' dcp' : ''}" data-p="${esc(n.path)}"${open ? ' open' : ''}><summary>${esc(clean(n.name))}${ic ? ` <small>${esc(ic)}</small>` : ''}<em>${count(n)}</em></summary><div class="dcb">${items}</div></details>`;
   }
   function listHtml() {
     const dir = deps.docsDir();

@@ -147,9 +147,17 @@ export function createPerfPage(deps) {
     let r = {tiles: '', body: ''};
     if (ac) { try { r = st.mode == 'turn' ? turnTab() : st.mode == 'cruise' ? cruiseTab() : st.mode == 'plan' ? planTab() : fieldTab(); } catch (e) { r = {tiles: '', body: `<p class="wperr">Could not compute: ${esc(e.message)}</p>`}; } }
     else r.body = loading ? '<p class="hint">Reading the aircraft data…</p>' : '<p class="wperr">No performance data for this aircraft.</p>';
-    if (keepLeft && root.querySelector('.wpl')) { const c = root.querySelector('#pfr'); if (c) { c.innerHTML = r.tiles + r.body; wire(root, true); return; } }
-    root.innerHTML = `${tabs}<div class="wpg" style="grid-template-columns:340px minmax(0,760px)"><div class="wpl">${inputs()}</div><div class="wpc" id="pfr" style="grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px">${r.tiles}${r.body}</div></div>`;
-    wire(root, false);
+    if (keepLeft && root.querySelector('.wpl')) { const c = root.querySelector('#pfr'); if (c) { c.innerHTML = r.tiles + r.body; splitSide(); wire(root, true); return; } }
+    root.innerHTML = `${tabs}<div class="wpg w2"><div class="wpl">${inputs()}</div><div class="wpc" id="pfr" style="grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px">${r.tiles}${r.body}</div></div>`;
+    splitSide(); wire(root, false);
+  }
+  // Cruise and Turn: the last card (best range by altitude / specific excess power) goes to a third column, top right
+  function splitSide() {
+    const root = deps.root, grid = root.querySelector('.wpg'); if (!grid) return; const old = grid.querySelector('#pfr2'); if (old) old.remove();
+    const two = st.mode == 'turn' || st.mode == 'cruise', cards = root.querySelectorAll('#pfr > .wcard');
+    grid.classList.toggle('w3', two && cards.length > 1); grid.classList.toggle('w2', !(two && cards.length > 1));
+    if (!two || cards.length < 2) return;
+    const side = document.createElement('div'); side.id = 'pfr2'; side.className = 'wpr'; side.append(cards[cards.length - 1]); grid.append(side);
   }
   function wire(root, partial) {
     const upd = f => { save(); if (deps.prefs && (f == 'lres' || f == 'jok')) deps.prefs.set({reserve: st.lres, joker: st.jok}); const g = root.querySelector('[data-gw]'); if (g) g.textContent = fmt(gw()) + ' lb'; draw(true); };
