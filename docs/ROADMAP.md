@@ -59,7 +59,8 @@ Python tool (MIT, 2 commits, 1 star) that reads Falcon BMS BML models and draws 
 - **TURN server** (backlog): the user is behind CGNAT; first real two-PC tests with STUN only. If they fail, a free Oracle Cloud VM could run coturn (temporary credentials) and our own tracker.
 
 
-## Squadron online (state of 2026-10-18, to retest)
+## Squadron online (state of 2026-10-20)
+- **Confirmed on two real PCs (2026-10-20):** the user connected with a friend by ticking the STUN option, so the connection system works. Still to test with real pilots: sending and receiving missions, mission leader, roster sync and the rest of the squadron functions. Consider making STUN on by default (it was needed on real networks).
 - The two pilots saw each other in the swarm of the public tracker but never connected: the program announced as a seeder (`left: 0`) and some trackers never match two seeders. Now it announces as a downloader (`left: 1`). Not yet confirmed on real PCs (no way to test for now).
 - Diagnostics in Settings > Connection (offers/answers, ICE states, size of the swarm per tracker, last error, "Test my network"), optional TURN server field, STUN off by default (migrated for old saves).
 - Windows Firewall: no rule is created by the program; if it turns out to block the traffic, add a "Allow in Windows Firewall" button (elevated netsh) or an installer.
