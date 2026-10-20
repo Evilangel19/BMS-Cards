@@ -63,7 +63,7 @@ export function createDocsPage(deps) {
   function dirHtml(n, lvl, charts) {
     const ic = charts ? icaoOf(n.name) : '', open = S.q.trim() || S.open.has(n.path);
     const items = n.dirs.map(d => dirHtml(d, lvl + 1, charts)).join('') + n.files.map(f => fileRow(f, ic ? chartName(f.name) : clean(f.name))).join('');
-    return `<details class="dcd" data-p="${esc(n.path)}"${open ? ' open' : ''}><summary>${esc(clean(n.name))}${ic ? ` <small>${esc(ic)}</small>` : ''}<em>${count(n)}</em></summary>${items}</details>`;
+    return `<details class="dcd${lvl == 0 ? ' dcm' : ''}" data-p="${esc(n.path)}"${open ? ' open' : ''}><summary>${esc(clean(n.name))}${ic ? ` <small>${esc(ic)}</small>` : ''}<em>${count(n)}</em></summary><div class="dcb">${items}</div></details>`;
   }
   function listHtml() {
     const dir = deps.docsDir();
@@ -153,6 +153,18 @@ export function createDocsPage(deps) {
     if (btn) btn.disabled = false;
   }
 
+  // Open / close a folder with a short animation; closing a folder closes the folders inside it too
+  function fold(d) {
+    const body = d.querySelector(':scope > .dcb'), anim = deps.anim ? deps.anim() : true, searching = !!S.q.trim();
+    if (d.open) {
+      if (!searching) { S.open.delete(d.dataset.p); d.querySelectorAll('details[data-p]').forEach(x => S.open.delete(x.dataset.p)); }
+      const done = () => { d.open = false; d.querySelectorAll('details[open]').forEach(x => { x.open = false; }); if (body) { body.style.height = ''; body.style.opacity = ''; } };
+      if (anim && body && body.animate) { const h = body.offsetHeight; body.style.overflow = 'hidden'; const a = body.animate([{height: h + 'px', opacity: 1}, {height: '0px', opacity: 0}], {duration: 160, easing: 'ease-in'}); a.onfinish = a.oncancel = () => { done(); body.style.overflow = ''; }; } else done();
+    } else {
+      if (!searching) S.open.add(d.dataset.p); d.open = true;
+      if (anim && body && body.animate) { const h = body.offsetHeight; body.style.overflow = 'hidden'; const a = body.animate([{height: '0px', opacity: 0}, {height: h + 'px', opacity: 1}], {duration: 180, easing: 'ease-out'}); a.onfinish = a.oncancel = () => { body.style.overflow = ''; }; }
+    }
+  }
   // ---- shell
   function build() {
     built = true;
@@ -161,7 +173,7 @@ export function createDocsPage(deps) {
     root.querySelectorAll('#dctabs button').forEach(b => b.onclick = () => { S.tab = b.dataset.tab; S.q = ''; $('#dcq').value = ''; draw(); });
     $('#dcq').oninput = e => { S.q = e.target.value; drawList(); };
     $('#dclist').onclick = e => { const b = e.target.closest('.dcf'); if (b) openFile(b.dataset.f, b.dataset.n); };
-    $('#dclist').addEventListener('toggle', e => { const d = e.target; if (d.dataset && d.dataset.p && !S.q.trim()) { if (d.open) S.open.add(d.dataset.p); else S.open.delete(d.dataset.p); } }, true);
+    $('#dclist').addEventListener('click', e => { const sm = e.target.closest('summary'); if (!sm) return; e.preventDefault(); fold(sm.parentElement); });
     root.onkeydown = e => { if (!S.doc || /INPUT|TEXTAREA/.test(e.target.tagName)) return; if (e.key == 'ArrowRight' || e.key == 'PageDown') { $('#dcnext') && $('#dcnext').click(); } else if (e.key == 'ArrowLeft' || e.key == 'PageUp') { $('#dcprev') && $('#dcprev').click(); } };
     root.tabIndex = -1;
     new ResizeObserver(() => { if (S.doc && root.offsetParent) { clearTimeout(build.t); build.t = setTimeout(showPage, 150); } }).observe(root);
