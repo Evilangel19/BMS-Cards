@@ -362,6 +362,16 @@ export function createSquadronPage(deps) {
   }
 
   // ----- MEMBERS: the roster -----
+  // compact roster on the left of the Members page: search, online dot, leader tag; a click shows the pilot in the table
+  function drawList(q, list, onUid, m) {
+    const box = $('#sqlist'); if (!box) return;
+    const all = [q.roster[DB.uid] || {uid: DB.uid}, ...list], f = ($('#sqfind') && $('#sqfind').value || '').trim().toLowerCase();
+    $('#sqcount').textContent = onUid.size + 1 + ' online · ' + all.length + ' member' + (all.length == 1 ? '' : 's');
+    const shown = all.filter(r => { const isMe = r.uid == DB.uid, x = isMe ? m : r; return !f || ((x.callsign || '') + ' ' + (x.name || '')).toLowerCase().includes(f); });
+    box.innerHTML = shown.map(r => { const isMe = r.uid == DB.uid, x = isMe ? m : r, o = isMe || onUid.has(r.uid);
+      return `<div class="sqrow" data-pick="${esc(r.uid)}">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span class="sqrn"><b>${esc(x.callsign || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">LEADER</span>' : ''}<div class="hint" style="min-height:0">${esc([x.name, (isMe ? m.st : r.stats) ? statLine(isMe ? m.st : r.stats).split(' · ').slice(0, 2).join(' · ') : ''].filter(Boolean).join(' · '))}</div></span><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></div>`; }).join('') || '<div class="hint">No pilot found.</div>';
+    box.querySelectorAll('[data-pick]').forEach(el => el.onclick = () => { const tr = $('#sqtabbox').querySelector('tr[data-uid="' + el.dataset.pick + '"]'); if (!tr) return; $('#sqtabbox').querySelectorAll('tr.sel').forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); tr.scrollIntoView({block: 'nearest'}); });
+  }
   function drawMembers() {
     const box = $('#sqhead'); if (!box) return; const q = cur();
     if (!q) { box.innerHTML = '<div class="hint">You are not in a squadron yet: create one or join with an invite code in the Me section.</div>'; return; }
@@ -377,9 +387,10 @@ export function createSquadronPage(deps) {
       ${own ? `<div class="sqedit" id="sqedit" hidden><input id="sqname" value="${esc(q.name)}" maxlength="40" placeholder="Name of the squadron"><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"><button class="btn g gn" id="sqeditok">Save</button><button class="btn g" id="sqeditx">Cancel</button></div>` : ''}
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
-      <table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${row(q.roster[DB.uid] || {uid: DB.uid}, true)}${list.map(r => row(r, false)).join('')}</tbody></table>
-      ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}
       <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
+    const tb = $('#sqtabbox'); tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${row(q.roster[DB.uid] || {uid: DB.uid}, true)}${list.map(r => row(r, false)).join('')}</tbody></table>
+      ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
+    drawList(q, list, onUid, m);
     $('#sqsel').onchange = e => { DB.cur = e.target.value; save(); cSel = null; drawAll(); };
     const st = (id, f) => { $(id).onchange = e => { q[f] = e.target.value; touchSquad(q); }; };
     st('#sqnotes', 'notes');
@@ -389,7 +400,7 @@ export function createSquadronPage(deps) {
       $('#sqeditok').onclick = () => { const n = $('#sqname').value.trim(); if (!n) { $('#sqname').focus(); return; } q.name = n.slice(0, 40); q.motto = $('#sqmotto').value.trim().slice(0, 80); touchSquad(q); drawAll(); };
       $('#sqdelete').onclick = () => deleteSquad(q);
     }
-    box.querySelectorAll('tr[data-uid]').forEach(tr => { const uid = tr.dataset.uid;
+    tb.querySelectorAll('tr[data-uid]').forEach(tr => { const uid = tr.dataset.uid;
       tr.querySelectorAll('input[data-f]').forEach(i => i.onchange = () => { mkMe(q); touchMember(q, uid, r => { r[i.dataset.f] = i.value; }); });
       const ld = tr.querySelector('[data-lead]'); if (ld) ld.onclick = () => { q.leader = q.leader == uid ? '' : uid; touchSquad(q); drawAll(); };
       const sd = tr.querySelector('[data-send]'); if (sd) sd.onclick = async () => { try { const mm = await deps.buildMission(), p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); if (!p) throw new Error('This pilot is not online any more.'); await p.link.sendMission(JSON.stringify(mm), mm.name, me()); say('Mission "' + mm.name + '" sent to ' + label(p.profile) + '.'); deps.toast && deps.toast('Mission sent to ' + label(p.profile) + '.'); } catch (e) { S.err = String(e && e.message || e); say('Error: ' + S.err); drawSession(); } };
@@ -480,10 +491,14 @@ export function createSquadronPage(deps) {
   function build() {
     root.innerHTML = `<div class="sqw">
 <div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}</div>
-<div class="sqpane" data-pane="members">
+<div class="sqpane sqmem" data-pane="members">
+<div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
+<div class="sqmain">
 <div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
+<div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div id="sqtabbox" style="overflow-x:auto"></div></div>
 <div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button></div><h4>Received</h4><div id="sqrecv"></div></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
+</div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
@@ -516,6 +531,7 @@ export function createSquadronPage(deps) {
     $('#sqstun').onchange = () => { DB.stun = $('#sqstun').checked; save(); startAll(); };
     $('#sqpbopen').onclick = () => $('#sqpbfile').click();
     $('#sqpbfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) { PB = parsePhoneBook(await f.text()); pbErr = ''; drawPb(); } };
+    $('#sqfind').oninput = () => drawMembers();
     $('#sqbcast').onclick = guard(async () => { const q = cur(), sw = q && swarms.get(q.id); if (!sw) return; const m = await deps.buildMission(), t = JSON.stringify(m); let n = 0; for (const p of sw.online()) { await p.link.sendMission(t, m.name, me()); n++; } sentMsg(m, n); });
     // direct connection
     $('#sqlead').onclick = guard(async () => { await S.lead(); say('Direct session started: you are the leader.'); });

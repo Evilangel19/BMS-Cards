@@ -51,7 +51,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br); B, eb = start(br)
-        check('the Squadron tab exists in the three sections Members, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 10)
+        check('the Squadron tab exists in the three sections Members, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 12)
         check('the tabs Members, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
         for n, vis in (('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
@@ -106,7 +106,7 @@ try:
             if A.locator('#sqros tr[data-uid] .sqd.connected').count() == 2 and B.locator('#sqros tr[data-uid] .sqd.connected').count() == 2: break
         print('connected after ~%ds' % (_ + 1))
         check('both see the other online (green) in the roster', A.locator('#sqros tr[data-uid] .sqd.connected').count() == 2 and B.locator('#sqros tr[data-uid] .sqd.connected').count() == 2)
-        check('the roster has both pilots on both sides', 'Wing2' in A.inner_text('#sqhead') and 'Leader1' in B.inner_text('#sqhead'))
+        check('the roster has both pilots on both sides', 'Wing2' in A.inner_text('#sqtabbox') and 'Leader1' in B.inner_text('#sqtabbox'))
         B.wait_for_timeout(300); A.click('#sqrename'); A.fill('#sqname', 'Blue Devils'); A.click('#sqeditok'); check('the new name shows at once for the creator', A.inner_text('#sqtitle') == 'Blue Devils' and 'Blue Devils' in A.inner_text('#sqsel')); B.wait_for_timeout(1500)
         check('the new squadron name reaches the other pilot', B.inner_text('#sqtitle') == 'Blue Devils')
         A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').fill('Wingman'); A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').press('Tab'); A.wait_for_timeout(2500)
