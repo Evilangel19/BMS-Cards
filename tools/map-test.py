@@ -51,7 +51,7 @@ try:
             return _ev(expr, arg) if arg is not None else _ev(expr)
         pg.evaluate = _ev2
         pg.goto('http://localhost:8771/app/index.html'); pg.wait_for_timeout(800)
-        check('Map tab after Kneeboard', pg.locator('.tab').all_inner_texts()[:4] == ['Datacard', 'Data Cartridge', 'Kneeboard', 'Map'])
+        check('Docs and Map tabs after Kneeboard', pg.locator('.tab').all_inner_texts()[:5] == ['Datacard', 'Data Cartridge', 'Kneeboard', 'Docs', 'Map'])
         b = base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b)
         pg.wait_for_timeout(500)
