@@ -745,3 +745,6 @@ Nothing of Falcon BMS is in the repository any more. `data/index.js` starts with
 
 ## Squadron Members layout
 The Members section has two columns (one under 900 px): on the left the "Pilot roster" card (`#sqlist`, search box `#sqfind`, online dot, LEADER tag; a click marks the pilot's row in the table), on the right the cards Squadron (`#sqhead`), Members table (`#sqtabbox`, role/notes/seen/send/mission leader), Mission and Squadron in the campaign. `drawMembers()` draws all of them; `drawList()` draws the roster.
+
+## Performance: automatic conditions of the flight
+`perfEnv()` (index.html) gives the departure of the selected flight: field elevation (`F.ab0_4`), headwind on the planned runway (`F.ab0_5`, weather wind at departure time and place) and temperature against ISA. The Datacard fill (`perfCalc`) and the Performance page (`deps.env`) use the same function. On the page, sliders Field elevation, Headwind and Temperature follow the flight (small "auto" mark) until moved by hand (`ov` set); "use the flight values again" or a new flight clears the overrides. Landing uses the same field and wind as take-off. Slope is not in the game files and stays manual.

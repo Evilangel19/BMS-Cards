@@ -18,7 +18,12 @@ export function createPerfPage(deps) {
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* none */ } };
   let note = '', ac = null, loading = '', names = [], tried = false, ready = false, lastSig = '', noData = '';   // noData: the aircraft that has no file (do not ask again)
 
-  const slider = f => { const [l, u, a, b, s] = SL[f], v = f == 'mach' && !st.mach ? '' : st[f]; return `<div class="slr"><label>${l}</label><input type="range" min="${a}" max="${b}" step="${s}" value="${v === '' ? .8 : v}" data-sl="${f}"><em data-em="${f}">${fmtV(f, v === '' ? bestMach() : v)}${u}</em></div>`; };
+  // Values of the flight chosen in the Datacard (field elevation, headwind on its runway, temperature against ISA): they drive the page until a slider is moved by hand
+  const ov = new Set(), AUTO = ['elev', 'hw', 'isa'];
+  const env = () => deps.env && deps.env.get() || null;
+  const isAuto = f => { const e = AUTO.includes(f) && env(); return !!(e && e[f] != null && !ov.has(f)); };
+  const V = f => { if (!isAuto(f)) return st[f]; const r = SL[f] || [0, 0, -1e9, 1e9]; return Math.min(r[3], Math.max(r[2], Math.round(env()[f]))); };
+  const slider = f => { const [l, u, a, b, s] = SL[f], v = f == 'mach' && !st.mach ? '' : V(f); return `<div class="slr"><label>${l}${isAuto(f) ? ' <small class="hint" title="From the flight chosen in the Datacard: move the slider to set your own value">auto</small>' : ''}</label><input type="range" min="${a}" max="${b}" step="${s}" value="${v === '' ? .8 : v}" data-sl="${f}"><em data-em="${f}">${fmtV(f, v === '' ? bestMach() : v)}${u}</em></div>`; };
   const fmtV = (f, v) => f == 'mach' ? (+v).toFixed(2) : f == 'g' ? (+v).toFixed(1) : f == 'slope' ? (+v).toFixed(1) : fmt(v);
   const seg = (f, opts, c) => `<span class="seg">${opts.map(([v, l]) => `<button type="button" class="${String(c) === String(v) ? 'on' : ''}" data-set="${f}" data-v="${v}">${l}</button>`).join('')}</span>`;
   const kv = (a, b, bad) => `<span>${a}</span><b${bad ? ' class="wbad"' : ''}>${b}</b>`;
@@ -26,9 +31,10 @@ export function createPerfPage(deps) {
   const rwMan = () => { const r = deps.runway && deps.runway.get(); return r ? r.man || 0 : st.rwy || 0; }, rwAuto = () => { const r = deps.runway && deps.runway.get(); return r && r.auto || 0; };
   const rwHint = () => { const r = deps.runway && deps.runway.get(); if (!r) return 'to compare'; return esc(r.name) + (r.man ? ' · typed by you (empty = the game files)' : r.auto ? ' · from the game files (' + fmt(r.auto) + ' × ' + fmt(r.wid) + ' ft), type a length to override' : ' · no size from the game files (' + (r.info || '?') + ')') + ' · for the refusal speed'; };
   const runwayFt = () => { const r = deps.runway && deps.runway.get(); return r ? r.ft || 0 : st.rwy || 0; };
+  const envNote = () => { const e = env(); if (!e) return ''; const w = e.wind ? ' · wind ' + String(Math.round(e.wind.hdg) % 360 || 360).padStart(3, '0') + '/' + Math.round(e.wind.spd) + ' kt on runway ' + esc(e.rwy || '?') : ' · no weather for this flight'; return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${w}${ov.size ? ' · <a href="#" data-envreset>use the flight values again</a>' : ''}</p>`; };
   const empty = () => ac ? ac.af.emptyLb : 0;
   const gw = () => empty() + st.fuel + st.stores;
-  const base = () => ({W: gw(), dIsa: st.isa, di: st.di});
+  const base = () => ({W: gw(), dIsa: V('isa'), di: st.di});
   let bestM = .8; const bestMach = () => bestM;
 
   async function pick(name, reset) {
@@ -40,7 +46,7 @@ export function createPerfPage(deps) {
   }
   function fromDatacard() {
     const l = deps.loadout && deps.loadout(); if (!l) return false;
-    note = ''; let cand = l.ac || ''; while (cand && !names.includes(cand)) cand = cand.includes(' ') ? cand.replace(/\s+\S+$/, '') : ''; if (cand) { st.ac = cand; if (cand != l.ac) note = 'No file for ' + l.ac + ': using ' + cand + '.'; } else if (l.ac) note = 'No performance data for ' + l.ac + ': showing ' + st.ac + '.';
+    ov.clear(); note = ''; let cand = l.ac || ''; while (cand && !names.includes(cand)) cand = cand.includes(' ') ? cand.replace(/\s+\S+$/, '') : ''; if (cand) { st.ac = cand; if (cand != l.ac) note = 'No file for ' + l.ac + ': using ' + cand + '.'; } else if (l.ac) note = 'No performance data for ' + l.ac + ': showing ' + st.ac + '.';
     const run = () => { const e = ac ? ac.af.emptyLb : 0; st.fuel = l.fuel ? Math.round(l.fuel) : (ac ? ac.af.fuelLb : st.fuel); st.stores = l.gw && e ? Math.max(0, Math.round(l.gw - e - st.fuel)) : 0; st.di = Math.max(0, Math.round(l.drag || 0)); save(); draw(false); };
     if (!ac || ac.name != st.ac) { loading = st.ac; deps.aircraft.get(st.ac).then(d => { loading = ''; if (d) ac = d; run(); }); } else run();
     return true;
@@ -102,8 +108,8 @@ export function createPerfPage(deps) {
     return {tiles, body};
   }
   function fieldTab() {
-    const hw = st.hw, o = {W: gw(), elev: st.elev, dIsa: st.isa, hw, slope: st.slope / 100, power: st.power, di: st.di}, t = P.takeoff(ac, o);
-    const wl = empty() + st.stores + st.lfuel, l = P.landing(ac, {W: wl, elev: st.elev, dIsa: st.isa, hw, slope: st.slope / 100, di: st.di}), rw = runwayFt();
+    const hw = V('hw'), o = {W: gw(), elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, power: st.power, di: st.di}, t = P.takeoff(ac, o);
+    const wl = empty() + st.stores + st.lfuel, l = P.landing(ac, {W: wl, elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, di: st.di}), rw = runwayFt();
     const ok = (len, need) => rw ? (need <= rw ? ' ✓' : ' ✗') : '';
     const rf = P.refusal(ac, {...o, rwy: rw}), rpm = P.milRpm(ac);
     const tTiles = t.stuck ? '<p class="wperr">The thrust is not enough to reach lift-off speed with this weight, drag and power.</p>' : `<div class="wpt">${tile('Rotate / lift-off', fmt(t.vr) + ' / ' + fmt(t.vlof) + ' kt', 'at ' + fmt(t.aLO) + '° of pitch')}${tile('Ground roll', fmt(t.roll) + ' ft' + ok(rw, t.roll), fmt(t.time) + ' s')}${tile('To 50 ft', fmt(t.to50) + ' ft' + ok(rw, t.to50), 'climb ' + fmt(t.gamma) + '°')}${tile('Abort at rotation', fmt(t.abort) + ' ft' + ok(rw, t.abort), 'full brakes, idle')}${tile('Refusal speed', rf == null ? '—' : rf >= 224.5 ? '225+ kt' : fmt(rf) + ' kt', rf == null ? 'set the runway length' : 'stop on ' + fmt(rw) + ' ft')}${tile('Military power', rpm == null ? '—' : rpm + ' %', 'max rpm: the lead sets 2% less')}</div>`;
@@ -115,7 +121,7 @@ export function createPerfPage(deps) {
   function planTab() {
     const fp = deps.flightPlan && deps.flightPlan();
     if (!fp || !fp.wps || fp.wps.length < 2) return {tiles: '', body: '<p class="hint">Pick a flight in the Datacard: the fuel plan is calculated on its steerpoints.</p>'};
-    const o = {...base(), empty: empty(), stores: st.stores, reserve: st.lres, jokerMargin: st.jok, loaded: st.fuel, wind: deps.wind}, pl = fuelPlan(ac, fp.wps, o), alt = climbAltitude(fp.wps), cl = P.climbSchedule(ac, {W: gw(), dIsa: st.isa, di: st.di, to: alt});
+    const o = {...base(), empty: empty(), stores: st.stores, reserve: st.lres, jokerMargin: st.jok, loaded: st.fuel, wind: deps.wind}, pl = fuelPlan(ac, fp.wps, o), alt = climbAltitude(fp.wps), cl = P.climbSchedule(ac, {W: gw(), dIsa: V('isa'), di: st.di, to: alt});
     const bad = pl.short > 0, hm = s => { s = Math.round(s); return s <= 0 ? '' : s >= 3600 ? Math.floor(s / 3600) + ':' + String(Math.floor(s % 3600 / 60)).padStart(2, '0') + ' h' : Math.round(s / 60) + ' min'; };
     const tiles = `<div class="wpt">${tile('Fuel at take-off', fmt(pl.toFuel) + ' lb', bad ? 'short by ' + fmt(pl.short) + ' lb: only ' + fmt(st.fuel) + ' loaded' : 'loaded: ' + fmt(st.fuel) + ' lb')}${tile('Bingo', fmt(pl.bingo) + ' lb', 'Min.Fuel of STPT ' + (pl.bingoIdx + 1))}${tile('Joker', fmt(pl.joker) + ' lb', '+' + fmt(st.jok) + ' lb over the bingo')}${tile('Mil climb', cl ? fmt(cl.cas) + ' / .' + String(Math.round(cl.mach * 100)).padStart(2, '0') : '—', cl ? 'to ' + fmt(alt) + ' ft: ' + cl.minutes.toFixed(1) + ' min, ' + fmt(cl.fuel) + ' lb' : 'no climb')}</div>`;
     const windTxt = w => String(Math.round(w.hdg) % 360 || 360).padStart(3, '0') + '/' + Math.round(w.spd) + ' <span class="hint">' + fmt(w.alt / 1000) + 'k</span>';
@@ -128,7 +134,7 @@ export function createPerfPage(deps) {
     const w = ac ? `<div class="kv"><span>EMPTY</span><b>${fmt(empty())} lb</b><span>GROSS</span><b data-gw>${fmt(gw())} lb</b><span>INTERNAL FUEL</span><b>${fmt(ac.af.fuelLb)} lb</b><span>WING AREA</span><b>${fmt(ac.af.area)} ft²</b><span>LIMITS</span><b>${fmt(ac.af.maxG, 1)} g · ${fmt(ac.af.aoaMax)}° alpha</b></div>` : '';
     const loadBtn = deps.loadout ? `<div class="wrow"><button class="btn g" type="button" data-dc title="Take the aircraft, fuel, weight of the stores and drag index of the flight chosen in the Datacard">Load the datacard flight</button></div>` : '';
     const s = m => m.map(slider).join('');
-    const per = st.mode == 'turn' ? `<div class="wrow"><label>Ps map</label>${seg('ps', [['mil', 'MIL'], ['ab', 'AB']], st.ps)}</div>${s(['alt', 'g'])}` : st.mode == 'cruise' ? s(['alt', 'reserve', 'mach']) + `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>` : st.mode == 'plan' ? s(['lres', 'jok']) + `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker).</p>` : `<div class="wrow"><label>Power</label>${seg('power', [['mil', 'MIL'], ['ab', 'AB']], st.power)}</div>${s(['elev', 'hw', 'slope', 'lfuel'])}<div class="wrow"><label>Runway</label><input type="number" data-rwy min="0" max="20000" step="100" value="${rwMan() || ''}" placeholder="${rwAuto() || 'length, ft'}" style="width:110px"> <span class="hint">${rwHint()}</span></div>`;
+    const per = st.mode == 'turn' ? `<div class="wrow"><label>Ps map</label>${seg('ps', [['mil', 'MIL'], ['ab', 'AB']], st.ps)}</div>${s(['alt', 'g'])}` : st.mode == 'cruise' ? s(['alt', 'reserve', 'mach']) + `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>` : st.mode == 'plan' ? s(['lres', 'jok']) + `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker).</p>` : `<div class="wrow"><label>Power</label>${seg('power', [['mil', 'MIL'], ['ab', 'AB']], st.power)}</div>${s(['elev', 'hw', 'slope', 'lfuel'])}${envNote()}<div class="wrow"><label>Runway</label><input type="number" data-rwy min="0" max="20000" step="100" value="${rwMan() || ''}" placeholder="${rwAuto() || 'length, ft'}" style="width:110px"> <span class="hint">${rwHint()}</span></div>`;
     return `<div class="wcard"><h3>Aircraft and load</h3>${acsel}${loadBtn}${note ? `<p class="hint wnote">${esc(note)}</p>` : ''}${ac ? s(['fuel', 'stores', 'di', 'isa']) : ''}${w}</div><div class="wcard"><h3>${MODES.find(m => m[0] == st.mode)[1]}</h3>${ac ? per : ''}</div>`;
   }
 
@@ -150,8 +156,9 @@ export function createPerfPage(deps) {
     if (!partial) {
       root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { st.mode = b.dataset.mode; save(); draw(false); });
       root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => { st[b.dataset.set] = b.dataset.v; b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); save(); draw(false); });
-      root.querySelectorAll('input[data-sl]').forEach(i => { i.oninput = () => { const f = i.dataset.sl; st[f] = +i.value; const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmtV(f, i.value) + SL[f][1]; upd(f); }; });
+      root.querySelectorAll('input[data-sl]').forEach(i => { i.oninput = () => { const f = i.dataset.sl; st[f] = +i.value; if (AUTO.includes(f)) { ov.add(f); const lb = i.closest('.slr').querySelector('label small'); if (lb) lb.remove(); const en = root.querySelector('[data-envnote]'); if (en) { en.outerHTML = envNote(); const er = root.querySelector('[data-envreset]'); if (er) er.onclick = ev => { ev.preventDefault(); ov.clear(); draw(false); }; } } const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmtV(f, i.value) + SL[f][1]; upd(f); }; });
       root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { st.ac = s.value; ac = null; save(); pick(s.value, true); });
+      const er = root.querySelector('[data-envreset]'); if (er) er.onclick = e => { e.preventDefault(); ov.clear(); draw(false); };
       const dc = root.querySelector('[data-dc]'); if (dc) dc.onclick = fromDatacard;
       const bm = root.querySelector('[data-bestm]'); if (bm) bm.onclick = () => { st.mach = 0; save(); draw(false); };
       const rw = root.querySelector('[data-rwy]'); if (rw) rw.onchange = () => { const v = Math.max(0, +rw.value || 0); if (deps.runway) deps.runway.set(v); else st.rwy = v; save(); draw(false); };
