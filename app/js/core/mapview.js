@@ -38,7 +38,7 @@ export const MAP_LAYERS = [
   ['sf', 'Friendly SAM range', false, 'SAM range'], ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
-  ['rc', 'Radar coverage at 5,000 ft (approximate)', false, 'Display'],
+  ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
@@ -209,6 +209,10 @@ export function createMap(host, deps) {
     }).join('');
     const sb = el.querySelector('.mpsb[data-sec="SAM range"]');   // transparency of the colour inside the SAM unit rings
     if (sb) { sb.insertAdjacentHTML('beforeend', `<label class="mpr" title="Colour inside the SAM rings of the units: 0 = transparent"><span class="lt">Ring fill</span><input type="range" id="mpfill" min="0" max="60" value="${st.on.ringfill == null ? 8 : st.on.ringfill}" style="flex:1;min-width:0"></label>`); $('mpfill').oninput = () => { st.on.ringfill = +$('mpfill').value; save(); sams(deps.getC(), deps.getSel()); DT.forEach(e => e.it.group == 'ppt' && e.ring && e.ring.setStyle({fillOpacity: st.on.ringfill / 100})); }; }
+    const rcRow = el.querySelector('input[data-k=rc]');   // altitude of the radar coverage
+    if (rcRow) { const lab = rcRow.closest('label') || rcRow.parentElement; lab.insertAdjacentHTML('afterend', `<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>`);
+      const lab2 = () => { $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft'; }; lab2();
+      $('mprca').oninput = () => { st.on.rcalt = RC_LEVELS[+$('mprca').value]; save(); lab2(); if (st.on.rc) radarCov(); }; }
     el.querySelectorAll('.mps').forEach(h => h.onclick = () => toggleSec(h));
     el.querySelectorAll('input.mst').forEach(i => { i.onclick = e => e.stopPropagation(); i.onchange = () => setLayers(secKeys(i.dataset.sec), i.checked); });
     el.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked;
@@ -1142,22 +1146,25 @@ export function createMap(host, deps) {
   // redraw the data layers for the campaign / selected flight / faction
   // RADAR COVERAGE at 5,000 ft (approximate): the spotted radars (ground / naval units with a long detection range) with the terrain hiding what is below the line of
   // sight (radarcov.js). Heights come from the HeightMap.raw of the BMS folder (deps.elev); without it only the radar horizon limits the range.
-  const RC_ALT = 5000;
+  const RC_LEVELS = [1000, 2500, 5000, 10000, 20000], rcAlt = () => RC_LEVELS.includes(st.on.rcalt) ? st.on.rcalt : 5000;
+  const RC_IDS = new WeakMap(); let rcSeq = 0; const rcId = C => { if (!RC_IDS.has(C)) RC_IDS.set(C, ++rcSeq); return RC_IDS.get(C); };
   let RCK = '', RCBUSY = false, RCNOTE = false;
   async function radarCov() {
     if (!map || !G.rc) return;
-    const C = deps.getC(), key = !st.on.rc || !C ? '' : (C.name || '') + '|' + UL.length + '|' + (curView == null ? '' : curView) + '|' + (pal === PAL.dark ? 'd' : 'l');
+    const C = deps.getC(), alive = C ? radarUnits(UL).filter(r => !r.ally) : [];
+    // the key: the campaign file (each opening is a new one), the team seen, the radars still alive (position and range), the altitude, the colours
+    const key = !st.on.rc || !C ? '' : rcId(C) + '|' + (curView == null ? '' : curView) + '|' + rcAlt() + '|' + (pal === PAL.dark ? 'd' : 'l') + '|' + alive.map(r => Math.round(r.x) + ',' + Math.round(r.y) + ',' + r.rng).join(';');
     if (key === RCK && key !== '' || (key === '' && !RCK)) return;
     if (!key) { RCK = ''; G.rc.clearLayers(); return; }
     if (RCBUSY) return; RCBUSY = true; RCK = key;
     try {
-      const radars = radarUnits(UL), L = window.L, H = new Map(), view = deps.getView();
+      const radars = alive.slice(), L = window.L, H = new Map(), view = deps.getView();   // the radars of the allies (and of the team seen) are not drawn
       // fixed radar stations: their radar features that are not destroyed (state of the campaign); the owner of an untouched station is not in the campaign file: neutral colour
       try {
         const td = deps.objects && deps.objects.radars ? await deps.objects.radars() : [];
         td.forEach(({o, feats}) => {
           const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'f', seen = new Set();
-          feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
+          if (side == 'a') return; feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
         });
       } catch (e) { /* no BMS folder: only the radars of the units */ }
       if (deps.elev && radars.length) {
@@ -1170,7 +1177,7 @@ export function createMap(host, deps) {
       if (RCK !== key) return;
       G.rc.clearLayers();
       radars.forEach(r => {
-        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
+        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, rcAlt()).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
         L.polygon(poly, {color: c, weight: 1, opacity: .7, fillColor: c, fillOpacity: .12, className: 'rcov', interactive: false}).addTo(G.rc);
       });
     } catch (e) { RCK = key; toast('Radar coverage could not be drawn: ' + (e && e.message || e), true); } finally { RCBUSY = false; note(''); if (st.on.rc && RCK !== key) radarCov(); }

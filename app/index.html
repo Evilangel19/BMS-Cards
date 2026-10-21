@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head>
+<link rel="icon" href="logo.svg" type="image/svg+xml"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>BMS Cards</title>
 <style>
 #msch svg{max-width:600px;display:block;margin:0 auto}.wtl td,.wtl th{white-space:nowrap}#msr svg.wpp{max-width:520px}
 :root{--bg:#0f1419;--card:#1a212b;--line:#2a3441;--tx:#e6edf3;--mu:#8b98a8;--ac:#4cc38a}
 *{box-sizing:border-box}body{-webkit-user-select:none;user-select:none;margin:0;font:14px system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--tx)}
 header{display:flex;gap:6px;align-items:center;padding:10px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-header h1{font-size:18px;margin:0 16px 0 0}
+header h1{font-size:18px;margin:0 16px 0 0;display:flex;align-items:center}
 .tab,.st{background:none;border:0;color:var(--mu);padding:7px 12px;border-radius:8px;cursor:pointer;font:inherit}
 .tab.on,.st.on{background:var(--card);color:var(--ac)}
 main{padding:16px 20px;max-width:1300px;margin:auto}main.wide{max-width:1800px}
@@ -199,7 +200,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield;color-scheme:d
 .btn.g.on{background:#1f7a46;color:#fff}.wnum{padding-right:3px}.nst{display:inline-flex;flex-direction:column;vertical-align:middle;margin-left:-1px;gap:1px}.wnumw>.nst{margin-right:3px}input[type=number]+.nst{margin-left:-1px}.nst button{width:16px;height:11px;padding:0;border:1px solid var(--line);border-radius:4px;background:#0f1419;color:var(--mu);font-size:7px;line-height:9px;cursor:pointer}.nst button:hover{background:#1a212b;color:var(--tx)}.nst button:active{background:#1f7a46;color:#fff}
 .wxtop{display:flex;align-items:center;gap:12px;margin:8px 0}.wxg{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:14px;align-items:start}@media(max-width:1100px){.wxg{grid-template-columns:minmax(0,1fr)}}.wxl,.wxr{display:flex;flex-direction:column;gap:12px;min-width:0}.wxmapbox{position:relative;height:620px;border-radius:8px;overflow:hidden;background:#0d1b2a}.wxcells{image-rendering:pixelated}.wxbb{pointer-events:none}.wxpan{position:absolute;right:10px;top:10px;z-index:500;display:flex;flex-direction:column;gap:6px;align-items:flex-end}.wxpan>.btn{margin:0;padding:5px 12px;box-shadow:0 2px 8px #0008}.wxpan>.btn i{font-style:normal}#wxpp{position:static;padding:10px 12px;width:min(400px,80vw);box-sizing:border-box}.wxph{font-size:12px;color:var(--mu);margin-bottom:4px}.wxph b{color:var(--tx)}.wxleg{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;margin-top:8px}.wxlk i{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-2px;margin-right:6px}.wxlg{display:flex;align-items:center;gap:8px;width:100%}.wxlg i{display:block;width:160px;height:10px;border-radius:5px}.wxinfo{margin-top:8px;font-size:12px;min-height:34px}.wxtm{position:relative;padding-top:48px;margin-bottom:4px}.wxmk{position:absolute;top:0;left:0;right:0;height:44px}.wxmk span{position:absolute;transform:translateX(-50%);font-size:11px;font-weight:700;color:#0f1419;padding:2px 8px;border-radius:10px;white-space:nowrap}.wxtm input{width:100%;accent-color:#3ddc84}.wxtk{position:relative;height:16px}.wxtk span{position:absolute;transform:translateX(-50%);font-size:10px;color:var(--mu)}.wxlv{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px}.wxlv button{min-width:44px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#0f1419;color:var(--tx);font-size:12px;cursor:pointer}.wxlv button.on{background:#1f7a46;border-color:#3ddc84;color:#fff}.wxb{border-top:1px solid var(--line);padding:8px 0}.wxb:first-of-type{border-top:0;padding-top:0}.wxa{font:12px ui-monospace,Menlo,Consolas,monospace;color:var(--tx);margin-top:4px;white-space:pre-wrap}.wxt{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}.wxw{display:grid;grid-template-columns:76px 1fr 96px;gap:10px;align-items:center;font-size:12px;padding:3px 4px;border-radius:5px;cursor:pointer}.wxw.on{background:#1b2a3a}.wxbar{height:8px;background:#0f1419;border-radius:4px;overflow:hidden}.wxbar u{display:block;height:8px;background:#4aa3ff;border-radius:4px;text-decoration:none}.wxw b{text-align:right;font-weight:600}.wxck{font-size:12px;color:var(--mu);display:flex;gap:6px;align-items:center;white-space:nowrap}.wxnote{margin-top:8px}
 </style></head><body>
-<header><h1>✈ BMS Cards</h1>
+<header><h1><img src="logo.svg" alt="" width="28" height="28" style="vertical-align:middle;margin-right:8px;border-radius:6px">BMS Cards</h1>
 <button class="tab on" data-t="kb">Datacard</button><button class="tab" data-t="dtc">Data Cartridge</button><button class="tab" data-t="kn">Kneeboard</button><button class="tab" data-t="dc">Docs</button><button class="tab" data-t="mp">Map</button><button class="tab" data-t="wp">Weapons</button><button class="tab" data-t="ms">BVR Timeline</button><button class="tab" data-t="pf">Performance</button><button class="tab" data-t="wx">Weather</button><button class="tab" data-t="sq">Squadron</button><button class="tab" id="cfgbtn" style="margin-left:auto">⚙ Settings</button></header>
 <dialog id="cfg"></dialog>
 <main>
@@ -277,7 +278,7 @@ import {pdfTextItems,pdfOpen,pdfRender,pdfRenderTo,pdfPageText} from './js/platf
 import {createDocsPage} from './js/core/docspage.js';
 import {parseAip} from './js/bmsdata/aip.js';
 import {parseAtc,buildAirbases} from './js/bmsdata/airbases.js';
-import {parseRunways,runwayLengths} from './js/bmsdata/runways.js';
+import {parseRunways,runwayLengths,describeRunways} from './js/bmsdata/runways.js';
 import {loadPrefs,savePrefs,loadConfig,saveConfig,pickFile,pickFiles,onFilesDropped,onCloseGuard,pickFolder,saveBlob as saveFile,isDesktop,findFiles,readBytes,detectBms,listDir,join as joinPath,writeBytes,fileExists,makeDir,appDir,readRange,fileSize} from './js/platform/desktop.js';
 import {parseBombDat,parseBombList} from './js/bmsdata/bombdata.js';
 import {parseTheaterValues,heightSpec,heightsAt} from './js/bmsdata/heightmap.js';
@@ -772,7 +773,7 @@ const rwyAuto=d=>{const r=d&&F.__ab&&F.__ab[0]&&RL[F.__ab[0][0]];   // the campa
 const rwyFt=d=>d?(PERFP.rwy[d[0]]||(rwyAuto(d)||{}).ft||0):0;
 async function loadRunways(atc){try{RL={};if(!OBJDIR){RLI='Falcon4_CT.xml (objects folder) not found';return}if(!atc.length){RLI='no ATC files';return}RLI='reading…';const dec=b=>new TextDecoder('utf-8').decode(b),ids=new Set(atc.map(a=>a.campId)),objs=parseObjectives(dec(await readBytes(OBJCAMP||jp(OBJDIR,'CampObjData.XML')))).filter(o=>ids.has(String(o.id))),byOcd={},rwl={};let err='';
  for(let i=0;i<objs.length;i+=10)await Promise.all(objs.slice(i,i+10).map(async o=>{try{if(!byOcd[o.ocd])byOcd[o.ocd]=parseRunways(dec(await readBytes(jp(OBJDIR,...phdPath(o.ocd).split('/')))),dec(await readBytes(jp(OBJDIR,...pdxPath(o.ocd).split('/')))));rwl[o.id]=byOcd[o.ocd]}catch(e){err=err||o.id+': '+(e&&e.message||e)}}));
- RL=runwayLengths(atc,rwl);RLI=Object.keys(RL).length+' of '+atc.length+' ATC airbases have a runway size ('+objs.length+' found in CampObjData)'+(err?'; first error '+err:'');try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}}catch(e){RL={};RLI='error: '+(e&&e.message||e)}}
+ RL=runwayLengths(atc,rwl);let why='';if(!Object.keys(RL).length&&objs.length){try{const o=objs[0];why='; first base '+o.id+' (OCD '+o.ocd+'): '+describeRunways(dec(await readBytes(jp(OBJDIR,...phdPath(o.ocd).split('/')))),dec(await readBytes(jp(OBJDIR,...pdxPath(o.ocd).split('/')))))}catch(e){why='; first base: '+(e&&e.message||e)}}RLI=Object.keys(RL).length+' of '+atc.length+' ATC airbases have a runway size ('+objs.length+' found in CampObjData)'+(err?'; first error '+err:'')+why;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}}catch(e){RL={};RLI='error: '+(e&&e.message||e)}}
 const perfSave=()=>{try{savePrefs('perfprefs.json',PERFP)}catch(e){}};
 // Conditions at the departure of the selected flight: field elevation (ft), headwind on the planned runway (kt, from the weather at the departure time) and temperature against ISA (°C)
 function perfEnv(){const d=F.__dep;if(!d)return null;const elev=+F.ab0_4||0;let hw=0,isa=0,wind=null;

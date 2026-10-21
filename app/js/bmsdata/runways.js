@@ -23,6 +23,13 @@ export function parseRunways(phdXml, pdxXml) {
   return out;
 }
 
+// What a pair of files holds, for the message shown when no runway size could be read: "N runway header(s), corner points 4,4"
+export function describeRunways(phdXml, pdxXml) {
+  const pts = [...pdxXml.matchAll(/<PD Num="(\d+)">([\s\S]*?)<\/PD>/g)].map(m => ({ t: +tag(m[2], 'Type') })), hs = [];
+  for (const m of phdXml.matchAll(/<PHD Num="(\d+)">([\s\S]*?)<\/PHD>/g)) if (+tag(m[2], 'Type') === 8) { const f = +tag(m[2], 'FirstPtIdx'), c = +tag(m[2], 'PointCount'); hs.push(pts.slice(f, f + c).filter(p => p.t === 8).length + '/' + c); }
+  return `${pts.length} points, ${hs.length} runway header(s)` + (hs.length ? ' with corner points ' + hs.join(',') : '');
+}
+
 // atc: [parseAtc results with ends {qfu, hdg, id}]; rwl: { campId: [parseRunways result] }
 // -> { campId: { ends: { '09': { ft, w } }, max: { ft, w } } }: the size of the runway of each end number (parallel runways share numbers: the first listed wins) and the longest runway of the base
 export function runwayLengths(atc, rwl) {

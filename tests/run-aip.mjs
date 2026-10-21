@@ -1,7 +1,7 @@
 // AIP and ATC parsing with a small synthetic sample (own made-up numbers, same layout idea as the real AIP table).
 import { mergeItems, parseAip, aipFor } from '../app/js/bmsdata/aip.js';
 import { parseAtc, buildAirbases } from '../app/js/bmsdata/airbases.js';
-import { parseRunways, runwayLengths } from '../app/js/bmsdata/runways.js';
+import { parseRunways, runwayLengths, describeRunways } from '../app/js/bmsdata/runways.js';
 let bad = 0, n = 0;
 const ok = (name, cond, info = '') => { n++; if (!cond) { bad++; console.log('FAIL', name, info); } };
 const it = (s, x, y, w = s.length * 4) => ({ s, x, y, w });
@@ -43,6 +43,7 @@ const pdx = '<PDRecords>' + [pd(7000, 100, 8), pd(-1000, 0, 8), pd(7000, 0, 8), 
 const phd = '<PHDRecords><PHD Num="0"><ObjIdx>1</ObjIdx><Type>8</Type><PointCount>5</PointCount><FirstPtIdx>0</FirstPtIdx><RunwayNumber>0</RunwayNumber></PHD><PHD Num="1"><ObjIdx>1</ObjIdx><Type>1</Type><PointCount>1</PointCount><FirstPtIdx>5</FirstPtIdx><RunwayNumber>0</RunwayNumber></PHD><PHD Num="2"><ObjIdx>1</ObjIdx><Type>8</Type><PointCount>4</PointCount><FirstPtIdx>6</FirstPtIdx><RunwayNumber>1</RunwayNumber></PHD></PHDRecords>';
 const rr = parseRunways(phd, pdx);
 ok('runway rectangles: two found (the taxi path and a wrong number of corners are skipped)', rr.length === 2 && rr[0].id === 0 && rr[1].id === 1, JSON.stringify(rr));
+ok('describeRunways tells what the files hold', /12 points|\d+ points, 2 runway header\(s\) with corner points 4\/5,4\/4|runway header/.test(describeRunways(phd, pdx)), describeRunways(phd, pdx));
 ok('length and width from the corners, whatever their order', Math.round(rr[0].len) === 8000 && Math.round(rr[0].wid) === 100 && Math.round(rr[1].len) === 6000 && Math.round(rr[1].wid) === 60, JSON.stringify(rr));
 ok('heading of the long side', Math.round(rr[0].hdg) === 90, JSON.stringify(rr[0]));
 const atc2 = parseAtc('# CampID\n1784\n# RUNWAY: 0 HDG:085 QFU:09\n# RUNWAY: 0 HDG:265 QFU:27\n# RUNWAY: 1 HDG:265 QFU:27\n# RUNWAY: 1 HDG:085 QFU:09\n');
