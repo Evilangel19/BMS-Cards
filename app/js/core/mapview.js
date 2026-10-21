@@ -15,8 +15,8 @@ import {actName, hms, els0, nearAb, opWin} from './flight.js';
 
 export const BMS_MAP_URL = 'https://cdn.falcon-bms.com/maps/04_KTO/maps/KTO_UI_Map_6k.jpeg';
 const COAST = {dark: {sea: '#0d1b2a', land: '#27323d', coast: '#56687a', border: '#8b98a8', river: '#3f78ad'}, light: {sea: '#cde2f0', land: '#f2efe4', coast: '#7d8a96', border: '#6b7580', river: '#3a86c4'}};
-// The coastlines (offline), the official map and the folder map are pictures of Korea: other theaters use the satellite, the topographic map or a picture of their own.
-const KOREA_ONLY = ['coast', 'bms', 'sky'];
+// The coastlines (offline) and the official map are pictures of Korea: other theaters use the map picture of their Docs folder, the satellite, the topographic map or a picture of their own.
+const KOREA_ONLY = ['coast', 'bms'];   // the picture of the BMS folder (sky) exists for every theater that has one in its Docs\\ ... Maps folder
 const isKorea = () => { const g = getGeo(); return g.lat === 38.5 && g.lon === 127.5; };
 const baseOk = k => isKorea() || !KOREA_ONLY.includes(k);
 const BASES = {
@@ -24,7 +24,7 @@ const BASES = {
   sat: {label: 'Satellite (online)', url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',
     attr: '<a href="https://s2maps.eu" target="_blank">Sentinel-2 cloudless</a> by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2021), CC BY-NC-SA 4.0'},
   bms: {label: 'BMS map (official, online)', attr: 'Map picture © <a href="https://www.falcon-bms.com" target="_blank">Falcon BMS</a> (Benchmark Sims), loaded from the official BMS maps server'},
-  sky: {label: 'BMS folder map (Skyvector, offline)', attr: 'Map picture from the Falcon BMS folder (Docs\\05 Maps)'},
+  sky: {label: 'BMS folder map (offline)', attr: 'Map picture from the Falcon BMS folder (Docs, Maps folder)'},
   topo: {label: 'Topographic (online)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', sub: 'abc',
     attr: 'Map data © <a href="https://openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors, SRTM | Style © <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a> (CC-BY-SA)'},
   img: {label: 'Custom', attr: 'Custom map picture'}};

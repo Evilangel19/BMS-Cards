@@ -803,3 +803,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - For an add-on theater (its `.tdf` lives in its own folder) the files that carry campaign numbers or places (`CampObjData.XML`, `Stations+Ils.dat`, `Airbase.lst` and its ATC files, `KTO_AIP.pdf`, `RadioMap.dat`, `Ppt.ini`) are searched only in the folders of the theater (3 levels deep) and never in the rest of the BMS folder: the global search found the Korean ones, whose numbers match other places (the Balkans bases got Korean ATC files and no runway size). What is missing is reported in the game-data warning.
 - Weather page: `resetView()` forgets the kept map bounds when the theater changes (it showed the previous theater). Docs charts: the folder scan budget is 60,000 entries (the Balkans have thousands of charts).
 - Docs charts can be PNG / JPG pictures (the Balkans charts are PNG): they are listed with the PDFs of the chart folders, opened as a one-page document (`S.doc.img`) and added to the cards as they are. Manuals stay PDF only.
+
+## v97 - Add-on theater map base and per-theater kneeboard
+- Add-on theaters: the BMS-folder map base (`sky`) reads `Docs\02 Maps\*UI_Map_16K.png/jpg` of the theater; `coast` and `bms` stay Korea-only. The picture is warped assuming it covers the whole 1024 km square (to be checked on a real PC).
+- Kneeboard: one physical card library; each theater remembers its own arrangement and chosen cards (`KBTH`); Load/Set Default use the favorites regardless of theater.

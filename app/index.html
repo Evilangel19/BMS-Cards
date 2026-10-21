@@ -385,7 +385,7 @@ async function msfCards(dir){
  for(const it of KBLIB){const ext=(it.blob.type.split('/')[1]||'png').replace('jpeg','jpg'),fn=String(++n).padStart(2,'0')+'_'+PJ.safeName(it.name)+'.'+ext;files.set(it,fn);await IO.writeBytes(joinPath(cd,fn),new Uint8Array(await it.blob.arrayBuffer()))}
  const slot=sl=>sl.kind=='pic'&&files.has(sl.item)?{kind:'pic',mode:sl.mode,file:files.get(sl.item),name:sl.item.name}:{kind:sl.kind,mode:sl.mode};
  const cj=a=>a.map(r=>({left:slot(r.left),right:slot(r.right)}));
- await IO.writeBytes(joinPath(dir,PJ.missionFolder.cards),enc8(JSON.stringify({version:1,fmt:KBFMT,fit:KBFIT,slots:cj(KBS),default:cj(KBDEF),library:[...files.values()]},null,1)))}
+ await IO.writeBytes(joinPath(dir,PJ.missionFolder.cards),enc8(JSON.stringify({version:1,fmt:KBFMT,fit:KBFIT,slots:cj(KBS),default:cj(KBDEF),theater:KBTHNOW,theaters:Object.fromEntries(Object.entries(KBTH).filter(([n])=>n!==KBTHNOW).map(([n,a])=>[n,cj(a)])),library:[...files.values()]},null,1)))}
 // merge: the cards of a mission file are added to the cards already in memory (same name and size = the same card) and the arrangement in memory is kept
 async function msfCardsLoad(dir,merge){
  try{const cj=JSON.parse(new TextDecoder().decode(await readBytes(joinPath(dir,PJ.missionFolder.cards)))),lib=new Map(),had=merge&&KBLIB.length>0;if(!merge)KBLIB=[];
@@ -394,14 +394,14 @@ async function msfCardsLoad(dir,merge){
    const it=await kbMakeItem(new Blob([b],{type:ext=='jpg'?'image/jpeg':'image/'+ext}),nm);lib.set(fn,it);KBLIB.push(it)}catch(e){}}
   if(had)return true;
   const slot=sl=>sl.kind=='pic'?(lib.has(sl.file)?{kind:'pic',mode:sl.mode,item:lib.get(sl.file)}:{kind:'empty',mode:'fill'}):{kind:sl.kind,mode:sl.mode};
-  const rs=a=>a.map(r=>({left:slot(r.left),right:slot(r.right)}));KBS=rs(cj.slots);KBDEF=rs(cj.default||cj.slots);KBFMT=cj.fmt||'dxt1';KBFIT=!!cj.fit;return true}catch(e){return false}}
+  const rs=a=>a.map(r=>({left:slot(r.left),right:slot(r.right)}));KBS=rs(cj.slots);KBDEF=rs(cj.default||cj.slots);KBTH=Object.fromEntries(Object.entries(cj.theaters||{}).map(([n,a])=>[n,rs(a)]));KBTHNOW=cj.theater||'';KBFMT=cj.fmt||'dxt1';KBFIT=!!cj.fit;return true}catch(e){return false}}
 // The cards (imported pictures and their arrangement) are kept in the program folder (cardmemory) and loaded when the program starts: they serve every flight and mission
 let KBMEMSIG='',KBMEMT=0,KBMEMOK=false;   // KBMEMOK: the memory has been read (or there is none yet); before that nothing may be written to it
 function kbMemLater(){if(!isDesktop())return;clearTimeout(KBMEMT);KBMEMT=setTimeout(kbMemSave,900)}
-async function kbMemSave(){if(!KBMEMOK)return;try{const sg=a=>a.map(r=>[r.left.kind,r.left.item&&r.left.item.name,r.left.mode,r.right.kind,r.right.item&&r.right.item.name,r.right.mode]),sig=JSON.stringify([sg(KBS),sg(KBDEF),KBLIB.map(i=>[i.name,i.blob.size]),KBFMT,KBFIT]);if(sig===KBMEMSIG)return;
+async function kbMemSave(){if(!KBMEMOK)return;try{const sg=a=>a.map(r=>[r.left.kind,r.left.item&&r.left.item.name,r.left.mode,r.right.kind,r.right.item&&r.right.item.name,r.right.mode]),sig=JSON.stringify([sg(KBS),sg(KBDEF),KBTHNOW,Object.keys(KBTH).sort().map(n=>[n,sg(KBTH[n])]),KBLIB.map(i=>[i.name,i.blob.size]),KBFMT,KBFIT]);if(sig===KBMEMSIG)return;
   const dir=joinPath(await IO.appDir(),'cardmemory');await IO.makeDir(dir);await msfCards(dir);KBMEMSIG=sig}catch(e){}}
 async function kbMemLoad(){if(!isDesktop())return;try{const dir=joinPath(await IO.appDir(),'cardmemory');if(!(await IO.fileExists(joinPath(dir,PJ.missionFolder.cards))))return;
-  if(await msfCardsLoad(dir,false)){KBMEMSIG='';if(!$('kn').classList.contains('hide'))kbRender()}}catch(e){}finally{KBMEMOK=true}}
+  if(await msfCardsLoad(dir,false)){KBMEMSIG='';kbSyncTheater(TH&&TH.name);if(!$('kn').classList.contains('hide'))kbRender()}}catch(e){}finally{KBMEMOK=true}}
 function appToast(m){let t=document.getElementById('apptoast');if(!t){t=document.createElement('div');t.id='apptoast';t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1000;background:#1a212bf8;border:1px solid #3ddc84;color:#e6edf3;border-radius:10px;padding:10px 20px;font-size:13px;box-shadow:0 10px 30px #000a;max-width:min(80%,640px);text-align:center;transition:opacity .25s';document.body.append(t)}
  t.textContent=m;t.style.opacity='1';t.style.display='';clearTimeout(t._t);t._t=setTimeout(()=>{t.style.opacity='0';t._t=setTimeout(()=>{t.style.display='none'},300)},5000)}
 async function msfSave(){
@@ -677,8 +677,13 @@ const mapV=createMap($('mpbody'),{objects:{list:()=>{const d=targetData();return
  set:(g,slot,patch)=>dtcSet(g,slot,patch,false),clear:(g,slot)=>dtcClear(g,slot,false)},
  satCfg:()=>CFG.map,loadPrefs:()=>loadPrefs('mapprefs.json'),savePrefs:o=>savePrefs('mapprefs.json',o),
  localMap:async()=>{if(window.__localMap)return window.__localMap();if(!isDesktop())throw new Error('Only in the desktop app.');const d=CFG.paths.bmsInstall;if(!d)throw new Error('Set the BMS folder in Settings first.');
-  const sub=async(dir,rx)=>(await listDir(dir)).find(e=>rx.test(e.name)),docs=await sub(d,/^docs$/i),mp=docs&&await sub(jp(d,docs.name),/^05 maps$/i),dir=mp&&jp(d,docs.name,mp.name),f=dir&&(await listDir(dir)).find(e=>!e.isDirectory&&/^8_kto_16k_skyvector/i.test(e.name));
-  if(!f)throw new Error('8_KTO_16k_Skyvector not found in Docs\\05 Maps of the BMS folder.');return new File([await readBytes(jp(dir,f.name))],f.name,{type:/\.jpe?g$/i.test(f.name)?'image/jpeg':'image/png'})},
+  const sub=async(dir,rx)=>(await listDir(dir)).find(e=>rx.test(e.name)),pic=e=>!e.isDirectory&&/\.(jpe?g|png)$/i.test(e.name);let dir,f;
+  if(TH&&TH.docs){   // add-on theater: Data\<add-on>\Docs\<n> Maps\<theater>_UI_Map_16K.png
+   const dd=jp(d,'Data',TH.docs),mp=await sub(dd,/maps/i);dir=mp&&jp(dd,mp.name);const ls=dir?await listDir(dir):[];f=ls.find(e=>pic(e)&&/ui_map_16k/i.test(e.name))||ls.find(e=>pic(e)&&/16k/i.test(e.name));
+   if(!f)throw new Error('The 16K map of '+TH.name+' was not found (Docs\\...Maps folder of the theater).')}
+  else{const docs=await sub(d,/^docs$/i),mp=docs&&await sub(jp(d,docs.name),/^05 maps$/i);dir=mp&&jp(d,docs.name,mp.name);f=dir&&(await listDir(dir)).find(e=>!e.isDirectory&&/^8_kto_16k_skyvector/i.test(e.name));
+   if(!f)throw new Error('8_KTO_16k_Skyvector not found in Docs\\05 Maps of the BMS folder.')}
+  return new File([await readBytes(jp(dir,f.name))],f.name,{type:/\.jpe?g$/i.test(f.name)?'image/jpeg':'image/png'})},
  canSelect:f=>{const e=ATOL.find(z=>z.f===f);return !!e&&VIEW==PLAYER&&!e.heli&&CL.findIndex(x=>x.f===f)>=0},
  setShot:(c,k)=>{if(k=='kb')kbAddShot(c);else{MAPSHOT=c;draw()}},hasShot:()=>!!MAPSHOT,anim:animOn,getView:()=>VIEW!==null?VIEW:(C&&C.playerTeam!=null?C.playerTeam:1),flightInfo:f=>{const e=ATOL.find(z=>z.f===f);return e?{cat:e.cat,ac:e.ac,cs:e.callsign.toUpperCase().replace(/\s+/g,''),text:e.callsign+' · '+e.n+'× '+e.ac+' · '+e.mission+' · '+e.teamName}:{cs:'?',text:'Flight'}},esc:t=>String(t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])),D:CAM.D});
 let ATOL=[],ATOC=null,ATOL16=null,ATOQ={cs:'',ac:'',pkg:'',mis:'',to:'',tot:'',ap:'',sq:''},ATOSEL=null,ATOONLY=false,ATOFLT=true,ATOOPEN=new Set(),ATOCAT=new Set(),PLAYER=null,VIEW=null,ATOFX={c:new Set(),p:new Set()};
@@ -1005,6 +1010,7 @@ async function loadTheaters(){
 async function loadGameData(reloadTheaters=true){
  if(isDesktop()&&!CFG.paths.bmsInstall){const d=await detectBms();if(d){CFG.paths.bmsInstall=d;try{await saveConfig(CFG)}catch(e){}}}
  if(reloadTheaters)await loadTheaters();
+ try{kbSyncTheater(TH&&TH.name)}catch(e){}
  if(!isDesktop()||!CFG.paths.bmsInstall){GAMEDATA={status:'No game data: the BMS install folder is not set',warn:isDesktop()?['The BMS install folder is not set and was not detected. Set it in Settings: the program reads its game data (aircraft, weapons, objects, airbases, radio) from your Falcon BMS installation and nothing works without it.']:['The game data is read from your Falcon BMS installation: use the desktop app.']};return}
  try{
   GAMEDATA={status:'Reading game data from the BMS folder…'};
@@ -1042,12 +1048,17 @@ async function loadGameData(reloadTheaters=true){
 $('tsel').onchange=async()=>{CFG.theater=$('tsel').value;try{await saveConfig(CFG)}catch(e){}TH=THEATERS.find(t=>t.name===CFG.theater)||TH;await loadGameData(false);await fillCampaigns();await selectCampaign('')};
 
 /* ---------- Kneeboard tab (row i -> 7982+i .dds, left | right) ---------- */
+let KBTH={},KBTHNOW='';   // the arrangement of the cards of each theater (KBTH: theater -> slots; KBTHNOW: the theater whose arrangement is in KBS); the pictures are one library for all
 let KBDRAGGED=false,KBS=DEFAULT_SLOTS(),KBSEL=0,KBFMT='dxt1',KBLIB=[],KBG=null,KBTR=[],KBFIT=false;
 const kbUsedKind=k=>KBS.some(r=>r.left.kind==k||r.right.kind==k),kbUsedItem=it=>KBS.some(r=>(r.left.kind=='pic'&&r.left.item===it)||(r.right.kind=='pic'&&r.right.item===it));
 // Cards not placed in any slot: the datacard pages and the imported pictures.
 function kbTray(){const t=[];if(!kbUsedKind('dcl'))t.push({kind:'dcl'});if(!kbUsedKind('dcr'))t.push({kind:'dcr'});KBLIB.forEach(it=>{if(!kbUsedItem(it))t.push({kind:'pic',item:it})});return t}
-function kbDelete(it){KBLIB=KBLIB.filter(x=>x!==it);KBS.forEach(r=>['left','right'].forEach(k=>{if(r[k].kind=='pic'&&r[k].item===it)r[k]={kind:'empty',mode:'fill'}}))}
+function kbDelete(it){KBLIB=KBLIB.filter(x=>x!==it);Object.values(KBTH).forEach(a=>a.forEach(r=>['left','right'].forEach(k=>{if(r[k].kind=='pic'&&r[k].item===it)r[k]={kind:'empty',mode:'fill'}})));KBS.forEach(r=>['left','right'].forEach(k=>{if(r[k].kind=='pic'&&r[k].item===it)r[k]={kind:'empty',mode:'fill'}}))}
 const kbCopy=a=>a.map(r=>({left:{...r.left},right:{...r.right}}));let KBDEF=kbCopy(KBS);
+// Another theater: its own arrangement of the cards comes back (what was placed there), the pictures stay in the one library. A theater without an arrangement starts from the current one.
+// Set Default / Load do not depend on the theater.
+function kbSyncTheater(name){if(!name)return;if(!KBTHNOW){KBTHNOW=name;return}if(KBTHNOW===name)return;
+ KBTH[KBTHNOW]=kbCopy(KBS);if(KBTH[name])KBS=kbCopy(KBTH[name]);KBTHNOW=name;KBSEL=0;kbMemLater();if(!$('kn').classList.contains('hide'))kbRender()}
 const kbEmpty=()=>Array.from({length:ROWS},()=>({left:{kind:'empty',mode:'fill'},right:{kind:'empty',mode:'fill'}}));
 const kbDir=()=>CFG.paths.kneeboardDir||autoDir(joinPath,CFG.paths.bmsInstall);
 // Draw a slot into (dx,dy,dw,dh); the page is laid out in 1024x2048 texture units.
