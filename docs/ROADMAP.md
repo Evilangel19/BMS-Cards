@@ -1,6 +1,6 @@
 # BMS Cards: open items (updated 2026-10-21)
 
-`main` holds the **0.8 alpha** (2026-10-21, backup before the split of index.html); the first beta will be **0.9 beta** (set in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` when `dev` is merged).
+`main` holds the **0.8 alpha** build until this merge; `dev` was merged into `main` as **0.9 beta** (2026-10-22).
 
 ## Decided 2026-10-21 (user)
 Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fine), online backlog (field test only). Done: kneeboard per theater, non-AA unit names, EW radar state, radar coverage OK, Balkans positions OK. Chioggia fixed in code (navaid by OCD class name "Air Nav Beacon"); to confirm on the real PC.
