@@ -246,6 +246,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield;color-scheme:d
 <script type="module">
 import {toDDS,toDDS5} from './js/core/dds.js';
 import {initWidgets} from './js/core/widgets.js';
+import {createTargetData} from './js/core/targetdata.js';
 import {makeDatacardTemplate} from './js/core/dctemplate.js';
 import {CAM} from './js/core/cam-core.js';
 import {parsePages,ROWS,rowFile,DEFAULT_SLOTS,fitRect,rowUsed,autoDir,cycleNext} from './js/core/kneeboard.js';
@@ -687,7 +688,7 @@ const defKeys=g=>{const o={};lines.filter(l=>l.k&&DEFSEC[g](l)).forEach(l=>o[l.s
 const dtcDef={has:g=>!!DEFS[g],get:g=>DEFS[g],same:g=>{const c=defKeys(g);if(!Object.keys(c).length)return true;if(!DEFS[g])return false;return Object.keys(DEFS[g]).every(k=>c[k]===undefined||c[k]===DEFS[g][k])},
  save:g=>{DEFS[g]=defKeys(g);try{savePrefs('dtcdefaults.json',DEFS)}catch(e){}}};
 // Objectives and their features for the Targets page, read when first needed from the Objects folder of the BMS install
-let OBJDIR='',OBJCAMP='',OBJC=null,FCDN=null;
+let OBJDIR='',OBJCAMP='';
 // weapon targets (STPT wpntarget_n) for the Map page: the list to draw and the picker that fills the first free number (the Targets page of the DTC does the same)
 const wtHas=n=>lines.some(l=>l.s=='STPT'&&l.k==='wpntarget_'+n);
 const wtList=()=>{const o=[];for(let n=0;n<100;n++){if(!wtHas(n))continue;const t=readTarget(G('STPT','wpntarget_'+n,''));if(t)o.push({n,name:t.name,x:t.e/FT_KM,y:t.n/FT_KM,altFt:t.elv})}return o};
@@ -701,19 +702,7 @@ async function wtAdd(){const data=targetData();if(!data)return 'noinst';let n=-1
  try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;if(h&&h[0]!==null&&h[0]!==undefined)t.elv=h[0]}catch(e){}
  S('STPT','wpntarget_'+n,targetLine(t,G('STPT','wpntarget_'+n,'')));dtcChanged('STPT','wpntarget_'+n);return 'ok'}
 const targetData=()=>{if(window.__targetData)return window.__targetData;if(!isDesktop()||!OBJDIR)return null;return TDATA};
-let RADC=null;
-const TDATA={
- dec:b=>new TextDecoder('utf-8').decode(b),
- async ct(){if(OBJC&&OBJC.ct&&OBJC.dir===OBJDIR)return OBJC.ct;return parseCt(this.dec(await readBytes(jp(OBJDIR,'Falcon4_CT.xml'))))},
- async objectives(){if(OBJC&&OBJC.dir===OBJDIR&&OBJC.list)return OBJC.list;const list=parseObjectives(this.dec(await readBytes(OBJCAMP||jp(OBJDIR,'CampObjData.XML')))),ocds=[...new Set(list.map(o=>o.ocd))],ty={},ct=await this.ct();let bad=0,err='';
-  for(let i=0;i<ocds.length;i+=40)await Promise.all(ocds.slice(i,i+40).map(async n=>{try{const c=parseOcdCt(this.dec(await readBytes(jp(OBJDIR,...ocdPath(n).split('/')))));ty[n]=ct[c]?ct[c][2]:-1}catch(e){ty[n]=-1;bad++;err=err||String(e&&e.message||e)}}));
-  list.forEach(o=>o.type=ty[o.ocd]===undefined?-1:ty[o.ocd]);OBJC={dir:OBJDIR,list,ct};list.info=bad?bad+' of '+ocds.length+' objective type files could not be read in '+jp(OBJDIR,'ObjectiveRelatedData')+' ('+err+')':'';return list},
- async features(o){if(!FCDN||FCDN.dir!==OBJDIR)FCDN={dir:OBJDIR,names:parseFcdNames(this.dec(await readBytes(jp(OBJDIR,'Falcon4_FCD.xml'))))};
-  return featuresOf(o,parseFed(this.dec(await readBytes(jp(OBJDIR,...fedPath(o.ocd).split('/'))))),await this.ct(),FCDN.names)},
- // fixed radar stations (objective type 21): [{o, feats:[{k,n,e,det}]}] with the radar features of each (FED -> CT -> FCD)
- async radars(){if(RADC&&RADC.dir===OBJDIR)return RADC.list;const list=(await this.objectives()).filter(o=>o.type==21),ct=await this.ct(),fr=parseFcdRadar(this.dec(await readBytes(jp(OBJDIR,'Falcon4_FCD.xml')))),out=[];
-  for(let i=0;i<list.length;i+=40)await Promise.all(list.slice(i,i+40).map(async o=>{try{const f=radarFeatures(o,parseFed(this.dec(await readBytes(jp(OBJDIR,...fedPath(o.ocd).split('/'))))),ct,fr);if(f.length)out.push({o,feats:f})}catch(e){}}));
-  RADC={dir:OBJDIR,list:out};return out}};
+const TDATA=createTargetData({dir:()=>OBJDIR,camp:()=>OBJCAMP,readBytes,jp});
 dtcPage=createDtcPage({elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},nav:$('dnav'),view:$('view'),esc,anim:animOn,lines:()=>lines,G,S,FT_KM,
  points:()=>dtcPoints(lines),route:()=>stpts(),
  routeSet:(n,f,v)=>{const r=stpts().find(z=>z.n==n);if(!r)return;r[f]=v;const p=r.l.v.split(',').map(a=>a.trim());p[0]=r.x;p[1]=r.y;p[2]=(-r.alt).toFixed(6);p[3]=r.t;S('STPT',r.l.k,p.join(', '));dtcChanged('STPT',r.l.k)},
@@ -1014,7 +1003,7 @@ async function loadGameData(reloadTheaters=true){
   const inst=CFG.paths.bmsInstall,names=[...allNames(),'Airbase.lst','KTO_AIP.pdf'],paths={};
   if(TH){const data=jp(inst,'Data');for(const rel of [TH.objects,TH.campaign,TH.terrain,TH.base]){if(!rel)continue;Object.assign(paths,Object.fromEntries(Object.entries(await findFiles(jp(data,rel),names.filter(n=>!paths[n]),1)).filter(([k])=>!paths[k])))}}
   if(names.some(n=>!paths[n])){if(GLOBAL_FOR!==inst){GLOBAL_PATHS=await findFiles(inst,names);GLOBAL_FOR=inst}for(const n of names)if(!paths[n]&&GLOBAL_PATHS[n])paths[n]=GLOBAL_PATHS[n]}
-  {const dn=f=>f.replace(/[\\/][^\\/]*$/,'');OBJDIR=paths['Falcon4_CT.xml']?dn(paths['Falcon4_CT.xml']):(TH&&TH.objects?jp(inst,'Data',TH.objects):'');OBJCAMP=paths['CampObjData.XML']||(OBJDIR?jp(OBJDIR,'CampObjData.XML'):'');OBJC=null}
+  {const dn=f=>f.replace(/[\\/][^\\/]*$/,'');OBJDIR=paths['Falcon4_CT.xml']?dn(paths['Falcon4_CT.xml']):(TH&&TH.objects?jp(inst,'Data',TH.objects):'');OBJCAMP=paths['CampObjData.XML']||(OBJDIR?jp(OBJDIR,'CampObjData.XML'):'');TDATA.reset()}
   const r=await buildTables(async k=>{const p=pathFor(paths,k);if(!p)return null;return new TextDecoder(ENCODING[k]).decode(await readBytes(p))});
   Object.assign(CAM.D,r.tables);
   let acInfo='';const warn=[];
@@ -1242,5 +1231,5 @@ function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.nst=1;co
  b.onclick=e=>{const t=e.target.closest('button');if(!t)return;try{t===b.firstChild?i.stepUp():i.stepDown()}catch(x){}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}}
 document.querySelectorAll('input[type=number]').forEach(stepper);
 new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
-window.__app={MFD,openEd:(k)=>openEd(FD.find(z=>z.k==k)),get KBS(){return KBS},get KBLIB(){return KBLIB},setRl:o=>{RL=o;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}},sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';OBJC=null},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
+window.__app={MFD,openEd:(k)=>openEd(FD.find(z=>z.k==k)),get KBS(){return KBS},get KBLIB(){return KBLIB},setRl:o=>{RL=o;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}},sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';TDATA.reset()},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
 </script></body></html>
