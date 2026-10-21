@@ -95,7 +95,7 @@ export function parseWeaponNames(wcdXml) {
 export function parseCampObjects(xml) {
   const r = n => Math.round(n / 3280.84 * 100) / 100;
   return [...xml.matchAll(/<CampObj CampId="(\d+)">([\s\S]*?)<\/CampObj>/g)]
-    .map(m => [+m[1], tag(m[2], 'CampName'), r(+tag(m[2], 'PositionY')), r(+tag(m[2], 'PositionX'))]);
+    .map(m => [+m[1], tag(m[2], 'CampName'), r(+tag(m[2], 'PositionY')), r(+tag(m[2], 'PositionX')), +tag(m[2], 'OcdIndex')]);
 }
 
 // Pilot names: Strings 2301..3099 -> array (index = pilot id - 1)

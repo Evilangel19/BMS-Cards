@@ -109,6 +109,8 @@ ck('SAM crossing: range circle touching a leg', crossesRoute(rt, 50, 40, 41) && 
   ck('no [STPT] section: no points', dtcPoints(parseDtc('[EWS]\r\na=1\r\n')) === null);
 }
 {
+  { const D = {ob: [[7, 'Chioggia', 1, 1, 10], [8, 'Aviano', 2, 2, 3]], ab: {7: [], 8: []}, navOcd: [10]}; const m = mapAirbases(D);
+    ck('objective of a beacon class (OCD name) is a navaid even without VOR in its name', m[0].kind == 'nav' && m[1].kind == 'ab'); }
   const subs = new Set(mapAirbases(CAM.D).map(a => a.sub)); ck('navaid sub types incl. TACAN (own icon, not VORTAC)', subs.has('tacan') && subs.has('vortac') && subs.has('vor'));
   ck('NDB icon: dotted rings; TACAN icon: three-lobed outline', placeIcon('nav', 'ndb').html.includes('class="dr"') && placeIcon('nav', 'tacan').html.includes('M1.5 8.6') && placeIcon('ab', '', '#3ddc84').html.includes('--c:#3ddc84'));
   const C0 = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))), CAM.D, 'x.cam');

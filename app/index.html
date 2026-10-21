@@ -1027,6 +1027,7 @@ async function loadGameData(reloadTheaters=true){
   if(!D_BASE)D_BASE={...CAM.D};Object.assign(CAM.D,D_BASE);   // the tables of the theater left behind must not stay when the new one lacks a file
   const r=await buildTables(async k=>{const p=pathFor(paths,k);if(!p)return null;return new TextDecoder(ENCODING[k]).decode(await readBytes(p))});
   Object.assign(CAM.D,r.tables);
+  CAM.D.navOcd=[];try{if(OBJDIR&&CAM.D.ob)for(const k of new Set(CAM.D.ob.filter(o=>CAM.D.ab[o[0]]&&o[4]>0).map(o=>o[4])))try{const x=new TextDecoder('utf-8').decode(await readBytes(jp(OBJDIR,...ocdPath(k).split('/'))));if(/<Name>[^<]*(Nav\s*Beacon|\bVOR|TACAN|\bNDB)/i.test(x))CAM.D.navOcd.push(k)}catch(e){}}catch(e){}
   let acInfo='';const warn=[];if(GEOWARN)warn.push(GEOWARN);
   try{const tdir=p=>p.replace(/[\\/][^\\/]*$/,'');
    const atcDir=paths['Airbase.lst']?tdir(paths['Airbase.lst']):'';

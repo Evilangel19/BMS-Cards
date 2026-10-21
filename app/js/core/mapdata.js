@@ -24,7 +24,8 @@ export function fmtLL(lat, lon) {
 // Airbases of the theater: [{id, name, ll, kind, sub}] kind: 'ab' airbase, 'nav' navaid (sub: vortac / tacan / vor / vordme / dme / ndb), 'ship' carrier start spot
 const NAV = /\b(VOR|VORTAC|TACAN|NDB|DME)\b/, SHIP = /^(USS|TAKR|CV-|CVN|LHD|LHA|HMS|JS )/;
 export function mapAirbases(D) {
-  return D.ob.filter(o => D.ab[o[0]]).map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : ''}));
+  const nb = D.navOcd || [];   // objective classes named like a navigation beacon in the OCD file ("Air Nav Beacon")
+  return D.ob.filter(o => D.ab[o[0]]).map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : nb.includes(o[4]) ? 'vordme' : ''}));
 }
 
 // Team that owns an airbase (objective id), or null when the campaign file does not say: the owner recorded in the objective deltas,
