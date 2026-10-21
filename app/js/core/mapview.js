@@ -1,5 +1,5 @@
 // Map page: Leaflet map of the theater with switchable base maps and layers. Leaflet is loaded the first time the page opens.
-import {radarUnits,neededCells,coverage} from './radarcov.js';
+import {radarUnits,neededCells,coverage,CELL_KM} from './radarcov.js';
 import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
@@ -1155,8 +1155,8 @@ export function createMap(host, deps) {
         });
       } catch (e) { /* no BMS folder: only the radars of the units */ }
       if (deps.elev && radars.length) {
-        const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * 2 * 3280.84, n: j * 2 * 3280.84}));
-        const hs = await deps.elev(pts);
+        const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * CELL_KM * 3280.84, n: j * CELL_KM * 3280.84}));
+        let hs = null; try { hs = await deps.elev(pts); } catch (e) { hs = null; }
         if (hs) cells.forEach(([i, j], k) => H.set(i + ',' + j, hs[k] || 0));
         else if (!RCNOTE) { RCNOTE = true; toast('Radar coverage: terrain heights need the BMS install folder (desktop app, Settings); only the radar horizon is used.', true); }
       }
@@ -1166,7 +1166,7 @@ export function createMap(host, deps) {
         const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
         L.polygon(poly, {color: c, weight: 1, opacity: .7, fillColor: c, fillOpacity: .12, className: 'rcov', interactive: false}).addTo(G.rc);
       });
-    } catch (e) { RCK = ''; } finally { RCBUSY = false; }
+    } catch (e) { RCK = ''; } finally { RCBUSY = false; if (st.on.rc && RCK !== key) radarCov(); }
   }
   function refresh() {
     if (!map) return;
