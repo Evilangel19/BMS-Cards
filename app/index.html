@@ -702,7 +702,7 @@ async function wtAdd(){const data=targetData();if(!data)return 'noinst';let n=-1
  try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;if(h&&h[0]!==null&&h[0]!==undefined)t.elv=h[0]}catch(e){}
  S('STPT','wpntarget_'+n,targetLine(t,G('STPT','wpntarget_'+n,'')));dtcChanged('STPT','wpntarget_'+n);return 'ok'}
 const targetData=()=>{if(window.__targetData)return window.__targetData;if(!isDesktop()||!OBJDIR)return null;return TDATA};
-const TDATA=createTargetData({dir:()=>OBJDIR,camp:()=>OBJCAMP,readBytes,jp});
+const TDATA=createTargetData({dir:()=>OBJDIR,camp:()=>OBJCAMP,readBytes:(...a)=>readBytes(...a),jp:(...a)=>jp(...a)});
 dtcPage=createDtcPage({elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},nav:$('dnav'),view:$('view'),esc,anim:animOn,lines:()=>lines,G,S,FT_KM,
  points:()=>dtcPoints(lines),route:()=>stpts(),
  routeSet:(n,f,v)=>{const r=stpts().find(z=>z.n==n);if(!r)return;r[f]=v;const p=r.l.v.split(',').map(a=>a.trim());p[0]=r.x;p[1]=r.y;p[2]=(-r.alt).toFixed(6);p[3]=r.t;S('STPT',r.l.k,p.join(', '));dtcChanged('STPT',r.l.k)},
