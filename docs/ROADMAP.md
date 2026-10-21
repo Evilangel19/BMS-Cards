@@ -10,7 +10,7 @@
 5. **BEFORE the 0.9 beta (decided 2026-10-21)**, in this order:
    a. DONE: warnings for a campaign file newer than 109 and for XML tables without the expected fields.
    b. Other theaters: take origin (lat/lon), size, map picture and bounds from the theater files (`.tdf`, `Theater.txt`) instead of the Korea constants (`geo.js` tmInv/tmFwd origin 38.5 N 127.5 E, 1024 km; `mapwarp.js` BMS_EXTENT; `THEATER_BOUNDS`; the `> 1024` checks in `mapview.js`). Needs from the user, for one other theater: its `.tdf`, `Theater.txt`, a saved campaign (.cam) and, if possible, the theater map picture.
-   c. Tactical Engagement files: limited campaigns, so read the file format and handle them like campaigns. Needs a sample TE file (and the same campaign saved, if it exists).
+   c. DONE (2026-10-21): Tactical Engagement files read like campaigns, with their own menu (see ARCHITECTURE v93). To check on the real PC: TE list in the game's Campaign folder, the DTC `<TE name>.ini` written for a TE, other TEs (weather, several player flights).
    d. PARTLY DONE: three blocks moved out of `app/index.html` (DDS, widgets, objective reader); the rest depends on the shared state and is left as it is for now (a full split after the beta).
 6. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
 

@@ -422,6 +422,7 @@ export function createSquadronPage(deps) {
   function drawCamp() {
     const box = $('#sqcamp'); if (!box) return;
     const C = deps.campaign && deps.campaign(), list = campaignSquadrons(C), s = list.find(x => x.mine);
+    if (!s && C && C.isTe) { box.innerHTML = '<div class="hint">Tactical Engagement: there is no player squadron and no campaign record (kills, losses, missions).</div>'; return; }
     if (!s) { box.innerHTML = '<div class="hint">Open a campaign (Map or Datacard tab) to see the squadron of the player: base, losses, missions and kills.</div>'; return; }
     const info = (deps.squadInfo && deps.squadInfo(s.u)) || {}, k = s.kills, q = s.sqs, n = v => v === undefined || v === null ? '—' : esc(v);
     box.innerHTML = `<div style="overflow-x:auto"><table class="dt sqdt"><tr><th rowspan="2">Squadron</th><th colspan="4" class="gc">Squadron</th><th colspan="3" class="gc">Losses and missions</th><th colspan="5" class="gf">Kills</th></tr>

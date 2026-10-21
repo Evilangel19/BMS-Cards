@@ -173,7 +173,7 @@ try:
         pg.click('#mpshotkb'); pg.wait_for_timeout(300); pg.evaluate("()=>{const a=document.getElementById('mpang');a.value=30;a.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200); pg.click('#mpcap'); pg.wait_for_selector('#mpfr', state='detached', timeout=30000); pg.wait_for_timeout(500)
         kb2 = pg.evaluate("__app.kbInfo()"); check('a screenshot taken with the frame turned is still a 1024 x 2048 card', kb2 and kb2['n'] == 2 and kb2['w'] == 1024 and kb2['h'] == 2048)
         # campaign picker and browse beside the map, folding sections
-        check('campaign selector and browse button on the map page', pg.is_visible('#mpcam #csel') and pg.is_visible('#mpcam #cam'))
+        check('campaign selector and browse button on the map page', pg.is_visible('#mpcam #csel') and pg.is_visible('#mpcam #tesel') and pg.is_visible('#mpcam #cam'))
         hh = pg.locator('#mpbar .mps[data-sec="Navigation"]'); body = pg.locator('#mpbar .mpsb[data-sec="Navigation"]'); hh.click(); pg.wait_for_timeout(400)
         check('a section folds like the ATO categories', not body.is_visible()); hh.click(); pg.wait_for_timeout(400); check('and unfolds again', body.is_visible())
         pg.locator('#mpbar .mps[data-sec="Navigation"]').click(); pg.wait_for_timeout(300)
@@ -631,7 +631,7 @@ try:
         check('flights that cannot be loaded have a dashed radar square', pg.locator('#mpmap .trk rect.ns').count() > 0)
         # persistence
         pg.click('[data-t=kb]'); pg.wait_for_timeout(300)
-        check('campaign selector is back in the top bar of the datacard page', pg.locator('#kbtop > #csel').count() == 1 and pg.locator('#mpcam #csel').count() == 0 and pg.is_visible('#csel'))
+        check('campaign selector is back in the top bar of the datacard page', pg.locator('#kbtop > #csel').count() == 1 and pg.locator('#kbtop > #tesel').count() == 1 and pg.locator('#mpcam #csel').count() == 0 and pg.is_visible('#csel'))
         check('ATO is back on the datacard page', pg.locator('#kb .k > #ato').count() == 1 and pg.is_visible('#kb #ato') and pg.locator('#mpside #ato').count() == 0)
         pg.click('[data-t=mp]'); pg.wait_for_timeout(600)
         check('layer choices remembered', pg.is_checked('#mpbar input[data-k=ab]') and not pg.is_checked('#mpbar input[data-k=nav]') and not pg.is_checked('#mpbar input[data-k=sf]'))
