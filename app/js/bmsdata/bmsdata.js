@@ -14,6 +14,16 @@ export const FILES = {
   rack: 'BmsRack.dat',    // pylons and racks of every station (their weight and drag count in the loadout)
 };
 export const OPTIONAL = new Set();
+// Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 (a newer BMS may have changed it)
+export const EXPECT = {
+  ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
+  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir'],
+  vcd: ['Name', 'CtIdx'],
+  wcd: ['Name', 'CtIdx', 'Weight', 'Drag', 'Strength', 'Flags'],
+  ocd: ['CampName', 'OcdIndex', 'PositionX', 'PositionY'],
+};
+// names of the expected fields that the first part of an XML text does not contain
+export const missingFields = (key, text) => { const head = String(text).slice(0, 400000); return (EXPECT[key] || []).filter(f => !head.includes('<' + f + '>')); };
 // Other spellings of a file name (e.g. when a file was renamed by a download).
 export const ALIASES = { ils: ['Stations_Ils.dat'] };
 export const allNames = () => Object.entries(FILES).flatMap(([k, n]) => [n, ...(ALIASES[k] || [])]);
@@ -205,11 +215,11 @@ export function parseUnitInfo(ucdXml) {
 }
 
 export async function buildTables(readText) {
-  const t = {}, found = [], missing = [], errors = [];
+  const t = {}, found = [], missing = [], errors = [], changed = [];
   const get = async k => {
     const x = await readText(k);
     if (x == null) { if (!OPTIONAL.has(k)) missing.push(FILES[k]); return null; }
-    found.push(FILES[k]); return x;
+    found.push(FILES[k]); const mf = missingFields(k, x); if (mf.length) changed.push(FILES[k] + ': ' + mf.join(', ')); return x;
   };
   const run = (name, fn) => { try { const v = fn(); if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) t[name] = v; else errors.push(name + ': empty result'); } catch (e) { errors.push(name + ': ' + e.message); } };
   const x = {};
@@ -228,7 +238,7 @@ export async function buildTables(readText) {
   if (x.rack && x.wcd) run('rk', () => parseRacks(x.rack, x.wcd));
   if (x.ils) run('ab', () => parseStationsIls(x.ils));
   if (x.ppt) run('ppt', () => parsePpt(x.ppt));
-  return { tables: t, found, missing, errors };
+  return { tables: t, found, missing, errors, changed };
 }
 
 // ---- Theaters -------------------------------------------------------------------------------

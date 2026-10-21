@@ -8,10 +8,10 @@
 3. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser (the UOAF `bms_html_briefing` project and EZBoards both read it).
 4. Ideas to define with the user: objective faction colours on the map; Mil Climb schedule; time at which a unit is spotted; EW radar state of SAM units; names of non-air-defense units (now "ordinal + category + Battalion"); AIP vs game runway length; interpolated terrain elevation (bilinear) if the 3-31 ft differences ever matter.
 5. **BEFORE the 0.9 beta (decided 2026-10-21)**, in this order:
-   a. Warning when a file is newer than what the reader knows (campaign file version > 109: done; to add: XML tables that come back empty or with unknown fields).
+   a. DONE: warnings for a campaign file newer than 109 and for XML tables without the expected fields.
    b. Other theaters: take origin (lat/lon), size, map picture and bounds from the theater files (`.tdf`, `Theater.txt`) instead of the Korea constants (`geo.js` tmInv/tmFwd origin 38.5 N 127.5 E, 1024 km; `mapwarp.js` BMS_EXTENT; `THEATER_BOUNDS`; the `> 1024` checks in `mapview.js`). Needs from the user, for one other theater: its `.tdf`, `Theater.txt`, a saved campaign (.cam) and, if possible, the theater map picture.
    c. Tactical Engagement files: limited campaigns, so read the file format and handle them like campaigns. Needs a sample TE file (and the same campaign saved, if it exists).
-   d. Split `app/index.html` (one script of about 160 KB) into modules, after a-c, with the whole test suite as the safety net.
+   d. PARTLY DONE: three blocks moved out of `app/index.html` (DDS, widgets, objective reader); the rest depends on the shared state and is left as it is for now (a full split after the beta).
 6. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
 
 ## To check on the real PC

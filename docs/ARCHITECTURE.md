@@ -777,3 +777,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Heights: `deps.elev(pts)` (HeightMap.raw of the BMS folder, one sample per cell, cached per layer draw). Without them only the radar horizon limits the range and a message says so.
 - Fixed radar stations (objective type 21): `TDATA.radars()` reads the FED of each (FeatureCtIdx -> CT -> Falcon4_FCD `RadarIdx` / `Det_LowAir`, `parseFcdRadar`, `radarFeatures`: radar > 0 and range >= 30 km) from the BMS install; features destroyed in the campaign are skipped; the owner of an untouched station is not in the campaign file, so those are grey. Needs the BMS install folder.
 - Not covered: air-borne radars (AWACS). Sea / ground clutter, ECM and radar modes are not simulated: an idea of the coverage, not a Falcon calculation.
+
+## v92 — Compatibility checks and first split of index.html
+- Campaign files: `CAM_VER_MAX = 109` (BMS 4.38.1); a newer file shows a warning when it is opened (`C.ver`).
+- XML tables: `EXPECT` / `missingFields` in `bmsdata.js` list the fields the readers use; `buildTables` returns `changed` and the game-data warning names the file and the missing fields. Checked against the real 4.38.1 tables (no false alarm). Test: `tests/run-layout.mjs`.
+- index.html: `core/dds.js` (DXT1 / DXT5 encoders), `core/widgets.js` (animated select lists and calendar, `initWidgets(animOn)`), `core/targetdata.js` (objectives, features and fixed radars of the BMS install, `createTargetData(io)`; its `io` must pass functions that call `jp` / `readBytes` late, because they are defined further down: a direct reference stopped the whole page at start). What is left in index.html is bound to the shared state (campaign, flights, datacard fields, DTC lines).
