@@ -960,6 +960,7 @@ function apply(i,mode){if(mode!=='reset'&&mode!=='fresh'&&CURK!==null&&AUTO){con
  buildForm();markMan();draw();atoSearch();perfFill(i);wxPrep(i)}
 const pick=()=>{const all=CL.map((_,i)=>i),mine=all.filter(i=>CL[i].f.owner==C.playerTeam),hi=mine.filter(i=>CAM.isHiFi(CL[i].f&&C.D.ac[CL[i].f.c.i]||'')),hi2=all.filter(i=>CAM.isHiFi(C.D.ac[CL[i].f.c.i]||''));return hi.length?hi:mine.length?mine:hi2.length?hi2:all};
 async function loadCam(file){if(!CAM.D.ct.length)return alert('The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.');try{C=CAM.openCam(new Uint8Array(await file.arrayBuffer()),CAM.D,file.name);CL=CAM.listFlights(C,null);manClear()}catch(e){return alert('Unable to read the campaign: '+e.message)}
+ if(C.ver>CAM.CAM_VER_MAX)alert('This campaign file is newer ('+C.ver+') than the versions this program was checked with (up to '+CAM.CAM_VER_MAX+', Falcon BMS 4.38.1): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.');
  if(!CL.length)return alert('No flight with a datacard found in this campaign.');
  $('fsel').innerHTML=CL.map((x,i)=>`<option value="${i}">${x.label}</option>`).join('');const pk=()=>{const m=pick();return m[Math.floor(Math.random()*m.length)]};const i=pk();$('fsel').value=i;atoSearch();apply(i);atoCloseState();atoSearch()}
 /* Campaign list: every .cam in the BMS Campaign folder; selecting one also loads its weather (.fmap), Link16, IFF and date (.twx) files. */
