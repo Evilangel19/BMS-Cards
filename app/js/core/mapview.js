@@ -1,4 +1,5 @@
 // Map page: Leaflet map of the theater with switchable base maps and layers. Leaflet is loaded the first time the page opens.
+import {radarUnits,neededCells,coverage} from './radarcov.js';
 import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
@@ -32,7 +33,7 @@ export const MAP_LAYERS = [
   ['sf', 'Friendly SAM range', false, 'SAM range'], ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
-  ['wx', 'Weather (fmap, winds at 18,000 ft)', false, 'Display'],
+  ['rc', 'Radar coverage at 5,000 ft (approximate)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
@@ -640,7 +641,7 @@ export function createMap(host, deps) {
     };
     return ro(d);
   }
-  function sync() { unitVis(); objDraw(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); }
+  function sync() { unitVis(); objDraw(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); radarCov(); }
 
   const side = (ally, owner) => ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile';
   // units and SAM rings (campaign / faction change)
@@ -1133,29 +1134,31 @@ export function createMap(host, deps) {
   }
 
   // redraw the data layers for the campaign / selected flight / faction
-  // WEATHER: the .fmap of the campaign as a soft veil (poor = grey, inclement = dark) and wind arrows every 4 cells. The wind of the file is the direction it comes
-  // FROM, so the arrow points the other way. The 10 wind layers sit at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet (BMS manual): layer 5 = 18,000 ft.
-  const WX_LV = 5;
-  let WXK = null;
-  function weather() {
-    if (!map || !G.wx) return;
-    const W = deps.getWx && deps.getWx(), key = W ? [W, pal === PAL.dark] : null;
-    if (WXK && key && WXK[0] === key[0] && WXK[1] === key[1] || !WXK && !key) return;
-    WXK = key; G.wx.clearLayers(); if (!W) return;
-    const L = window.L, dark = pal === PAL.dark, {X, Y, cs} = W, cv = document.createElement('canvas'); cv.width = X; cv.height = Y;
-    const x = cv.getContext('2d'), im = x.createImageData(X, Y);
-    const col = dark ? {1: [200, 215, 235, 30], 2: [170, 185, 210, 95], 3: [85, 90, 135, 155]} : {1: [90, 110, 140, 25], 2: [80, 95, 125, 80], 3: [50, 55, 100, 130]};
-    for (let j = 0; j < Y; j++) for (let i = 0; i < X; i++) im.data.set(col[W.cell(i, j).cond] || [0, 0, 0, 0], 4 * ((Y - 1 - j) * X + i));
-    x.putImageData(im, 0, 0);
-    const big = document.createElement('canvas'); big.width = X * 8; big.height = Y * 8; const b = big.getContext('2d'); b.imageSmoothingEnabled = true; b.imageSmoothingQuality = 'high'; b.filter = 'blur(6px)'; b.drawImage(cv, 0, 0, X * 8, Y * 8);
-    const nw = toLL(0, Y * cs), se = toLL(X * cs, 0);
-    G.wx.addLayer(L.imageOverlay(big.toDataURL(), [[se[0], nw[1]], [nw[0], se[1]]], {pane: 'wxP', interactive: false}));
-    const ink = dark ? '#cfe8ff' : '#14233a', halo = dark ? '#000' : '#fff';
-    for (let j = 2; j < Y; j += 4) for (let i = 2; i < X; i += 4) {
-      const c = W.cell(i, j, WX_LV), sp = Math.round(c.spd), len = Math.min(30, 8 + c.spd * 0.45), dir = (Math.round(c.hdg) % 360 + 360) % 360;
-      const svg = sp < 1 ? `<circle cx="20" cy="20" r="2.5" fill="${ink}"/>` : `<path d="M20 ${20 + len / 2}V${20 - len / 2}M20 ${20 - len / 2}l-4 6M20 ${20 - len / 2}l4 6" stroke="${halo}" stroke-width="3.6" stroke-opacity=".55" fill="none"/><path d="M20 ${20 + len / 2}V${20 - len / 2}M20 ${20 - len / 2}l-4 6M20 ${20 - len / 2}l4 6" stroke="${ink}" stroke-width="1.7" fill="none"/>`;
-      G.wx.addLayer(L.marker(toLL((i + .5) * cs, (j + .5) * cs), {pane: 'wxA', interactive: false, keyboard: false, icon: L.divIcon({className: 'wxw', iconSize: [0, 0], html: `<svg width="40" height="40" style="position:absolute;left:-20px;top:-20px;transform:rotate(${dir + 180}deg)">${svg}</svg><i style="color:${ink}">${String(dir).padStart(3, '0')}/${sp}</i>`})}));
-    }
+  // RADAR COVERAGE at 5,000 ft (approximate): the spotted radars (ground / naval units with a long detection range) with the terrain hiding what is below the line of
+  // sight (radarcov.js). Heights come from the HeightMap.raw of the BMS folder (deps.elev); without it only the radar horizon limits the range.
+  const RC_ALT = 5000;
+  let RCK = '', RCBUSY = false, RCNOTE = false;
+  async function radarCov() {
+    if (!map || !G.rc) return;
+    const C = deps.getC(), key = !st.on.rc || !C ? '' : (C.name || '') + '|' + UL.length + '|' + (curView == null ? '' : curView) + '|' + (pal === PAL.dark ? 'd' : 'l');
+    if (key === RCK && key !== '' || (key === '' && !RCK)) return;
+    if (!key) { RCK = ''; G.rc.clearLayers(); return; }
+    if (RCBUSY) return; RCBUSY = true; RCK = key;
+    try {
+      const radars = radarUnits(UL), L = window.L, H = new Map();
+      if (deps.elev && radars.length) {
+        const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * 2 * 3280.84, n: j * 2 * 3280.84}));
+        const hs = await deps.elev(pts);
+        if (hs) cells.forEach(([i, j], k) => H.set(i + ',' + j, hs[k] || 0));
+        else if (!RCNOTE) { RCNOTE = true; toast('Radar coverage: terrain heights need the BMS install folder (desktop app, Settings); only the radar horizon is used.', true); }
+      }
+      if (RCK !== key) return;
+      G.rc.clearLayers();
+      radars.forEach(r => {
+        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.ally ? pal.sam.ally.c : pal.sam.foe.c;
+        L.polygon(poly, {color: c, weight: 1, opacity: .7, fillColor: c, fillOpacity: .12, className: 'rcov', interactive: false}).addTo(G.rc);
+      });
+    } catch (e) { RCK = ''; } finally { RCBUSY = false; }
   }
   function refresh() {
     if (!map) return;
@@ -1170,11 +1173,12 @@ export function createMap(host, deps) {
       L.marker(a.ll, {icon: L.divIcon({className: 'ico', html: ic.html + '<i class="nm">' + deps.esc(a.name) + '</i>', iconSize: [ic.w, ic.h]}), keyboard: false, zIndexOffset: nav ? -200 : -100}).bindTooltip(deps.esc(a.name), {direction: 'top', offset: [0, -8]}).addTo(nav ? G.nav : G.ab);
     });
     if (curC !== C || curView !== view) { curC = C; curView = view; units(C, view); bull(C); OBK = ''; }
-    weather();
+    radarCov();
     sams(C, f); plan(C, f); flights(C, view, f); dtc(); curSel = f; sync(); shotBtn(); samRows();
     const t = $('mptm'); t.textContent = C && C.now != null ? clock(C.now).split(' · ')[1] : ''; t.style.display = '';
   }
   return {
+    units: () => UL,   // for the tests
     // called when the page becomes visible
     async show() {
       detach();
