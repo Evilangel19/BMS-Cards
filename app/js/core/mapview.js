@@ -5,7 +5,8 @@ import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import {objState, featState} from '../parsers/cam.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
-import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, THEATER_BOUNDS} from './mapdata.js';
+import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
+import {getGeo} from '../rules/geo.js';
 import {warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame} from './mapwarp.js';
 import {unitSymbol, placeIcon} from './mapsymbols.js';
 import {teamName} from './ato.js';
@@ -14,6 +15,10 @@ import {actName, hms, els0, nearAb, opWin} from './flight.js';
 
 export const BMS_MAP_URL = 'https://cdn.falcon-bms.com/maps/04_KTO/maps/KTO_UI_Map_6k.jpeg';
 const COAST = {dark: {sea: '#0d1b2a', land: '#27323d', coast: '#56687a', border: '#8b98a8', river: '#3f78ad'}, light: {sea: '#cde2f0', land: '#f2efe4', coast: '#7d8a96', border: '#6b7580', river: '#3a86c4'}};
+// The coastlines (offline), the official map and the folder map are pictures of Korea: other theaters use the satellite, the topographic map or a picture of their own.
+const KOREA_ONLY = ['coast', 'bms', 'sky'];
+const isKorea = () => { const g = getGeo(); return g.lat === 38.5 && g.lon === 127.5; };
+const baseOk = k => isKorea() || !KOREA_ONLY.includes(k);
 const BASES = {
   coast: {label: 'Coastlines (offline)'},
   sat: {label: 'Satellite (online)', url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',
@@ -136,7 +141,7 @@ export function createMap(host, deps) {
     G.coastD = mkCoast(COAST.dark); G.coastL = mkCoast(COAST.light); G.coast = G.coastD;
     MAP_LAYERS.forEach(([k]) => G[k] = L.layerGroup());
     G.su = L.layerGroup().addTo(map);   // SAM units: shown with their unit layer or with their range layer
-    map.fitBounds(PREF.view ? PREF.view.b : THEATER_BOUNDS);
+    map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
     map.on('moveend', () => { placeLabels(); const b = map.getBounds(); PREF.view = {b: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; persist(); });
     const zc = () => { const z = map.getZoom(); host.classList.toggle('zlo', z < 8); host.classList.toggle('zmid', z >= 8 && z < 9.5); };
     map.on('zoomend', zc); zc();
@@ -220,8 +225,8 @@ export function createMap(host, deps) {
   }
   // The levels (base maps) have their own menu (top left of the map, next to the zoom buttons). Opens downward from its button.
   function baseMenu() {
-    const m = $('mpbase');
-    m.innerHTML = Object.entries(BASES).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${baseDef(k).label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
+    const m = $('mpbase'); if (!baseOk(st.base)) st.base = 'sat';
+    m.innerHTML = Object.entries(BASES).filter(([k]) => baseOk(k)).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${baseDef(k).label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
     // opacity of the base map (pictures, tiles, coastlines): the data stay as they are
     m.insertAdjacentHTML('beforeend', `<label class="mpr" title="Opacity of the base map: 0 = only the flat background"><span class="lt">Map opacity</span><input type="range" id="mpbgo" min="0" max="100" value="${st.on.bgop == null ? 100 : st.on.bgop}" style="flex:1;min-width:0"></label>`);
     $('mpbgo').oninput = () => { st.on.bgop = +$('mpbgo').value; save(); bgOp(); }; bgOp();
@@ -557,6 +562,7 @@ export function createMap(host, deps) {
   async function setBase() {
     if (!map) return;
     const L = window.L, tok = ++baseTok;
+    if (!baseOk(st.base)) st.base = 'sat';
     if (TL) { map.removeLayer(TL); TL = null; }
     if (OV) { map.removeLayer(OV); OV = null; }
     map.removeLayer(G.coastD); map.removeLayer(G.coastL); G.coast = st.cl ? G.coastL : G.coastD; note('');
@@ -1211,6 +1217,8 @@ export function createMap(host, deps) {
     setTanks: a => { PENDTK = a; if (map) { mergeTanks(); dtc(); sync(); } },
     detach: () => detach(), toggleEdit: () => setEdit(!EDIT), isEdit: () => EDIT, cyclePlan, planMode: () => PLANMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
+    // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
+    theaterChanged: () => { OVC = {imgBlob: OVC.imgBlob}; PREF.view = null; if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } map.fitBounds(theaterBounds()); setBase(); refresh(); },
     rebase: () => { if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } if (st.base == 'sat') setBase(); },
     underlay: () => { const c = OV && OV._url; if (!c || !c.getContext || !OV.getBounds) return null; const b = OV.getBounds(); return {canvas: c, bounds: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; }
   };

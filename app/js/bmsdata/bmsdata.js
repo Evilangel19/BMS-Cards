@@ -258,13 +258,23 @@ export function parseTdf(text) {
   return t;
 }
 
+// Theater.txt (terrain folder): "key=value" lines: size in km, map size in pixels, centre latitude / longitude of the theater.
+export function parseTheaterTxt(text) {
+  const t = {};
+  for (const l of String(text).split(/\r?\n/)) { const m = l.match(/^\s*([^=#]+?)\s*=\s*(.*?)\s*$/); if (m) t[m[1].toLowerCase()] = m[2]; }
+  const n = k => { const v = parseFloat(t[k]); return isFinite(v) ? v : null; };
+  const r = { name: t['theater name'] || '', sizeKm: n('theater size in km'), mapPx: n('map size in pixels'), lat: n('center latitude'), lon: n('center longitude') };
+  return r.lat != null && r.lon != null ? r : null;
+}
+
 const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);
 
 // Folders of a theater, as path parts relative to the Data folder.
 // `entry` is the path from Theater.lst; the theater's own folder is what comes before its "TerrData" folder.
 export function theaterDirs(entry, tdf) {
   const e = parts(entry), i = e.findIndex(x => x.toLowerCase() === 'terrdata'), base = i > 0 ? e.slice(0, i) : [];
-  const rel = v => (v ? [...base, ...parts(v)] : null);
+  // the folders of an add-on theater are written in full from the Data folder ("Add-On Balkans\\Campaign"): the base is added only when it is not there already
+  const rel = v => { if (!v) return null; const p = parts(v); return base.length && base.every((b, i) => (p[i] || '').toLowerCase() === b.toLowerCase()) ? p : [...base, ...p]; };
   return { name: tdf.name || e[e.length - 1].replace(/\.tdf$/i, ''), base, campaign: rel(tdf.campaigndir || 'Campaign'), sim: rel(tdf.simdatadir || 'Sim'),
     objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), tdfEntry: entry };
 }

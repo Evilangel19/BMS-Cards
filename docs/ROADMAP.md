@@ -9,7 +9,7 @@
 4. Ideas to define with the user: objective faction colours on the map; Mil Climb schedule; time at which a unit is spotted; EW radar state of SAM units; names of non-air-defense units (now "ordinal + category + Battalion"); AIP vs game runway length; interpolated terrain elevation (bilinear) if the 3-31 ft differences ever matter.
 5. **BEFORE the 0.9 beta (decided 2026-10-21)**, in this order:
    a. DONE: warnings for a campaign file newer than 109 and for XML tables without the expected fields.
-   b. Other theaters: take origin (lat/lon), size, map picture and bounds from the theater files (`.tdf`, `Theater.txt`) instead of the Korea constants (`geo.js` tmInv/tmFwd origin 38.5 N 127.5 E, 1024 km; `mapwarp.js` BMS_EXTENT; `THEATER_BOUNDS`; the `> 1024` checks in `mapview.js`). Needs from the user, for one other theater: its `.tdf`, `Theater.txt`, a saved campaign (.cam) and, if possible, the theater map picture.
+   b. Other theaters (Balkans), DONE in code 2026-10-21, to check on the real PC: the `.cam` v110 is read with the class table OF THE THEATER (`Falcon4_CT.xml` of its objects folder); map centre from `Theater.txt` (`setGeo`); weather map v5 (5 arrays after the winds); `.tdf` paths written in full no longer get the add-on folder twice; the Korea-only base maps are hidden in other theaters. NOT done: offline coastlines of other theaters (the basemap data covers East Asia only), AIP of other theaters (`KTO_AIP.pdf` is Korea's), the kneeboard folder `KoreaObj`, theater map picture other than a custom import, other theater's `Falcon4_*` tables not found fall back to empty.
    c. DONE (2026-10-21): Tactical Engagement files read like campaigns, with their own menu (see ARCHITECTURE v93). To check on the real PC: TE list in the game's Campaign folder, the DTC `<TE name>.ini` written for a TE, other TEs (weather, several player flights).
    d. PARTLY DONE: three blocks moved out of `app/index.html` (DDS, widgets, objective reader); the rest depends on the shared state and is left as it is for now (a full split after the beta).
 6. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
@@ -38,7 +38,7 @@
 - Weather: wind direction is where it comes FROM; layers at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual only); condition 0 sunny, 1 fair, 2 poor, 3 inclement (a few 4s drawn as inclement). The Weather page draws the cells axis-aligned (the real grid is turned by the grid convergence, small); temperature and pressure exist only at the surface; it uses the base map chosen on the Map page.
 - HARM switches from the manual table (BMS 4.38 manual); the side view is schematic.
 - Radar coverage: UCD / FCD `Det_LowAir` taken as km, 4/3 earth radius, 5,000 ft MSL; owners of untouched fixed stations are unknown (grey).
-- Only the Korea theater was checked; add-on theaters are untested.
+- Korea was checked on real files; the Balkans only on one `.cam` (v110), one `.fmap` (v5) and `Theater.txt` (tests with local fixtures, no check inside the game).
 
 ## Notes
 - A saved mission weighs about 1.5-2 MB with the hourly weather maps.

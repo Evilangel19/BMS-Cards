@@ -254,7 +254,7 @@ import {buildAto,filterAto,groupPackages,CATEGORIES} from './js/core/ato.js';
 import * as PJ from './js/core/mission.js';
 import {createMap} from './js/core/mapview.js';
 import {LAYOUT,SHOT,paintBlank} from './js/core/cardlayout.js';
-import {THEATER_BOUNDS as mBounds,toLL as mToLL,fmtLL as mFmtLL,fromLL as mFromLL,flightRoute as mFlightRoute,legs as mLegs} from './js/core/mapdata.js';
+import {theaterBounds as mBounds,toLL as mToLL,fmtLL as mFmtLL,fromLL as mFromLL,flightRoute as mFlightRoute,legs as mLegs} from './js/core/mapdata.js';
 import {nearAb,actName as fActName,csOf as fCsOf,nAcf as fNAcf,FORMS as fFORMS} from './js/core/flight.js';
 import {createDtcPage} from './js/core/dtcpage.js';
 import {createWeaponsPage,navRow} from './js/core/weaponspage.js';
@@ -283,7 +283,8 @@ import {parseBombDat,parseBombList} from './js/bmsdata/bombdata.js';
 import {parseTheaterValues,heightSpec,heightsAt} from './js/bmsdata/heightmap.js';
 import {parseObjectives,parseOcdCt,parseFcdNames,parseFcdRadar,radarFeatures,parseFed,featuresOf,fedPath,ocdPath,phdPath,pdxPath,readTarget,targetLine} from './js/core/targets.js';
 import {openTargetPicker} from './js/core/targetpicker.js';
-import {parseCt,FILES,OPTIONAL,allNames,pathFor,ENCODING,buildTables,parseTheaterList,parseTdf,theaterDirs,parseAircraftData} from './js/bmsdata/bmsdata.js';
+import {parseCt,FILES,OPTIONAL,allNames,pathFor,ENCODING,buildTables,parseTheaterList,parseTdf,theaterDirs,parseAircraftData,parseTheaterTxt} from './js/bmsdata/bmsdata.js';
+import {setGeo} from './js/rules/geo.js';
 let CFG=mergeConfig(undefined).config;
 const saveBlob=(b,n,dir)=>saveFile(b,n,dir||CFG.paths.exportDir);
 window.CAM=CAM;
@@ -722,7 +723,7 @@ dtcBtns();dtcPage.render();
 let TERR=null,TERRKEY='';
 async function terrain(){
  const inst=CFG.paths.bmsInstall;if(!isDesktop()||!inst)return null;const key=inst+'|'+(TH&&TH.name);if(TERRKEY===key)return TERR;TERRKEY=key;TERR=null;
- try{const data=jp(inst,'Data'),dn=q=>q.replace(/[\\/][^\\/]*$/,''),dirs=[TH&&TH.tdfEntry?jp(data,dn(TH.tdfEntry)):null,TH?jp(data,'TerrData',TH.name):null,jp(data,'TerrData','Korea')].filter(Boolean);let dir=null,hm='',f=null;
+ try{const data=jp(inst,'Data'),dn=q=>q.replace(/[\\/][^\\/]*$/,''),dirs=[TH&&TH.tdfEntry?jp(data,dn(TH.tdfEntry)):null,TH?jp(data,'TerrData',TH.name):null,TH&&TH.terrain?jp(data,...TH.terrain):null,!THGEO||(THGEO.lat===38.5&&THGEO.lon===127.5)?jp(data,'TerrData','Korea'):null].filter(Boolean);let dir=null,hm='',f=null;
   for(const d of dirs){const h=jp(d,'NewTerrain','HeightMaps'),n=(await listDir(h)).map(e=>e.name).find(x=>/\.raw$/i.test(x)&&/height/i.test(x));if(n){dir=d;hm=h;f=n;break}}
   if(!f)return null;const path=jp(hm,f);let vals={};
   for(const c of [jp(dir,'Theater.txt'),jp(dir,'NewTerrain','Theater.txt'),jp(hm,'Theater.txt')]){try{vals=parseTheaterValues(new TextDecoder('latin1').decode(await readBytes(c)));break}catch(e){}}
@@ -870,14 +871,14 @@ function apply(i,mode){if(mode!=='reset'&&mode!=='fresh'&&CURK!==null&&AUTO){con
  {const k=fkey(CL[i].f);AUTO={};FD.forEach(d=>{AUTO[d.k]=F[d.k]||''});CURK=k;MANK=new Set();if(mode==='reset')OVR.delete(k);else if(OVR.has(k)){Object.assign(F,OVR.get(k));MANK=new Set(Object.keys(OVR.get(k)))}}
  buildForm();markMan();draw();atoSearch();perfFill(i);wxPrep(i)}
 const pick=()=>{const all=CL.map((_,i)=>i),mine=all.filter(i=>CL[i].f.owner==C.playerTeam),hi=mine.filter(i=>CAM.isHiFi(CL[i].f&&C.D.ac[CL[i].f.c.i]||'')),hi2=all.filter(i=>CAM.isHiFi(C.D.ac[CL[i].f.c.i]||''));return hi.length?hi:mine.length?mine:hi2.length?hi2:all};
-async function loadCam(file){if(!CAM.D.ct.length)return alert('The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.');try{C=CAM.openCam(new Uint8Array(await file.arrayBuffer()),CAM.D,file.name);CL=CAM.listFlights(C,null);manClear()}catch(e){return alert('Unable to read the campaign: '+e.message)}
+async function loadCam(file){if(!CAM.D.ct.length)return alert('The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.');try{C=CAM.openCam(new Uint8Array(await file.arrayBuffer()),CAM.D,file.name);CL=CAM.listFlights(C,null);manClear()}catch(e){return alert('Unable to read the campaign: '+e.message+(THEATERS.length>1?'\n\nThe selected theater is "'+(TH?TH.name:'?')+'": a campaign of another theater cannot be read with its tables. Choose the right theater in the theater menu and open the campaign again.':''))}
  if(C.ver>CAM.CAM_VER_MAX)alert('This campaign file is newer ('+C.ver+') than the versions this program was checked with (up to '+CAM.CAM_VER_MAX+', Falcon BMS 4.38.1): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.');
  if(!CL.length)return alert('No flight with a datacard found in this campaign.');
  $('fsel').innerHTML=CL.map((x,i)=>`<option value="${i}">${x.label}</option>`).join('');const pk=()=>{const m=pick();return m[Math.floor(Math.random()*m.length)]};const i=pk();$('fsel').value=i;atoSearch();apply(i);atoCloseState();atoSearch()}
 /* Campaign list: every .cam in the BMS Campaign folder; selecting one also loads its weather (.fmap), Link16, IFF and date (.twx) files. */
 const dtcDir=()=>CFG.paths.dtc||(CFG.paths.bmsInstall?joinPath(joinPath(CFG.paths.bmsInstall,'User'),'Config'):'');
 const jp=(d,...p)=>p.flatMap(x=>Array.isArray(x)?x:String(x).split(/[\\/]+/)).filter(Boolean).reduce(joinPath,d);
-let THEATERS=[],TH=null;
+let THEATERS=[],TH=null,THGEO=null,GEOKEY='k',GEOWARN='',D_BASE=null;
 const WXS=new Map(),WXDIR={files:null};
 const wxKey=ms=>{const t=Math.floor(ms/1000);return(Math.floor(t/86400)+1)*10000+Math.floor((t%86400)/3600)*100};
 const wxAt=ms=>(ms!=null&&WXS.get(wxKey(ms)))||WX;
@@ -904,7 +905,7 @@ function wxFlight(){const i=+$('fsel').value||0,x=C&&CL[i];if(!x||!x.f||!x.f.wps
 // force: write ATIS, TAF and runways again, also over what was typed by hand; fillState tells whether the datacard already holds them
 function wxFill(){const i=+$('fsel').value||0;wxApply(i,(key,v)=>{MANK.delete(key);F[key]=v;if(AUTO)AUTO[key]=v;const e=FD.find(z=>z.k==key);if(e&&e.el)e.el.value=v;if(MIR[key]&&DCS[MIR[key].grp]&&lines.length)pushOne(key)});perfFill(i)}
 function wxFillState(){const i=+$('fsel').value||0;let diff=false;try{wxApply(i,(key,v)=>{if(String(F[key]==null?'':F[key])!==String(v==null?'':v))diff=true})}catch(e){}return{diff}}
-const wxPage=createWeatherPage({root:$('wx'),esc,flight:wxFlight,at:wxAt,fill:wxFill,fillState:wxFillState,attach:el=>mapV.attach(el),detach:()=>mapV.detach(),toLL:(x,y)=>mToLL(x,y),fromLL:(a,b)=>mFromLL(a,b),bounds:mBounds});
+const wxPage=createWeatherPage({root:$('wx'),esc,flight:wxFlight,at:wxAt,fill:wxFill,fillState:wxFillState,attach:el=>mapV.attach(el),detach:()=>mapV.detach(),toLL:(x,y)=>mToLL(x,y),fromLL:(a,b)=>mFromLL(a,b),get bounds(){return mBounds()}});
 const campDir=()=>CFG.paths.campaigns||(CFG.paths.bmsInstall?jp(CFG.paths.bmsInstall,'Data',TH?TH.campaign:'Campaign'):'');
 // the campaign menu (.cam) and the Tactical Engagement menu (.tac) are separate; choosing in one clears the other
 const setSel=n=>{const te=/\.tac$/i.test(n||'');$('csel').value=te?'':(n||'');$('tesel').value=te?n:''};
@@ -1010,9 +1011,14 @@ async function loadGameData(reloadTheaters=true){
   if(TH){const data=jp(inst,'Data');for(const rel of [TH.objects,TH.campaign,TH.terrain,TH.base]){if(!rel)continue;Object.assign(paths,Object.fromEntries(Object.entries(await findFiles(jp(data,rel),names.filter(n=>!paths[n]),1)).filter(([k])=>!paths[k])))}}
   if(names.some(n=>!paths[n])){if(GLOBAL_FOR!==inst){GLOBAL_PATHS=await findFiles(inst,names);GLOBAL_FOR=inst}for(const n of names)if(!paths[n]&&GLOBAL_PATHS[n])paths[n]=GLOBAL_PATHS[n]}
   {const dn=f=>f.replace(/[\\/][^\\/]*$/,'');OBJDIR=paths['Falcon4_CT.xml']?dn(paths['Falcon4_CT.xml']):(TH&&TH.objects?jp(inst,'Data',TH.objects):'');OBJCAMP=paths['CampObjData.XML']||(OBJDIR?jp(OBJDIR,'CampObjData.XML'):'');TDATA.reset()}
+  {let g=null,tp='';try{if(TH){const data=jp(inst,'Data');for(const rel of [TH.terrain,TH.base]){if(!rel||!rel.length)continue;const f=(await findFiles(jp(data,rel),['Theater.txt'],3))['Theater.txt'];if(f){tp=f;break}}}
+   if(tp)g=parseTheaterTxt(new TextDecoder('latin1').decode(await readBytes(tp)))}catch(e){g=null}
+   GEOWARN=(!g&&TH&&!/korea/i.test(TH.name))?'Theater.txt of '+TH.name+' not found (or without the centre of the theater): the positions on the map are those of Korea, so they will be wrong.':''
+   if(g)setGeo(g.lat,g.lon);else setGeo();THGEO=g;const gk=g?g.lat+','+g.lon:'k';if(gk!==GEOKEY){GEOKEY=gk;try{mapV.theaterChanged()}catch(e){}}}
+  if(!D_BASE)D_BASE={...CAM.D};Object.assign(CAM.D,D_BASE);   // the tables of the theater left behind must not stay when the new one lacks a file
   const r=await buildTables(async k=>{const p=pathFor(paths,k);if(!p)return null;return new TextDecoder(ENCODING[k]).decode(await readBytes(p))});
   Object.assign(CAM.D,r.tables);
-  let acInfo='';const warn=[];
+  let acInfo='';const warn=[];if(GEOWARN)warn.push(GEOWARN);
   try{const tdir=p=>p.replace(/[\\/][^\\/]*$/,'');
    const atcDir=paths['Airbase.lst']?tdir(paths['Airbase.lst']):'';
    const atc=[];if(atcDir)for(const e of await listDir(atcDir)){if(e.isDirectory||!/\.dat$/i.test(e.name))continue;const a=parseAtc(new TextDecoder('latin1').decode(await readBytes(jp(atcDir,e.name))));if(a)atc.push(a)}
@@ -1237,5 +1243,5 @@ function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.nst=1;co
  b.onclick=e=>{const t=e.target.closest('button');if(!t)return;try{t===b.firstChild?i.stepUp():i.stepDown()}catch(x){}i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}}
 document.querySelectorAll('input[type=number]').forEach(stepper);
 new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
-window.__app={MFD,openEd:(k)=>openEd(FD.find(z=>z.k==k)),get KBS(){return KBS},get KBLIB(){return KBLIB},setRl:o=>{RL=o;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}},sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';TDATA.reset()},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
+window.__app={MFD,loadCam:f=>loadCam(f),openEd:(k)=>openEd(FD.find(z=>z.k==k)),get KBS(){return KBS},get KBLIB(){return KBLIB},setRl:o=>{RL=o;try{perfFill(+$('fsel').value||0)}catch(e){}try{pfPage.render()}catch(e){}},sq:sqPage,wxPage,unsaved:()=>unsaved(),wpPage,msPage,get MAPSHOT(){return MAPSHOT},set MAPSHOT(v){MAPSHOT=v},missionExt:PJ.missionFolder.file(''),toggleForm:()=>{closeEd(true);FORMON=!FORMON;applyFormToggle()},get mdcOn(){return MDCON},cycle,get TOPOWER(){return TOPOWER},get sel(){return ATOSEL},get CL(){return CL},WXS,wxKey,wxAt,wxKeys,msfBuild,msfLoad,setAc:(n,d)=>{MSFAC[n]=d;acMemo.delete(n)},get WX(){return WX},setField,get F(){return F},get MANK(){return MANK},get C(){return C},get msPage(){return msPage},get pfPage(){return pfPage},get mapV(){return mapV},get wpPage(){return wpPage},tdata:{use:(d,c)=>{OBJDIR=d;OBJCAMP=c||'';TDATA.reset()},get api(){return TDATA}},loadFmap,dtcSet,jtacSel:()=>{const f=C&&C.units.find(u=>u.kind=='flight'&&u.wps.length&&CAM.jtac(C,u,true));if(!f)return false;ATOSEL=f;mapV.refresh();return true},IO,setDtcPath:(p,orig)=>{DTCF=DTCF||{path:null,enc:'utf-8',bom:false,orig:new TextEncoder().encode(orig||dtcOut())};DTCF.path=p},dtcOut,get lines(){return lines},kbInfo:()=>{const it=KBLIB.filter(i=>/^Map screenshot/.test(i.name));return {n:it.length,w:it[0]&&it[0].w,h:it[0]&&it[0].h,placed:KBS.some(r=>[r.left,r.right].some(s=>s.kind=='pic'&&it.includes(s.item)))}},hasShot:()=>!!MAPSHOT,get CAM_D(){return CAM.D},get FD(){return FD},get CFG(){return CFG},get GAMEDATA(){return GAMEDATA},loadCam,loadFmap,loadL16,loadIFF,loadTwx,parse,apply,draw,gapless,toDDS,toDDS5,get F(){return F},get FD(){return FD}};
 </script></body></html>

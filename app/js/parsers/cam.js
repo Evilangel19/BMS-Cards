@@ -74,7 +74,7 @@ export const objOwners=E=>objDeltas(E).own;
 export const featState=v=>v===0||v===6?0:v>=3&&v<=5?2:1;
 export function objState(st){if(!st||!st.length)return 0;let d=0,x=0;for(const v of st){const s=featState(v);if(s)d++;if(s==2)x++}return !d?0:x==st.length?2:1}
 // highest campaign file version this reader was checked against (BMS 4.38.1 writes 109); a newer file may carry fields read wrongly
-export const CAM_VER_MAX=109;
+export const CAM_VER_MAX=110;
 // Tactical Engagement files (.tac) are campaign files with one more section, "te" (text): the teams of the engagement. Teams that have a name (not "---"): [{n, name}]; the first one is the player's side
 export function teTeams(u8){const t=new TextDecoder('latin1').decode(u8),o=[],re=/:Team\r?\n(\d+)[^\n]*\n:TeamName\r?\n([^\r\n]*)/g;let m;while((m=re.exec(t))){const nm=m[2].trim();if(nm&&nm!=='---')o.push({n:+m[1],name:nm})}return o}
 export function openCam(u8,D,name){const E=camToc(u8),OD=objDeltas(E),ver=+new TextDecoder().decode(E.ver);
