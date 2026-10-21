@@ -798,3 +798,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 
 ## v95 — Radar coverage on the real heights file
 - `heightsAt` reads the samples of one row of the grid with one call (span up to 256 KB) instead of one call per sample: the radar coverage asks for tens of thousands of points and each call to the 2 GB `HeightMap.raw` goes through the desktop app (it looked as if the filter showed nothing: it was still reading). The map shows "Radar coverage: reading the terrain heights…" meanwhile; an error is shown once as a message and is not retried in a loop.
+
+## v96 — Add-on theater files are not taken from Korea
+- For an add-on theater (its `.tdf` lives in its own folder) the files that carry campaign numbers or places (`CampObjData.XML`, `Stations+Ils.dat`, `Airbase.lst` and its ATC files, `KTO_AIP.pdf`, `RadioMap.dat`, `Ppt.ini`) are searched only in the folders of the theater (3 levels deep) and never in the rest of the BMS folder: the global search found the Korean ones, whose numbers match other places (the Balkans bases got Korean ATC files and no runway size). What is missing is reported in the game-data warning.
+- Weather page: `resetView()` forgets the kept map bounds when the theater changes (it showed the previous theater). Docs charts: the folder scan budget is 60,000 entries (the Balkans have thousands of charts).

@@ -49,7 +49,7 @@ export function createDocsPage(deps) {
     if (S.trees.dir === key) return; S.trees = { dir: key }; S.loading = 'Reading the Docs folder…'; draw();
     try {
       const mine = ++seq, charts = [];
-      for (const cd of cds) { const top = (await deps.listDir(cd)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)); charts.push(...await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(cd, e.name), e.name, {})))); }
+      for (const cd of cds) { const top = (await deps.listDir(cd)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)); charts.push(...await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(cd, e.name), e.name, {budget: {n: 60000}})))); }
       const man = await scanTree(deps.listDir, deps.join, dir, 'Docs', { depth: 5, budget: { n: 8000 } });
       man.dirs = man.dirs.filter(d => !/chart/i.test(d.name));
       if (mine != seq || S.trees.dir !== key) return;

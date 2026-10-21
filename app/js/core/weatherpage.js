@@ -183,5 +183,5 @@ export function createWeatherPage(deps) {
     const fb = root.querySelector('[data-fill]'); if (fb) fb.onclick = () => { if (fb.classList.contains('nil')) return; deps.fill(); draw(); };
     wirePanel();
   }
-  return {render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(); }, leave: () => mapDown(), state: () => st, setState: o => { st = {...st, ...o}; save(); }, root: deps.root, draw, layer: () => M};
+  return {render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(); }, leave: () => mapDown(), resetView: () => { view = null; }, state: () => st, setState: o => { st = {...st, ...o}; save(); }, root: deps.root, draw, layer: () => M};
 }

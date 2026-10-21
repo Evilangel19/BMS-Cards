@@ -1009,13 +1009,15 @@ async function loadGameData(reloadTheaters=true){
  try{
   GAMEDATA={status:'Reading game data from the BMS folder…'};
   const inst=CFG.paths.bmsInstall,names=[...allNames(),'Airbase.lst','KTO_AIP.pdf'],paths={};
-  if(TH){const data=jp(inst,'Data');for(const rel of [TH.objects,TH.campaign,TH.terrain,TH.base]){if(!rel)continue;Object.assign(paths,Object.fromEntries(Object.entries(await findFiles(jp(data,rel),names.filter(n=>!paths[n]),1)).filter(([k])=>!paths[k])))}}
-  if(names.some(n=>!paths[n])){if(GLOBAL_FOR!==inst){GLOBAL_PATHS=await findFiles(inst,names);GLOBAL_FOR=inst}for(const n of names)if(!paths[n]&&GLOBAL_PATHS[n])paths[n]=GLOBAL_PATHS[n]}
+  if(TH){const data=jp(inst,'Data');for(const rel of [TH.objects,TH.campaign,TH.terrain,TH.base]){if(!rel)continue;Object.assign(paths,Object.fromEntries(Object.entries(await findFiles(jp(data,rel),names.filter(n=>!paths[n]),3)).filter(([k])=>!paths[k])))}}
+  // an add-on theater has its own campaign numbers, radio map, airbases ...: what it lacks is NOT taken from the other theaters (the numbers would match other places)
+  const ADDON=!!(TH&&TH.base&&TH.base.length),KEYED=new Set(['campobjdata.xml','stations+ils.dat','airbase.lst','kto_aip.pdf','radiomap.dat','ppt.ini']),need=names.filter(n=>!paths[n]&&!(ADDON&&KEYED.has(n.toLowerCase())));
+  if(need.length){if(GLOBAL_FOR!==inst){GLOBAL_PATHS=await findFiles(inst,names);GLOBAL_FOR=inst}for(const n of need)if(GLOBAL_PATHS[n])paths[n]=GLOBAL_PATHS[n]}
   {const dn=f=>f.replace(/[\\/][^\\/]*$/,'');OBJDIR=paths['Falcon4_CT.xml']?dn(paths['Falcon4_CT.xml']):(TH&&TH.objects?jp(inst,'Data',TH.objects):'');OBJCAMP=paths['CampObjData.XML']||(OBJDIR?jp(OBJDIR,'CampObjData.XML'):'');TDATA.reset()}
   {let g=null;try{if(TH){const data=jp(inst,'Data'),ds=[TH.newterrain,TH.terrain,['TerrData',TH.name]].filter(Boolean);
     for(const d of ds){for(const sub of ['','NewTerrain','HeightMaps','NewTerrain/HeightMaps']){try{g=parseTheaterTxt(new TextDecoder('latin1').decode(await readBytes(jp(data,d,sub,'Theater.txt'))))}catch(e){g=null}if(g)break}if(g)break}}}catch(e){g=null}
    GEOWARN=(!g&&TH&&!/korea/i.test(TH.name))?'Theater.txt of '+TH.name+' not found (or without the centre of the theater): the positions on the map are those of Korea, so they will be wrong.':''
-   if(g)setGeo(g.lat,g.lon);else setGeo();THGEO=g;const gk=g?g.lat+','+g.lon:'k';if(gk!==GEOKEY){GEOKEY=gk;try{mapV.theaterChanged()}catch(e){}}}
+   if(g)setGeo(g.lat,g.lon);else setGeo();THGEO=g;const gk=g?g.lat+','+g.lon:'k';if(gk!==GEOKEY){GEOKEY=gk;try{mapV.theaterChanged()}catch(e){}try{wxPage.resetView()}catch(e){}}}
   if(!D_BASE)D_BASE={...CAM.D};Object.assign(CAM.D,D_BASE);   // the tables of the theater left behind must not stay when the new one lacks a file
   const r=await buildTables(async k=>{const p=pathFor(paths,k);if(!p)return null;return new TextDecoder(ENCODING[k]).decode(await readBytes(p))});
   Object.assign(CAM.D,r.tables);
