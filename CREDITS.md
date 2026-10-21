@@ -37,3 +37,4 @@ Third-party code included:
 
 Airbase data: runway numbers and headings are read from the BMS ATC files, ILS frequencies and elevations from the BMS KTO AIP, always from the user's own installation at run time
 (the AIP forbids reproduction without permission of the BMS Docs team, so nothing of it is included).
+- MDC format: drawn by the program from its own layout (app/js/core/cardlayout.js); no third-party image or file is included or needed.
