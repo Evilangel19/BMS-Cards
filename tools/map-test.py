@@ -727,7 +727,7 @@ try:
         w1 = rcw()
         check('1,000 ft: the label says so and the coverage is smaller (%.2f < %.2f deg wide)' % (w1, w5), '1,000' in pg.inner_text('#mprcv') and rcn() == 3 and w1 < w5)
         pg.evaluate("()=>{const s=document.getElementById('mprca');s.value=4;s.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(900)
-        check('20,000 ft: larger than at 5,000 ft (%.2f > %.2f)' % (rcw(), w5), '20,000' in pg.inner_text('#mprcv') and rcw() > w5)
+        check('20,000 ft: the label says so and the coverage is not smaller than at 5,000 ft (%.2f >= %.2f; both reach the 150 km range)' % (rcw(), w5), '20,000' in pg.inner_text('#mprcv') and rcw() >= w5 - 1e-6 and rcn() == 3)
         pg.evaluate("()=>{const s=document.getElementById('mprca');s.value=2;s.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(900)
         pg.evaluate("()=>{__app.mapV.units()[0].slot=-1}"); pg.evaluate("()=>__app.mapV.refresh()"); pg.wait_for_timeout(900)
         check('a radar that is no longer alive loses its coverage (same number of units)', rcn() == 2)
