@@ -1,3 +1,5 @@
+<img src="docs/logo.png" alt="BMS Cards logo" width="96" align="right">
+
 # BMS Cards
 
 Datacard and kneeboard planner for **Falcon BMS 4.38.1**.
