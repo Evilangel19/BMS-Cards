@@ -1,6 +1,6 @@
 # BMS Cards: open items (updated 2026-10-21)
 
-Version of the first beta on `main`: **0.9 beta** (set in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` when `dev` is merged).
+`main` holds the **0.8 alpha** (2026-10-21, backup before the split of index.html); the first beta will be **0.9 beta** (set in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` when `dev` is merged).
 
 ## To implement
 1. **Squadron page**: still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted); medals in the logbook `.lbk` (needs a logbook with known medals); test sending / receiving missions, mission leader and roster sync with real pilots.
