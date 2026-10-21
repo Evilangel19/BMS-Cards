@@ -3,12 +3,12 @@
 ## To implement
 1. **Squadron page**: v96 done: squadron (name, motto, notes), fixed roster with role/notes, green dot when a pilot is online (public WebTorrent trackers + WebRTC, squadron secret in the `BCS.` invite), mission sent to one pilot or all online, campaign section (kills, aces, share per squadron). Logbook statistics decoded (v97, medals not yet: needs a logbook with known medals), server list from PhoneBkn.ini, trackers editable in Settings. Squadron page v98: Members / Me / Settings, several squadrons, moderation. Still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted), test with the real trackers and two PCs over the internet (STUN).
 2. **Airport charts** (OpenTaxiway-style): not wanted for now; everyone can load the AIP picture. The runway length, the data that mattered for the calculations, now comes automatically from the objective files (done, see below); taxi time is not wanted.
-3. **MDC autofill**: removed for now (the MDC is filled by hand); to be redone later.
+3. **Card autofill of the new MDC cells** (M1-M4, audio presets, data link, NAV, AIRSPACE/TGT): filled by hand for now.
 4. ~~AGPL-3.0 licence~~ done: the repo is public (`Ciga10/BMS-Cards`), no BMS data inside. Work goes to the `dev` branch; `main` only at the official beta.
 5. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser; sections vary (the UOAF `bms_html_briefing` project and EZBoards both read it).
 
 ## To check on the real PC
-- Datacard: positions of the cells; MDC layout against the game.
+- Datacard: check the new card on a real PC (text fits the cells, kneeboard export, screenshot box).
 - Terrain elevation (HeightMap.raw) against the airbase elevations of the AIP; Misdata units; VIP; physical toss; performance numbers.
 - Missiles: 2-3 DLZ readings in the cockpit against Rmax / DLZ / MAR of the Missiles page.
 - Take-off fuel: Min.Fuel never above the fuel on board (legs under 300 kt are flown at 300 kt); TO Fuel with 10 min of taxi (~300 lb).

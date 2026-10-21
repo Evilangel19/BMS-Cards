@@ -20,8 +20,9 @@ try:
         pg.wait_for_timeout(500)
         check('form hidden by default', not pg.is_visible('#form'))
         cv = pg.locator('#cv'); box = cv.bounding_box()
-        def click_tpl(tx, ty):  # template coordinates (1600x1200) -> page
-            pg.mouse.click(box['x'] + tx / 1600 * box['width'], box['y'] + ty / 1200 * box['height'])
+        def click_tpl(tx, ty):
+            box = cv.bounding_box()   # the page may have scrolled to the editor  # card coordinates (1584x1224) -> page
+            pg.mouse.click(box['x'] + tx / 1584 * box['width'], box['y'] + ty / 1224 * box['height'])
         fd = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='fp3_5');return {x:d.x,y:d.y,w:d.w,k:d.k}}")
         click_tpl(fd['x'] + fd['w'] / 2, fd['y'])
         check('editor opens on click', pg.is_visible('#ed'))
@@ -37,13 +38,13 @@ try:
         check('Esc cancels', pg.evaluate("()=>__app.F.fp3_6") != 'zzz' and not pg.is_visible('#ed'))
         # click another cell commits
         click_tpl(fd['x'] + fd['w'] / 2, fd['y']); pg.keyboard.type('30000')
-        d2 = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='fp5_5');return {x:d.x,y:d.y,w:d.w}}")
+        d2 = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='fp8_5');return {x:d.x,y:d.y,w:d.w}}")
         click_tpl(d2['x'] + d2['w'] / 2, d2['y'])
         check('clicking another cell commits and opens it', pg.evaluate("()=>__app.F.fp3_5") == '30000' and 'Alt' in pg.inner_text('#ed .l'))
         pg.keyboard.press('Escape')
         # multi-line field
-        r = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='roe');return {x:d.x,w:d.w}}")
-        click_tpl(r['x'] + r['w'] / 2, 940)
+        r = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='roe');return {x:d.x,w:d.w,y:d.y0+d.h/2}}")
+        click_tpl(r['x'] + r['w'] / 2, r['y'])
         check('multi-line editor is a textarea', pg.evaluate("()=>!!document.querySelector('#ed textarea')"))
         pg.keyboard.type('line one'); pg.keyboard.press('Shift+Enter'); pg.keyboard.type('line two'); pg.keyboard.press('Enter')
         check('Shift+Enter makes a new line, Enter commits', pg.evaluate("()=>__app.F.roe") == 'line one\nline two')

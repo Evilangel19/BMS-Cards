@@ -21,6 +21,7 @@ function fillCard(C,f){const D=C.D,F={},w=f.wps,S=D.S;
    const dt=(p.arr-(q.dep||q.arr))/1000;if(dt>0&&q.arr){const gs=Math.round(nm/dt*3600/5)*5;F[`fp${i}_4`]=`${Number(mach(gs,az).toFixed(2)).toString().replace(/^0\./,'.')} / ${gs}`}}});
  {const ty0=acOf(C,f);if(isHiFi(ty0))w.forEach((p,i)=>{if(i<24&&p.act==7){F[`fp${i}_4`]='- / 300';F[`fp${i}_5`]='1500'}})}
  w.forEach((p,i)=>{if(i<24)for(let c=1;c<=7;c++)if(!F[`fp${i}_${c}`])F[`fp${i}_${c}`]='---'});
+ {const ti=w.findIndex(p=>p.act==1),li=w.findIndex(p=>p.act==7),hm5=i=>i>=0&&i<24?String(F[`fp${i}_1`]||'').slice(0,5):'';F.to_time=hm5(ti);F.ld_time=hm5(li)}   // take-off and landing time on the top block
  const ws={};(f.loads[0]||{ids:[],cn:[]}).ids.forEach((id,k)=>{const c=f.loads[0].cn[k];if(id&&c&&id!=492){const n=D.wn[id]||'#'+id;ws[n]=(ws[n]||0)+c}});
  const g={aa:[],ag:[],ecm:[],tanks:[]};Object.entries(ws).forEach(([n,c])=>{const s=c+'x '+n;g[/^AIM|^AA-/i.test(n)?'aa':/tank|fuel|370|300 ?gal|TK/i.test(n)?'tanks':/ALQ|HTS|AAQ|sniper|lantirn|litening|pod|AN\//i.test(n)?'ecm':'ag'].push(s)});
  for(const k in g)F[k]=g[k].join(', ');

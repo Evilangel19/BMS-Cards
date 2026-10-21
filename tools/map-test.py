@@ -163,7 +163,7 @@ try:
         check('any angle can be chosen and the turned frame stays inside the map', pg.inner_text('#mpangv') == '30°' and fk['width'] < wm['width'] and fk['height'] < wm['height'] and pg.evaluate("document.getElementById('mpfi').style.transform") == 'rotate(30deg)'); pg.click('#mpcan'); pg.wait_for_timeout(200)
         pg.click('#mpshot'); pg.wait_for_timeout(300); pg.click('#mpcap'); pg.wait_for_selector('#mpfr', state='detached', timeout=20000); pg.wait_for_timeout(300)
         check('screenshot done and stored for the datacard', pg.evaluate("__app.hasShot()") and 'datacard' in pg.inner_text('#mptoast') and not pg.locator('#mptoast.warn').count())
-        art = pg.evaluate("(()=>{const c=document.getElementById('cv');const d=c.getContext('2d').getImageData(1048,1290,564,752).data;let n=0,nw=0;for(let i=0;i<d.length;i+=4){n++;if(d[i]<250||d[i+1]<250||d[i+2]<250)nw++}return nw/n})()")
+        art = pg.evaluate("(()=>{const c=document.getElementById('cv');const d=c.getContext('2d').getImageData(1110,1050,560,730).data;let n=0,nw=0;for(let i=0;i<d.length;i+=4){n++;if(d[i]<250||d[i+1]<250||d[i+2]<250)nw++}return nw/n})()")
         check('datacard page 2 free area is filled by the map picture, canvas still readable', art > 0.5)
         if shots: pg.screenshot(path=shots + '/map-after-shot.png')
         check('no Remove button for the datacard screenshot', pg.locator('#mpshotdel').count() == 0)

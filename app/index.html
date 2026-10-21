@@ -209,7 +209,7 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield;color-scheme:d
 
 <section id="kb"><div class="k"><aside class="ato" id="ato"></aside><div>
 <div id="selinfo" class="selinfo"></div>
-<div class="bar"><select id="fsel" style="display:none"><option>— select a flight —</option></select><button class="btn g" id="mdctog" title="Switch the card between the Datacard and the MDC (Mission Data Card) layout. Fill the cells by hand: click a cell to edit it (Tab moves to the next)">MDC card</button><button class="btn g" id="rstf" style="display:none" title="Throw away the changes made by hand to this flight's datacard and fill it in again automatically">↺ Reset datacard</button><span id="cinfo" class="hint"></span></div>
+<div class="bar"><select id="fsel" style="display:none"><option>— select a flight —</option></select><button class="btn g" id="rstf" style="display:none" title="Throw away the changes made by hand to this flight's datacard and fill it in again automatically">↺ Reset datacard</button><span id="cinfo" class="hint"></span></div>
 <p class="hint">Select a campaign (its weather, Link16, IFF and date files load automatically), pick a flight and the datacard fills itself in. You can edit any field by hand; the preview updates instantly.</p>
 <div id="form"></div></div><div class="cvwrap" id="cvwrap"><canvas id="cv" width="2048" height="2048"></canvas><div id="cellhov"></div><div id="ed"></div><div id="chm"></div></div></div></section>
 <section id="kn" class="hide"></section>
@@ -244,13 +244,12 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield;color-scheme:d
 })();
 </script>
 <script type="module">
-import {makeDatacardTemplate} from './js/core/dctemplate.js';
+import {LAYOUT,SHOT,paintBlank} from './js/core/cardlayout.js';
 import {CAM} from './js/core/cam-core.js';
 import {parsePages,ROWS,rowFile,DEFAULT_SLOTS,fitRect,rowUsed,autoDir,cycleNext} from './js/core/kneeboard.js';
 import {buildAto,filterAto,groupPackages,CATEGORIES} from './js/core/ato.js';
 import * as PJ from './js/core/mission.js';
 import {createMap} from './js/core/mapview.js';
-import {drawMdc} from './js/core/mdccard.js';
 import {THEATER_BOUNDS as mBounds,toLL as mToLL,fmtLL as mFmtLL,fromLL as mFromLL,flightRoute as mFlightRoute,legs as mLegs} from './js/core/mapdata.js';
 import {nearAb,actName as fActName,csOf as fCsOf,nAcf as fNAcf,FORMS as fFORMS} from './js/core/flight.js';
 import {createDtcPage} from './js/core/dtcpage.js';
@@ -522,8 +521,8 @@ $('msfopen').onclick=async()=>{const f=await pickFile({exts:['bcrd'],startDir:MS
 $('wpapply').onclick=()=>{if($('wpapply').classList.contains('nil'))return;wpPage.apply()};$('saveow').onclick=dtcOverwrite;$('dtcrev').onclick=dtcRevert;
 
 /* ---------- DATACARD ---------- */
-const F={},FD=[],ML=['roe','free','eph'];
-const add=(k,lab,x,y,w,grp)=>FD.push({k,lab,x,y,w,grp});
+const F={},FD=[],FD0=[],ML=['roe','free','eph','contracts'];
+const add=(k,lab,x,y,w,grp)=>FD0.push({k,lab,x,y,w,grp});   // names and groups of the fields; the cells (where they are on the card) come from the card layout
 add('atis','ATIS',108,52,675,'Airbase');
 ['DEP','ARR','ALTN'].forEach((r,i)=>['Airbase','TCN','GND','APP','Elev','RWY','ILS'].forEach((c,j)=>add(`ab${i}_${j}`,r+' '+c,[105,318,395,473,551,630,709][j],123+28*i,[210,74,74,74,74,74,74][j],'Airbase')));
 ['Lead','Wing','Element','Wing 2'].forEach((r,i)=>['Name','IDM','TCN','Link 16','LND','CONF','IFF 2/3 4'].forEach((c,j)=>{if(j==4)return;add(`fl${i}_${j}`,r+' '+c,[105,318,395,473,551,630,709][j],234+28*i,[210,74,74,155,74,74,74][j],'Flight')}));
@@ -543,6 +542,9 @@ add('dmode','Delivery mode',924,430,180,'Delivery');add('dlab','Attack',851,430,
 ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>['Type','TACAN','UHF','LOC'].forEach((c,j)=>add(`su${i}_${j}`,r+' '+c,[925,1110,1188,1266][j],625+28*i,[180,70,70,75][j],'Support')));
 ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>add('sn'+i,'Notes '+r+' (operating time)',1352,625+28*i,240,'Support'));
 ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>add('sn'+i,'Notes '+r+' (times)',1352,625+28*i,240,'Support'));for(let i=0;i<4;i++)[['Class',1265,120],['MTR',1388,38],['FR',1428,44],['MAR',1474,36],['DR',1511,40],['DOR',1553,42]].forEach(([c,x,w],j)=>add(`bv${i}_${j}`,'BVR '+(i+1)+' '+c,x,793+28*i,w,'BVR timeline'));add('roe','ROE',1268,931,325,'Free text');add('free','Notes (airfield frequencies / backup)',1272,998,320,'Free text');add('eph','Ephemerides (Sun / Moon)',1272,1153,320,'Free text');
+// The cells of the card come from its layout (js/core/cardlayout.js): x, w = left and width; y0, h = top and height; y = the line of the text; all in the 1584 x 1224 space of the card.
+{const GR=k=>/^(step|start|chkin|taxi|to_time|ld_time|aux|airsp|tk_\w+|m[1-4])$/.test(k)?'Mission':/^ps\d$/.test(k)?'Audio presets':/^nav/.test(k)?'NAV':/^dl\d_/.test(k)?'Data link':k=='srv'?'Server':k=='contracts'?'Free text':'Other',META={};FD0.forEach(d=>META[d.k]=d);
+ LAYOUT.fields.forEach(f=>{if(f.img)return;const m=META[f.k],[x0,y0,x1,y1]=f.r,h=y1-y0;FD.push({k:f.k,lab:m?m.lab:f.lab,grp:m?m.grp:GR(f.k),x:x0,w:x1-x0,y0,h,y:f.lt?y0+(h+9)/2:y0+h/2,multi:f.multi,lt:f.lt,inl:f.inl,red:f.red})})}
 // Datacard <-> DTC. The DTC always fills the datacard (applyDTC). The other way round only for the groups switched on in the Data Cartridge page ("from Datacard").
 const FZ2={0:'NSTL',1:'NOSE',2:'TAIL'},SB2={7:'CCIP',8:'CCRP'},rv=o=>Object.fromEntries(Object.entries(o).map(([k,v])=>[v,String(k)]));
 const nz=v=>{const n=parseFloat(String(v).replace(',','.'));return isNaN(n)?null:n},lk=(o,n)=>/\./.test(String(o))?(+n).toFixed(6):String(Math.round(+n));
@@ -594,7 +596,8 @@ function pilotMenu(d,inp,btn){const had=$('pnmenu');closePilotMenu();if(had&&had
  document.body.append(m);const r=btn.getBoundingClientRect();m.style.left=Math.min(r.right-200,innerWidth-210)+'px';m.style.top=Math.min(r.bottom+4,innerHeight-Math.min(m.offsetHeight,260)-8)+'px';
  m.onclick=e=>{const b=e.target.closest('.pni');if(!b)return;inp.value=b.textContent;setField(d.k,b.textContent,inp);closePilotMenu()};
  setTimeout(()=>document.addEventListener('mousedown',pnOut,true),0)}
-function buildForm(){const f=$('form');f.innerHTML='';const gr={};FD.forEach(d=>(gr[d.grp]=gr[d.grp]||[]).push(d));
+const GORDER=['Airbase','Flight','Package','Flightplan','Loadout','Target','EWS','Weapon','Delivery','Support','BVR timeline','Mission','Data link','Audio presets','NAV','Server','Free text'];
+function buildForm(){const f=$('form');f.innerHTML='';const gr0={},seen=new Set();FD.forEach(d=>{if(seen.has(d.k))return;seen.add(d.k);(gr0[d.grp]=gr0[d.grp]||[]).push(d)});const gr={};[...GORDER,...Object.keys(gr0)].forEach(g=>{if(gr0[g]&&!gr[g])gr[g]=gr0[g]});
  for(const g in gr){const dt=document.createElement('details');dt.innerHTML='<summary>'+g+'</summary>';const w=document.createElement('div');
   const cols=g=='Flightplan'?8:g=='Airbase'||g=='Flight'||g=='Package'?7:4;
   w.className='gr';w.style.gridTemplateColumns=`repeat(${cols},1fr)`;
@@ -605,54 +608,14 @@ function buildForm(){const f=$('form');f.innerHTML='';const gr={};FD.forEach(d=>
    if(d.grp=='Flight'&&/^fl\d_0$/.test(d.k)){const r=document.createElement('div');r.className='pnrow';const b=document.createElement('button');b.type='button';b.className='btn g pnb';b.title='Pick from squadron roster';b.textContent='▾';b.onclick=e=>pilotMenu(d,i,b);r.append(i,b);c.append(r)}else c.append(i);
    if(ML.includes(d.k)||d.k=='atis')c.style.gridColumn='1/-1';w.append(c)});dt.append(w);f.append(dt)}
  if(!f.querySelector('details[open]'))f.firstChild.open=true}
-const tpl=makeDatacardTemplate();
 const LOAD=['aa','ag','ecm','tanks'];
 function shortW(s){const m=s.match(/^(\d+x)\s+(.*)$/);if(!m)return s;let n=m[2].replace(/^AN\//,'');const t=n.match(/^Tank\s+(\d+)/i);if(t)n='TK'+t[1];else n=n.split(/\s+/)[0];return m[1]+' '+n}
 const abTok=(t,nh)=>{let m;if(m=t.match(/^AIM-(\w+)$/))return m[1];if(m=t.match(/^([A-Za-z]{2,4})-(\d+[A-Z]?)(?:\([a-z]\)\d)?(?:\/([A-Z]))?$/))return m[1]+(nh?'':'-')+m[2]+(m[3]||'');return nh?t.replace(/-/g,''):t};
 
-const LBL=(()=>{const L=[],a=(t,x,y,o)=>L.push(Object.assign({t,x,y},o||{}));
- a('Page 1',51,14);a('DATACARD',450,14,{b:1});a('ATIS',51,52);
- [['Airbase',210],['TCN',355],['GND',433],['APP',511],['Elv',590],['RWY',669],['ILS',749]].forEach(([t,x])=>a(t,x,99));
- ['DEP','ARR','ALTN'].forEach((t,i)=>a(t,65,123+28*i));
- [['Pos',51],['Name',210],['IDM',355],['TCN',433],['Link 16',550,{px:511}],['CONF-LSR',669],['IFF 2/3 4',749]].forEach(([t,x,o])=>a(t,x,207,o));
- ['1 Lead','2 Wing','3 Element','4 Wing'].forEach((t,i)=>a(t,65,234+28*i));
- [['Callsign Pack',104],['Aircraft Type',248],['UHF',355],['VHF',433],['STN',511],['TCN',590],['Task',710]].forEach(([t,x])=>a(t,x,347));
- [['STPT',51],['Action',128],['TOS',248],['HDG',355],['Dist',433],['Mach/TAS',511],['Alt',590],['Min.Fuel',669],['Formation',749]].forEach(([t,x])=>a(t,x,514));
- for(let i=0;i<24;i++)a(String(i+1),51,542+28*i);
- a('Page 2',860,14);a('DATACARD',1260,14,{b:1});a('Callsign',948,39);a('Package',1145,39);a('Mission',1303,39);
- a('Config',973,67,{px:950});a('TO Spec',1305,67);a('Fuel',1470,67);
- [['A-A','Gross Wgt','Rotation','TO Fuel'],['A-G','Drag ind','Refusal','Set Fuel'],['ECM','ALOW','Mil Power','JOKER'],['Tanks','MSL','Mil Climb','BINGO']].forEach((r,i)=>r.forEach((t,j)=>a(t,[865,1145,1305,1470][j],94+28*i)));
- a('Primary',881,207);a('Secondary',1304,207);a('TOT',880,235);a('TOT',1305,235);a('Lat&Long',881,262);a('Lat&Long',1304,262);
- a('EWS = THR',880,290);[[970,'1 ='],[1080,'2 ='],[1185,'3 ='],[1290,'4 ='],[1430,'5 ='],[1560,'6 =']].forEach(([x,t])=>a(t,x,290,{l:1}));
- [1023,1388].forEach(x=>['Fuze','AD','BA','REL AGL'].forEach((t,i)=>a(t,x,318+28*i)));
- [1145,1510].forEach(x=>['SGL/PAIR','RP','SPACING','B. CODE'].forEach((t,i)=>a(t,x,318+28*i)));
- a('OA1',1145,431);a('OA2',1225,431);a('PUP',1304,431);a('Pull Hdg',1390,431);
- [['TBRG',881,458],['RNG',881,486],['ELV',881,513],['Climb',1390,458],['Pull Dwn',1390,486],['Turn',1390,513],['Ingress Alt',881,542],['Rel Height',1145,542],['Attack hdg',1390,542],['Ingress Spd',881,570],['Rel Spd',1145,570],['TGT in HUD',1390,570]].forEach(([t,x,y])=>a(t,x,y));
- [['AC Type',1010],['TACAN',1146],['UHF',1225],['LOC',1303]].forEach(([t,x])=>a(t,x,597));a('Notes:',1344,597,{l:1});
- ['Tanker 1','Tanker 2','AWACS','JSTAR','JTAC/FAC'].forEach((t,i)=>a(t,880,625+28*i));
- [['Class',1325],['MTR',1407],['FR',1451],['MAR',1493],['DR',1535],['DOR',1578]].forEach(([t,x])=>a(t,x,765));a('ROE',1431,905);
- [['Airbase',15,138],['Flight',15,265],['Package',15,417],['Flightplan',15,849],['TO / Loadout',828,123],['TGT',828,235],['Weapon',828,360],['Delivery',828,500],['Support',828,676],['Profile 1',856,360],['Profile 2',1243,360]].forEach(([t,x,y])=>a(t,x,y,{r:1}));
- return L})();
-let LB=[];
-function findCell(id,sx,sy,px0,py0){const dk=(X,Y)=>X>=0&&Y>=0&&X<2048&&Y<2048&&(id[(Y*2048+X)*4]+id[(Y*2048+X)*4+1]+id[(Y*2048+X)*4+2])<330;
- const vl=(X,Y)=>{let n=0;for(let k=-16;k<=16;k++)if(dk(X,Y+k))n++;return n>=32},hl=(X,Y)=>{let n=0;for(let k=-16;k<=16;k++)if(dk(X+k,Y))n++;return n>=32};
- for(const[ox,oy]of[[0,0],[0,5],[0,-5],[8,0],[-8,0],[0,9],[0,-9]]){const px=px0+ox,py=py0+oy;if(vl(px,py)||hl(px,py))continue;
-  let L=px,R=px,T=py,B=py;while(L>px-500&&!vl(L,py))L--;while(R<px+500&&!vl(R,py))R++;while(T>py-300&&!hl(px,T))T--;while(B<py+300&&!hl(px,B))B++;
-  if(R-L>=14&&B-T>=14&&R-L<1000&&B-T<700)return{L,R,T,B}}return null}
-function calcLB(id){const sx=2048/1600,sy=2048/1200;LB=[];LBL.forEach(l=>{const c=findCell(id,sx,sy,Math.round((l.px||l.x)*sx),Math.round(l.y*sy));if(!c)return;
-  const i=((c.T+5)*2048+c.R-5)*4,bg=`rgb(${id[i]},${id[i+1]},${id[i+2]})`;
-  LB.push(Object.assign({},l,{bg,rx:(c.L+2)/sx,ry:(c.T+2)/sy,rw:(c.R-c.L-3)/sx,rh:(c.B-c.T-3)/sy}))})}
-function drawLabels(x){x.textBaseline='alphabetic';x.fillStyle='#000';LB.forEach(l=>{x.fillStyle=l.bg;x.fillRect(l.rx,l.ry,l.rw,l.rh);x.fillStyle='#000';const cx=l.rx+l.rw/2,cy=l.ry+l.rh/2,pre=l.b?'bold ':'';
-  const fit=(w,s0)=>{for(let f=s0;f>9;f--){x.font=pre+f+'px Arial';if(x.measureText(l.t).width<=w)return f}x.font=pre+'9px Arial';return 9};
-  if(l.r){const fs=fit(l.rh-6,15);x.save();x.translate(cx,cy);x.rotate(-Math.PI/2);x.textAlign='center';x.fillText(l.t,0,0.358*fs);x.restore();return}
-  const fs=16;x.font=pre+fs+'px Arial';if(l.l){x.textAlign='left';x.fillText(l.t,l.rx+3,cy+0.358*fs,l.rw-5)}else{x.textAlign='center';x.fillText(l.t,cx,cy+0.358*fs,l.rw-5)}});x.textBaseline='middle'}
-let YC=null,MAPSHOT=null;const fitF=(x,t,w,s0,m)=>{for(let f=s0;f>m;f--){x.font=f+'px Arial';if(x.measureText(t).width<=w)return f}return m};
-const vy=(d,fs)=>(YC&&YC[d.k]!==undefined?YC[d.k]:d.y)+0.358*fs;
-function calcYC(x){YC={};const sx=2048/1600,sy=2048/1200,id=x.getImageData(0,0,2048,2048).data;calcLB(id);
- FD.forEach(d=>{const x0=Math.round(d.x*sx)+3,x1=Math.round((d.x+d.w)*sx)-3,yc=Math.round(d.y*sy);if(x1-x0<8)return;
-  const ln=y=>{if(y<0||y>2047)return false;let n=0;for(let X=x0;X<x1;X++){const i=(y*2048+X)*4;if(id[i]+id[i+1]+id[i+2]<200)n++}return n/(x1-x0)>0.8};
-  let t=yc,b=yc;while(t>yc-60&&!ln(t))t--;while(b<yc+60&&!ln(b))b++;if(t<=yc-60||b>=yc+60)return;
-  while(ln(t+1)&&t<b)t++;while(ln(b-1)&&b>t)b--;if(b-t<10||b-t>90)return;YC[d.k]=(t+b)/2/sy})}
+let MAPSHOT=null;const fitF=(x,t,w,s0,m)=>{for(let f=s0;f>m;f--){x.font=f+'px Arial';if(x.measureText(t).width<=w)return f}return m};
+const loadImg=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=src});
+const SX=2048/LAYOUT.w,SY=2048/LAYOUT.h;
+const vy=(d,fs)=>d.y+0.358*fs;
 function drawLoad(x,v,d){const raw=v.split(/,\s*/),full=raw.map(shortW),W=d.w-8,cx=d.x+4;x.fillStyle='#000';x.textBaseline='middle';x.textAlign='left';
  const ab=nh=>raw.map(s=>{const m=s.match(/^(\d+x)\s+(.*)$/);if(!m)return s;return m[1]+abTok(shortW(s).replace(/^\d+x\s+/,''),nh)});
  const one=a=>a.map(s=>s.replace(/^1x\s*/,'')),lv=d.k=='ecm'?[full,one(full),one(ab(false)),one(ab(true))]:[full,ab(false),ab(true)];
@@ -660,40 +623,21 @@ function drawLoad(x,v,d){const raw=v.split(/,\s*/),full=raw.map(shortW),W=d.w-8,
  x.font='15px Arial';const it=lv[lv.length-1];let bk=1,bw=1e9;for(let k=1;k<it.length;k++){const a=x.measureText(it.slice(0,k).join(' ')).width,b=x.measureText(it.slice(k).join(' ')).width;if(Math.max(a,b)<bw){bw=Math.max(a,b);bk=k}}
  if(it.length<2){x.fillText(it.join(' '),cx,vy(d,15),W);x.textBaseline='middle';return}
  x.fillText(it.slice(0,bk).join(' '),cx,vy(d,15)-7,W);x.fillText(it.slice(bk).join(' '),cx,vy(d,15)+7,W);x.textBaseline='middle'}
-let MDC=null,MDCON=false;try{MDCON=localStorage.getItem('bmsmdc')==='1'}catch(e){}
-/* The blank of the MDC card is not part of the program: the user picks an image of his own blank MDC (1600x1200, JPG or PNG) once; a copy is kept in the preferences (mdc-template.json).
-   (A developer copy in mdc/blank.jpg, ignored by git, is used when present.) */
-const loadImg=src=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=src});
-async function mdcBlank(){
- try{return await loadImg('mdc/blank.jpg')}catch(e){}
- try{const o=await loadPrefs('mdc-template.json');if(o&&o.data)return await loadImg(o.data)}catch(e){}
- alert('The MDC card needs a blank MDC image (1600 x 1200 pixels, JPG or PNG). It is not included in the program: choose your own copy now. It is remembered for the next time.');
- const f=await new Promise(res=>{const i=document.createElement('input');i.type='file';i.accept='image/jpeg,image/png,.jpg,.jpeg,.png';i.onchange=()=>res(i.files[0]||null);i.addEventListener('cancel',()=>res(null));i.click()});
- if(!f)throw new Error('no MDC image');
- const data=await new Promise((r,j)=>{const fr=new FileReader();fr.onload=()=>r(fr.result);fr.onerror=j;fr.readAsDataURL(f)});
- const img=await loadImg(data);try{await savePrefs('mdc-template.json',{data})}catch(e){}return img}
-async function mdcLoad(){if(MDC)return;const img=await mdcBlank();MDC={tpl:img,fields:await (await fetch('mdc/fields.json')).json()};draw()}
-let MDFD=[];   // the MDC cells that edit a Datacard field (same shape as FD: k, lab, x, y, w, h in the 1600x1200 space)
-function mdcFD(){MDFD=MDC.fields.map(f=>({k:'mdc_'+f.id,lab:/^x\d+$/.test(f.id)?'CELL':(typeof f.lab=='string'&&f.lab?f.lab:f.id).toUpperCase(),x:f.r[0],y:f.r[1],w:f.r[2]-f.r[0],h:f.r[3]-f.r[1],mdc:1,multi:!!f.multi}))}
-// the MDC card is filled by hand: its texts are the F['mdc_<cell>'] values
-function mdcDraw(x){mdcFD();const t={};MDC.fields.forEach(f=>{const v=F['mdc_'+f.id];if(v)t[f.id]=String(v)});drawMdc(x,MDC.tpl,MDC.fields,t,2048/1600,2048/1200)}
-function draw(){const c=$('cv'),x=c.getContext('2d');x.setTransform(1,0,0,1,0,0);if(MDCON){if(MDC){mdcDraw(x);return}mdcLoad().catch(()=>{MDCON=false;draw()})}x.fillStyle='#fff';x.fillRect(0,0,2048,2048);
- x.setTransform(2048/1600,0,0,2048/1200,0,0);x.drawImage(tpl,0,0,1600,1200);x.drawImage(tpl,480,195,4,24,473,195,155,24);x.drawImage(tpl,480,219,12,113,544,219,12,113);x.fillStyle='#000';x.font='15px Arial';x.textBaseline='middle';x.textAlign='center';x.fillText('Link 16',550,206);x.drawImage(tpl,397,84,4,24,396,84,74,24);x.drawImage(tpl,475,84,4,24,474,84,75,24);x.textAlign='center';x.font='14px Arial';x.fillText('GND',433,98);x.fillText('APP',511,98);x.drawImage(tpl,476,335,4,24,474,335,75,24);x.fillText('STN',511,347);x.fillStyle='#c0c0c0';x.fillRect(843,727,75,21);x.fillStyle='#000';x.fillText('JTAC/FAC',880,738);x.fillStyle='#c0c0c0';x.fillRect(711,197,76,21);x.fillStyle='#000';x.fillText('IFF 2/3 4',749,208,72);x.fillStyle='#c0c0c0';x.fillRect(843,615,75,23);x.fillRect(843,643,75,23);x.fillStyle='#000';x.fillText('Tanker 1',880,627);x.fillText('Tanker 2',880,655);x.textAlign='left';x.textAlign='left';x.fillStyle='#000';x.textBaseline='middle';
- x.fillStyle='#000';x.font='15px Arial';x.textBaseline='middle';x.fillText('Formation',714,514,70);x.drawImage(tpl,476,503,3,23,475,503,37,23);x.drawImage(tpl,545,503,3,23,511,503,37,23);x.textAlign='center';x.font='14px Arial';x.fillStyle='#333';x.fillText('Mach/TAS',511,514,68);x.fillStyle='#000';x.font='15px Arial';x.textAlign='left';x.textAlign='center';[[842,880],[1267,1305]].forEach(([rx,cx])=>{x.fillStyle='#c0c0c0';x.fillRect(rx,225,76,23);x.fillStyle='#000';x.fillText('TOT',cx,236)});x.textAlign='left';x.fillStyle='#000';
- x.fillStyle='#fff';x.fillRect(1266,1055,329,8);x.fillStyle='#000';x.fillRect(1261,984,339,3);x.fillRect(1261,1134,339,3);
- if(!YC)calcYC(x);drawLabels(x);x.textAlign='left';x.fillStyle='#000';
- FD.forEach(d=>{const v=F[d.k];if(!v)return;
-  if(LOAD.includes(d.k)){drawLoad(x,v,d);x.textAlign='left';return}
-  const CT=!/^(ews\d|wp\d_mode|atis|ab\d_0|fl\d_[03]|pk\d_[016]|su\d_0|sn\d|pri|sec|d1|d2|ll1|ll2)$/.test(d.k),cx=CT?d.x+d.w/2:d.x;x.textAlign=CT?'center':'left';
-  if(d.k=='free'){const L=v.split('\n'),nb=L.filter(t=>t==='').length,n=L.length-nb;let lh=16,gp=10;const room=140,tot=n*lh+nb*gp;if(tot>room){const k=Math.max(0.8,room/tot);lh*=k;gp*=k}
-   let fs=14;L.forEach(t=>{if(t!=='')fs=Math.min(fs,fitF(x,t,d.w-4,14,10))});if(lh<14)fs=Math.min(fs,Math.floor(lh)-1);x.font=fs+'px Arial';let yy=0,first=true;
-   L.forEach(t=>{if(t===''){const ry=d.y+6+yy-lh/2+gp/2+(first?0:0);x.save();x.strokeStyle='#777';x.lineWidth=.8;x.beginPath();x.moveTo(d.x+8,ry);x.lineTo(d.x+d.w-8,ry);x.stroke();x.restore();yy+=gp-lh+lh;return}
-    x.fillText(t,cx,d.y+6+yy,d.w);yy+=lh})}
-  else if(ML.includes(d.k)||d.k=='atis'){v.split('\n').forEach((t,i)=>{const fs=fitF(x,t,d.w-4,16,12);x.font=fs+'px Arial';x.fillText(t,cx,d.y+(d.k=='atis'?(v.includes('\n')?-8:0):6)+i*17,d.w)})}
-  else if(/^fl\d_3$/.test(d.k)){const W=d.w-8,c=[[16,v],[15,v],[14,v],[16,v.split(/\s+/)[0]]];for(let q=0;q<4;q++){x.font=c[q][0]+'px Arial';if(q==3||x.measureText(c[q][1]).width<=W){x.textBaseline='alphabetic';x.fillText(c[q][1],d.x+4,vy(d,c[q][0]));x.textBaseline='middle';break}}}
-  else{const fs=fitF(x,v,d.w-4,16,11);x.textBaseline='alphabetic';let yy=vy(d,fs);if(!/[A-Z0-9]/.test(v)){const m=x.measureText(v);yy=vy(d,0)+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2}x.fillText(v,CT?cx:d.x+3,yy,d.w-4);x.textBaseline='middle'}x.textAlign='left'});
- if(MAPSHOT){x.setTransform(1,0,0,1,0,0);x.drawImage(MAPSHOT,1048,1290,564,752)}}
-function gapless(){const cut=MDCON&&MDC?[1009,1105]:[1012,1040],c=$('cv'),o=document.createElement('canvas');o.width=o.height=2048;const q=o.getContext('2d');q.fillStyle='#fff';q.fillRect(0,0,2048,2048);q.imageSmoothingEnabled=true;q.imageSmoothingQuality='high';
+let BLK=null;
+const blank=()=>{if(!BLK){BLK=document.createElement('canvas');BLK.width=LAYOUT.w;BLK.height=LAYOUT.h;paintBlank(BLK.getContext('2d'),LAYOUT)}return BLK};
+const LEFTK=/^(ews\d|wp\d_mode|atis|ab\d_0|fl\d_[03]|pk\d_[016]|su\d_0|sn\d|pri|sec|d1|d2|ll1|ll2|airsp|srv|ps\d|dl\d_(fl|tm|dn))$/;
+function draw(){const c=$('cv'),x=c.getContext('2d');x.setTransform(1,0,0,1,0,0);x.fillStyle='#fff';x.fillRect(0,0,2048,2048);x.imageSmoothingQuality='high';x.drawImage(blank(),0,0,2048,2048);
+ x.setTransform(SX,0,0,SY,0,0);x.fillStyle='#000';x.textBaseline='middle';x.textAlign='left';
+ FD.forEach(d=>{const v=F[d.k];if(!v)return;x.fillStyle=d.red?'#c00000':'#000';
+  if(LOAD.includes(d.k)){drawLoad(x,v,d);x.textAlign='left';x.fillStyle='#000';return}
+  if(d.multi){const L=v.split('\n'),top=d.y0+(d.lt?12:3),room=d.h-(d.lt?14:6);let lh=d.k=='free'?16:17;if(L.length*lh>room)lh=room/L.length;let fs=Math.min(15,Math.floor(lh)-1);L.forEach(t=>{if(t!=='')fs=Math.min(fs,fitF(x,t,d.w-8,fs,8))});x.font=fs+'px Arial';x.textAlign='left';x.textBaseline='middle';
+   L.forEach((t,i)=>{const yy=top+lh*(i+.5);if(t===''){x.save();x.strokeStyle='#777';x.lineWidth=.8;x.beginPath();x.moveTo(d.x+8,yy);x.lineTo(d.x+d.w-8,yy);x.stroke();x.restore();return}x.fillText(t,d.x+5,yy,d.w-8)});x.fillStyle='#000';return}
+  const left=LEFTK.test(d.k)||d.inl,x0=d.x+(d.inl?24:4),W=d.w-(d.inl?28:8);x.textAlign=left?'left':'center';
+  let t=v,fs=fitF(x,t,W,15,9);if(/^fl\d_3$/.test(d.k)&&x.measureText(t).width>W){t=v.split(/\s+/)[0];fs=fitF(x,t,W,15,9)}
+  x.textBaseline='alphabetic';let yy=vy(d,fs);if(!/[A-Z0-9]/.test(t)){const m=x.measureText(t);yy=vy(d,0)+(m.actualBoundingBoxAscent-m.actualBoundingBoxDescent)/2}
+  x.fillText(t,left?x0:d.x+d.w/2,yy,W);x.textBaseline='middle';x.textAlign='left';x.fillStyle='#000'});
+ if(MAPSHOT){x.drawImage(MAPSHOT,SHOT[0],SHOT[1],SHOT[2]-SHOT[0],SHOT[3]-SHOT[1])}}
+function gapless(){const cut=[1010,1103],c=$('cv'),o=document.createElement('canvas');o.width=o.height=2048;const q=o.getContext('2d');q.fillStyle='#fff';q.fillRect(0,0,2048,2048);q.imageSmoothingEnabled=true;q.imageSmoothingQuality='high';
  q.drawImage(c,0,0,cut[0],2048,0,0,1024,2048);q.drawImage(c,cut[1],0,2048-cut[1],2048,1024,0,1024,2048);return o}
 let C=null,CL=[],WX=null,L16=null,IFFP=null;
 let OVR=new Map(),AUTO=null,CURK=null,CAMSEL='',D1PREV='',MANK=new Set();   // manual datacard changes kept per flight (see apply)
@@ -1023,10 +967,9 @@ async function loadTwx(file){let T;try{T=parseTwx(await file.arrayBuffer())}catc
 $('fsel').onchange=()=>C&&apply(+$('fsel').value);
 $('rstf').onclick=async()=>{if(!C||!await confirm('Discard the changes made by hand to this flight\'s datacard?'))return;apply(+$('fsel').value||0,'reset')};
 /* ---------- Direct editing on the card: click a cell, a larger colored field opens over it ---------- */
-const SX=2048/1600,SY=2048/1200,BOX={atis:[30,76],roe:[918,982],free:[986,1134],eph:[1138,1196]};
-const boxOf=d=>{if(d.mdc)return{x:d.x,y:d.y,w:d.w,h:d.h};const b=BOX[d.k],yc=(YC&&YC[d.k]!==undefined)?YC[d.k]:d.y;return b?{x:d.x,y:b[0],w:d.w,h:b[1]-b[0]}:{x:d.x,y:yc-12,w:d.w,h:24}};
-function cellAt(ev){if(MDCON&&!MDC)return null;const c=$('cv'),r=c.getBoundingClientRect(),tx=(ev.clientX-r.left)/r.width*2048/SX,ty=(ev.clientY-r.top)/r.height*2048/SY;let best=null,ba=1e12;
- (MDCON?MDFD:FD).forEach(d=>{const b=boxOf(d);if(tx>=b.x&&tx<=b.x+b.w&&ty>=b.y&&ty<=b.y+b.h&&b.w*b.h<ba){ba=b.w*b.h;best=d}});return best}
+const boxOf=d=>({x:d.x,y:d.y0,w:d.w,h:d.h});
+function cellAt(ev){const c=$('cv'),r=c.getBoundingClientRect(),tx=(ev.clientX-r.left)/r.width*2048/SX,ty=(ev.clientY-r.top)/r.height*2048/SY;let best=null,ba=1e12;
+ FD.forEach(d=>{const b=boxOf(d);if(tx>=b.x&&tx<=b.x+b.w&&ty>=b.y&&ty<=b.y+b.h&&b.w*b.h<ba){ba=b.w*b.h;best=d}});return best}
 function place(el,d,minW,pad){const c=$('cv'),k=c.getBoundingClientRect().width/2048,b=boxOf(d);
  el.style.left=(b.x*SX*k-pad)+'px';el.style.top=(b.y*SY*k-pad)+'px';el.style.width=Math.max(b.w*SX*k+2*pad,minW)+'px';el.style.height=(b.h*SY*k+2*pad)+'px'}
 let EDK=null;
@@ -1049,7 +992,7 @@ function openEd(d,sel=true){closeEd(true);const ed=$('ed'),c=$('cv'),k=c.getBoun
  i.focus();if(sel)i.select();
  i.onkeydown=e=>{if(e.key=='Escape'){closeEd(false);e.preventDefault()}
   else if(e.key=='Enter'&&!(ml&&e.shiftKey)){closeEd(true);e.preventDefault()}
-  else if(e.key=='Tab'){e.preventDefault();const LS=d.mdc?MDFD:FD,idx=LS.indexOf(d),n=LS[(idx+(e.shiftKey?-1:1)+LS.length)%LS.length];closeEd(true);openEd(n)}};
+  else if(e.key=='Tab'){e.preventDefault();const LS=FD,idx=LS.indexOf(d),n=LS[(idx+(e.shiftKey?-1:1)+LS.length)%LS.length];closeEd(true);openEd(n)}};
  i.onblur=()=>setTimeout(()=>{if(EDK===d.k&&document.activeElement!==i)closeEd(true)},0)}
 $('cv').addEventListener('mousemove',ev=>{const d=cellAt(ev),h=$('cellhov');if(!d||(EDK===d.k)){h.style.display='none';$('cv').style.cursor='';return}$('cv').style.cursor='pointer';place(h,d,0,0);h.style.display='block'});
 $('cv').addEventListener('mouseleave',()=>{$('cellhov').style.display='none'});
@@ -1057,8 +1000,6 @@ $('cv').addEventListener('click',ev=>{const d=cellAt(ev);if(d&&CYC[d.k]){closeEd
 window.addEventListener('resize',()=>closeEd(true));
 let FORMON=false;try{FORMON=localStorage.getItem('bmsform')==='1'}catch(e){}
 const applyFormToggle=()=>{$('form').style.display=FORMON?'':'none';document.querySelector('.k').classList.toggle('noform',!FORMON)};
-const mdcBtn=()=>{$('mdctog').classList.toggle('on',MDCON);$('mdctog').style.background=MDCON?'#1f7a46':'';$('mdctog').style.color=MDCON?'#fff':''};
-$('mdctog').onclick=()=>{closeEd(true);MDCON=!MDCON;try{localStorage.setItem('bmsmdc',MDCON?'1':'0')}catch(e){}KBG=null;mdcBtn();draw()};mdcBtn();
 applyFormToggle();atoSearch();
 buildForm();
 /* ---------- Game data from the BMS installation ---------- */
