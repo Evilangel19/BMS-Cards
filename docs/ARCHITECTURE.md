@@ -795,3 +795,6 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `.fmap`: the number of 4-byte arrays after the winds is taken from the file size: 7 (version 8, Korea) or 5 (version 5, Balkans, no shower cumulus, no fog layer altitude; those two fields read as 0).
 - Map tab: coastlines (offline), official map and folder map are Korea-only and are hidden for other theaters (satellite, topographic or a custom picture); `mapV.theaterChanged()` places the pictures again and moves the view.
 - Tests: `tests/run-balkans.mjs` (fixtures `tests/fixtures/balkans`: `prova.cam`, `FALCON4_CT.xml`, `10900.fmap`, `Theater.txt`, not in the repository), `tests/run-theaters.mjs`, `tools/theater-test.py` (fake BMS folder with Korea and Balkans).
+
+## v95 — Radar coverage on the real heights file
+- `heightsAt` reads the samples of one row of the grid with one call (span up to 256 KB) instead of one call per sample: the radar coverage asks for tens of thousands of points and each call to the 2 GB `HeightMap.raw` goes through the desktop app (it looked as if the filter showed nothing: it was still reading). The map shows "Radar coverage: reading the terrain heights…" meanwhile; an error is shown once as a message and is not retried in a loop.

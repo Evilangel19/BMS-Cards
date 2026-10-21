@@ -16,6 +16,14 @@ ck('north-west corner is the first sample, south-east the last', heightOffset(sp
 ck('out of the theater gives nothing', heightOffset(spec, -1, 10) === null && heightOffset(spec, 10, S + 1) === null && await heightAt(readAt, spec, -5, 0) === null);
 ck('values: north-west -300 (negative = below sea level), south-east 407, a middle point', await heightAt(readAt, spec, S, 0) === -300 && await heightAt(readAt, spec, 0, S) === 407 && await heightAt(readAt, spec, S * .5, S * .5) === 100 * 3 + 3 - 300);
 ck('several points', JSON.stringify(await heightsAt(readAt, spec, [{n: S, e: 0}, {n: -1, e: 0}, {n: 0, e: S}])) === '[-300,null,407]');
+{ // a grid of points: the same values as one by one, with one read per row of the file
+  const pts = []; for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) pts.push({n: j / 7 * S, e: i / 7 * S});
+  let calls = 0; const cnt = async (o, l) => { calls++; return readAt(o, l); };
+  const many = await heightsAt(cnt, spec, pts), each = []; for (const q of pts) each.push(await heightAt(readAt, spec, q.n, q.e));
+  ck('batch reading gives the same values', JSON.stringify(many) === JSON.stringify(each));
+  ck('one read per row of the grid (at most 8 reads for 64 points)', calls <= 8);
+  ck('a short answer falls back to single reads', JSON.stringify(await heightsAt(async (o, l) => l > 2 ? new Uint8Array(1) : readAt(o, l), spec, pts)) === JSON.stringify(each));
+}
 ck('short file gives nothing', await heightAt(async () => new Uint8Array(1), spec, S, 0) === null);
 { // the real KTO Theater.txt (Data\TerrData\Korea\NewTerrain)
   const v = parseTheaterValues('Theater name=KTO\r\nTheater size in KM=1024\r\nMap size in pixels=32768\r\nCenter latitude=38.5\r\nProjection string=+proj=tmerc +lon_0=127.5 +ellps=WGS84 +k=0.9996 +units=m +x_0=512000 +y_0=-3.74929e+06\r\n'), sp = heightSpec(v, 2147483648, 1);
