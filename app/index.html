@@ -244,6 +244,8 @@ input[type=number]{-moz-appearance:textfield;appearance:textfield;color-scheme:d
 })();
 </script>
 <script type="module">
+import {toDDS,toDDS5} from './js/core/dds.js';
+import {initWidgets} from './js/core/widgets.js';
 import {makeDatacardTemplate} from './js/core/dctemplate.js';
 import {CAM} from './js/core/cam-core.js';
 import {parsePages,ROWS,rowFile,DEFAULT_SLOTS,fitRect,rowUsed,autoDir,cycleNext} from './js/core/kneeboard.js';
@@ -284,93 +286,13 @@ import {parseCt,FILES,OPTIONAL,allNames,pathFor,ENCODING,buildTables,parseTheate
 let CFG=mergeConfig(undefined).config;
 const saveBlob=(b,n,dir)=>saveFile(b,n,dir||CFG.paths.exportDir);
 window.CAM=CAM;
-function toDDS(W,d){const out=new Uint8Array(128+W*W/2),dv=new DataView(out.buffer);
- const H=[0x20534444,124,0xa1007,W,W,W*W/2,0,1];H.forEach((v,i)=>dv.setUint32(i*4,v,true));
- dv.setUint32(76,32,true);dv.setUint32(80,4,true);dv.setUint32(84,0x31545844,true);dv.setUint32(108,0x1000,true);
- const q=(r,g,b)=>((r>>3)<<11)|((g>>2)<<5)|(b>>3),e=c=>[(c>>11&31)*255/31,(c>>5&63)*255/63,(c&31)*255/31];
- let o=128;const px=[];
- for(let by=0;by<W;by+=4)for(let bx=0;bx<W;bx+=4){let lo=1e9,hi=-1,il=0,ih=0;px.length=0;
-  for(let y=0;y<4;y++)for(let x=0;x<4;x++){const i=((by+y)*W+bx+x)*4,r=d[i],g=d[i+1],b=d[i+2],l=r*3+g*6+b;px.push([r,g,b]);if(l<lo){lo=l;il=px.length-1}if(l>hi){hi=l;ih=px.length-1}}
-  let c0=q(...px[ih]),c1=q(...px[il]);
-  if(c0==c1){dv.setUint16(o,c0,true);dv.setUint16(o+2,c1,true);dv.setUint32(o+4,0,true);o+=8;continue}
-  if(c0<c1){const t=c0;c0=c1;c1=t}
-  const a=e(c0),b2=e(c1),P=[a,b2,a.map((v,k)=>(2*v+b2[k])/3),a.map((v,k)=>(v+2*b2[k])/3)];let bits=0;
-  for(let k=0;k<16;k++){let best=0,bd=1e12;for(let j=0;j<4;j++){const dd=(px[k][0]-P[j][0])**2+(px[k][1]-P[j][1])**2+(px[k][2]-P[j][2])**2;if(dd<bd){bd=dd;best=j}}bits|=best<<(2*k)}
-  dv.setUint16(o,c0,true);dv.setUint16(o+2,c1,true);dv.setUint32(o+4,bits>>>0,true);o+=8}
- return out}
-
-function toDDS5(W,d){const sizes=[];let w=W;while(true){sizes.push(w);if(w==1)break;w>>=1}
- let tot=0;sizes.forEach(z=>tot+=Math.max(1,z>>2)*Math.max(1,z>>2)*16);
- const out=new Uint8Array(128+tot),dv=new DataView(out.buffer);
- [0x20534444,124,0xa1007,W,W,Math.max(1,W>>2)*Math.max(1,W>>2)*16,1,sizes.length].forEach((v,i)=>dv.setUint32(i*4,v,true));
- dv.setUint32(76,32,true);dv.setUint32(80,4,true);dv.setUint32(84,0x35545844,true);dv.setUint32(108,0x401008,true);
- const q=(r,g,b)=>((r>>3)<<11)|((g>>2)<<5)|(b>>3),e=c=>[(c>>11&31)*255/31,(c>>5&63)*255/63,(c&31)*255/31];
- let o=128,cur=d;
- sizes.forEach((Z,li)=>{
-  if(li>0){const P=sizes[li-1],n=new Uint8ClampedArray(Z*Z*4);for(let y=0;y<Z;y++)for(let x=0;x<Z;x++)for(let c=0;c<4;c++){let t=0;for(let dy=0;dy<2;dy++)for(let dx=0;dx<2;dx++)t+=cur[(((y*2+dy)*P)+x*2+dx)*4+c];n[(y*Z+x)*4+c]=Math.round(t/4)}cur=n}
-  const px=[];
-  for(let by=0;by<Z;by+=4)for(let bx=0;bx<Z;bx+=4){let lo=1e9,hi=-1,il=0,ih=0;px.length=0;
-   for(let y=0;y<4;y++)for(let x=0;x<4;x++){const i=((Math.min(by+y,Z-1))*Z+Math.min(bx+x,Z-1))*4,r=cur[i],g=cur[i+1],b=cur[i+2],l=r*3+g*6+b;px.push([r,g,b]);if(l<lo){lo=l;il=px.length-1}if(l>hi){hi=l;ih=px.length-1}}
-   out[o]=255;out[o+1]=255;o+=8;
-   let c0=q(...px[ih]),c1=q(...px[il]);
-   if(c0==c1){dv.setUint16(o,c0,true);dv.setUint16(o+2,c1,true);dv.setUint32(o+4,0,true);o+=8;continue}
-   if(c0<c1){const t=c0;c0=c1;c1=t}
-   const a=e(c0),b2=e(c1),PL=[a,b2,a.map((v,k)=>(2*v+b2[k])/3),a.map((v,k)=>(v+2*b2[k])/3)];let bits=0;
-   for(let k=0;k<16;k++){let best=0,bd=1e12;for(let j=0;j<4;j++){const dd=(px[k][0]-PL[j][0])**2+(px[k][1]-PL[j][1])**2+(px[k][2]-PL[j][2])**2;if(dd<bd){bd=dd;best=j}}bits|=best<<(2*k)}
-   dv.setUint16(o,c0,true);dv.setUint16(o+2,c1,true);dv.setUint32(o+4,bits>>>0,true);o+=8}});
- return out}
 
 const $=id=>document.getElementById(id);
 const animOn=()=>(!CFG.ui||CFG.ui.animations!==false)&&!(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches);
 const applyAnim=()=>document.documentElement.classList.toggle('noanim',!animOn());
 // Expand animation: grow and fade in the given elements (same 150 ms as collapse).
 function expand(els){if(!animOn())return;const LW=els[0]&&els[0].closest&&els[0].closest('#atolist');if(LW){LW.style.minHeight=LW.offsetHeight+'px';setTimeout(()=>{LW.style.minHeight=''},200)}[...els].slice(0,80).forEach(e=>{const h=e.offsetHeight;e.style.overflow='hidden';const a=e.animate([{opacity:0,maxHeight:'0px',paddingTop:'0px',paddingBottom:'0px',marginTop:'0px',marginBottom:'0px'},{opacity:1,maxHeight:h+'px'}],{duration:150,easing:'ease-out'});a.onfinish=a.oncancel=()=>{e.style.overflow=''}})}
-// Drop-down menus: the browser's own list cannot be animated, so a click on any <select> opens this list instead
-// (same options, colors and change events). Every new menu of the program gets it automatically.
-let DD=null;
-let ddJust=0;   // time of the last close caused by pressing the button that opened the list (so the same press does not open it again)
-function ddClose(){if(!DD)return;const d=DD.el;document.removeEventListener('mousedown',ddOut,true);document.removeEventListener('keydown',ddKey,true);DD=null;
- if(animOn()){d.style.pointerEvents='none';d.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-4px)'}],{duration:100}).onfinish=()=>d.remove()}else d.remove()}
-function ddOut(e){if(DD&&!DD.el.contains(e.target)){const same=e.target.closest&&e.target.closest('select')===DD.sel;if(DD.op&&DD.op.contains(e.target))ddJust=performance.now();ddClose();if(same){e.preventDefault();e.stopPropagation()}}}
-function ddPick(i){const sel=DD.sel,o=sel.options[i];if(!o||o.disabled)return;const ch=sel.selectedIndex!=i;ddClose();sel.selectedIndex=i;if(ch){sel.dispatchEvent(new Event('input',{bubbles:true}));sel.dispatchEvent(new Event('change',{bubbles:true}))}sel.focus()}
-function ddKey(e){if(!DD)return;const items=[...DD.el.children],cur=items.findIndex(x=>x.classList.contains('hl')),mv=d=>{let k=cur;do{k=(k+d+items.length)%items.length}while(items[k].classList.contains('off')&&k!=cur);items.forEach(x=>x.classList.remove('hl'));items[k].classList.add('hl');items[k].scrollIntoView({block:'nearest'})};
- if(e.key=='Escape'){e.preventDefault();ddClose()}else if(e.key=='ArrowDown'){e.preventDefault();mv(1)}else if(e.key=='ArrowUp'){e.preventDefault();mv(-1)}else if(e.key=='Enter'||e.key==' '){e.preventDefault();if(cur>=0)ddPick(+items[cur].dataset.i)}}
-function ddOpen(sel,op){if(DD)ddClose();const r=sel.getBoundingClientRect(),d=document.createElement('div');d.className='ddp';
- [...sel.options].forEach((o,i)=>{const b=document.createElement('div'),cs=getComputedStyle(o);b.className='ddi'+(o.selected?' on hl':'')+(o.disabled?' off':'');b.textContent=o.textContent;b.dataset.i=i;
-  if(o.style.backgroundColor)b.style.backgroundColor=o.style.backgroundColor;if(o.style.color)b.style.color=o.style.color;if(o.style.fontWeight)b.style.fontWeight=o.style.fontWeight;
-  b.onmousedown=e=>{e.preventDefault();e.stopPropagation()};b.onclick=()=>ddPick(i);d.append(b)});
- (sel.closest('dialog')||document.body).append(d);DD={el:d,sel,op};
- const w=Math.max(r.width,d.offsetWidth),below=innerHeight-r.bottom-12,above=r.top-12,h=Math.min(d.scrollHeight+10,340);
- d.style.minWidth=r.width+'px';d.style.left=Math.max(4,Math.min(r.left,innerWidth-w-8))+'px';
- if(below>=Math.min(h,200)||below>=above){d.style.top=(r.bottom+2)+'px';d.style.maxHeight=Math.min(340,below)+'px'}else{d.style.maxHeight=Math.min(340,above)+'px';d.style.bottom=(innerHeight-r.top+2)+'px'}
- const on=d.querySelector('.on');if(on)on.scrollIntoView({block:'nearest'});
- document.addEventListener('mousedown',ddOut,true);document.addEventListener('keydown',ddKey,true)}
-document.addEventListener('mousedown',e=>{const s=e.target.closest&&e.target.closest('select');if(!s||s.multiple||s.disabled||(s.size||1)>1||e.button!==0)return;if(DD&&DD.sel===s)return;e.preventDefault();s.focus();ddOpen(s)},true);
-
-// Calendar: the browser's own date picker cannot be animated, so a click on the calendar icon of any <input type=date>
-// opens this one instead (same value, same change events).
-let DC=null;
-function dcClose(){if(!DC)return;const d=DC.el;document.removeEventListener('mousedown',dcOut,true);document.removeEventListener('keydown',dcKey,true);DC=null;
- if(animOn()){d.style.pointerEvents='none';d.animate([{opacity:1,transform:'none'},{opacity:0,transform:'translateY(-4px)'}],{duration:100}).onfinish=()=>d.remove()}else d.remove()}
-function dcOut(e){if(DC&&!DC.el.contains(e.target)){dcClose()}}
-function dcKey(e){if(e.key=='Escape'){e.preventDefault();dcClose()}}
-function dcDraw(){const {el,inp}=DC,y=DC.y,m=DC.m,sel=inp.value,first=new Date(Date.UTC(y,m,1)),lead=(first.getUTCDay()+6)%7,dim=new Date(Date.UTC(y,m+1,0)).getUTCDate(),today=new Date().toISOString().slice(0,10);
- const mn=['January','February','March','April','May','June','July','August','September','October','November','December'];
- let h=`<div class="dch"><button class="btn g" data-a="prev">◀</button><b>${mn[m]} ${y}</b><button class="btn g" data-a="next">▶</button></div><div class="dcg">${['Mo','Tu','We','Th','Fr','Sa','Su'].map(x=>`<span class="dcw">${x}</span>`).join('')}`;
- for(let i=0;i<lead;i++)h+='<span></span>';
- for(let d=1;d<=dim;d++){const v=`${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;h+=`<button class="dcd${v==sel?' on':''}${v==today?' td':''}" data-v="${v}">${d}</button>`}
- h+=`</div><div class="dcf"><button class="btn g" data-a="today">Today</button></div>`;el.innerHTML=h;
- const g=el.querySelector('.dcg');if(animOn()&&DC.fx)g.animate([{opacity:0,transform:`translateX(${DC.fx*14}px)`},{opacity:1,transform:'none'}],{duration:140,easing:'ease-out'})}
-function dcOpen(inp){if(DC)dcClose();const r=inp.getBoundingClientRect(),el=document.createElement('div');el.className='ddp dcp';const v=/^\d{4}-\d\d-\d\d$/.test(inp.value)?inp.value:new Date().toISOString().slice(0,10);
- (inp.closest('dialog')||document.body).append(el);DC={el,inp,y:+v.slice(0,4),m:+v.slice(5,7)-1,fx:0};dcDraw();
- el.style.left=Math.max(4,Math.min(r.left,innerWidth-el.offsetWidth-8))+'px';el.style.top=(r.bottom+2+el.offsetHeight>innerHeight?Math.max(4,r.top-el.offsetHeight-2):r.bottom+2)+'px';
- el.onmousedown=e=>e.stopPropagation();
- el.onclick=e=>{const a=e.target.dataset&&e.target.dataset.a,v2=e.target.dataset&&e.target.dataset.v;
-  if(a=='prev'||a=='next'){DC.m+=a=='next'?1:-1;if(DC.m<0){DC.m=11;DC.y--}if(DC.m>11){DC.m=0;DC.y++}DC.fx=a=='next'?1:-1;dcDraw()}
-  else if(a=='today'||v2){const val=v2||new Date().toISOString().slice(0,10),i=DC.inp;dcClose();i.value=val;i.dispatchEvent(new Event('input',{bubbles:true}));i.dispatchEvent(new Event('change',{bubbles:true}))}};
- document.addEventListener('mousedown',dcOut,true);document.addEventListener('keydown',dcKey,true)}
-document.addEventListener('keydown',e=>{const i=e.target;if(i.tagName=='INPUT'&&i.type=='date'&&((e.key=='ArrowDown'&&e.altKey)||e.key=='F4')){e.preventDefault();DC&&DC.inp===i?dcClose():dcOpen(i)}},true);
-document.addEventListener('mousedown',e=>{const i=e.target;if(i.tagName!='INPUT'||i.type!='date'||e.button!==0)return;if(e.offsetX>i.clientWidth-30){e.preventDefault();i.focus();DC&&DC.inp===i?dcClose():dcOpen(i)}},true);
+const {ddOpen,justClosed:ddJustClosed}=initWidgets(animOn);
 
 // Collapse animation: shrink and fade the given elements, then run cb.
 function collapse(els,cb){els=[...els];if(!animOn()||!els.length){cb();return}let n=els.length;
@@ -908,7 +830,7 @@ function atoSearch0(){const el=$('ato'),q=ATOQ;if(!C){ATOL=[];el.innerHTML='<h3>
  <input id="aq_ac" placeholder="Aircraft" value="${esc(q.ac)}"><input id="aq_mis" placeholder="Mission type" value="${esc(q.mis)}">
  <input id="aq_ap" placeholder="Airport" value="${esc(q.ap)}"><input id="aq_sq" placeholder="Squadron" value="${esc(q.sq)}">
  <input id="aq_to" placeholder="Departure time" value="${esc(q.to)}"><input id="aq_tot" placeholder="TOT" value="${esc(q.tot)}"></div><button class="btn g" id="aq_tog" style="padding:5px 8px;font-size:12px;grid-column:1/-1;margin-top:6px"></button></div><div id="atolist"></div>`;
- const viewUpd=()=>{const o=$('aq_view').selectedOptions[0];if(!o)return;$('aq_viewb').textContent=o.textContent+' ▾';$('aq_viewb').style.background=o.style.backgroundColor;$('aq_viewb').style.color=o.style.color};viewUpd();$('aq_viewb').onclick=()=>{if(performance.now()-ddJust<400)return;ddOpen($('aq_view'),$('aq_viewb'))};
+ const viewUpd=()=>{const o=$('aq_view').selectedOptions[0];if(!o)return;$('aq_viewb').textContent=o.textContent+' ▾';$('aq_viewb').style.background=o.style.backgroundColor;$('aq_viewb').style.color=o.style.color};viewUpd();$('aq_viewb').onclick=()=>{if(ddJustClosed())return;ddOpen($('aq_view'),$('aq_viewb'))};
  $('aq_view').onchange=()=>{viewUpd();VIEW=+$('aq_view').value;if(mapV.isReady())mapV.refresh();const n=(teams.find(t=>t[0]==VIEW)||[])[1];if(VIEW!=PLAYER)alert('You are not part of this faction ('+n+'): you can read its ATO, but its flights cannot be loaded on the datacard.');atoList()};
  const atoOpenAll=()=>{ATOONLY=false;CATEGORIES.forEach(c=>{if(!ATOCAT.has(c))ATOFX.c.add(c)});ATOCAT=new Set(CATEGORIES);const L=filterAto(ATOL,{...ATOQ});groupPackages(L).filter(p=>p.teams.some(t=>allyOf(t,VIEW))).forEach(p=>{if(!ATOOPEN.has(p.pkg))ATOFX.p.add(p.pkg);ATOOPEN.add(p.pkg)});atoList()};
  const atoCloseAll=()=>collapse(document.querySelectorAll('#atolist .pk'),()=>{atoCloseState();atoSearch()});
