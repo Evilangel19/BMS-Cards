@@ -1,11 +1,14 @@
 # BMS Cards: open items (updated 2026-10-21)
 
+Version of the first beta on `main`: **0.9 beta** (set in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` when `dev` is merged).
+
 ## To implement
 1. **Squadron page**: still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted); medals in the logbook `.lbk` (needs a logbook with known medals); test sending / receiving missions, mission leader and roster sync with real pilots.
 2. **MDC format autofill** of the cells that have no Datacard value (M1-M4, audio presets, data link, NAV, AIRSPACE/TGT, srv): filled by hand for now.
 3. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser (the UOAF `bms_html_briefing` project and EZBoards both read it).
 4. Ideas to define with the user: objective faction colours on the map; Mil Climb schedule; time at which a unit is spotted; EW radar state of SAM units; names of non-air-defense units (now "ordinal + category + Battalion"); AIP vs game runway length; interpolated terrain elevation (bilinear) if the 3-31 ft differences ever matter.
-5. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
+5. **After the beta, planned (the user will supply the files)**: compatibility with other theaters (add-on theaters are untested; Korea only so far); working with Tactical Engagement files (.tac), not only campaign files.
+6. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
 
 ## To check on the real PC
 - Datacard cell positions; MDC format against the game's MDC; pilot-name dropdown from the roster.
