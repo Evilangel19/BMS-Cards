@@ -2,6 +2,9 @@
 
 `main` holds the **0.8 alpha** (2026-10-21, backup before the split of index.html); the first beta will be **0.9 beta** (set in `package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml` when `dev` is merged).
 
+## Decided 2026-10-21 (user)
+Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fine), online backlog (field test only). Done: kneeboard per theater, non-AA unit names, EW radar state, radar coverage OK, Balkans positions OK. Open: Chioggia (Balkans) shown as airbase, expected VOR/DME (navaids are told apart only by the name of the objective: check whether the game names it so).
+
 ## To implement
 1. **Squadron page**: still to do: squadron window values (aircraft, experience, morale, supply, rating, kills: needs a campaign saved with the in-game values noted); medals in the logbook `.lbk` (needs a logbook with known medals); test sending / receiving missions, mission leader and roster sync with real pilots.
 2. **MDC format autofill** of the cells that have no Datacard value (M1-M4, audio presets, data link, NAV, AIRSPACE/TGT, srv): filled by hand for now.
