@@ -16,6 +16,10 @@ export const parseObjectives = xml => [...xml.matchAll(/<CampObj CampId="(\d+)">
 export const parseOcdCt = xml => { const v = tag(xml, 'CtIdx'); return v === '' ? -1 : +v; };
 // Falcon4_FCD.xml -> {number: name}
 export function parseFcdNames(xml) { const o = {}; for (const m of xml.matchAll(/<FCD Num="(\d+)">([\s\S]*?)<\/FCD>/g)) o[m[1]] = decode(tag(m[2], 'Name')).trim(); return o; }
+// Falcon4_FCD.xml -> {number: [RadarIdx, Det_LowAir km]}: the radar of a feature (fixed radar stations, control towers ...)
+export function parseFcdRadar(xml) { const o = {}; for (const m of xml.matchAll(/<FCD Num="(\d+)">([\s\S]*?)<\/FCD>/g)) o[m[1]] = [+tag(m[2], 'RadarIdx') || 0, +tag(m[2], 'Det_LowAir') || 0]; return o; }
+// the radar features of an objective: [{k (index in the feature list), n, e (ft), det (km)}] for features that have a radar and a detection range of at least minKm
+export const radarFeatures = (obj, fed, ct, fcdR, minKm = 30) => fed.map((f, k) => { const r = fcdR[(ct[f.ct] || [])[4]] || [0, 0]; return {k, n: obj.n + f.dn, e: obj.e + f.de, det: r[1], radar: r[0]}; }).filter(f => f.radar > 0 && f.det >= minKm);
 // FED_nnnnn.XML -> [{i, ct, value, dn, de}] with dn / de = offset north / east in ft from the objective centre
 export const parseFed = xml => [...xml.matchAll(/<FED Num="(\d+)">([\s\S]*?)<\/FED>/g)].map(m => ({i: +m[1], ct: +tag(m[2], 'FeatureCtIdx'), value: +tag(m[2], 'Value'), dn: +tag(m[2], 'OffsetY'), de: +tag(m[2], 'OffsetX')}));
 // the features of an objective with their name and position; `ct` is the table of parseCt (entityIdx at [4]), `fcd` the one of parseFcdNames

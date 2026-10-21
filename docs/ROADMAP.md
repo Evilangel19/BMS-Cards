@@ -31,7 +31,7 @@
 - Only the Korea theater was checked; add-on theaters are untested.
 
 ## Radar coverage (to check on the real PC)
-- Map > Display > "Radar coverage at 5,000 ft": compare the polygons with the blue circles of the game around fixed stations (not included yet: they need OCD data) and with SAM / ship radars; check the speed with the real HeightMap.raw.
+- Map > Display > "Radar coverage at 5,000 ft": compare the polygons with the blue circles of the game around fixed stations (included, read from OCD/FED/FCD: the detection unit of FCD, km assumed, is unverified) and with SAM / ship radars; check the speed with the real HeightMap.raw.
 
 ## Small open items
 - **Target coordinates and elevations vs the game (test of 2026-10-19, left as it is on purpose).** Three targets were put in the game and in the program (Hamgyong P-14, Seonginbong, Jinhae helobase). The north/east feet written in the DTC are the same as the game's (checked on the game's `target_96..98` lines). What differs is only the text we show: the latitude of our feet -> lat/lon conversion (`tmInv` / `tmFwd`, origin 38.5 N 127.5 E) is 0.017' (103 ft, about 31 m) south of the game's, equal at 35, 37 and 39 N, with the longitude equal (within 0.001'). Bombs follow the DTC, so nothing is wrong in flight and the lat/lon is a reminder: not corrected. If it is ever corrected: add about 103.2 ft (31.5 m) to the northing in both directions of the conversion.

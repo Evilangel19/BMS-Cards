@@ -16,4 +16,9 @@ ok(rad(coverage({x: 100, y: 100, rng: 200}, flat, 500)) < 80 && rad(coverage({x:
 const UL = [{det: 60, noFcr: false, slot: 1, u: {x: 1, y: 2}, ally: false, name: 'A', bn: 'a', ll: [0, 0]}, {det: 10, slot: 1, u: {x: 0, y: 0}}, {det: 80, noFcr: true, slot: 1, u: {x: 0, y: 0}}, {det: 80, noFcr: false, slot: -1, u: {x: 0, y: 0}}];
 ok(radarUnits(UL).length == 1, 'only the radars alive with a long detection range');
 const cs = neededCells([r], 8); ok(cs.length > 8 && new Set(cs.map(c => c.join())).size == cs.length, 'the terrain cells are listed once');
+import {parseFcdRadar, radarFeatures} from '../app/js/core/targets.js';
+const fcd = '<FCDRecords><FCD Num="1"><Name>Radar SSR</Name><RadarIdx>32</RadarIdx><Det_LowAir>75.0</Det_LowAir></FCD><FCD Num="2"><Name>Control Tower</Name><RadarIdx>0</RadarIdx><Det_LowAir>40.0</Det_LowAir></FCD><FCD Num="3"><Name>Radar P-12</Name><RadarIdx>45</RadarIdx><Det_LowAir>10.0</Det_LowAir></FCD></FCDRecords>';
+const fr = parseFcdRadar(fcd); ok(fr[1][0] == 32 && fr[1][1] == 75 && fr[2][0] == 0, 'FCD: radar index and low-altitude range');
+const ct = {7: [0, 0, 0, 0, 1], 8: [0, 0, 0, 0, 2], 9: [0, 0, 0, 0, 3]}, fed = [{ct: 7, dn: 100, de: 200}, {ct: 8, dn: 0, de: 0}, {ct: 9, dn: 0, de: 0}];
+const rf = radarFeatures({n: 1000, e: 2000}, fed, ct, fr); ok(rf.length == 1 && rf[0].k == 0 && rf[0].n == 1100 && rf[0].e == 2200 && rf[0].det == 75, 'only the features with a radar and a long range (not towers, not short-range radars)');
 process.exit(bad ? 1 : 0);

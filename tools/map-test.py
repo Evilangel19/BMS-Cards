@@ -722,6 +722,10 @@ try:
         check('on: one coverage polygon per radar (3 given), flat horizon without terrain data (%d)' % rcn(), rcn() == 3)
         rct(); pg.wait_for_timeout(300)
         check('off again: the coverage is gone', rcn() == 0)
+        pg.evaluate("()=>{window.__targetData={objectives:async()=>[],features:async o=>[],radars:async()=>[{o:{id:77,name:'Test Radar',n:2800000,e:2300000,type:21},feats:[{k:0,n:2800000,e:2300000,det:75},{k:1,n:2800010,e:2300010,det:75}]}]}}")
+        rct(); pg.wait_for_timeout(800)
+        check('on with a fixed radar station: its two radar features (same spot) give one more polygon (%d)' % rcn(), rcn() == 4)
+        rct(); pg.wait_for_timeout(300); pg.evaluate("delete window.__targetData")
         # v37: selections off while framing a screenshot, hover on every button, Reset/Save dimmed when unchanged
         pg.evaluate("__app.mapV.shotStart('dc')"); pg.wait_for_timeout(300)
         pe = pg.evaluate("[...document.querySelectorAll('#mpmap .dts, #mpmap .nsym')].slice(0,6).map(e=>getComputedStyle(e).pointerEvents)")

@@ -5,7 +5,7 @@ import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import {objState, featState} from '../parsers/cam.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
-import {toLL, fromLL, fmtLL, mapAirbases, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, THEATER_BOUNDS} from './mapdata.js';
+import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, THEATER_BOUNDS} from './mapdata.js';
 import {warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame} from './mapwarp.js';
 import {unitSymbol, placeIcon} from './mapsymbols.js';
 import {teamName} from './ato.js';
@@ -1145,7 +1145,15 @@ export function createMap(host, deps) {
     if (!key) { RCK = ''; G.rc.clearLayers(); return; }
     if (RCBUSY) return; RCBUSY = true; RCK = key;
     try {
-      const radars = radarUnits(UL), L = window.L, H = new Map();
+      const radars = radarUnits(UL), L = window.L, H = new Map(), view = deps.getView();
+      // fixed radar stations: their radar features that are not destroyed (state of the campaign); the owner of an untouched station is not in the campaign file: neutral colour
+      try {
+        const td = deps.objects && deps.objects.radars ? await deps.objects.radars() : [];
+        td.forEach(({o, feats}) => {
+          const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'f', seen = new Set();
+          feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
+        });
+      } catch (e) { /* no BMS folder: only the radars of the units */ }
       if (deps.elev && radars.length) {
         const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * 2 * 3280.84, n: j * 2 * 3280.84}));
         const hs = await deps.elev(pts);
@@ -1155,7 +1163,7 @@ export function createMap(host, deps) {
       if (RCK !== key) return;
       G.rc.clearLayers();
       radars.forEach(r => {
-        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.ally ? pal.sam.ally.c : pal.sam.foe.c;
+        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
         L.polygon(poly, {color: c, weight: 1, opacity: .7, fillColor: c, fillOpacity: .12, className: 'rcov', interactive: false}).addTo(G.rc);
       });
     } catch (e) { RCK = ''; } finally { RCBUSY = false; }

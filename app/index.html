@@ -278,7 +278,7 @@ import {parseRunways,runwayLengths} from './js/bmsdata/runways.js';
 import {loadPrefs,savePrefs,loadConfig,saveConfig,pickFile,pickFiles,onFilesDropped,onCloseGuard,pickFolder,saveBlob as saveFile,isDesktop,findFiles,readBytes,detectBms,listDir,join as joinPath,writeBytes,fileExists,makeDir,appDir,readRange,fileSize} from './js/platform/desktop.js';
 import {parseBombDat,parseBombList} from './js/bmsdata/bombdata.js';
 import {parseTheaterValues,heightSpec,heightsAt} from './js/bmsdata/heightmap.js';
-import {parseObjectives,parseOcdCt,parseFcdNames,parseFed,featuresOf,fedPath,ocdPath,phdPath,pdxPath,readTarget,targetLine} from './js/core/targets.js';
+import {parseObjectives,parseOcdCt,parseFcdNames,parseFcdRadar,radarFeatures,parseFed,featuresOf,fedPath,ocdPath,phdPath,pdxPath,readTarget,targetLine} from './js/core/targets.js';
 import {openTargetPicker} from './js/core/targetpicker.js';
 import {parseCt,FILES,OPTIONAL,allNames,pathFor,ENCODING,buildTables,parseTheaterList,parseTdf,theaterDirs,parseAircraftData} from './js/bmsdata/bmsdata.js';
 let CFG=mergeConfig(undefined).config;
@@ -748,7 +748,7 @@ function dtcBtns(){const d=lines.some(l=>l.dirty);[['saveow',!d],['dtcrev',!d]].
 function afterDtc(k,fromPage){dtcBtns();try{wpPage&&wpPage.refresh&&wpPage.refresh()}catch(e){}try{view()}catch(e){}if(fromPage){try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}}
  if(C&&/^(target_9[78]|wpntarget_\d+)$/.test(k)){[['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([kk,fk,lk,dn])=>{const q=G('STPT',kk).split(',').map(x=>x.trim());
   if(q.length>=4&&+q[3]>=0&&(+q[0]||+q[1])){F[fk]=(q[4]&&!/^not set$/i.test(q[4]))?q[4]:dn;F[lk]=CAM.geoLL(C,+q[1]/3280.84,+q[0]/3280.84)}else{F[fk]='';F[lk]=''}});wpnPri();draw()}}
-const mapV=createMap($('mpbody'),{objects:{list:()=>{const d=targetData();return d?d.objectives():Promise.reject(new Error('Needs the BMS install folder (desktop app, Settings).'))},features:o=>targetData().features(o)},attack:()=>{const a=wpPage&&wpPage.spec&&wpPage.spec();if(!a)return null;const ll=p=>mapV.toLL(p.e/3280.84,p.n/3280.84);return{segs:a.segs.map(z=>({color:z.color,dash:z.dash,pts:z.pts.map(ll)})),marks:a.marks.map(m=>({ll:ll(m.p),label:m.label,color:m.color,r:m.r,perm:m.perm}))}},selectFlight:f=>{const e=ATOL.find(z=>z.f===f);if(!e||VIEW!=PLAYER||e.heli)return false;const k=CL.findIndex(x=>x.f===f);if(k<0)return false;$('fsel').value=k;apply(k);return true},getC:()=>C,getWx:()=>WX,elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},getSel:()=>ATOSEL,dtc:{points:()=>dtcPoints(lines),wtargets:()=>wtList(),wtAdd:()=>wtAdd(),wtPut:t=>wtPut(t),elev:async t=>{try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;return h&&h[0]!==null&&h[0]!==undefined?h[0]:0}catch(e){return 0}},wtClear:n=>{S('STPT','wpntarget_'+n,targetLine(null));dtcChanged('STPT','wpntarget_'+n)},fileName:()=>name,dirty:()=>lines.some(l=>l.dirty),open:()=>$('open').click(),overwrite:()=>dtcOverwrite(),revert:()=>dtcRevert(),canOverwrite:()=>!!(DTCF&&DTCF.path),
+const mapV=createMap($('mpbody'),{objects:{list:()=>{const d=targetData();return d?d.objectives():Promise.reject(new Error('Needs the BMS install folder (desktop app, Settings).'))},features:o=>targetData().features(o),radars:()=>{const d=targetData();return d&&d.radars?d.radars():Promise.resolve([])}},attack:()=>{const a=wpPage&&wpPage.spec&&wpPage.spec();if(!a)return null;const ll=p=>mapV.toLL(p.e/3280.84,p.n/3280.84);return{segs:a.segs.map(z=>({color:z.color,dash:z.dash,pts:z.pts.map(ll)})),marks:a.marks.map(m=>({ll:ll(m.p),label:m.label,color:m.color,r:m.r,perm:m.perm}))}},selectFlight:f=>{const e=ATOL.find(z=>z.f===f);if(!e||VIEW!=PLAYER||e.heli)return false;const k=CL.findIndex(x=>x.f===f);if(k<0)return false;$('fsel').value=k;apply(k);return true},getC:()=>C,getWx:()=>WX,elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},getSel:()=>ATOSEL,dtc:{points:()=>dtcPoints(lines),wtargets:()=>wtList(),wtAdd:()=>wtAdd(),wtPut:t=>wtPut(t),elev:async t=>{try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;return h&&h[0]!==null&&h[0]!==undefined?h[0]:0}catch(e){return 0}},wtClear:n=>{S('STPT','wpntarget_'+n,targetLine(null));dtcChanged('STPT','wpntarget_'+n)},fileName:()=>name,dirty:()=>lines.some(l=>l.dirty),open:()=>$('open').click(),overwrite:()=>dtcOverwrite(),revert:()=>dtcRevert(),canOverwrite:()=>!!(DTCF&&DTCF.path),
  set:(g,slot,patch)=>dtcSet(g,slot,patch,false),clear:(g,slot)=>dtcClear(g,slot,false)},
  satCfg:()=>CFG.map,loadPrefs:()=>loadPrefs('mapprefs.json'),savePrefs:o=>savePrefs('mapprefs.json',o),
  localMap:async()=>{if(window.__localMap)return window.__localMap();if(!isDesktop())throw new Error('Only in the desktop app.');const d=CFG.paths.bmsInstall;if(!d)throw new Error('Set the BMS folder in Settings first.');
@@ -779,6 +779,7 @@ async function wtAdd(){const data=targetData();if(!data)return 'noinst';let n=-1
  try{const tr=await terrain();const h=tr?await heightsAt((o,l)=>readRange(tr.path,o,l),tr.spec,[t]):null;if(h&&h[0]!==null&&h[0]!==undefined)t.elv=h[0]}catch(e){}
  S('STPT','wpntarget_'+n,targetLine(t,G('STPT','wpntarget_'+n,'')));dtcChanged('STPT','wpntarget_'+n);return 'ok'}
 const targetData=()=>{if(window.__targetData)return window.__targetData;if(!isDesktop()||!OBJDIR)return null;return TDATA};
+let RADC=null;
 const TDATA={
  dec:b=>new TextDecoder('utf-8').decode(b),
  async ct(){if(OBJC&&OBJC.ct&&OBJC.dir===OBJDIR)return OBJC.ct;return parseCt(this.dec(await readBytes(jp(OBJDIR,'Falcon4_CT.xml'))))},
@@ -786,7 +787,11 @@ const TDATA={
   for(let i=0;i<ocds.length;i+=40)await Promise.all(ocds.slice(i,i+40).map(async n=>{try{const c=parseOcdCt(this.dec(await readBytes(jp(OBJDIR,...ocdPath(n).split('/')))));ty[n]=ct[c]?ct[c][2]:-1}catch(e){ty[n]=-1;bad++;err=err||String(e&&e.message||e)}}));
   list.forEach(o=>o.type=ty[o.ocd]===undefined?-1:ty[o.ocd]);OBJC={dir:OBJDIR,list,ct};list.info=bad?bad+' of '+ocds.length+' objective type files could not be read in '+jp(OBJDIR,'ObjectiveRelatedData')+' ('+err+')':'';return list},
  async features(o){if(!FCDN||FCDN.dir!==OBJDIR)FCDN={dir:OBJDIR,names:parseFcdNames(this.dec(await readBytes(jp(OBJDIR,'Falcon4_FCD.xml'))))};
-  return featuresOf(o,parseFed(this.dec(await readBytes(jp(OBJDIR,...fedPath(o.ocd).split('/'))))),await this.ct(),FCDN.names)}};
+  return featuresOf(o,parseFed(this.dec(await readBytes(jp(OBJDIR,...fedPath(o.ocd).split('/'))))),await this.ct(),FCDN.names)},
+ // fixed radar stations (objective type 21): [{o, feats:[{k,n,e,det}]}] with the radar features of each (FED -> CT -> FCD)
+ async radars(){if(RADC&&RADC.dir===OBJDIR)return RADC.list;const list=(await this.objectives()).filter(o=>o.type==21),ct=await this.ct(),fr=parseFcdRadar(this.dec(await readBytes(jp(OBJDIR,'Falcon4_FCD.xml')))),out=[];
+  for(let i=0;i<list.length;i+=40)await Promise.all(list.slice(i,i+40).map(async o=>{try{const f=radarFeatures(o,parseFed(this.dec(await readBytes(jp(OBJDIR,...fedPath(o.ocd).split('/'))))),ct,fr);if(f.length)out.push({o,feats:f})}catch(e){}}));
+  RADC={dir:OBJDIR,list:out};return out}};
 dtcPage=createDtcPage({elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},nav:$('dnav'),view:$('view'),esc,anim:animOn,lines:()=>lines,G,S,FT_KM,
  points:()=>dtcPoints(lines),route:()=>stpts(),
  routeSet:(n,f,v)=>{const r=stpts().find(z=>z.n==n);if(!r)return;r[f]=v;const p=r.l.v.split(',').map(a=>a.trim());p[0]=r.x;p[1]=r.y;p[2]=(-r.alt).toFixed(6);p[3]=r.t;S('STPT',r.l.k,p.join(', '));dtcChanged('STPT',r.l.k)},
