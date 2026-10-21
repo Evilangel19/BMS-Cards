@@ -7,6 +7,7 @@ dist/
 
 # copies of Falcon BMS data and of other people's files: local only (tests run on the computer of the developer, never in the repository)
 app/js/data/local/
+app/mdc/blank.jpg
 legacy/
 tests/fixtures/
 tests/golden/

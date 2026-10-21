@@ -107,8 +107,7 @@ try:
         pg.click('button[data-t=dtc]'); pg.wait_for_timeout(300)
         pg.click('[data-t=kb]'); pg.wait_for_timeout(500)
         box = pg.locator('#cv').bounding_box(); k = box['width'] / 2048
-        d = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='bv1_0');return {x:d.x+d.w/2,y:d.y0+d.h/2}}")
-        pg.mouse.click(box['x'] + d['x'] / 1584 * box['width'], box['y'] + d['y'] / 1224 * box['height']); pg.wait_for_timeout(300)
+        pg.mouse.click(box['x'] + 1325 * 1.28 * k, box['y'] + 833 * (2048 / 1200) * k); pg.wait_for_timeout(300)
         check('Datacard: a click on a Class cell opens a menu with the aircraft', pg.is_visible('#chm') and pg.locator('#chm button').count() > 10)
         pg.click('#chm button:text-is("F-15C")'); pg.wait_for_timeout(300)
         rowv = pg.evaluate("()=>{const g=t=>{const l=[...document.querySelectorAll('#form label')].find(x=>x.textContent===t);return l?l.parentElement.querySelector('input,select').value:null};return [g('BVR 2 Class'),g('BVR 2 MTR'),g('BVR 2 MAR'),g('BVR 2 DR'),g('BVR 2 DOR')]}")
