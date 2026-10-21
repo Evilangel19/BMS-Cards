@@ -39,7 +39,7 @@ export function findAirports(n, icao, out = []) { if (icaoOf(n.name) == icao && 
 
 export function createDocsPage(deps) {
   const { root, esc } = deps;
-  const S = { tab: 'charts', q: '', open: new Set(), trees: {}, loading: '', cur: null, doc: null, page: 1, zoom: 'w', thumbs: [], err: '' };
+  const S = { tab: 'charts', q: '', open: new Set(), trees: {}, loading: '', cur: null, doc: null, page: 1, zoom: .5, thumbs: [], err: '' };
   let seq = 0, built = false, bytesKey = '';
   const $ = s => root.querySelector(s);
 
@@ -89,7 +89,7 @@ export function createDocsPage(deps) {
   // ---- viewer (right)
   const baseName = () => S.cur ? String(S.cur.name).replace(/\.(pdf|png|jpe?g)$/i, '') : '';
   async function openFile(path, name) {
-    const mine = ++seq; S.cur = { path, name }; S.err = ''; S.page = 1; S.thumbs = []; S.zoom = 'w';
+    const mine = ++seq; S.cur = { path, name }; S.err = ''; S.page = 1; S.thumbs = []; S.zoom = .5;
     if (S.doc) { try { S.doc.destroy(); } catch (e) { /* closed */ } S.doc = null; }
     drawView(); markSel();
     try {

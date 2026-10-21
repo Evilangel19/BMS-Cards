@@ -807,3 +807,9 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 ## v97 - Add-on theater map base and per-theater kneeboard
 - Add-on theaters: the BMS-folder map base (`sky`) reads `Docs\02 Maps\*UI_Map_16K.png/jpg` of the theater; `coast` and `bms` stay Korea-only. The picture is warped assuming it covers the whole 1024 km square (to be checked on a real PC).
 - Kneeboard: one physical card library; each theater remembers its own arrangement and chosen cards (`KBTH`); Load/Set Default use the favorites regardless of theater.
+
+## v98 - Navaids by OCD class, bin deletes files, enemy flights, zoom
+- Navaids: `CampObjData` rows now carry `OcdIndex` (`ob[4]`); `D.navOcd` lists the OCD classes whose `OCD_nnnnn.XML` Name is a beacon ("Air Nav Beacon"); those objectives are navaids even without VOR/DME in the name (icon VOR/DME when the name says nothing).
+- Kneeboard bin: deleting unused cards also removes their files from `cardmemory/cards` (`kbMemSave` removes files not in the library; Tauri permission `fs:allow-remove` only for `**/cardmemory/cards/*`). A card used by another theater's arrangement or by the default (`kbKept`) is kept.
+- Map: clicking an enemy flight icon no longer selects it (no flight plan); only the viewed team and its allies.
+- Docs page: the zoom starts at 50% of the width.

@@ -125,6 +125,7 @@ try:
         check('kneeboard: back in Korea its own cards come back (not those of the Balkans)', pg.evaluate("()=>window.__app.KBS[5].left.kind") == 'empty')
         pg.select_option('#tsel', 'Balkans'); pg.wait_for_timeout(3000)
         check('kneeboard: and the Balkans have theirs again', pg.evaluate("()=>window.__app.KBS[5].left.kind") == 'dcl')
+        check('kneeboard: a card used by another theater is kept when the bin is emptied, a free one is not', pg.evaluate("()=>{const A=window.__app,a={},b={},o=Object.keys(A.KBTH)[0]||'Other';A.KBTH[o]=[{left:{kind:'pic',item:a},right:{kind:'empty'}}];const r=[A.kbKept(a),A.kbKept(b)];delete A.KBTH[o];return r.join()}") == 'true,false')
         pg.select_option('#tsel', 'Korea KTO'); pg.wait_for_timeout(3000)
         check('no page errors', not errs)
         if errs: print(errs[:3])

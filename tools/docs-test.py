@@ -48,6 +48,7 @@ try:
         check('the viewer shows page 1 of 3 on a canvas', pg.locator('#dcpg canvas.dcpage').count() == 1 and '/ 3' in pg.inner_text('#dcview') and pg.input_value('#dcn') == '1')
         check('thumbnails with the chart number of every page', pg.locator('#dcth .dct').count() == 3 and 'RKJK 2 - 5' in pg.inner_text('#dcth'))
         w0 = pg.evaluate("()=>document.querySelector('#dcpg canvas').getBoundingClientRect().width")
+        check('the zoom starts at 50%', pg.inner_text('#dcz') == '50%')
         pg.click('#dcnext'); pg.wait_for_timeout(800); check('next page', pg.input_value('#dcn') == '2')
         pg.click('#dczi'); pg.wait_for_timeout(800)
         w1 = pg.evaluate("()=>document.querySelector('#dcpg canvas').getBoundingClientRect().width"); check('zoom in enlarges the page (%d -> %d)' % (w0, w1), w1 > w0 * 1.2)

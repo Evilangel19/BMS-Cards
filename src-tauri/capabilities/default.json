@@ -59,6 +59,14 @@
       ]
     },
     {
+      "identifier": "fs:allow-remove",
+      "allow": [
+        {
+          "path": "**/cardmemory/cards/*"
+        }
+      ]
+    },
+    {
       "identifier": "fs:allow-mkdir",
       "allow": [
         {

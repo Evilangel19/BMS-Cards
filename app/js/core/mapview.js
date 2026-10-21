@@ -732,7 +732,8 @@ export function createMap(host, deps) {
       if (back.length > 1) L.polyline(back, {color: col, weight: 3, opacity: .85, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
       const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
       L.marker(s.ll, {icon: L.divIcon({className: ally ? 'trk al' : 'trk', html, iconSize: [14, 14]}), zIndexOffset: 500, keyboard: false})
-        .on('click', () => deps.selectFlight && deps.selectFlight(f)).bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);
+        .on('click', () => { if (ally && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
+        .bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);
     });
   }
 
