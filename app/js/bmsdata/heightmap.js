@@ -35,9 +35,20 @@ export async function heightAt(readAt, spec, n, e) {
   return new DataView(b.buffer, b.byteOffset, 2).getInt16(0, true);
 }
 
-// several points, reading the file in the order of the offsets (the same sample is read once)
+// several points. The samples of one row of the grid are read with one call (a span of at most 256 KB), not one call per sample: the radar coverage asks for
+// tens of thousands of points, and every call to the file of a 2 GB theater is an exchange with the desktop app.
 export async function heightsAt(readAt, spec, pts) {
-  const cache = new Map(), out = [];
-  for (const p of pts) { const off = heightOffset(spec, p.n, p.e); if (off === null) { out.push(null); continue; } if (!cache.has(off)) cache.set(off, await heightAt(readAt, spec, p.n, p.e)); out.push(cache.get(off)); }
+  const offs = pts.map(p => heightOffset(spec, p.n, p.e)), out = new Array(pts.length).fill(null), rowB = spec ? spec.side * 2 : 1, rows = new Map(), one = new Map();
+  offs.forEach((o, i) => { if (o === null) return; const r = Math.floor(o / rowB); if (!rows.has(r)) rows.set(r, []); rows.get(r).push(i); });
+  const single = async i => { const o = offs[i]; if (!one.has(o)) { const b = await readAt(o, 2); one.set(o, b && b.length >= 2 ? new DataView(b.buffer, b.byteOffset, 2).getInt16(0, true) : null); } out[i] = one.get(o); };
+  for (const idx of rows.values()) {
+    let lo = Infinity, hi = -1; for (const i of idx) { lo = Math.min(lo, offs[i]); hi = Math.max(hi, offs[i]); }
+    const len = hi - lo + 2;
+    if (idx.length > 1 && len <= 262144) {
+      const b = await readAt(lo, len);
+      if (b && b.length >= len) { const dv = new DataView(b.buffer, b.byteOffset, len); for (const i of idx) out[i] = dv.getInt16(offs[i] - lo, true); continue; }
+    }
+    for (const i of idx) await single(i);
+  }
   return out;
 }

@@ -777,3 +777,39 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Heights: `deps.elev(pts)` (HeightMap.raw of the BMS folder, one sample per cell, cached per layer draw). Without them only the radar horizon limits the range and a message says so.
 - Fixed radar stations (objective type 21): `TDATA.radars()` reads the FED of each (FeatureCtIdx -> CT -> Falcon4_FCD `RadarIdx` / `Det_LowAir`, `parseFcdRadar`, `radarFeatures`: radar > 0 and range >= 30 km) from the BMS install; features destroyed in the campaign are skipped; the owner of an untouched station is not in the campaign file, so those are grey. Needs the BMS install folder.
 - Not covered: air-borne radars (AWACS). Sea / ground clutter, ECM and radar modes are not simulated: an idea of the coverage, not a Falcon calculation.
+
+## v92 — Compatibility checks and first split of index.html
+- Campaign files: `CAM_VER_MAX = 110` (BMS 4.38.1; 109 read on the Korea files, 110 on a Balkans file); a newer file shows a warning when it is opened (`C.ver`).
+- XML tables: `EXPECT` / `missingFields` in `bmsdata.js` list the fields the readers use; `buildTables` returns `changed` and the game-data warning names the file and the missing fields. Checked against the real 4.38.1 tables (no false alarm). Test: `tests/run-layout.mjs`.
+- index.html: `core/dds.js` (DXT1 / DXT5 encoders), `core/widgets.js` (animated select lists and calendar, `initWidgets(animOn)`), `core/targetdata.js` (objectives, features and fixed radars of the BMS install, `createTargetData(io)`; its `io` must pass functions that call `jp` / `readBytes` late, because they are defined further down: a direct reference stopped the whole page at start). What is left in index.html is bound to the shared state (campaign, flights, datacard fields, DTC lines).
+
+## v93 — Tactical Engagement files (.tac)
+- A `.tac` has the container of a `.cam` (same sections: cmp, obd, uni, tea, evt, plt, pst, pol, ver) plus a text section `te` with the teams; `openCam` reads it unchanged (`C.isTe`). The name loses `.cam` / `.tac`. There is no player squadron: `playerTeam` is the first named team of the `te` section (`teTeams`, "---" = unused). Checked on TE_BMS_03_F-16_DEAD (5 flights, read to the last byte, ver 109).
+- UI: a second drop-down `#tesel` ("— select a tactical engagement —") next to the campaign one (`#csel`); both are listed from the same Campaign folder (.cam / .tac; `Save<n>.cam` and `Instant*` stay hidden) and move together to the map bar; `setSel(name)` keeps only one of the two selected. The theater menu is `#tsel` (do not reuse). Companion files (.twx, .iff, .l16.txtpb, .fmap) and the DTC `<name>.ini` use the same name rule as a campaign. Browse opens .cam, .tac and .bcrd. The info line starts with "Tactical Engagement."; the Squadron page says there is no player squadron or campaign record.
+- Tests: `tests/run-te.mjs` (fixtures in `tests/fixtures/te`, not in the repository), `tools/te-test.py` (fake BMS folder, both menus, switching, map bar).
+
+## v94 — Other theaters (Balkans)
+- The campaign records are read with the class table (`Falcon4_CT.xml`) of the theater: with the Korean one the Balkans `.cam` (v110) misreads (the numbering of the classes differs); with its own table all 2079 records are read to the last byte (`tests/run-balkans.mjs`). `loadGameData` takes the tables from the folders of the chosen theater and starts from the initial tables each time (nothing of the previous theater stays). An error while reading a campaign names the selected theater.
+- `theaterDirs`: the folders of an add-on `.tdf` are written in full from the Data folder (`Add-On Balkans\Campaign`): the add-on folder is added only if it is missing.
+- Map position: `rules/geo.js` keeps the centre of the theater (`setGeo(lat, lon)`, `getGeo()`; Korea 38.5 N 127.5 E by default, campaign km 512,512 = centre) read from `Theater.txt` (`parseTheaterTxt`: name, size in km, map pixels, centre). `mapdata.theaterBounds()` replaces the constant. Without `Theater.txt` a theater other than Korea shows a warning (positions would be Korean).
+- `.fmap`: the number of 4-byte arrays after the winds is taken from the file size: 7 (version 8, Korea) or 5 (version 5, Balkans, no shower cumulus, no fog layer altitude; those two fields read as 0).
+- Map tab: coastlines (offline), official map and folder map are Korea-only and are hidden for other theaters (satellite, topographic or a custom picture); `mapV.theaterChanged()` places the pictures again and moves the view.
+- Tests: `tests/run-balkans.mjs` (fixtures `tests/fixtures/balkans`: `prova.cam`, `FALCON4_CT.xml`, `10900.fmap`, `Theater.txt`, not in the repository), `tests/run-theaters.mjs`, `tools/theater-test.py` (fake BMS folder with Korea and Balkans).
+
+## v95 — Radar coverage on the real heights file
+- `heightsAt` reads the samples of one row of the grid with one call (span up to 256 KB) instead of one call per sample: the radar coverage asks for tens of thousands of points and each call to the 2 GB `HeightMap.raw` goes through the desktop app (it looked as if the filter showed nothing: it was still reading). The map shows "Radar coverage: reading the terrain heights…" meanwhile; an error is shown once as a message and is not retried in a loop.
+
+## v96 — Add-on theater files are not taken from Korea
+- For an add-on theater (its `.tdf` lives in its own folder) the files that carry campaign numbers or places (`CampObjData.XML`, `Stations+Ils.dat`, `Airbase.lst` and its ATC files, `KTO_AIP.pdf`, `RadioMap.dat`, `Ppt.ini`) are searched only in the folders of the theater (3 levels deep) and never in the rest of the BMS folder: the global search found the Korean ones, whose numbers match other places (the Balkans bases got Korean ATC files and no runway size). What is missing is reported in the game-data warning.
+- Weather page: `resetView()` forgets the kept map bounds when the theater changes (it showed the previous theater). Docs charts: the folder scan budget is 60,000 entries (the Balkans have thousands of charts).
+- Docs charts can be PNG / JPG pictures (the Balkans charts are PNG): they are listed with the PDFs of the chart folders, opened as a one-page document (`S.doc.img`) and added to the cards as they are. Manuals stay PDF only.
+
+## v97 - Add-on theater map base and per-theater kneeboard
+- Add-on theaters: the BMS-folder map base (`sky`) reads `Docs\02 Maps\*UI_Map_16K.png/jpg` of the theater; `coast` and `bms` stay Korea-only. The picture is warped assuming it covers the whole 1024 km square (to be checked on a real PC).
+- Kneeboard: one physical card library; each theater remembers its own arrangement and chosen cards (`KBTH`); Load/Set Default use the favorites regardless of theater.
+
+## v98 - Navaids by OCD class, bin deletes files, enemy flights, zoom
+- Navaids: `CampObjData` rows now carry `OcdIndex` (`ob[4]`); `D.navOcd` lists the OCD classes whose `OCD_nnnnn.XML` Name is a beacon ("Air Nav Beacon"); those objectives are navaids even without VOR/DME in the name (icon VOR/DME when the name says nothing).
+- Kneeboard bin: deleting unused cards also removes their files from `cardmemory/cards` (`kbMemSave` removes files not in the library; Tauri permission `fs:allow-remove` only for `**/cardmemory/cards/*`). A card used by another theater's arrangement or by the default (`kbKept`) is kept.
+- Map: clicking an enemy flight icon no longer selects it (no flight plan); only the viewed team and its allies.
+- Docs page: the zoom starts at 50% of the width.

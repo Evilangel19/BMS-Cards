@@ -74,11 +74,13 @@ export const objOwners=E=>objDeltas(E).own;
 export const featState=v=>v===0||v===6?0:v>=3&&v<=5?2:1;
 export function objState(st){if(!st||!st.length)return 0;let d=0,x=0;for(const v of st){const s=featState(v);if(s)d++;if(s==2)x++}return !d?0:x==st.length?2:1}
 // highest campaign file version this reader was checked against (BMS 4.38.1 writes 109); a newer file may carry fields read wrongly
-export const CAM_VER_MAX=109;
+export const CAM_VER_MAX=110;
+// Tactical Engagement files (.tac) are campaign files with one more section, "te" (text): the teams of the engagement. Teams that have a name (not "---"): [{n, name}]; the first one is the player's side
+export function teTeams(u8){const t=new TextDecoder('latin1').decode(u8),o=[],re=/:Team\r?\n(\d+)[^\n]*\n:TeamName\r?\n([^\r\n]*)/g;let m;while((m=re.exec(t))){const nm=m[2].trim();if(nm&&nm!=='---')o.push({n:+m[1],name:nm})}return o}
 export function openCam(u8,D,name){const E=camToc(u8),OD=objDeltas(E),ver=+new TextDecoder().decode(E.ver);
  const ct=D.ct.map(a=>a?{d:a[0],k:a[1],t:a[2],e:a[3],i:a[4]}:null);const pu=parseUni(E.uni,ver,ct),units=pu.units,m={},byN={};units.forEach(x=>{m[x.id.n+':'+x.id.c]=x;if(!byN[x.id.n])byN[x.id.n]=x});
  const byId=new Proxy(m,{get:(t,k)=>t[k]!==undefined?t[k]:(typeof k=='string'&&k.includes(':')?byN[k.split(':')[0]]:undefined)});
  let bull=null,playerSq=null,now=null;try{if(E.cmp){const b=E.cmp,h=new DataView(b.buffer,b.byteOffset,b.byteLength);now=new DataView(lzExpand(b.subarray(8),h.getUint32(4,true)).buffer).getUint32(0,true)}}catch(e){}try{if(ver>=52){const b=E.cmp,h=new DataView(b.buffer,b.byteOffset,b.byteLength),r=lzExpand(b.subarray(8),h.getUint32(4,true)),d=new DataView(r.buffer);bull={x:d.getInt16(1946,true),y:d.getInt16(1948,true)};playerSq=d.getUint32(2110,true)}}catch(e){}
- const ps=playerSq&&units.find(x=>x.kind=='sqd'&&x.id.n==playerSq),playerTeam=ps?ps.owner:null;
+ const ps=playerSq&&units.find(x=>x.kind=='sqd'&&x.id.n==playerSq),te=E.te?teTeams(E.te):null,playerTeam=ps?ps.owner:(te&&te.length?te[0].n:null);
  let stance=null,squads={};try{stance=teamStances(E.tea,ver)}catch(e){}try{squads=squadNames(E,ver)}catch(e){}
- return{ver,units,byId,D,bull,now,playerSq,playerTeam,stance,squads,objOwn:OD.own,objFeat:OD.feat,parse:{num:pu.num,count:units.length,end:pu.end,len:pu.len},name:(name||'').replace(/\.cam$/i,'')}}
+ return{ver,isTe:!!E.te,units,byId,D,bull,now,playerSq,playerTeam,stance,squads,objOwn:OD.own,objFeat:OD.feat,parse:{num:pu.num,count:units.length,end:pu.end,len:pu.len},name:(name||'').replace(/\.(cam|tac)$/i,'')}}

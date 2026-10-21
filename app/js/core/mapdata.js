@@ -1,6 +1,6 @@
 // Map page data: converts campaign grid coordinates (km, x = east, y = north, origin 512/512 at the theater
 // center) to latitude/longitude and builds the point/line sets the map layers draw. Pure functions, no DOM.
-import {tmInv, tmFwd} from '../rules/geo.js';
+import {tmInv, tmFwd, getGeo} from '../rules/geo.js';
 import {ord} from './flight.js';
 import {clean} from './flight.js';
 
@@ -24,7 +24,8 @@ export function fmtLL(lat, lon) {
 // Airbases of the theater: [{id, name, ll, kind, sub}] kind: 'ab' airbase, 'nav' navaid (sub: vortac / tacan / vor / vordme / dme / ndb), 'ship' carrier start spot
 const NAV = /\b(VOR|VORTAC|TACAN|NDB|DME)\b/, SHIP = /^(USS|TAKR|CV-|CVN|LHD|LHA|HMS|JS )/;
 export function mapAirbases(D) {
-  return D.ob.filter(o => D.ab[o[0]]).map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : ''}));
+  const nb = D.navOcd || [];   // objective classes named like a navigation beacon in the OCD file ("Air Nav Beacon")
+  return D.ob.filter(o => D.ab[o[0]]).map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : nb.includes(o[4]) ? 'vordme' : ''}));
 }
 
 // Team that owns an airbase (objective id), or null when the campaign file does not say: the owner recorded in the objective deltas,
@@ -44,7 +45,12 @@ export function flightRoute(C, f) {
 }
 
 // Bounds of the whole theater, [[south, west], [north, east]]
-export const THEATER_BOUNDS = [[32, 121], [43.5, 133.5]];
+export const theaterBounds = () => {
+  const g = getGeo();
+  if (g.lat === 38.5 && g.lon === 127.5) return [[32, 121], [43.5, 133.5]];
+  const c = [[0, 0], [0, 1024], [1024, 0], [1024, 1024]].map(([x, y]) => toLL(x, y)), la = c.map(q => q[0]), lo = c.map(q => q[1]);
+  return [[Math.min(...la) - 0.3, Math.min(...lo) - 0.3], [Math.max(...la) + 0.3, Math.max(...lo) + 0.3]];
+};
 
 // ---- units, SAM rings, flights at a given time ---------------------------------------------
 // Same rule as the ATO: teams are friends when their stance (either direction) is 1 or 2.

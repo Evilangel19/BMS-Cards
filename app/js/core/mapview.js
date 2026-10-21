@@ -5,7 +5,8 @@ import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import {objState, featState} from '../parsers/cam.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
-import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, THEATER_BOUNDS} from './mapdata.js';
+import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
+import {getGeo} from '../rules/geo.js';
 import {warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame} from './mapwarp.js';
 import {unitSymbol, placeIcon} from './mapsymbols.js';
 import {teamName} from './ato.js';
@@ -14,12 +15,16 @@ import {actName, hms, els0, nearAb, opWin} from './flight.js';
 
 export const BMS_MAP_URL = 'https://cdn.falcon-bms.com/maps/04_KTO/maps/KTO_UI_Map_6k.jpeg';
 const COAST = {dark: {sea: '#0d1b2a', land: '#27323d', coast: '#56687a', border: '#8b98a8', river: '#3f78ad'}, light: {sea: '#cde2f0', land: '#f2efe4', coast: '#7d8a96', border: '#6b7580', river: '#3a86c4'}};
+// The coastlines (offline) and the official map are pictures of Korea: other theaters use the map picture of their Docs folder, the satellite, the topographic map or a picture of their own.
+const KOREA_ONLY = ['coast', 'bms'];   // the picture of the BMS folder (sky) exists for every theater that has one in its Docs\\ ... Maps folder
+const isKorea = () => { const g = getGeo(); return g.lat === 38.5 && g.lon === 127.5; };
+const baseOk = k => isKorea() || !KOREA_ONLY.includes(k);
 const BASES = {
   coast: {label: 'Coastlines (offline)'},
   sat: {label: 'Satellite (online)', url: 'https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg',
     attr: '<a href="https://s2maps.eu" target="_blank">Sentinel-2 cloudless</a> by EOX IT Services GmbH (contains modified Copernicus Sentinel data 2021), CC BY-NC-SA 4.0'},
   bms: {label: 'BMS map (official, online)', attr: 'Map picture © <a href="https://www.falcon-bms.com" target="_blank">Falcon BMS</a> (Benchmark Sims), loaded from the official BMS maps server'},
-  sky: {label: 'BMS folder map (Skyvector, offline)', attr: 'Map picture from the Falcon BMS folder (Docs\\05 Maps)'},
+  sky: {label: 'BMS folder map (offline)', attr: 'Map picture from the Falcon BMS folder (Docs, Maps folder)'},
   topo: {label: 'Topographic (online)', url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', sub: 'abc',
     attr: 'Map data © <a href="https://openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors, SRTM | Style © <a href="https://opentopomap.org" target="_blank">OpenTopoMap</a> (CC-BY-SA)'},
   img: {label: 'Custom', attr: 'Custom map picture'}};
@@ -33,7 +38,7 @@ export const MAP_LAYERS = [
   ['sf', 'Friendly SAM range', false, 'SAM range'], ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
-  ['rc', 'Radar coverage at 5,000 ft (approximate)', false, 'Display'],
+  ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
@@ -136,7 +141,7 @@ export function createMap(host, deps) {
     G.coastD = mkCoast(COAST.dark); G.coastL = mkCoast(COAST.light); G.coast = G.coastD;
     MAP_LAYERS.forEach(([k]) => G[k] = L.layerGroup());
     G.su = L.layerGroup().addTo(map);   // SAM units: shown with their unit layer or with their range layer
-    map.fitBounds(PREF.view ? PREF.view.b : THEATER_BOUNDS);
+    map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
     map.on('moveend', () => { placeLabels(); const b = map.getBounds(); PREF.view = {b: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; persist(); });
     const zc = () => { const z = map.getZoom(); host.classList.toggle('zlo', z < 8); host.classList.toggle('zmid', z >= 8 && z < 9.5); };
     map.on('zoomend', zc); zc();
@@ -204,6 +209,10 @@ export function createMap(host, deps) {
     }).join('');
     const sb = el.querySelector('.mpsb[data-sec="SAM range"]');   // transparency of the colour inside the SAM unit rings
     if (sb) { sb.insertAdjacentHTML('beforeend', `<label class="mpr" title="Colour inside the SAM rings of the units: 0 = transparent"><span class="lt">Ring fill</span><input type="range" id="mpfill" min="0" max="60" value="${st.on.ringfill == null ? 8 : st.on.ringfill}" style="flex:1;min-width:0"></label>`); $('mpfill').oninput = () => { st.on.ringfill = +$('mpfill').value; save(); sams(deps.getC(), deps.getSel()); DT.forEach(e => e.it.group == 'ppt' && e.ring && e.ring.setStyle({fillOpacity: st.on.ringfill / 100})); }; }
+    const rcRow = el.querySelector('input[data-k=rc]');   // altitude of the radar coverage
+    if (rcRow) { const lab = rcRow.closest('label') || rcRow.parentElement; lab.insertAdjacentHTML('afterend', `<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>`);
+      const lab2 = () => { $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft'; }; lab2();
+      $('mprca').oninput = () => { st.on.rcalt = RC_LEVELS[+$('mprca').value]; save(); lab2(); if (st.on.rc) radarCov(); }; }
     el.querySelectorAll('.mps').forEach(h => h.onclick = () => toggleSec(h));
     el.querySelectorAll('input.mst').forEach(i => { i.onclick = e => e.stopPropagation(); i.onchange = () => setLayers(secKeys(i.dataset.sec), i.checked); });
     el.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked;
@@ -220,13 +229,13 @@ export function createMap(host, deps) {
   }
   // The levels (base maps) have their own menu (top left of the map, next to the zoom buttons). Opens downward from its button.
   function baseMenu() {
-    const m = $('mpbase');
-    m.innerHTML = Object.entries(BASES).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${baseDef(k).label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
+    const m = $('mpbase'); if (!baseOk(st.base)) st.base = 'sat';
+    m.innerHTML = Object.entries(BASES).filter(([k]) => baseOk(k)).map(([k, b]) => `<label class="mpr"><input type="radio" name="mpbase" value="${k}"${st.base == k ? ' checked' : ''}> ${baseDef(k).label}</label>` + (k == 'coast' ? `<label class="mpr sub" id="mpcl" style="${st.base == 'coast' ? '' : 'display:none'}"><input type="checkbox" id="mpcll"${st.cl ? ' checked' : ''}> Light version</label>` : '') + (k == 'img' ? `<div id="mpimg" class="mpi" style="${st.base == 'img' ? '' : 'display:none'}"><button class="btn g" id="mpimp">${imgName ? 'Replace picture…' : 'Import picture…'}</button><div class="hint" id="mpimn">${imgName ? deps.esc(imgName) : 'Your own map picture (same area as the official BMS map).'}</div></div>` : '')).join('');
     // opacity of the base map (pictures, tiles, coastlines): the data stay as they are
     m.insertAdjacentHTML('beforeend', `<label class="mpr" title="Opacity of the base map: 0 = only the flat background"><span class="lt">Map opacity</span><input type="range" id="mpbgo" min="0" max="100" value="${st.on.bgop == null ? 100 : st.on.bgop}" style="flex:1;min-width:0"></label>`);
     $('mpbgo').oninput = () => { st.on.bgop = +$('mpbgo').value; save(); bgOp(); }; bgOp();
-    m.querySelectorAll('input[name=mpbase]').forEach(i => i.onchange = () => { st.base = i.value; $('mpimg').style.display = st.base == 'img' ? '' : 'none'; $('mpcl').style.display = st.base == 'coast' ? '' : 'none'; save(); setBase(); if (st.base != 'img' && st.base != 'coast') baseSet(false, true); });   // the menu closes after a choice (not for the imported picture: its button is in the menu)
-    $('mpcll').onchange = () => { st.cl = $('mpcll').checked; save(); setBase(); };
+    m.querySelectorAll('input[name=mpbase]').forEach(i => i.onchange = () => { st.base = i.value; $('mpimg').style.display = st.base == 'img' ? '' : 'none'; if ($('mpcl')) $('mpcl').style.display = st.base == 'coast' ? '' : 'none'; save(); setBase(); if (st.base != 'img' && st.base != 'coast') baseSet(false, true); });   // the menu closes after a choice (not for the imported picture: its button is in the menu)
+    if ($('mpcll')) $('mpcll').onchange = () => { st.cl = $('mpcll').checked; save(); setBase(); };
     $('mpimp').onclick = () => $('mpfile').click();
     $('mpfile').onchange = async () => {
       const f = $('mpfile').files[0]; $('mpfile').value = ''; if (!f) return;
@@ -557,6 +566,7 @@ export function createMap(host, deps) {
   async function setBase() {
     if (!map) return;
     const L = window.L, tok = ++baseTok;
+    if (!baseOk(st.base)) st.base = 'sat';
     if (TL) { map.removeLayer(TL); TL = null; }
     if (OV) { map.removeLayer(OV); OV = null; }
     map.removeLayer(G.coastD); map.removeLayer(G.coastL); G.coast = st.cl ? G.coastL : G.coastD; note('');
@@ -722,7 +732,8 @@ export function createMap(host, deps) {
       if (back.length > 1) L.polyline(back, {color: col, weight: 3, opacity: .85, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
       const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
       L.marker(s.ll, {icon: L.divIcon({className: ally ? 'trk al' : 'trk', html, iconSize: [14, 14]}), zIndexOffset: 500, keyboard: false})
-        .on('click', () => deps.selectFlight && deps.selectFlight(f)).bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);
+        .on('click', () => { if (ally && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
+        .bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);
     });
   }
 
@@ -1136,26 +1147,30 @@ export function createMap(host, deps) {
   // redraw the data layers for the campaign / selected flight / faction
   // RADAR COVERAGE at 5,000 ft (approximate): the spotted radars (ground / naval units with a long detection range) with the terrain hiding what is below the line of
   // sight (radarcov.js). Heights come from the HeightMap.raw of the BMS folder (deps.elev); without it only the radar horizon limits the range.
-  const RC_ALT = 5000;
+  const RC_LEVELS = [1000, 2500, 5000, 10000, 20000], rcAlt = () => RC_LEVELS.includes(st.on.rcalt) ? st.on.rcalt : 5000;
+  const RC_IDS = new WeakMap(); let rcSeq = 0; const rcId = C => { if (!RC_IDS.has(C)) RC_IDS.set(C, ++rcSeq); return RC_IDS.get(C); };
   let RCK = '', RCBUSY = false, RCNOTE = false;
   async function radarCov() {
     if (!map || !G.rc) return;
-    const C = deps.getC(), key = !st.on.rc || !C ? '' : (C.name || '') + '|' + UL.length + '|' + (curView == null ? '' : curView) + '|' + (pal === PAL.dark ? 'd' : 'l');
+    const C = deps.getC(), alive = C ? radarUnits(UL).filter(r => !r.ally) : [];
+    // the key: the campaign file (each opening is a new one), the team seen, the radars still alive (position and range), the altitude, the colours
+    const key = !st.on.rc || !C ? '' : rcId(C) + '|' + (curView == null ? '' : curView) + '|' + rcAlt() + '|' + (pal === PAL.dark ? 'd' : 'l') + '|' + alive.map(r => Math.round(r.x) + ',' + Math.round(r.y) + ',' + r.rng).join(';');
     if (key === RCK && key !== '' || (key === '' && !RCK)) return;
     if (!key) { RCK = ''; G.rc.clearLayers(); return; }
     if (RCBUSY) return; RCBUSY = true; RCK = key;
     try {
-      const radars = radarUnits(UL), L = window.L, H = new Map(), view = deps.getView();
+      const radars = alive.slice(), L = window.L, H = new Map(), view = deps.getView();   // the radars of the allies (and of the team seen) are not drawn
       // fixed radar stations: their radar features that are not destroyed (state of the campaign); the owner of an untouched station is not in the campaign file: neutral colour
       try {
         const td = deps.objects && deps.objects.radars ? await deps.objects.radars() : [];
         td.forEach(({o, feats}) => {
           const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'f', seen = new Set();
-          feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
+          if (side == 'a') return; feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
         });
       } catch (e) { /* no BMS folder: only the radars of the units */ }
       if (deps.elev && radars.length) {
         const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * CELL_KM * 3280.84, n: j * CELL_KM * 3280.84}));
+        note('Radar coverage: reading the terrain heights…', -1);
         let hs = null; try { hs = await deps.elev(pts); } catch (e) { hs = null; }
         if (hs) cells.forEach(([i, j], k) => H.set(i + ',' + j, hs[k] || 0));
         else if (!RCNOTE) { RCNOTE = true; toast('Radar coverage: terrain heights need the BMS install folder (desktop app, Settings); only the radar horizon is used.', true); }
@@ -1163,10 +1178,10 @@ export function createMap(host, deps) {
       if (RCK !== key) return;
       G.rc.clearLayers();
       radars.forEach(r => {
-        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, RC_ALT).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
+        const poly = coverage(r, (i, j) => H.get(i + ',' + j) || 0, rcAlt()).map(p => toLL(p[0], p[1])), c = r.side == 'n' ? '#9aa4b2' : r.ally || r.side == 'a' ? pal.sam.ally.c : pal.sam.foe.c;
         L.polygon(poly, {color: c, weight: 1, opacity: .7, fillColor: c, fillOpacity: .12, className: 'rcov', interactive: false}).addTo(G.rc);
       });
-    } catch (e) { RCK = ''; } finally { RCBUSY = false; if (st.on.rc && RCK !== key) radarCov(); }
+    } catch (e) { RCK = key; toast('Radar coverage could not be drawn: ' + (e && e.message || e), true); } finally { RCBUSY = false; note(''); if (st.on.rc && RCK !== key) radarCov(); }
   }
   function refresh() {
     if (!map) return;
@@ -1211,6 +1226,8 @@ export function createMap(host, deps) {
     setTanks: a => { PENDTK = a; if (map) { mergeTanks(); dtc(); sync(); } },
     detach: () => detach(), toggleEdit: () => setEdit(!EDIT), isEdit: () => EDIT, cyclePlan, planMode: () => PLANMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
+    // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
+    theaterChanged: () => { OVC = {imgBlob: OVC.imgBlob}; PREF.view = null; if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } map.fitBounds(theaterBounds()); setBase(); refresh(); },
     rebase: () => { if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } if (st.base == 'sat') setBase(); },
     underlay: () => { const c = OV && OV._url; if (!c || !c.getContext || !OV.getBounds) return null; const b = OV.getBounds(); return {canvas: c, bounds: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; }
   };

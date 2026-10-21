@@ -131,6 +131,7 @@ export async function readRange(path, offset, len) {
 export async function fileSize(path) { return (await T().fs.stat(path)).size; }
 
 export async function writeBytes(path, bytes) { await T().fs.writeFile(path, bytes); }
+export async function removeFile(path) { try { await T().fs.remove(path); } catch (e) { /* already gone */ } }
 export async function fileExists(path) { try { return !!(await T().fs.exists(path)); } catch (e) { return false; } }
 export async function makeDir(path) { try { await T().fs.mkdir(path, { recursive: true }); } catch (e) { /* exists */ } }
 

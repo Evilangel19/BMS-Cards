@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { objState } from '../app/js/parsers/cam.js';
 import { CAM } from '../app/js/core/cam-core.js';
-import { frontLine, toLL, fmtLL, mapAirbases, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, spottedBy, airbaseSide, distToRoute, crossesRoute, THEATER_BOUNDS } from '../app/js/core/mapdata.js';
+import { frontLine, toLL, fmtLL, mapAirbases, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, spottedBy, airbaseSide, distToRoute, crossesRoute, theaterBounds } from '../app/js/core/mapdata.js';
 import { warpFrame, affine, BMS_EXTENT } from '../app/js/core/mapwarp.js';
 import { unitSymbol, glyphOf, placeIcon } from '../app/js/core/mapsymbols.js';
 import { dtcPoints, dtcValue, dtcKey, dtcEmpty, freeSlot, dtcLines, parseLL, FT_KM, lineOf } from '../app/js/core/mapdtc.js';
@@ -22,7 +22,7 @@ ck('Seoul AB lat/lon', seoul && near(seoul.ll[0], 37.44, 0.08) && near(seoul.ll[
 ck('navaid kinds', abs.some(a => a.sub == 'vor') && abs.some(a => a.sub == 'vortac') && abs.every(a => a.kind != 'nav' || a.sub));
 ck('navaids and ships are told apart', abs.some(a => a.kind == 'nav' && /VOR|TACAN/.test(a.name)) && abs.some(a => a.kind == 'ship') && find(/^Osan$/).kind == 'ab');
 ck('theater center is the projection origin', near(toLL(512, 512)[0], 38.5, 0.001) && near(toLL(512, 512)[1], 127.5, 0.001));
-ck('all airbases inside the theater bounds', abs.length > 30 && abs.filter(a => a.kind != 'ship').every(a => a.ll[0] > THEATER_BOUNDS[0][0] && a.ll[0] < THEATER_BOUNDS[1][0] && a.ll[1] > THEATER_BOUNDS[0][1] && a.ll[1] < THEATER_BOUNDS[1][1]));
+ck('all airbases inside the theater bounds', abs.length > 30 && abs.filter(a => a.kind != 'ship').every(a => a.ll[0] > theaterBounds()[0][0] && a.ll[0] < theaterBounds()[1][0] && a.ll[1] > theaterBounds()[0][1] && a.ll[1] < theaterBounds()[1][1]));
 ck('coordinate format', fmtLL(37.0833, 127.0167) === "N 37° 04.998'  E 127° 01.002'" || fmtLL(37.0833, 127.0167).startsWith('N 37° 04.99'));
 ck('south/west signs', fmtLL(-5.5, -10.25).startsWith('S 05° 30.000') && fmtLL(-5.5, -10.25).includes('W 010° 15.000'));
 ck('offline base map has land and borders', basemap.land.length > 50 && basemap.borders.length >= 1);
@@ -109,6 +109,8 @@ ck('SAM crossing: range circle touching a leg', crossesRoute(rt, 50, 40, 41) && 
   ck('no [STPT] section: no points', dtcPoints(parseDtc('[EWS]\r\na=1\r\n')) === null);
 }
 {
+  { const D = {ob: [[7, 'Chioggia', 1, 1, 10], [8, 'Aviano', 2, 2, 3]], ab: {7: [], 8: []}, navOcd: [10]}; const m = mapAirbases(D);
+    ck('objective of a beacon class (OCD name) is a navaid even without VOR in its name', m[0].kind == 'nav' && m[1].kind == 'ab'); }
   const subs = new Set(mapAirbases(CAM.D).map(a => a.sub)); ck('navaid sub types incl. TACAN (own icon, not VORTAC)', subs.has('tacan') && subs.has('vortac') && subs.has('vor'));
   ck('NDB icon: dotted rings; TACAN icon: three-lobed outline', placeIcon('nav', 'ndb').html.includes('class="dr"') && placeIcon('nav', 'tacan').html.includes('M1.5 8.6') && placeIcon('ab', '', '#3ddc84').html.includes('--c:#3ddc84'));
   const C0 = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))), CAM.D, 'x.cam');

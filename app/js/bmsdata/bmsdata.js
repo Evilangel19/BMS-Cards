@@ -14,6 +14,16 @@ export const FILES = {
   rack: 'BmsRack.dat',    // pylons and racks of every station (their weight and drag count in the loadout)
 };
 export const OPTIONAL = new Set();
+// Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 (a newer BMS may have changed it)
+export const EXPECT = {
+  ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
+  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir'],
+  vcd: ['Name', 'CtIdx'],
+  wcd: ['Name', 'CtIdx', 'Weight', 'Drag', 'Strength', 'Flags'],
+  ocd: ['CampName', 'OcdIndex', 'PositionX', 'PositionY'],
+};
+// names of the expected fields that the first part of an XML text does not contain
+export const missingFields = (key, text) => { const head = String(text).slice(0, 400000); return (EXPECT[key] || []).filter(f => !head.includes('<' + f + '>')); };
 // Other spellings of a file name (e.g. when a file was renamed by a download).
 export const ALIASES = { ils: ['Stations_Ils.dat'] };
 export const allNames = () => Object.entries(FILES).flatMap(([k, n]) => [n, ...(ALIASES[k] || [])]);
@@ -85,7 +95,7 @@ export function parseWeaponNames(wcdXml) {
 export function parseCampObjects(xml) {
   const r = n => Math.round(n / 3280.84 * 100) / 100;
   return [...xml.matchAll(/<CampObj CampId="(\d+)">([\s\S]*?)<\/CampObj>/g)]
-    .map(m => [+m[1], tag(m[2], 'CampName'), r(+tag(m[2], 'PositionY')), r(+tag(m[2], 'PositionX'))]);
+    .map(m => [+m[1], tag(m[2], 'CampName'), r(+tag(m[2], 'PositionY')), r(+tag(m[2], 'PositionX')), +tag(m[2], 'OcdIndex')]);
 }
 
 // Pilot names: Strings 2301..3099 -> array (index = pilot id - 1)
@@ -205,11 +215,11 @@ export function parseUnitInfo(ucdXml) {
 }
 
 export async function buildTables(readText) {
-  const t = {}, found = [], missing = [], errors = [];
+  const t = {}, found = [], missing = [], errors = [], changed = [];
   const get = async k => {
     const x = await readText(k);
     if (x == null) { if (!OPTIONAL.has(k)) missing.push(FILES[k]); return null; }
-    found.push(FILES[k]); return x;
+    found.push(FILES[k]); const mf = missingFields(k, x); if (mf.length) changed.push(FILES[k] + ': ' + mf.join(', ')); return x;
   };
   const run = (name, fn) => { try { const v = fn(); if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) t[name] = v; else errors.push(name + ': empty result'); } catch (e) { errors.push(name + ': ' + e.message); } };
   const x = {};
@@ -228,7 +238,7 @@ export async function buildTables(readText) {
   if (x.rack && x.wcd) run('rk', () => parseRacks(x.rack, x.wcd));
   if (x.ils) run('ab', () => parseStationsIls(x.ils));
   if (x.ppt) run('ppt', () => parsePpt(x.ppt));
-  return { tables: t, found, missing, errors };
+  return { tables: t, found, missing, errors, changed };
 }
 
 // ---- Theaters -------------------------------------------------------------------------------
@@ -248,13 +258,23 @@ export function parseTdf(text) {
   return t;
 }
 
+// Theater.txt (terrain folder): "key=value" lines: size in km, map size in pixels, centre latitude / longitude of the theater.
+export function parseTheaterTxt(text) {
+  const t = {};
+  for (const l of String(text).split(/\r?\n/)) { const m = l.match(/^\s*([^=#]+?)\s*=\s*(.*?)\s*$/); if (m) t[m[1].toLowerCase()] = m[2]; }
+  const n = k => { const v = parseFloat(t[k]); return isFinite(v) ? v : null; };
+  const r = { name: t['theater name'] || '', sizeKm: n('theater size in km'), mapPx: n('map size in pixels'), lat: n('center latitude'), lon: n('center longitude') };
+  return r.lat != null && r.lon != null ? r : null;
+}
+
 const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);
 
 // Folders of a theater, as path parts relative to the Data folder.
 // `entry` is the path from Theater.lst; the theater's own folder is what comes before its "TerrData" folder.
 export function theaterDirs(entry, tdf) {
   const e = parts(entry), i = e.findIndex(x => x.toLowerCase() === 'terrdata'), base = i > 0 ? e.slice(0, i) : [];
-  const rel = v => (v ? [...base, ...parts(v)] : null);
+  // the folders of an add-on theater are written in full from the Data folder ("Add-On Balkans\\Campaign"): the base is added only when it is not there already
+  const rel = v => { if (!v) return null; const p = parts(v); return base.length && base.every((b, i) => (p[i] || '').toLowerCase() === b.toLowerCase()) ? p : [...base, ...p]; };
   return { name: tdf.name || e[e.length - 1].replace(/\.tdf$/i, ''), base, campaign: rel(tdf.campaigndir || 'Campaign'), sim: rel(tdf.simdatadir || 'Sim'),
-    objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), tdfEntry: entry };
+    objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), newterrain: rel(tdf.newterraindir), docs: base.length ? [...base, 'Docs'] : null, tdfEntry: entry };
 }
