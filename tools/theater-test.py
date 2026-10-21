@@ -16,7 +16,12 @@ put('Data/TerrData/TheaterDefinition/Korea KTO.tdf', 'name Korea KTO\ncampaigndi
 put('Data/Add-On Balkans/Terrdata/theaterdefinition/Balkans.tdf', 'name Balkans\ncampaigndir Add-On Balkans\\Campaign\nterraindir Add-On Balkans\\Terrdata\\Balkans\nobjectdir Add-On Balkans\\Terrdata\\objects\nnewterraindir Add-On Balkans\\TerrData\\Balkans\\NewTerrain\n')
 put('Data/Add-On Balkans/Terrdata/objects/FALCON4_CT.xml', src=os.path.join(FX, 'FALCON4_CT.xml'))
 put('Data/Add-On Balkans/Terrdata/Balkans/NewTerrain/Theater.txt', src=os.path.join(FX, 'Theater.txt'))   # as in the game: in NewTerrain
-put('Data/Add-On Balkans/Docs/01 Balkans Charts/NATO/Asiago (LIDA)/Asiago (LIDA) - ILS.pdf', 'x')
+import zlib, struct
+def png(w=40, h=30):
+    raw = b''.join(b'\x00' + bytes([200, 220, 255]) * w for _ in range(h))
+    ch = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return b'\x89PNG\r\n\x1a\n' + ch(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + ch(b'IDAT', zlib.compress(raw)) + ch(b'IEND', b'')
+_p = os.path.join(BMS, 'Data/Add-On Balkans/Docs/01 Balkans Charts/NATO/Asiago (LIDA)/Asiago (LIDA) Parking Chart RWY08.png'); os.makedirs(os.path.dirname(_p), exist_ok=True); open(_p, 'wb').write(png())
 put('Docs/03 KTO Charts/Gunsan AB (RKJK)/Gunsan AB (RKJK) - ILS.pdf', 'x')
 put('Data/Add-On Balkans/Campaign/prova.cam', src=os.path.join(FX, 'prova.cam'))
 put('Data/Campaign/readme.txt', 'x')
@@ -80,6 +85,9 @@ try:
         pg.click('[data-t=dc]'); pg.wait_for_timeout(2500)
         ch = pg.evaluate("()=>JSON.stringify(window.__app.dcState().trees.charts.map(c=>c.name))")
         check('Docs: the charts of the Balkans, not those of Korea', '01 Balkans Charts' in ch and 'KTO' not in ch)
+        check('Docs: the PNG charts of the Balkans are listed', pg.evaluate("()=>JSON.stringify(window.__app.dcState().trees.charts).includes('Parking Chart RWY08.png')"))
+        pg.locator('#dclist .dcf').first.evaluate('e=>e.click()'); pg.wait_for_timeout(1500)
+        check('Docs: a PNG chart opens in the viewer', pg.locator('#dcpg canvas.dcpage').count() == 1 and pg.evaluate("()=>document.querySelector('#dcpg canvas.dcpage').width")> 100)
         pg.click('[data-t=kb]')
         pg.select_option('#csel', 'prova.cam'); pg.wait_for_timeout(4000)
         info = pg.inner_text('#cinfo')

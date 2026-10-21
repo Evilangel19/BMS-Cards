@@ -1,28 +1,28 @@
-// Docs page: the PDF charts and manuals of Falcon BMS (Docs folder), with a big viewer and "Add to cards" for the Kneeboard.
+// Docs page: the charts (PDF, or PNG / JPG pictures as in the Balkans) and manuals (PDF) of Falcon BMS (Docs folder), with a big viewer and "Add to cards" for the Kneeboard.
 // Charts: Docs\<n> ... Charts\<n> <country>\<airport (ICAO)>\<airport (ICAO)> - <type>.pdf; Manuals: every other PDF under Docs.
 // deps: root, esc, docsDir() -> path | '' | null (null = not the desktop app), listDir(path) -> [{name,isDirectory}], readBytes(path) -> Uint8Array,
 //       join(a,b), pdf: {open, render, renderTo, text}, addCard(blob, name), airports() -> [ICAO of the flight: departure, arrival], toast(msg)
 
-export const clean = s => String(s).replace(/^\d+\s+/, '').replace(/\.pdf$/i, '').replace(/_/g, ' ');
+export const clean = s => String(s).replace(/^\d+\s+/, '').replace(/\.(pdf|png|jpe?g)$/i, '').replace(/_/g, ' ');
 export const icaoOf = name => { const m = String(name).match(/\(([A-Z0-9]{3,4})\)\s*$/); return m ? m[1] : ''; };
 // "Gunsan AB (RKJK) - ILS.pdf" -> "ILS"; "Gunsan AB (RKJK)_APC_RWY 18.pdf" -> "APC RWY 18"
 export function chartName(file) {
-  const base = String(file).replace(/\.pdf$/i, ''), m = base.match(/\([A-Z0-9]{3,4}\)\s*[-_ ]*(.*)$/), t = ((m ? m[1] : base) || base).replace(/_/g, ' ').trim();
+  const base = String(file).replace(/\.(pdf|png|jpe?g)$/i, ''), m = base.match(/\([A-Z0-9]{3,4}\)\s*[-_ ]*(.*)$/), t = ((m ? m[1] : base) || base).replace(/_/g, ' ').trim();
   return t || base;
 }
-const isPdf = n => /\.pdf$/i.test(n);
+const isPdf = n => /\.pdf$/i.test(n), isImg = n => /\.(png|jpe?g)$/i.test(n);   // the charts of some theaters (Balkans) are PNG pictures
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 
 // Folder tree: {name, path, dirs: [node], files: [{name, path}]}; empty folders are dropped.
-export async function scanTree(listDir, join, path, name, { depth = 5, budget = { n: 8000 } } = {}) {
+export async function scanTree(listDir, join, path, name, { depth = 5, budget = { n: 8000 }, img = false } = {}) {
   const node = { name, path, dirs: [], files: [] };
   let ents = []; try { ents = (await listDir(path)) || []; } catch (e) { ents = []; }
   const kids = [];
   for (const e of ents) {
     if (budget.n-- <= 0) break;
-    if (e.isDirectory) { if (depth > 0) kids.push(e); } else if (isPdf(e.name)) node.files.push({ name: e.name, path: join(path, e.name) });
+    if (e.isDirectory) { if (depth > 0) kids.push(e); } else if (isPdf(e.name) || (img && isImg(e.name))) node.files.push({ name: e.name, path: join(path, e.name) });
   }
-  const subs = await Promise.all(kids.map(e => scanTree(listDir, join, join(path, e.name), e.name, { depth: depth - 1, budget })));
+  const subs = await Promise.all(kids.map(e => scanTree(listDir, join, join(path, e.name), e.name, { depth: depth - 1, budget, img })));
   node.dirs = subs.filter(d => d.files.length || d.dirs.length).sort(byName); node.files.sort(byName);
   return node;
 }
@@ -49,7 +49,7 @@ export function createDocsPage(deps) {
     if (S.trees.dir === key) return; S.trees = { dir: key }; S.loading = 'Reading the Docs folder…'; draw();
     try {
       const mine = ++seq, charts = [];
-      for (const cd of cds) { const top = (await deps.listDir(cd)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)); charts.push(...await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(cd, e.name), e.name, {budget: {n: 60000}})))); }
+      for (const cd of cds) { const top = (await deps.listDir(cd)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)); charts.push(...await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(cd, e.name), e.name, {budget: {n: 60000}, img: true})))); }
       const man = await scanTree(deps.listDir, deps.join, dir, 'Docs', { depth: 5, budget: { n: 8000 } });
       man.dirs = man.dirs.filter(d => !/chart/i.test(d.name));
       if (mine != seq || S.trees.dir !== key) return;
@@ -87,13 +87,15 @@ export function createDocsPage(deps) {
   }
 
   // ---- viewer (right)
-  const baseName = () => S.cur ? String(S.cur.name).replace(/\.pdf$/i, '') : '';
+  const baseName = () => S.cur ? String(S.cur.name).replace(/\.(pdf|png|jpe?g)$/i, '') : '';
   async function openFile(path, name) {
     const mine = ++seq; S.cur = { path, name }; S.err = ''; S.page = 1; S.thumbs = []; S.zoom = 'w';
     if (S.doc) { try { S.doc.destroy(); } catch (e) { /* closed */ } S.doc = null; }
     drawView(); markSel();
     try {
-      const doc = await deps.pdf.open(await deps.readBytes(path));
+      let doc;
+      if (isImg(name)) { const bytes = await deps.readBytes(path), blob = new Blob([bytes], { type: /\.png$/i.test(name) ? 'image/png' : 'image/jpeg' }), img = await createImageBitmap(blob); doc = { numPages: 1, img, blob, destroy() { try { img.close(); } catch (e) { /* closed */ } } }; }
+      else doc = await deps.pdf.open(await deps.readBytes(path));
       if (mine != seq) { doc.destroy(); return; }
       S.doc = doc; drawView(); showPage(); if (doc.numPages > 1 && doc.numPages <= 40) thumbs(mine);
     } catch (e) { if (mine == seq) { S.err = 'This PDF could not be read: ' + String(e && e.message || e); drawView(); } }
@@ -102,10 +104,12 @@ export function createDocsPage(deps) {
   let pageTok = 0;
   async function showPage() {
     const box = $('#dcpg'); if (!box || !S.doc) return; const tok = ++pageTok, vw = $('#dcvw'), dpr = window.devicePixelRatio || 1;
-    const page = await S.doc.getPage(S.page), v1 = page.getViewport({ scale: 1 }); page.cleanup();
+    let v1; if (S.doc.img) v1 = { width: S.doc.img.width, height: S.doc.img.height }; else { const page = await S.doc.getPage(S.page); v1 = page.getViewport({ scale: 1 }); page.cleanup(); }
     const aw = Math.max(200, vw.clientWidth - 24), ah = Math.max(200, vw.clientHeight - 24);
     const w = S.zoom == 'w' ? aw : S.zoom == 'p' ? Math.min(aw, ah * v1.width / v1.height) : Math.min(aw * 4, aw * S.zoom);
-    const cv = await deps.pdf.renderTo(S.doc, S.page, { width: Math.round(w * dpr) });
+    let cv;
+    if (S.doc.img) { cv = document.createElement('canvas'); cv.width = Math.round(w * dpr); cv.height = Math.round(w * dpr * v1.height / v1.width); const g = cv.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(S.doc.img, 0, 0, cv.width, cv.height); }
+    else cv = await deps.pdf.renderTo(S.doc, S.page, { width: Math.round(w * dpr) });
     if (tok != pageTok) return;
     cv.style.width = Math.round(w) + 'px'; cv.style.height = 'auto'; cv.className = 'dcpage'; box.replaceChildren(cv);
     const n = $('#dcn'); if (n) n.value = S.page; const pv = $('#dcprev'), nx = $('#dcnext'); if (pv) pv.disabled = S.page <= 1; if (nx) nx.disabled = S.page >= S.doc.numPages;
@@ -149,7 +153,7 @@ export function createDocsPage(deps) {
   }
   async function addPages(list) {
     const doc = S.doc; if (!doc) return; const btn = $('#dcadd'); if (btn) btn.disabled = true; let k = 0;
-    try { for (const n of list) { const r = await deps.pdf.render(doc, n); await deps.addCard(r.blob, baseName() + (doc.numPages > 1 ? ' p.' + n : '')); k++; } deps.toast && deps.toast(k + ' page' + (k == 1 ? '' : 's') + ' added to the Kneeboard cards.'); }
+    try { for (const n of list) { const r = doc.img ? { blob: doc.blob } : await deps.pdf.render(doc, n); await deps.addCard(r.blob, baseName() + (doc.numPages > 1 ? ' p.' + n : '')); k++; } deps.toast && deps.toast(k + ' page' + (k == 1 ? '' : 's') + ' added to the Kneeboard cards.'); }
     catch (e) { deps.toast && deps.toast('Could not add the page: ' + String(e && e.message || e)); }
     if (btn) btn.disabled = false;
   }
