@@ -276,5 +276,5 @@ export function theaterDirs(entry, tdf) {
   // the folders of an add-on theater are written in full from the Data folder ("Add-On Balkans\\Campaign"): the base is added only when it is not there already
   const rel = v => { if (!v) return null; const p = parts(v); return base.length && base.every((b, i) => (p[i] || '').toLowerCase() === b.toLowerCase()) ? p : [...base, ...p]; };
   return { name: tdf.name || e[e.length - 1].replace(/\.tdf$/i, ''), base, campaign: rel(tdf.campaigndir || 'Campaign'), sim: rel(tdf.simdatadir || 'Sim'),
-    objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), tdfEntry: entry };
+    objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), newterrain: rel(tdf.newterraindir), docs: base.length ? [...base, 'Docs'] : null, tdfEntry: entry };
 }

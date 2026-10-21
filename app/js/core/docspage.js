@@ -45,16 +45,17 @@ export function createDocsPage(deps) {
 
   async function loadTrees() {
     const dir = deps.docsDir(); if (!dir) return;
-    if (S.trees.dir === dir) return; S.trees = { dir }; S.loading = 'Reading the Docs folder…'; draw();
+    const cds = deps.chartDirs ? deps.chartDirs() : [dir], key = dir + '|' + cds.join('|');
+    if (S.trees.dir === key) return; S.trees = { dir: key }; S.loading = 'Reading the Docs folder…'; draw();
     try {
-      const top = (await deps.listDir(dir)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)), mine = ++seq;
-      const charts = await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(dir, e.name), e.name, {})));
+      const mine = ++seq, charts = [];
+      for (const cd of cds) { const top = (await deps.listDir(cd)) || [], ch = top.filter(e => e.isDirectory && /chart/i.test(e.name)); charts.push(...await Promise.all(ch.map(e => scanTree(deps.listDir, deps.join, deps.join(cd, e.name), e.name, {})))); }
       const man = await scanTree(deps.listDir, deps.join, dir, 'Docs', { depth: 5, budget: { n: 8000 } });
       man.dirs = man.dirs.filter(d => !/chart/i.test(d.name));
-      if (mine != seq || S.trees.dir !== dir) return;
-      S.trees = { dir, charts, manuals: man };
+      if (mine != seq || S.trees.dir !== key) return;
+      S.trees = { dir: key, charts, manuals: man };
       charts.forEach(c => c.dirs.forEach(d => S.open.add(d.path))); man.dirs.forEach(d => S.open.add(d.path));   // the first level is open at the start
-    } catch (e) { S.trees = { dir, charts: [], manuals: null, err: String(e && e.message || e) }; }
+    } catch (e) { S.trees = { dir: key, charts: [], manuals: null, err: String(e && e.message || e) }; }
     S.loading = ''; draw();
   }
 
@@ -72,7 +73,7 @@ export function createDocsPage(deps) {
     if (S.loading) return `<p class="hint">${esc(S.loading)}</p>`;
     const T = S.trees; if (T.err) return `<p class="hint">The Docs folder could not be read: ${esc(T.err)}</p>`;
     if (S.tab == 'charts') {
-      if (!T.charts || !T.charts.length) return '<p class="hint">No charts folder found in Docs (for example "03 KTO Charts").</p>';
+      if (!T.charts || !T.charts.length) return '<p class="hint">No charts folder found in the Docs folder of the theater (for example "03 KTO Charts" or "01 Balkans Charts").</p>';
       const q = S.q.trim(), fl = !q ? (deps.airports() || []).filter(Boolean).filter((v, i, a) => a.indexOf(v) == i) : [];
       let h = '';
       if (fl.length) { const found = fl.map(ic => ({ ic, n: T.charts.flatMap(c => findAirports(c, ic)) })).filter(x => x.n.length);

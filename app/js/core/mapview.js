@@ -230,8 +230,8 @@ export function createMap(host, deps) {
     // opacity of the base map (pictures, tiles, coastlines): the data stay as they are
     m.insertAdjacentHTML('beforeend', `<label class="mpr" title="Opacity of the base map: 0 = only the flat background"><span class="lt">Map opacity</span><input type="range" id="mpbgo" min="0" max="100" value="${st.on.bgop == null ? 100 : st.on.bgop}" style="flex:1;min-width:0"></label>`);
     $('mpbgo').oninput = () => { st.on.bgop = +$('mpbgo').value; save(); bgOp(); }; bgOp();
-    m.querySelectorAll('input[name=mpbase]').forEach(i => i.onchange = () => { st.base = i.value; $('mpimg').style.display = st.base == 'img' ? '' : 'none'; $('mpcl').style.display = st.base == 'coast' ? '' : 'none'; save(); setBase(); if (st.base != 'img' && st.base != 'coast') baseSet(false, true); });   // the menu closes after a choice (not for the imported picture: its button is in the menu)
-    $('mpcll').onchange = () => { st.cl = $('mpcll').checked; save(); setBase(); };
+    m.querySelectorAll('input[name=mpbase]').forEach(i => i.onchange = () => { st.base = i.value; $('mpimg').style.display = st.base == 'img' ? '' : 'none'; if ($('mpcl')) $('mpcl').style.display = st.base == 'coast' ? '' : 'none'; save(); setBase(); if (st.base != 'img' && st.base != 'coast') baseSet(false, true); });   // the menu closes after a choice (not for the imported picture: its button is in the menu)
+    if ($('mpcll')) $('mpcll').onchange = () => { st.cl = $('mpcll').checked; save(); setBase(); };
     $('mpimp').onclick = () => $('mpfile').click();
     $('mpfile').onchange = async () => {
       const f = $('mpfile').files[0]; $('mpfile').value = ''; if (!f) return;
