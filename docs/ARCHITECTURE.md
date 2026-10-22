@@ -23,7 +23,7 @@ tests/       golden comparisons
 
 ## Current state (step 3: config and folders)
 ```
-app/index.html          interface (ES module script, imports the modules below)
+app/index.html          page (HTML and CSS only); app/js/app/main.js is the entry point and runs the start-up code of the modules in app/js/app
 app/js/parsers/         lzss, cam, fmap, link16, iff, twx, dtc   (file in -> data out)
 app/js/core/cam-core.js public API (CAM) that ties the modules together
 app/js/core/flight.js   flight listing and shared helpers (names, times, nearest airbase)
@@ -813,3 +813,9 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Kneeboard bin: deleting unused cards also removes their files from `cardmemory/cards` (`kbMemSave` removes files not in the library; Tauri permission `fs:allow-remove` only for `**/cardmemory/cards/*`). A card used by another theater's arrangement or by the default (`kbKept`) is kept.
 - Map: clicking an enemy flight icon no longer selects it (no flight plan); only the viewed team and its allies.
 - Docs page: the zoom starts at 50% of the width.
+
+## v99 - index.html split into modules (js/app)
+- `index.html` now holds only the markup and CSS; its script moved to `app/js/app/*.js` (ES modules): `base` ($, config, animations, IO), `dtcfile`, `mission`, `datacard` (fields, DTC mirrors, form), `cardview` (canvas drawing, MDC format), `dtcapply`, `dtctargets` (DTC defaults, weapon targets), `gamefiles` (terrain, Misdata, aircraft folder), `pages` (map, weapons, missiles, squadron, performance pages), `perf`, `ato`, `selection` (manual changes, loadCam), `campaign` (campaign list, weather helpers, Fmap/L16/IFF/Twx), `editor` (cell editor), `gamedata` (theaters, loadGameData), `kneeboard`, `settings`, `expose` (`window.__app` for the tests).
+- Start-up: each module exports `initN()` functions with the statements that used to run at the top level of the old script; `main.js` calls them in the original order (`await init1(); ...`). Declarations (functions, pure constants) stay at module level, anything that calls something is assigned in an `initN()`.
+- Shared state: a variable that more than one module assigns lives in `ST` (`js/app/state.js`, `ST.CFG`, `ST.C`, `ST.TH` ...); a variable assigned by one module only is an exported `let` (live binding). Modules import each other circularly, which is fine because they only use each other inside functions after start-up.
+- Names in the older notes (`dtcRevert`, `perfFill`, `terrain()`, `MIR` ... "in index.html") are now in the modules above.

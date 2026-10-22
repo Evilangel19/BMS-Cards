@@ -1,0 +1,37 @@
+// Entry point of the program: the modules (js/app) hold the code that used to sit in index.html; this runs their start-up statements in the original order.
+import {init1} from './base.js';
+import {init2} from './dtcfile.js';
+import {init3} from './mission.js';
+import {init4} from './datacard.js';
+import {init5} from './cardview.js';
+import {init6, init9, init11, init13} from './pages.js';
+import {init7} from './ato.js';
+import {init8} from './dtctargets.js';
+import {init10} from './gamefiles.js';
+import {init12} from './perf.js';
+import {init14} from './campaign.js';
+import {init15} from './editor.js';
+import {init16} from './gamedata.js';
+import {init17} from './kneeboard.js';
+import {init18} from './settings.js';
+import {init19} from './expose.js';
+
+await init1();
+await init2();
+await init3();
+await init4();
+await init5();
+await init6();
+await init7();
+await init8();
+await init9();
+await init10();
+await init11();
+await init12();
+await init13();
+await init14();
+await init15();
+await init16();
+await init17();
+await init18();
+await init19();
