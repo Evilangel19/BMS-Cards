@@ -7,7 +7,7 @@ import {toDDS5, toDDS} from '../core/dds.js';
 import {ST} from './state.js';
 import {$, IO, animOn, appToast, enc8, esc, jp} from './base.js';
 import {draw, gapless} from './cardview.js';
-import {F} from './datacard.js';
+import {F, FD} from './datacard.js';
 
 // cards: the pictures go into cards/, the arrangement into cards.json
 export async function msfCards(dir){
@@ -198,7 +198,11 @@ export async function kbRestore(){const dir=kbDir(),st=$('kbst');
  if(!await confirm('Restore '+have.length+' original file(s) ('+have.map(h=>rowFile(h[0])).join(', ')+') in:\n'+dir+'\n\nThe current files will be replaced.'))return;
  try{for(const [i,a] of have)await writeBytes(joinPath(dir,rowFile(i)),await readBytes(a));st.textContent='Restored '+have.length+' original file(s).'}
  catch(e){alert('Could not restore: '+(e&&e.message||e))}}
+// the datacard pages are on a kneeboard row that will be written, but the datacard holds nothing (no flight chosen, or every field empty)
+export const dcEmpty=()=>!FD.some(d=>{const v=String(F[d.k]==null?'':F[d.k]).replace(/[-\s]/g,'');return v!==''});
+export const dcOnRows=rows=>rows.some(i=>[KBS[i].left.kind,KBS[i].right.kind].some(k=>k=='dcl'||k=='dcr'));
 export async function kbSave(){const dir=kbDir(),st=$('kbst'),rows=KBS.map((s,i)=>i).filter(i=>rowUsed(KBS[i],i));
+ if(dcOnRows(rows)&&dcEmpty()&&!await confirm('The datacard is empty: the datacard pages on the kneeboard would be blank in flight.\n\nChoose a flight (Datacard tab) first, or write the files anyway?\n\nOK = write anyway, Cancel = go back.'))return;
  if(isDesktop()&&!dir){alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.');return}
  if(isDesktop()&&!await confirm('Write '+rows.length+' file(s) ('+rows.map(rowFile).join(', ')+') to:\n'+dir+'\n\nOriginal files are saved once in the program folder (backup\\kneeboard) before being replaced; nothing extra is created in the BMS folder.'))return;
  $('kbsave').disabled=true;draw();let done=0;await kbDecodeUsed();

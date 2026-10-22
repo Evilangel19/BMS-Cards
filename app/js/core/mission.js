@@ -1,6 +1,7 @@
 // Mission file: everything one package needs to work without the campaign, plus the DTC (as opened) with the changes kept apart from it, and the datacard
 // with its automatic and manual values. Pure functions (no DOM, no files): the app reads and writes the files.
 //   {format, version, created, app, name, package: {campaign snapshot}, dtc: {name, enc, bom, original, edits}, datacard: {flight, auto, manual}, settings}
+import {parseDtc} from '../parsers/dtc.js';
 export const MISSION_FORMAT = 'bms-cards-mission', OLD_FORMAT = 'bms-cards-project', MISSION_VERSION = 1, MISSION_EXT = '.bcrd';   // files saved as projects (.bmsproj) are still read
 const KM_NM = 1.852;
 const key = id => id.n + ':' + id.c;
@@ -76,9 +77,47 @@ export function applyDtcEdits(original, edits) {
   return rows.join(nl);
 }
 
+// ---- the parts of a DTC a mission can carry ----
+// A mission sent to other pilots does not bring the whole DTC of its author (the MFD pages, the EWS programs ... are personal): it brings groups of sections.
+// `mission` groups are the ones the author of a mission decides (they are on by default), the others are personal (off by default; the author can still turn them on).
+export const DTC_GROUPS = [
+  {id: 'stpt', label: 'Steerpoints, targets, geo lines and pre-planned threats', secs: ['STPT'], mission: true},
+  {id: 'nav', label: 'Nav offsets (VIP, VRP, OA)', secs: ['NAV OFFSETS'], mission: true},
+  {id: 'wpn', label: 'Weapon settings (FCC profiles, laser codes)', secs: ['FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser'], mission: true},
+  {id: 'harm', label: 'HARM', secs: ['HARM'], mission: true},
+  {id: 'iff', label: 'IFF', secs: ['IFF'], mission: true},
+  {id: 'ews', label: 'EWS programs (personal)', secs: ['EWS'], mission: false},
+  {id: 'mfd', label: 'MFD pages (personal)', secs: ['MFD', 'Bullseye'], mission: false},
+  {id: 'com', label: 'Radio presets and comms (personal)', secs: ['Radio', 'COMMS'], mission: false},
+  {id: 'l16', label: 'Link 16 (personal)', secs: ['LINK16'], mission: false},
+  {id: 'sys', label: 'ICP and map options (personal)', secs: ['ICP', 'MAP_POP'], mission: false}];
+// the groups of the lines [{s, k, v}] of a DTC: [{id, label, mission, items: [[s, k, v], ...]}], only the groups that have lines
+export function dtcShare(lines) {
+  return DTC_GROUPS.map(g => ({id: g.id, label: g.label, mission: g.mission, items: (lines || []).filter(l => l.k !== undefined && g.secs.includes(l.s)).map(l => [l.s, l.k, String(l.v)])})).filter(g => g.items.length);
+}
+// the groups of a DTC saved inside a mission (the original with its edits)
+export function shareFromSaved(dtc) {
+  if (!dtc) return [];
+  if (dtc.share && Array.isArray(dtc.share.groups)) return dtc.share.groups;
+  if (typeof dtc.original != 'string') return [];
+  return dtcShare(parseDtc(applyDtcEdits(dtc.original, dtc.edits || [])));
+}
+// the part of a mission that travels to other pilots: the DTC is reduced to the ticked groups (`on` marks the ones applied by default), nothing of the program settings goes along
+export function shareMission(m, groups, ticked) {
+  const ids = new Set(ticked), out = JSON.parse(JSON.stringify(m)), pick = (groups || []).filter(g => ids.has(g.id)).map(g => ({id: g.id, label: g.label, mission: g.mission, items: g.items, on: true}));
+  out.dtc = {share: {groups: pick}, author: (m.dtc && m.dtc.author) || null}; out.settings = null; out.shared = true;
+  return out;
+}
+// puts the items of the groups with the given ids into a DTC through set(section, key, value); how many lines were written
+export function applyShare(set, groups, ids) {
+  const want = new Set(ids); let n = 0;
+  for (const g of groups || []) if (want.has(g.id)) for (const [s, k, v] of g.items) { set(s, k, v); n++; }
+  return n;
+}
+
 // ---- the mission file ----
-export function buildMission({app = '', name = '', flight = null, snapshot = null, dtc = null, datacard = null, settings = null, weather = null, aircraft = null, tanks = null, weapons = null, mapshot = null, created = null}) {
-  return {format: MISSION_FORMAT, version: MISSION_VERSION, created: created || new Date().toISOString(), saved: new Date().toISOString(), app, name,
+export function buildMission({app = '', name = '', flight = null, snapshot = null, dtc = null, datacard = null, settings = null, weather = null, aircraft = null, tanks = null, weapons = null, mapshot = null, created = null, version = '', theater = null}) {
+  return {format: MISSION_FORMAT, version: MISSION_VERSION, created: created || new Date().toISOString(), saved: new Date().toISOString(), app, appVersion: version, theater, name,
     package: snapshot, dtc, datacard: datacard ? {...datacard, flight} : null, settings, weather, aircraft, tanks, weapons, mapshot};
 }
 export function parseMission(text) {

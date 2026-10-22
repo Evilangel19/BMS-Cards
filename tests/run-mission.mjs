@@ -37,4 +37,18 @@ ck('edits against the original file: changed and new lines only', ed2.length ===
 const pr = P.parseMission(JSON.stringify(P.buildMission({ name: 'x', dtc: { original: orig, edits: ed } })));
 ck('a mission is written and read back; a wrong file or a newer version is refused', pr.mission && pr.mission.dtc.edits.length === 2 && P.parseMission('{}').error && P.parseMission(JSON.stringify({ format: P.PROJECT_FORMAT, version: 99 })).error);
 ck('the manual changes are the fields that differ from the automatic values', JSON.stringify(P.diffFields({ a: '1', b: '2' }, { a: '1', b: '3', c: 'x' })) === '{"b":"3","c":"x"}');
+
+// sharing: groups, personal ones off, applied on the receiver's own DTC
+{
+  const dl = [{ s: 'STPT', k: 'target_1', v: '1, 2, 0, 1, ' }, { s: 'MFD', k: 'Display1', v: 'A' }, { s: 'Radio', k: 'UHFPreset_1', v: '251.0' }, { s: 'ICP', k: 'X', v: '1' }];
+  const g = P.dtcShare(dl), ids = g.map(x => x.id);
+  ck('sharing: the groups hold the lines of their sections; personal groups are marked', g.length >= 3 && g.some(x => x.mission) && g.some(x => !x.mission));
+  const m = P.shareMission(P.buildMission({ name: 'x', dtc: { original: '[STPT]\r\ntarget_1=1, 2, 0, 1, \r\n', edits: [], name: 'Mine.ini', author: { uid: 'a' } } }), g, g.filter(x => x.mission).map(x => x.id));
+  ck('a shared mission carries no DTC file, no settings, only the ticked groups', m.dtc.original === undefined && m.dtc.name === undefined && m.settings === null && m.dtc.share.groups.every(x => x.mission) && m.shared);
+  const got = []; const n2 = P.applyShare((a, b, c) => got.push([a, b, c]), m.dtc.share.groups, m.dtc.share.groups.map(x => x.id));
+  ck('applyShare writes only the chosen groups into the DTC of the receiver', n2 === got.length && got.some(x => x[1] === 'target_1') && !got.some(x => x[0] === 'MFD'));
+  ck('the file of an old mission still gives its groups from original + edits', P.shareFromSaved({ original: '[STPT]\r\ntarget_1=1, 2, 0, 1, \r\n', edits: [] }).length === 1);
+  const pk = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')), V = (await import(new URL('../app/js/core/version.js', import.meta.url))).APP_VERSION;
+  ck('the version of the program is the same in version.js and package.json', V === pk.version);
+}
 console.log(bad ? 'mission: ' + bad + ' FAILED' : 'mission: ' + n + '/' + n + ' checks passed'); process.exit(bad ? 1 : 0);

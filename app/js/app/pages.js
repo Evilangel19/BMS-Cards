@@ -25,7 +25,8 @@ import {kbAddShot} from './kneeboard.js';
 import {draw} from './cardview.js';
 import {dtcDir, wxWind} from './campaign.js';
 import {openSettings} from './settings.js';
-import {msfBuild, msfLoad} from './mission.js';
+import {APP_VERSION} from '../core/version.js';
+import {msfBuild, msfLoad, msfSources, msfGroupsOf, msfForSend} from './mission.js';
 
 export let mapV;
 export let harmRoot;
@@ -69,7 +70,7 @@ export async function init11() {
    squadInfo:u=>{const ab=nearAb(ST.C,u.x,u.y);return{owner:ST.C.D.S[40+u.owner]||['None','U.S.','ROK','Japan','CIS','PRC','DPRK','NATO'][u.owner]||'Team '+u.owner,base:ab?ab[1]:''}},
    phonebook:isDesktop()?{read:async()=>{const d=dtcDir();if(!d)return null;const n=(await listDir(d)).find(e=>!e.isDirectory&&/^phonebkn\.ini$/i.test(e.name));return n?new TextDecoder().decode(await readBytes(joinPath(d,n.name))):null}}:null,
    store:{load:()=>loadPrefs('squadron.json'),save:o=>savePrefs('squadron.json',o)},campaign:()=>ST.C,swarm:window.__swarmTest,
-   buildMission:()=>msfBuild(),loadMission:t=>msfLoad(t,null)});
+   buildMission:()=>msfBuild(),loadMission:t=>msfLoad(t,null),version:APP_VERSION,mission:{sources:()=>msfSources(),groups:id=>msfGroupsOf(id),forSend:(id,t)=>msfForSend(id,t)}});
   pfPage = createPerfPage({esc,root:$('pf'),wind:(x,y,t,a)=>wxWind(x,y,t,a),aircraft:{list:async()=>{const f=await acFolder(),a=new Set([...(f?f.names:Object.keys(CAM.D.acfb)),...Object.keys(ST.MSFAC)]);return [...a].sort()},get:perfAcGet},
    loadout:()=>{const x=ST.CL[+$('fsel').value];if(!x||!ST.C)return null;return{ac:ST.C.D.ac[x.f.c.i],gw:+F.gw||0,fuel:+F.fuel||0,drag:+F.drag||0}},
    flightPlan:()=>{const x=ST.C&&ST.CL[+$('fsel').value];if(!x||!x.f.wps)return null;return{wps:x.f.wps,labels:x.f.wps.map((_,i)=>F['fp'+i+'_0']||'')}},

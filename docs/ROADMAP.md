@@ -45,3 +45,5 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 
 ## Notes
 - A saved mission weighs about 1.5-2 MB with the hourly weather maps.
+
+- 0.9.2-beta (2026-10-22): mission sharing redesign (choose DTC groups, apply to the receiver's own DTC, send/receive popups, diagnostics), roster order with COMMANDER, avatars via roster, empty-datacard warning in the kneeboard. Open: the friend's empty map / unlinked lines (needs screenshots and his DTC).

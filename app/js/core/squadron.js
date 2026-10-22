@@ -158,7 +158,7 @@ export async function readSquadInvite(code) { const o = await unpack(code, 'BCS'
 // a roster entry: uid (a pilot, stable), name, callsign, role, notes, ts (when it was last edited: the newer one wins when two pilots exchange their rosters)
 export function mergeRoster(mine, theirs) {
   const out = {...mine}; let changed = false;
-  for (const [uid, m] of Object.entries(theirs || {})) { const o = out[uid]; if (!o || (m.ts || 0) > (o.ts || 0)) { out[uid] = {...(o || {}), ...m}; changed = true; } }
+  for (const [uid, m0] of Object.entries(theirs || {})) { const o = out[uid], m = {...m0}; if ('av' in m && !okImg(m.av)) delete m.av; if (!o || (m.ts || 0) > (o.ts || 0)) { out[uid] = {...(o || {}), ...m}; changed = true; } }
   return {roster: out, changed};
 }
 
@@ -271,13 +271,18 @@ export function createSquadronPage(deps) {
   const cur = () => DB.squads.find(q => q.id == DB.cur) || DB.squads[0] || null;
   const owns = q => !!q && q.owner == DB.uid;
   const live = q => Object.values(q.roster).filter(r => !r.removed);
+  // order of the members: the commander (creator of the squadron), the mission leader, me, then the others (online first, then by callsign)
+  const rankOf = (q, uid) => uid == q.owner ? 0 : uid == q.leader ? 1 : uid == DB.uid ? 2 : 3;
+  const orderRoster = (q, arr, onUid) => arr.map((r, i) => [r, i]).sort((a, b) => rankOf(q, a[0].uid) - rankOf(q, b[0].uid)
+    || ((onUid.has(b[0].uid) || b[0].uid == DB.uid) - (onUid.has(a[0].uid) || a[0].uid == DB.uid))
+    || String(a[0].callsign || a[0].name || '').localeCompare(String(b[0].callsign || b[0].name || '')) || a[1] - b[1]).map(x => x[0]);
   const mini = () => { const t = pilot && pilot.stats; return t ? {rk: t.rank, h: t.hours, m: t.missions, aa: t.aa, ag: t.ag, st: t.st, nav: t.nav, ace: t.ace} : null; };
   const me = () => ({uid: DB.uid, name: pilot ? pilot.name : '', callsign: DB.cs || (pilot ? pilot.callsign : ''), squadron: pilot ? pilot.squadron : '', st: mini(), av: DB.av || ''});
   const label = p => p ? ((p.callsign || p.name || 'Pilot') + (p.name && p.callsign ? ' · ' + p.name : '')) : '…';
   const statLine = t => t ? (RANKS[t.rk] || '') + ' · ' + Math.round(t.h) + ' h · ' + t.aa + ' A-A · ' + t.ag + ' A-G' : '';
   const copy = async t => { try { await navigator.clipboard.writeText(t); deps.toast && deps.toast('Copied.'); } catch (e) { deps.toast && deps.toast('Could not copy: select the text and copy it by hand.'); } };
   const ago = t => { if (!t) return 'never'; const s = (Date.now() - t) / 1000; return s < 90 ? 'a moment ago' : s < 5400 ? Math.round(s / 60) + ' min ago' : s < 129600 ? Math.round(s / 3600) + ' h ago' : Math.round(s / 86400) + ' days ago'; };
-  const onRecv = (m, who, sqName) => { recv.unshift({text: m.text, name: m.name, from: label(m.from || who), squad: sqName || ''}); say('Mission "' + m.name + '" received from ' + label(m.from || who) + '.'); drawMis(); deps.toast && deps.toast('Mission received: ' + m.name); };
+  const onRecv = (m, who, sqName) => { recv.unshift({text: m.text, name: m.name, from: label(m.from || who), squad: sqName || ''}); say('Mission "' + m.name + '" received from ' + label(m.from || who) + '.'); drawMis(); deps.toast && deps.toast('Mission received: ' + m.name); const r0 = recv[0]; pop(`<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(label(m.from || who))}.<br>Load it now? (it opens the mission and applies the DTC groups you choose to your own DTC)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`, (o, c) => { o.querySelector('[data-x]').onclick = c; o.querySelector('[data-ok]').onclick = async () => { c(); try { await deps.loadMission(r0.text); say('Mission "' + r0.name + '" loaded.'); } catch (e) { result(false, 'Mission not loaded', String(e && e.message || e)); } }; }); };
   const mkMe = q => { const m = me(), r = q.roster[DB.uid]; if (!r) q.roster[DB.uid] = {uid: DB.uid, name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av, role: '', notes: '', ts: Date.now(), lastSeen: Date.now()}; else Object.assign(r, {name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av}); };
 
   const avDraw = () => { const b = $('#sqavbox'); if (b) b.innerHTML = okImg(DB.av) ? `<img class="sqav big" src="${DB.av}" alt="">` : '<span class="sqav big"></span>'; };
@@ -288,7 +293,7 @@ export function createSquadronPage(deps) {
 
   // ----- the swarms: one per squadron -----
   const meta = q => ({name: q.name, motto: q.motto, notes: q.notes, owner: q.owner, leader: q.leader, logo: q.logo || '', ts: q.ts});
-  const rosterOut = q => Object.fromEntries(Object.entries(q.roster).map(([k, r]) => { const {av, ...x} = r; return [k, x]; }));   // the avatars travel only in the hello of each pilot
+  const rosterOut = q => Object.fromEntries(Object.entries(q.roster).map(([k, r]) => { const {av, ...x} = r; return [k, okImg(av) ? {...x, av} : x]; }));   // the avatars of the pilots travel in the roster too, so the ones of pilots who are offline arrive as well
   function swarmStart(q) {
     swarmStop(q.id); if (typeof RTCPeerConnection == 'undefined') return;
     const sw = createSwarm({secret: q.secret, me, stun: !!DB.stun, turn: parseTurn(DB.turn), trackers: trackerList(), WS: (deps.swarm && deps.swarm.WS) || globalThis.WebSocket, interval: (deps.swarm && deps.swarm.interval) || 25000,
@@ -365,11 +370,11 @@ export function createSquadronPage(deps) {
   // compact roster on the left of the Members page: search, online dot, leader tag; a click shows the pilot in the table
   function drawList(q, list, onUid, m) {
     const box = $('#sqlist'); if (!box) return;
-    const all = [q.roster[DB.uid] || {uid: DB.uid}, ...list], f = ($('#sqfind') && $('#sqfind').value || '').trim().toLowerCase();
+    const all = orderRoster(q, [q.roster[DB.uid] || {uid: DB.uid}, ...list], onUid), f = ($('#sqfind') && $('#sqfind').value || '').trim().toLowerCase();
     $('#sqcount').textContent = onUid.size + 1 + ' online · ' + all.length + ' member' + (all.length == 1 ? '' : 's');
     const shown = all.filter(r => { const isMe = r.uid == DB.uid, x = isMe ? m : r; return !f || ((x.callsign || '') + ' ' + (x.name || '')).toLowerCase().includes(f); });
     box.innerHTML = shown.map(r => { const isMe = r.uid == DB.uid, x = isMe ? m : r, o = isMe || onUid.has(r.uid);
-      return `<div class="sqrow" data-pick="${esc(r.uid)}">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span class="sqrn"><b>${esc(x.callsign || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">LEADER</span>' : ''}<div class="hint" style="min-height:0">${esc([x.name, (isMe ? m.st : r.stats) ? statLine(isMe ? m.st : r.stats).split(' · ').slice(0, 2).join(' · ') : ''].filter(Boolean).join(' · '))}</div></span><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></div>`; }).join('') || '<div class="hint">No pilot found.</div>';
+      return `<div class="sqrow" data-pick="${esc(r.uid)}">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span class="sqrn"><b>${esc(x.callsign || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc([x.name, (isMe ? m.st : r.stats) ? statLine(isMe ? m.st : r.stats).split(' · ').slice(0, 2).join(' · ') : ''].filter(Boolean).join(' · '))}</div></span><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></div>`; }).join('') || '<div class="hint">No pilot found.</div>';
     box.querySelectorAll('[data-pick]').forEach(el => el.onclick = () => { const tr = $('#sqtabbox').querySelector('tr[data-uid="' + el.dataset.pick + '"]'); if (!tr) return; $('#sqtabbox').querySelectorAll('tr.sel').forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); tr.scrollIntoView({block: 'nearest'}); });
   }
   function drawMembers() {
@@ -379,7 +384,7 @@ export function createSquadronPage(deps) {
     const list = live(q).filter(r => r.uid != DB.uid).sort((a, b) => (onUid.has(b.uid) - onUid.has(a.uid)) || String(a.callsign || a.name).localeCompare(String(b.callsign || b.name)));
     const canSend = !q.leader || q.leader == DB.uid;
     const row = (r, isMe) => { const o = isMe || onUid.has(r.uid), ed = own || isMe;
-      return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">LEADER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
+      return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
       <td class="sqa"><button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`; };
     box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
@@ -388,7 +393,7 @@ export function createSquadronPage(deps) {
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
       <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
-    const tb = $('#sqtabbox'); tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${row(q.roster[DB.uid] || {uid: DB.uid}, true)}${list.map(r => row(r, false)).join('')}</tbody></table>
+    const tb = $('#sqtabbox'); tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${orderRoster(q, [q.roster[DB.uid] || {uid: DB.uid}, ...list], onUid).map(r => row(r, r.uid == DB.uid)).join('')}</tbody></table>
       ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
     drawList(q, list, onUid, m);
     $('#sqsel').onchange = e => { DB.cur = e.target.value; save(); cSel = null; drawAll(); };
@@ -403,7 +408,7 @@ export function createSquadronPage(deps) {
     tb.querySelectorAll('tr[data-uid]').forEach(tr => { const uid = tr.dataset.uid;
       tr.querySelectorAll('input[data-f]').forEach(i => i.onchange = () => { mkMe(q); touchMember(q, uid, r => { r[i.dataset.f] = i.value; }); });
       const ld = tr.querySelector('[data-lead]'); if (ld) ld.onclick = () => { q.leader = q.leader == uid ? '' : uid; touchSquad(q); drawAll(); };
-      const sd = tr.querySelector('[data-send]'); if (sd) sd.onclick = async () => { try { const mm = await deps.buildMission(), p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); if (!p) throw new Error('This pilot is not online any more.'); await p.link.sendMission(JSON.stringify(mm), mm.name, me()); say('Mission "' + mm.name + '" sent to ' + label(p.profile) + '.'); deps.toast && deps.toast('Mission sent to ' + label(p.profile) + '.'); } catch (e) { S.err = String(e && e.message || e); say('Error: ' + S.err); drawSession(); } };
+      const sd = tr.querySelector('[data-send]'); if (sd) sd.onclick = () => { const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid); if (!p) return result(false, 'Mission not sent', 'This pilot is not online any more.'); sendFlow([{label: label(p.profile), send: (t, n) => p.link.sendMission(t, n, me())}]); };
     });
     $('#sqcopyinv').onclick = async () => copy(await squadInvite(q));
     if (own) { $('#sqlogo').onclick = () => $('#sqlogofile').click();
@@ -488,6 +493,42 @@ export function createSquadronPage(deps) {
   const showTab = () => { const t = TABS.some(x => x[0] == DB.tab) ? DB.tab : 'members'; root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t)); root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t)); };
   const drawAll = () => { showTab(); avDraw(); drawMembers(); drawMis(); drawCamp(); drawMine(); drawSettings(); drawSession(); drawPb(); };
   const guard = fn => async () => { try { S.err = ''; await fn(); } catch (e) { S.err = String(e && e.message || e); say('Error: ' + S.err); } drawSession(); };
+
+  // ---- sending a mission: choose the mission and the DTC groups, then progress / result popups ----
+  const pop = (html, wire) => { const o = document.createElement('div'); o.className = 'sqpop'; o.style.cssText = 'position:fixed;inset:0;z-index:2100;background:#000b;display:flex;align-items:center;justify-content:center'; o.innerHTML = '<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a">' + html + '</div>'; const close = () => o.remove(); wire && wire(o, close); document.body.append(o); return {o, close}; };
+  const diag = (extra) => ['BMS Cards diagnostics', 'version: ' + (deps.version || ''), 'time: ' + new Date().toISOString(), 'me: ' + JSON.stringify({callsign: me().callsign, uid: DB.uid}), 'stun: ' + (DB.stun ? 'yes' : 'no') + ' · turn: ' + (DB.turn ? 'yes' : 'no'), 'agent: ' + (typeof navigator != 'undefined' ? navigator.userAgent : ''), 'log:', ...log.slice(0, 15), extra ? 'detail: ' + extra : ''].filter(Boolean).join('\n');
+  const result = (ok, title, text, extra) => pop(`<h3 style="margin:0 0 8px;font-size:15px;color:${ok ? 'var(--gn,#4c4)' : 'var(--rd,#e55)'}">${esc(title)}</h3><div style="margin-bottom:12px;white-space:pre-wrap">${esc(text)}</div><div class="bar" style="justify-content:flex-end;gap:8px">${ok ? '' : '<button class="btn g" data-dg>Copy diagnostics</button>'}<button class="btn g gn" data-ok>OK</button></div>`, (o, c) => { o.querySelector('[data-ok]').onclick = c; const d = o.querySelector('[data-dg]'); if (d) d.onclick = () => copy(diag(extra || text)); });
+  // targets: async list of {label, send(text, name)}; resolves when done
+  const sendFlow = async (targets) => {
+    const T = typeof targets == 'function' ? targets : () => targets;
+    if (!deps.mission) { const m = await deps.buildMission(), t = JSON.stringify(m); return doSend(T(), t, m.name); }
+    let src = [{id: '', label: 'Current mission'}], groups = [];
+    try { src = await deps.mission.sources(); } catch (e) {}
+    const ld = async (id) => { try { groups = await deps.mission.groups(id); } catch (e) { groups = []; } };
+    await ld(src[0].id);
+    const go = await new Promise(res => {
+      const draw = (o) => { o.querySelector('[data-grp]').innerHTML = groups.length ? groups.map(g => `<label style="display:flex;gap:8px;align-items:center;margin:3px 0"><input type="checkbox" data-g="${esc(g.id)}"${g.mission ? ' checked' : ''}> ${esc(g.label)} <span class="hint">· ${g.count} lines${g.mission ? '' : ' · personal'}</span></label>`).join('') : '<div class="hint">This mission has no DTC data.</div>'; };
+      pop(`<h3 style="margin:0 0 6px;font-size:15px">Send mission</h3><label class="hint">Mission</label><select data-src style="width:100%;margin:2px 0 10px">${src.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('')}</select><div class="hint" style="margin-bottom:4px">DTC data to share (the receiver applies it to <b>his own</b> DTC; personal groups are off by default):</div><div data-grp></div><div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok>Send</button></div>`, (o, c) => {
+        draw(o); o.querySelector('[data-src]').onchange = async e => { await ld(src[+e.target.value].id); draw(o); };
+        o.querySelector('[data-x]').onclick = () => { c(); res(null); };
+        o.querySelector('[data-ok]').onclick = () => { const ids = [...o.querySelectorAll('input[data-g]')].filter(i => i.checked).map(i => i.dataset.g); const id = src[+o.querySelector('[data-src]').value].id; c(); res({id, ids}); };
+      });
+    });
+    if (!go) return;
+    let m; try { m = await deps.mission.forSend(go.id, go.ids); } catch (e) { return result(false, 'Mission not sent', 'The mission could not be prepared: ' + (e && e.message || e)); }
+    return doSend(T(), JSON.stringify(m), m.name);
+  };
+  const doSend = async (tg, text, name) => {
+    if (!tg.length) return result(false, 'Mission not sent', 'Nobody is online to receive it.');
+    const w = pop('<h3 style="margin:0 0 8px;font-size:15px">Sending…</h3><div>Mission "' + esc(name) + '" is going to ' + tg.length + ' pilot' + (tg.length == 1 ? '' : 's') + '. Please wait.</div>');
+    const ok = [], bad = [];
+    for (const t of tg) { try { await t.send(text, name); ok.push(t.label); } catch (e) { bad.push(t.label + ': ' + (e && e.message || e)); } }
+    w.close();
+    if (ok.length) say('Mission "' + name + '" sent to ' + ok.join(', ') + '.');
+    if (bad.length) { say('Error: ' + bad.join(' | ')); result(false, ok.length ? 'Mission partly sent' : 'Mission not sent', (ok.length ? 'Sent to: ' + ok.join(', ') + '\n\n' : '') + 'Failed:\n' + bad.join('\n'), bad.join(' | ')); }
+    else result(true, 'Mission sent', 'Mission "' + name + '" was sent to ' + ok.join(', ') + '.');
+    drawSession();
+  };
   const sentMsg = (m, n) => { say('Mission "' + m.name + '" sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); deps.toast && deps.toast('Mission sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); };
   function build() {
     root.innerHTML = `<div class="sqw">
@@ -497,7 +538,7 @@ export function createSquadronPage(deps) {
 <div class="sqmain">
 <div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
 <div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div id="sqtabbox" style="overflow-x:auto"></div></div>
-<div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button></div><h4>Received</h4><div id="sqrecv"></div></div>
+<div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button><button class="btn g" id="sqdiag" title="Copies a technical report to paste when something does not work">Copy diagnostics</button></div><h4>Received</h4><div id="sqrecv"></div></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
 </div><div class="sqpane" data-pane="me">
@@ -533,7 +574,8 @@ export function createSquadronPage(deps) {
     $('#sqpbopen').onclick = () => $('#sqpbfile').click();
     $('#sqpbfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) { PB = parsePhoneBook(await f.text()); pbErr = ''; drawPb(); } };
     $('#sqfind').oninput = () => drawMembers();
-    $('#sqbcast').onclick = guard(async () => { const q = cur(), sw = q && swarms.get(q.id); if (!sw) return; const m = await deps.buildMission(), t = JSON.stringify(m); let n = 0; for (const p of sw.online()) { await p.link.sendMission(t, m.name, me()); n++; } sentMsg(m, n); });
+    $('#sqdiag').onclick = () => copy(diag(S.err));
+    $('#sqbcast').onclick = () => { const q = cur(), sw = q && swarms.get(q.id); if (!sw) return; sendFlow(() => sw.online().map(p => ({label: label(p.profile), send: (t, n) => p.link.sendMission(t, n, me())}))); };
     // direct connection
     $('#sqlead').onclick = guard(async () => { await S.lead(); say('Direct session started: you are the leader.'); });
     $('#sqjoinb').onclick = () => { S.end(); S.role = 'join'; drawSession(); };
@@ -548,7 +590,7 @@ export function createSquadronPage(deps) {
     });
     $('#sqmk').onclick = guard(async () => { const a = await S.join($('#sqincode').value); $('#sqanscode').value = a; $('#sqanscode').style.display = ''; $('#sqcpa').style.display = ''; S.role = 'join'; say('Answer created: send it to the leader.'); });
     $('#sqcpa').onclick = () => copy($('#sqanscode').value);
-    $('#sqsend').onclick = guard(async () => { const m = await deps.buildMission(); sentMsg(m, await S.sendMission(JSON.stringify(m), m.name)); });
+    $('#sqsend').onclick = () => sendFlow(() => [{label: 'the session', send: async (t, n) => { if (!await S.sendMission(t, n)) throw new Error('nobody connected'); }}]);
     $('#sqlog').textContent = log.join('\n');
     drawAll();
   }

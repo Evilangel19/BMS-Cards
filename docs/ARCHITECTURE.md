@@ -819,3 +819,10 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Start-up: each module exports `initN()` functions with the statements that used to run at the top level of the old script; `main.js` calls them in the original order (`await init1(); ...`). Declarations (functions, pure constants) stay at module level, anything that calls something is assigned in an `initN()`.
 - Shared state: a variable that more than one module assigns lives in `ST` (`js/app/state.js`, `ST.CFG`, `ST.C`, `ST.TH` ...); a variable assigned by one module only is an exported `let` (live binding). Modules import each other circularly, which is fine because they only use each other inside functions after start-up.
 - Names in the older notes (`dtcRevert`, `perfFill`, `terrain()`, `MIR` ... "in index.html") are now in the modules above.
+
+## v100 - Mission sharing redesign (0.9.2-beta)
+- A mission sent to another pilot no longer carries a DTC file nor program settings/paths/keys. The sender picks the mission (current or saved) and the DTC groups (`DTC_GROUPS` in `core/mission.js`: mission groups on, personal groups MFD/EWS/Radio/Link16/ICP/map off); `shareMission` reduces `dtc` to `{share:{groups}, author}`.
+- The receiver applies the chosen groups to his OWN DTC (`msfShared` in `app/mission.js`): the open DTC, else `<callsign>.ini` of the DTC folder, else a file he picks. The author's DTC name is never used. A mission saved by the same installation (`dtc.author.uid`) still restores the whole original DTC + edits.
+- Missions carry `theater` and `appVersion`; loading on another theater asks for confirmation.
+- Squadron page: send dialog, progress/success/failure popups (with "Copy diagnostics"), "Load now?" popup on receive. Roster order: COMMANDER (creator), mission leader, me, others; avatars of offline pilots travel in the roster.
+- Kneeboard save warns when the datacard is empty.

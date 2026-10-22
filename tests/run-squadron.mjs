@@ -49,4 +49,7 @@ const mine = C.units.find(u => u.kind == 'sqd' && u.id.n == C.playerSq);
 ck('squadron record: missions flown 18, aircraft losses 15, pilot losses 0 (this save)', mine.sqs && mine.sqs.missions == 18 && mine.sqs.acLoss == 15 && mine.sqs.pilotLoss == 0);
 ck('campaignSquadrons carries the record and the number of pilots', cs[0].sqs.missions == 18 && cs[0].pilotsN == 48);
 ck('okImg accepts small webp/png/jpeg data URLs only', SQ.okImg('data:image/png;base64,iVBORw0KGgo=') && SQ.okImg('data:image/webp;base64,AAAA') && !SQ.okImg('data:image/svg+xml;base64,AAAA') && !SQ.okImg('javascript:alert(1)') && !SQ.okImg('data:image/png;base64,AA"onerror="x') && !SQ.okImg('data:image/png;base64,' + 'A'.repeat(100000)));
+{ const png = 'data:image/png;base64,iVBORw0KGgo=', m1 = SQ.mergeRoster({a: {uid: 'a', ts: 1}}, {a: {uid: 'a', ts: 2, av: png}, b: {uid: 'b', ts: 1, av: 'data:image/svg+xml;base64,AAAA'}});
+  ck('mergeRoster: the avatar of a pilot arrives in the roster, a bad picture is dropped', m1.roster.a.av == png && m1.roster.b && !m1.roster.b.av);
+  const m2 = SQ.mergeRoster(m1.roster, {a: {uid: 'a', ts: 3, role: 'x'}}); ck('mergeRoster: an entry without picture keeps the one already known', m2.roster.a.av == png && m2.roster.a.role == 'x'); }
 process.exit(ok ? 0 : 1);
