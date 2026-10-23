@@ -32,33 +32,33 @@ app/js/rules/           weather.js (ATIS/TAF), airbase.js (runway, TACAN), geo.j
                         support.js (tankers, AWACS, JTAC), ephemerides.js (sun/moon)
 app/js/config/          settings defaults and merge rules (config/config.default.json is a copy)
 app/js/platform/        desktop integration: config file, file dialogs, native save (browser fallbacks)
-app/js/data/            fallback tables generated from the prototype (to be replaced by reading BMS files)
+app/js/data/            fallback tables generated from the prototype (replaced by reading BMS files)
 tests/                  run-golden.mjs (89 flights), run-parsers.mjs, run-config.mjs, fixtures, golden results
 tools/ui-compare.py     local check: prototype page vs app produce identical fields and DDS bytes
 ```
-`legacy/BMS-Planner.html` is the untouched prototype used as the reference.
+`legacy/BMS-Planner.html` is the untouched prototype used as the reference (not present).
 
 ## Roadmap
 1. Foundation: repository, CI, golden tests. (done)
 2. Extract parsers and rules into modules; read game data from the BMS installation; campaign list with its
    weather, Link16, IFF and date files loaded together. (done)
-3. Small open items: WDP runway data permission, remaining embedded tables, add-on theaters (`Theater.lst`).
+3. Small open items: add-on theaters compatibility (`Theater.lst`).(Balkan done, ITO, HTO next)
 4. Project file (one file per mission: campaign, flights, hand edits, DTC), ATO browser, multiple datacards,
-   direct editing on the card, folder import/export.
+   direct editing on the card, folder import/export.(done, to be checked)
 5. Kneeboard pages: more pages beyond the datacard (maps, checklists, images), each exported to its own DDS with
-   the file names BMS expects (names to be provided).
-6. Map and steerpoints.
-7. Fuel and performance (calculator page).
-8. BVR / MAR calculator page, with the results placed on the datacard.
-9. Weapon planning.
-10. P2P sharing.
+   the file names BMS expects (names to be provided).(done)
+6. Map and steerpoints. (done)
+7. Fuel and performance (calculator page). (done)
+8. BVR / MAR calculator page, with the results placed on the datacard. (done, to be checked)
+9. Weapon planning. (done, to be checked)
+10. P2P sharing. (done, to be checked)
 11. UI refinements (ongoing, requested by the user).
 
 ## Theaters
 `Data\Theater.lst` lists one .tdf per theater (add-on theaters live in their own subfolder). Each .tdf gives the theater's
 campaign, object and terrain folders. The Theater selector (next to the campaign list) picks one; its campaigns and
 data files are read from its own folders first, then from the rest of the BMS install. Limitation: the coordinate
-conversion (`rules/geo.js`) is still built for the Korea map, so lat/long of other maps is not correct yet.
+conversion (`rules/geo.js`) is still built for the Korea map, so lat/long of other maps is not correct yet. (Balkan is correct)
 
 ## Airbases
 `bmsdata/airbases.js` builds the runway tables (`ap`, `api`) and elevations (`el`) from the BMS ATC files
