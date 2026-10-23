@@ -48,6 +48,12 @@ ck('the manual changes are the fields that differ from the automatic values', JS
   const got = []; const n2 = P.applyShare((a, b, c) => got.push([a, b, c]), m.dtc.share.groups, m.dtc.share.groups.map(x => x.id));
   ck('applyShare writes only the chosen groups into the DTC of the receiver', n2 === got.length && got.some(x => x[1] === 'target_1') && !got.some(x => x[0] === 'MFD'));
   ck('the file of an old mission still gives its groups from original + edits', P.shareFromSaved({ original: '[STPT]\r\ntarget_1=1, 2, 0, 1, \r\n', edits: [] }).length === 1);
+  { const ex = [{ s: 'STPT', k: 'target_1', v: '9, 9, 0, 1, A' }, { s: 'STPT', k: 'target_5', v: '7, 7, 0, 1, B' }, { s: 'STPT', k: 'lineSTPT_9', v: '1.0, 2.0, 3.0' }, { s: 'NAV OFFSETS', k: 'vip_1', v: '1, 2' }],
+    gg = { id: 'stpt', items: [['STPT', 'target_1', '1, 2, 0, 1, '], ['STPT', 'target_2', '0, 0, 0, -1, Not set'], ['STPT', 'lineSTPT_1', '0.000000, 0.000000, 0.000000'], ['STPT', 'target_5', '0, 0, 0, -1, Not set']] }, w = [], d = P.shareDiff(ex, gg);
+    P.applyShare((a, b, c) => w.push(a + '|' + b + '=' + c), [gg], ['stpt'], ex);
+    ck('the preview counts changed, new, emptied lines', d.change === 2 && d.add === 2 && d.clear === 1);
+    ck('slots of the receiver that the mission does not fill are emptied with the empty pattern of the mission', w.includes('STPT|lineSTPT_9=0.000000, 0.000000, 0.000000') && !w.some(x => x.startsWith('NAV OFFSETS')));
+    ck('radio, Link 16 and ICP are mission groups; EWS, MFD and map are personal', ['com', 'l16', 'icp'].every(i => P.DTC_GROUPS.find(g => g.id == i).mission) && ['ews', 'mfd', 'sys'].every(i => !P.DTC_GROUPS.find(g => g.id == i).mission)); }
   const pk = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')), V = (await import(new URL('../app/js/core/version.js', import.meta.url))).APP_VERSION;
   ck('the version of the program is the same in version.js and package.json', V === pk.version);
 }

@@ -64,11 +64,11 @@ export async function msfGroupsOf(id){const m=id?await msfRead(id):await msfBuil
 // the mission as it travels: the DTC reduced to the ticked groups, no program settings
 export async function msfForSend(id,ticked){const m=id?await msfRead(id):await msfBuild();return PJ.shareMission(m,PJ.shareFromSaved(m.dtc),ticked)}
 // the groups of a received mission the pilot wants applied to his own DTC: [ids] or null
-function askGroups(groups,dtcName,author){return new Promise(res=>{
+function askGroups(groups,dtcName,author,cur){return new Promise(res=>{
  const o=document.createElement('div');o.id='msfgrp';o.style.cssText='position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
  o.innerHTML=`<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:540px;width:92%;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">DTC of the mission${author&&author.callsign?' · from '+esc(author.callsign):''}</h3>
- <div class="hint" style="margin-bottom:10px">Tick what goes into <b>your</b> DTC (${esc(dtcName||'')}). The rest of your DTC stays as it is. The personal groups are off unless the author turned them on.</div>
- ${groups.map(g=>`<label style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" data-g="${esc(g.id)}"${g.on?' checked':''}> ${esc(g.label)} <span class="hint">· ${g.items.length} lines</span></label>`).join('')}
+ <div class="hint" style="margin-bottom:10px">Tick what goes into <b>your</b> DTC (${esc(dtcName||'')}). The rest of your DTC stays as it is. Steerpoints, weapons, radio, Link 16 and ICP replace yours so the data stays consistent; EWS, MFD and map options are personal and off unless the author turned them on.</div>
+ ${groups.map(g=>`<label style="display:flex;gap:8px;align-items:center;margin:4px 0"><input type="checkbox" data-g="${esc(g.id)}"${g.on?' checked':''}> ${esc(g.label)} <span class="hint">· ${(d=>d.change+' changed, '+d.add+' new'+(d.clear?', '+d.clear+' of yours emptied':'')+', '+d.same+' equal')(PJ.shareDiff(cur,g))}</span></label>`).join('')}
  <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Do not apply</button><button class="btn g gn" data-ok>Apply to my DTC</button></div></div>`;
  const done=v=>{o.remove();res(v)};
  o.querySelector('[data-ok]').onclick=()=>done([...o.querySelectorAll('input[data-g]')].filter(i=>i.checked).map(i=>i.dataset.g));
@@ -84,8 +84,8 @@ async function msfShared(d){
  const groups=PJ.shareFromSaved(d);if(!groups.length)return;
  if(!lines.length)await msfOwnDtc();
  if(!lines.length){appToast('No DTC is open: the DTC data of the mission was not applied. Open your DTC and load the mission again.');return}
- const ids=await askGroups(groups,ST.name,d.author);if(!ids||!ids.length)return;
- const n=PJ.applyShare((a,b,c)=>S(a,b,c),groups,ids);afterDtc('target_98',true);dtcBtns();$('fn').textContent=ST.name+' · mission applied ('+n+' lines)'}
+ const ids=await askGroups(groups,ST.name,d.author,lines);if(!ids||!ids.length)return;
+ const n=PJ.applyShare((a,b,c)=>S(a,b,c),groups,ids,lines.map(l=>({s:l.s,k:l.k,v:l.v})));afterDtc('target_98',true);dtcBtns();$('fn').textContent=ST.name+' · mission applied ('+n+' lines)'}
 export async function msfLoad(text,file){
  const r=PJ.parseMission(text);if(r.error)return alert(r.error);const p=r.mission;
  if(!p.package||!p.datacard)return alert('This mission has no package.');

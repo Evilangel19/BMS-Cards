@@ -826,3 +826,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Missions carry `theater` and `appVersion`; loading on another theater asks for confirmation.
 - Squadron page: send dialog, progress/success/failure popups (with "Copy diagnostics"), "Load now?" popup on receive. Roster order: COMMANDER (creator), mission leader, me, others; avatars of offline pilots travel in the roster.
 - Kneeboard save warns when the datacard is empty.
+
+## v101 - Consistent mission block (0.9.3-beta)
+- Mission groups now also hold Radio/COMMS, LINK16 and ICP (Bingo, Alow...). Personal (off by default): EWS, MFD/Bullseye, MAP_POP.
+- `applyShare(set, groups, ids, existing)` also empties the slots of STPT and NAV OFFSETS that the receiver has and the mission does not fill (`shareClears`, using an empty line of the mission as pattern), so points of the two DTCs never mix. `shareDiff` feeds the preview in the receive dialog (changed / new / emptied / equal lines).
+- The callsign used to find `<callsign>.ini` is the one of the pilot profile on the Squadron page (`sqPage.me()`).

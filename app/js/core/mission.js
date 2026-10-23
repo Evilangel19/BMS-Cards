@@ -86,11 +86,12 @@ export const DTC_GROUPS = [
   {id: 'wpn', label: 'Weapon settings (FCC profiles, laser codes)', secs: ['FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser'], mission: true},
   {id: 'harm', label: 'HARM', secs: ['HARM'], mission: true},
   {id: 'iff', label: 'IFF', secs: ['IFF'], mission: true},
+  {id: 'com', label: 'Radio presets and comms', secs: ['Radio', 'COMMS'], mission: true},
+  {id: 'l16', label: 'Link 16', secs: ['LINK16'], mission: true},
+  {id: 'icp', label: 'ICP (Bingo, Alow and other ICP settings)', secs: ['ICP'], mission: true},
   {id: 'ews', label: 'EWS programs (personal)', secs: ['EWS'], mission: false},
   {id: 'mfd', label: 'MFD pages (personal)', secs: ['MFD', 'Bullseye'], mission: false},
-  {id: 'com', label: 'Radio presets and comms (personal)', secs: ['Radio', 'COMMS'], mission: false},
-  {id: 'l16', label: 'Link 16 (personal)', secs: ['LINK16'], mission: false},
-  {id: 'sys', label: 'ICP and map options (personal)', secs: ['ICP', 'MAP_POP'], mission: false}];
+  {id: 'sys', label: 'Map options (personal)', secs: ['MAP_POP'], mission: false}];
 // the groups of the lines [{s, k, v}] of a DTC: [{id, label, mission, items: [[s, k, v], ...]}], only the groups that have lines
 export function dtcShare(lines) {
   return DTC_GROUPS.map(g => ({id: g.id, label: g.label, mission: g.mission, items: (lines || []).filter(l => l.k !== undefined && g.secs.includes(l.s)).map(l => [l.s, l.k, String(l.v)])})).filter(g => g.items.length);
@@ -108,10 +109,36 @@ export function shareMission(m, groups, ticked) {
   out.dtc = {share: {groups: pick}, author: (m.dtc && m.dtc.author) || null}; out.settings = null; out.shared = true;
   return out;
 }
-// puts the items of the groups with the given ids into a DTC through set(section, key, value); how many lines were written
-export function applyShare(set, groups, ids) {
+// slots of the steerpoint blocks: what the receiver has there and the mission does not is emptied, so no point of the receiver mixes with the mission
+const norm = v => String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+const SLOT_SECS = ['STPT', 'NAV OFFSETS'];
+const isEmptySlot = v => { const t = norm(v).split(/\s*,\s*/).slice(0, 2); return t.length == 2 && t.every(x => /^-?[\d.]+$/.test(x) && +x === 0); };
+const keyBase = k => String(k).replace(/\d+$/, '');
+// [{s, k, v}] of the lines of the receiver (`existing`) to empty for a group: slots the mission does not fill, using an empty line of the mission as the pattern
+export function shareClears(existing, g) {
+  const have = new Set(g.items.map(i => i[0] + '|' + i[1])), out = [];
+  for (const l of existing || []) {
+    if (!SLOT_SECS.includes(l.s) || l.k === undefined || !g.items.some(i => i[0] == l.s) || have.has(l.s + '|' + l.k) || isEmptySlot(l.v)) continue;
+    const t = g.items.find(i => i[0] == l.s && keyBase(i[1]) == keyBase(l.k) && isEmptySlot(i[2]));
+    if (t) out.push({s: l.s, k: l.k, v: t[2]});
+  }
+  return out;
+}
+// what a group does to the DTC of the receiver: {change, add, clear, same}
+export function shareDiff(existing, g) {
+  const cur = new Map((existing || []).filter(l => l.k !== undefined).map(l => [l.s + '|' + l.k, norm(l.v)]));
+  let change = 0, add = 0, same = 0;
+  for (const [s, k, v] of g.items) { const c = cur.get(s + '|' + k); if (c === undefined) add++; else if (c !== norm(v)) change++; else same++; }
+  return {change, add, same, clear: shareClears(existing, g).length};
+}
+// puts the items of the groups with the given ids into a DTC through set(section, key, value); `existing` = lines of the DTC of the receiver (to empty the slots the mission does not use); how many lines were written or emptied
+export function applyShare(set, groups, ids, existing) {
   const want = new Set(ids); let n = 0;
-  for (const g of groups || []) if (want.has(g.id)) for (const [s, k, v] of g.items) { set(s, k, v); n++; }
+  for (const g of groups || []) if (want.has(g.id)) {
+    const clr = shareClears(existing, g);
+    for (const [s, k, v] of g.items) { set(s, k, v); n++; }
+    for (const c of clr) { set(c.s, c.k, c.v); n++; }
+  }
   return n;
 }
 
