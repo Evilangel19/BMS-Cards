@@ -49,3 +49,10 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - 0.9.2-beta (2026-10-22): mission sharing redesign (choose DTC groups, apply to the receiver's own DTC, send/receive popups, diagnostics), roster order with COMMANDER, avatars via roster, empty-datacard warning in the kneeboard. Open: the friend's empty map / unlinked lines (needs screenshots and his DTC).
 - 0.9.3-beta (2026-10-23): radio, Link 16 and ICP (Bingo/Alow) in the mission block; receiver's unused steerpoint/nav slots are emptied; preview of changes when loading a shared mission.
 - 0.9.4-beta (2026-10-23): single DTC block for sharing, no Autosave.ini unless the campaign is Autosave, receiver warnings (other DTC than the roster callsign, sections missing, possible incompatibility), delivery answer from the receiver, close warning when the DTC is not written, no half-loaded mission.
+
+## Before 1.0 / when leaving the beta (decided 2026-10-23, not started)
+- Tauri permissions: replace the `**` scope of the fs permissions (read, write, remove, mkdir...) with the folders the program needs (program/data folder, DTC folder, BMS install, mission folders chosen by the user); remove what is not used.
+- CSP: set a restrictive `csp` in `tauri.conf.json` (no `null`); check that nothing needs inline/external scripts beyond what the pages already use; keep `withGlobalTauri` only if still needed.
+- Data folder: move config, missions and backups away from the exe folder to a fixed per-user folder, with a one-time migration of the existing data; decide then whether a portable mode stays.
+- Missions opened by hand: take the DTC name/path only from the user's own DTC folder (no path taken from the file).
+- Not wanted: an automatic updater.
