@@ -4,10 +4,12 @@ import {geoLL,hmN,locXY} from './geo.js';
 function svc(C,f){const B=[0,1,2,3,4,7,8],w=f.wps,a=w.find(p=>!B.includes(p.act));if(!a)return null;
  const g=w.filter(p=>p.act==a.act),st=g[0].arr,en=g[g.length-1].dep||g[g.length-1].arr,nm=actName(w,w.indexOf(g[0]),C.D.S[300+f.omis]||'');
  const gnd=[14,15,16,17,19].includes(a.act),mn=C.D.S[300+f.omis]||'';
- // missions against ground units (DEAD, SEAD, CAS, BAI, SCAR): the target is the hostile battalion at the attack point (a radar or a site next to it must not take its place)
- const bn=gnd&&/^(DEAD|SEAD|CAS|BAI|SCAR)$/.test(mn)?hostileGnd(C,f,g[0].x,g[0].y):null;
+ // missions against ground units (DEAD, SEAD, the three CAS, BAI, SCAR, AI, FAC(A)): the target is the hostile battalion at the attack point (a radar or a site next to it must not take its place)
+ const bn=gnd&&/^(DEAD|SEAD|CAS|ON CALL CAS|PRE-PLAN CAS|BAI|SCAR|AI|FAC\(A\))$/.test(mn)?hostileGnd(C,f,g[0].x,g[0].y):null;
  const o=gnd&&!bn?nearObj(C,g[0].x,g[0].y):null;
- return{tm:!st?'':(gnd?hms(st):hmN(st)+' - '+hmN(en)),tgt:bn?bn.name:(o&&o[1])||nm,ll:bn?geoLL(C,bn.u.x,bn.u.y):o?geoLL(C,o[2],o[3]):''}}
+ // CAS (on call, pre-planned, plain): the time that counts is the time on station, from the first attack point to the last one; the other ground attacks have a single TOT
+ const cas=/^(ON CALL CAS|PRE-PLAN CAS|CAS)$/.test(mn);
+ return{tm:!st?'':(gnd?(cas&&en&&en>st?hms(st)+' - '+hms(en):hms(st)):hmN(st)+' - '+hmN(en)),tgt:bn?bn.name:(o&&o[1])||nm,ll:bn?geoLL(C,bn.u.x,bn.u.y):o?geoLL(C,o[2],o[3]):''}}
 // the hostile ground unit (battalion) closest to a point, within km; null when there is none
 function hostileGnd(C,f,x,y,km=1){let b=null,bd=km;const allied=(p,q)=>p==q||(p<4&&q<4);
  C.units.forEach(u=>{if(u.kind!='gnd'||u.nameId==null||allied(u.owner,f.owner))return;const d=Math.hypot(u.x-x,u.y-y);if(d<bd){bd=d;b=u}});

@@ -838,3 +838,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - After a block is applied `MSFSIG` is set to a value that never matches: the program warns when closing until the DTC is written. Loading a mission asks first when the open DTC has unwritten changes.
 - `dtcCampaignFiles` never writes Autosave.ini unless the campaign itself is Autosave.
 - The link answers every mission: the receiver sends `mack` (ok / could not read) after reading it; the sender's popup says "delivered" only after that (30 s timeout, or the connection closing, = error).
+
+## v103 - Start-up bar, received missions kept, CAS rules (0.9.5-beta)
+- `main.js` runs the 19 start-up steps in a loop behind `#boot` (full-screen bar with the percentage and the version); the program cannot be used before it is removed. A failing step leaves the error on the bar. The version (`core/version.js`) is also shown in the header (`#appver`).
+- A mission received from a pilot is saved at once in the missions folder (desktop app, `msfStoreReceived`) under its own name; an existing folder is never overwritten (" (2)", " (3)"...). It then appears in the "Send mission" list.
+- `svc()` (primary target and TOT of the card): the hostile battalion at the attack point is the primary for DEAD, SEAD, CAS, ON CALL CAS, PRE-PLAN CAS, BAI, SCAR, AI and FAC(A) (before only the plain "CAS" name matched, so pre-planned and on-call CAS showed the nearest village or object). The TOT of the three CAS kinds is the time on station: first attack point arrival to last departure (`hh:mm:ss - hh:mm:ss`); the other ground attacks keep one TOT. Golden files were rewritten for the changed CAS flights and for the packages that list them as secondary.

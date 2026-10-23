@@ -38,6 +38,15 @@ const pr = P.parseMission(JSON.stringify(P.buildMission({ name: 'x', dtc: { orig
 ck('a mission is written and read back; a wrong file or a newer version is refused', pr.mission && pr.mission.dtc.edits.length === 2 && P.parseMission('{}').error && P.parseMission(JSON.stringify({ format: P.PROJECT_FORMAT, version: 99 })).error);
 ck('the manual changes are the fields that differ from the automatic values', JSON.stringify(P.diffFields({ a: '1', b: '2' }, { a: '1', b: '3', c: 'x' })) === '{"b":"3","c":"x"}');
 
+// CAS flights: the primary target is the hostile battalion also for pre-planned and on-call CAS; the TOT of a CAS is the time on station
+{
+  const C = CAM.openCam(new Uint8Array(fs.readFileSync(path.join(root, 'tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'))), CAM.D, 'x');
+  const cas = CAM.listFlights(C, null).filter(x => [20, 21, 22].includes(x.f.omis)).map(x => ({ x, F: CAM.fillCard(C, x.f) }));
+  ck('pre-planned CAS: a hostile battalion at the attack point is the primary target (not the nearest village or bridge)', cas.some(c => c.x.f.omis === 21 && /Battalion/.test(c.F.pri)));
+  ck('CAS (any kind): the TOT is the time on station, from the first to the last attack point', cas.length > 0 && cas.every(c => /^\d\d:\d\d:\d\d( - \d\d:\d\d:\d\d)?$/.test(c.F.d1)) && cas.some(c => / - /.test(c.F.d1)));
+  const gs = CAM.listFlights(C, null).filter(x => [25, 23].includes(x.f.omis)).map(x => CAM.fillCard(C, x.f));
+  ck('BAI and SCAR keep a single TOT', gs.length > 0 && gs.every(F => !/^\d\d:\d\d:\d\d - /.test(F.d1)));
+}
 // sharing: ONE block of the DTC, applied on the receiver's own DTC
 {
   const dl = [{ s: 'STPT', k: 'target_1', v: '1, 2, 0, 1, ' }, { s: 'MFD', k: 'Display1', v: 'A' }, { s: 'Radio', k: 'UHF_1', v: '251.0' }, { s: 'LINK16', k: 'FILE_A_FLIGHT_LEAD', v: '1' }, { s: 'ICP', k: 'Bingo_Fuel', v: '3300' }, { s: 'FCC_AGB', k: 'x', v: '1' }, { s: 'Laser', k: 'y', v: '2' }, { s: 'NAV OFFSETS', k: 'vip_1', v: '1, 2' }];

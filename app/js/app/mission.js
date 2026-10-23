@@ -58,6 +58,14 @@ export async function msfSources(){
  const out=[{id:'',label:'Current mission (the selected flight)'}];if(!isDesktop())return out;
  try{const base=await missionsBase();for(const e of await listDir(base)){if(!e.isDirectory)continue;const f=joinPath(joinPath(base,e.name),PJ.missionFolder.file(e.name));if(await IO.fileExists(f))out.push({id:f,label:e.name})}}catch(e){}
  return out}
+// a mission received from another pilot is kept in the missions folder (desktop app) under its own name; one that exists already is never overwritten: " (2)", " (3)"...; returns the folder or null
+export async function msfStoreReceived(text,name){
+ if(!isDesktop())return null;
+ const r=PJ.parseMission(text);if(r.error)throw new Error(r.error);
+ const base=await missionsBase(),stem=PJ.safeName(name||r.mission.name);let n=stem,k=2;
+ while(await IO.fileExists(joinPath(base,n)))n=stem+' ('+(k++)+')';
+ const dir=joinPath(base,n);await IO.makeDir(dir);
+ await IO.writeBytes(joinPath(dir,PJ.missionFolder.file(n)),enc8(text));return dir}
 const msfRead=async id=>{const r=PJ.parseMission(new TextDecoder().decode(await readBytes(id)));if(r.error)throw new Error(r.error);return r.mission};
 // the DTC groups a source can send: [{id, label, mission, count}]
 export async function msfGroupsOf(id){const m=id?await msfRead(id):await msfBuild();return PJ.shareFromSaved(m.dtc).map(g=>({id:g.id,label:g.label,mission:g.mission,count:g.items.length}))}

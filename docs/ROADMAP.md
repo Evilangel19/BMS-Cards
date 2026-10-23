@@ -56,3 +56,4 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - Data folder: move config, missions and backups away from the exe folder to a fixed per-user folder, with a one-time migration of the existing data; decide then whether a portable mode stays.
 - Missions opened by hand: take the DTC name/path only from the user's own DTC folder (no path taken from the file).
 - Not wanted: an automatic updater.
+- 0.9.5-beta (2026-10-23): start-up loading bar and version in the header, received missions saved in the missions folder, primary target and time on station for ON CALL / PRE-PLAN CAS, AI and FAC(A) included in the battalion rule.

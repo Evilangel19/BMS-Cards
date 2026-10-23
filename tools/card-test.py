@@ -12,6 +12,8 @@ try:
         pg = br.new_page(viewport={'width': 1500, 'height': 1900}, reduced_motion='reduce')
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8781/app/index.html'); pg.wait_for_timeout(900)
+        pg.wait_for_selector('#boot', state='detached', timeout=30000)
+        check('the loading bar is gone once the program has started and the version is shown', pg.locator('#boot').count() == 0 and pg.inner_text('#appver').startswith('v0.'))
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
         check('the Datacard keeps its own cells (405 fields)', pg.evaluate("__app.FD.length") == 405)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
