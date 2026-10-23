@@ -8,6 +8,9 @@
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
     "core:window:allow-close",
     "dialog:default",
     {

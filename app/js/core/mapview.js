@@ -704,6 +704,12 @@ export function createMap(host, deps) {
     const slot = P ? freeSlot(P, g) : -1, name = g == 'prec' ? String(m.bn).replace(/[\s,]+/g, ' ').trim().slice(0, 11) : en ? en[0] : String(m.name).replace(/[\s,]+/g, ' ').trim().slice(0, 6), rngNm = en ? pptRng(en) : m.sam ? m.rng / 1.852 : 0;
     const what = g == 'ppt' ? 'Pre-planned' : 'precision target', btn = g == 'ppt' ? 'Add Pre-planned STPT' : 'Add TGT Steerpoint';
     w.className = 'dtp';
+    const have = P ? P[g].find(q => !q.empty && Math.hypot(q.x - m.u.x, q.y - m.u.y) < 0.5) : null;
+    if (have) {   // already in the DTC: the same unit offers to remove it
+      w.innerHTML = `<div><b>${deps.esc(m.bn)}</b></div><div class="hint" style="min-height:0">STPT ${GROUPS[g].first + have.slot} (${deps.esc(have.name || '')}) is already in the DTC.</div><div class="bar" style="margin:6px 0 0;justify-content:center"><button class="btn g rd" data-a="rm">Remove STPT ${GROUPS[g].first + have.slot}</button></div>`;
+      w.querySelector('[data-a=rm]').onclick = () => { deps.dtc.clear(g, have.slot); map.closePopup(); sync(); dtc(); toast('STPT ' + (GROUPS[g].first + have.slot) + ' removed from the DTC.'); };
+      return w;
+    }
     w.innerHTML = `<div><b>${deps.esc(m.bn)}</b></div><div class="hint" style="min-height:0">${fmtLL(m.ll[0], m.ll[1])}</div><div class="bar" style="margin:6px 0 0;justify-content:center"><button class="btn" data-a="ppt">${btn}</button></div><div class="hint" style="min-height:0">${!P ? 'Open a DTC to add it.' : slot < 0 ? 'No free slot left for this kind of point.' : 'Becomes STPT ' + (GROUPS[g].first + slot) + (g == 'ppt' ? ': ' + (en ? deps.esc(en[2]) + (rngNm ? ', ring ' + rngNm.toFixed(1) + ' NM' : '') : 'name ' + deps.esc(name)) : ' (' + deps.esc(name) + ')') + '.'}</div>`;
     w.querySelector('[data-a=ppt]').onclick = () => {
       if (!P) { toast('Open a DTC first: the point is added to it.', true); return; }
@@ -789,10 +795,13 @@ export function createMap(host, deps) {
       if (best) { o.mk.setLatLng(best); o.mk.setOpacity(1); } else o.mk.setOpacity(0);
     });
   }
-  // other flights of the selected package: white, dimmer, dashed; a click selects the flight (when it can be loaded)
+  // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
   function member(C, m, k) {
     const L = window.L, r = flightRoute(C, m), info = deps.flightInfo(m), pick = () => deps.selectFlight && deps.selectFlight(m), ll = r.map(p => p.ll);
-    L.polyline(ll, {renderer: PR, color: pal.mate, weight: 1.8, opacity: .75, dashArray: '6 5', interactive: false}).addTo(G.pk);
+    // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
+    const li = r.findIndex(p => p.act == 7);
+    (li > 0 && li < r.length - 1 ? [[ll.slice(0, li + 1), null], [ll.slice(li), '7 6']] : [[ll, null]]).forEach(([pl, dash]) =>
+      L.polyline(pl, {renderer: PR, color: pal.mate, weight: 1.8, opacity: .75, dashArray: dash, interactive: false}).addTo(G.pk));
     r.forEach(p => {
       const shape = p.act == 4 ? '<rect x="3.5" y="3.5" width="11" height="11" class="wpi"/>' : isActivity(p.act) ? '<path d="M9 3.5L15 14.5H3Z" class="wpi"/>' : '<circle cx="9" cy="9" r="5.5" class="wpi"/>';
       L.marker(p.ll, {icon: L.divIcon({className: 'wps dim', html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`, iconSize: [18, 18]}), zIndexOffset: 400, keyboard: false})
@@ -876,7 +885,7 @@ export function createMap(host, deps) {
   }
   function dtcMark(it) {
     if (it.group == 'prec') it.wt = WTK().some(w => wtKept(w, {prec: [it]}));
-    const L = window.L, g = GROUPS[it.group], mk = L.marker(toLL(it.x, it.y), {icon: dtcIcon(it), draggable: EDIT, zIndexOffset: 700, keyboard: false}).addTo(G[g.layer]), e = {it, mk, ring: null};
+    const L = window.L, g = GROUPS[it.group], mk = L.marker(toLL(it.x, it.y), {icon: dtcIcon(it), draggable: EDIT, zIndexOffset: it.group == 'ppt' ? 1100 : 700, keyboard: false}).addTo(G[g.layer]), e = {it, mk, ring: null};
     mk.bindTooltip(() => dtcTip(it), {direction: 'top', offset: [0, -8]});
     mk.bindPopup(() => ro(dtcPopup(e)), {className: 'mpop', closeButton: false, autoPan: false, offset: [0, -4], minWidth: 230});
     mk.on('drag', () => { const ll = mk.getLatLng(), [x, y] = fromLL(ll.lat, ll.lng); it.x = x; it.y = y; if (e.ring) e.ring.setLatLng(ll); if (it.group == 'line') dtcLinesDraw(); });

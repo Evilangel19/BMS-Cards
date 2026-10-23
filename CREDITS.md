@@ -8,6 +8,7 @@ Inspiration and reference:
 - Open Frequency (UOAF) - layout and design inspiration.
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
+- "Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan - the MAR model (cases I and II: uniform and variable missile deceleration, vMax and measured deceleration of the missiles) used on the Missiles page and the datacard BVR timeline. Only the published method and numbers are used; no code.
 
 Rule: code from other projects is reused only after checking its license. Each reused part is listed here with its
 source, license and author. (Nothing is reused yet.)

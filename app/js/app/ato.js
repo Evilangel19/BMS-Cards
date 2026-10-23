@@ -1,6 +1,6 @@
 import {groupPackages, buildAto, CATEGORIES, filterAto} from '../core/ato.js';
 import {ST} from './state.js';
-import {$, collapse, ddJustClosed, ddOpen, esc, expand} from './base.js';
+import {$, collapse, ddJustClosed, ddOpen, esc, expand, appToast} from './base.js';
 import {mapV} from './pages.js';
 import {apply, flMan} from './selection.js';
 
@@ -9,6 +9,8 @@ export let ATOC = null;
 export let ATOL16 = null;
 export let ATOQ = {cs:'',ac:'',pkg:'',mis:'',to:'',tot:'',ap:'',sq:''};
 ST.ATOSEL = null;
+// a loaded mission belongs to one flight (ST.MSFLOCK = {C, key} set by msfLoad; it stops counting as soon as another campaign replaces ST.C): the other flights and packages cannot be selected
+export const msLocked = f => !!(ST.MSFLOCK && ST.MSFLOCK.C === ST.C && f && f.id && (f.id.n + ':' + f.id.c) !== ST.MSFLOCK.key);
 export let ATOONLY = false;
 export let ATOFLT = true;
 export let ATOOPEN;
@@ -61,13 +63,13 @@ export function atoList0(){ATORN++;atoTog();renderSel();const ally=allyOf; const
  const P=groupPackages(L).filter(p=>p.teams.some(t=>ally(t,ST.VIEW)));let h=`<div class="${lock?'lkw':''}">`;CATEGORIES.forEach(c=>{const ga=P.filter(p=>p.cat==c);if(!ga.length)return;const co=searching||ATOCAT.has(c),g=ATOONLY&&co&&ATOONLYP!=null&&ga.some(p=>p.pkg==ATOONLYP)?ga.filter(p=>p.pkg==ATOONLYP):ga;   /* after Close all only the package of the selected flight stays in view */
   h+=`<div class="ct" data-c="${c}">${co?'▾':'▸'} ${c} (${ga.length})</div>`;if(!co)return;
   g.forEach(p=>{const open=ATOOPEN.has(p.pkg),n=p.flights.length;
-   h+=`<div class="pk${p.teams.includes(ST.VIEW)?'':' al'}${ATOFX.c.has(c)?' fxin':''}"><div class="ph" data-p="${p.pkg}" title="${n>1?'Click to show the flights':(lock?'Not your faction':'Click to fill the datacard')}"><span class="ar">${open?'▾':'▸'}</span> <b>Pkg <span class="bl">${p.pkgNo}</span></b> · <b class="ms">${esc(p.mission)}</b> · ${n} flight${n>1?'s':''}
+   h+=`<div class="pk${p.teams.includes(ST.VIEW)?'':' al'}${ATOFX.c.has(c)?' fxin':''}"><div class="ph${p.flights.every(e=>msLocked(e.f))?' ml':''}" data-p="${p.pkg}" title="${p.flights.every(e=>msLocked(e.f))?'This mission was made for another package':n>1?'Click to show the flights':(lock?'Not your faction':'Click to fill the datacard')}"><span class="ar">${open?'▾':'▸'}</span> <b>Pkg <span class="bl">${p.pkgNo}</span></b> · <b class="ms">${esc(p.mission)}</b> · ${n} flight${n>1?'s':''}
    <div class="m">${esc(p.teamName)}${p.base?' · '+esc(p.base):''} · TO ${p.takeoff||'--:--'} · TOT ${p.tot||'--:--'}${p.target?' · '+esc(p.target):''}</div></div>`;
    if(open)p.flights.forEach(e=>{const i=ATOL.indexOf(e);
-    h+=`<div class="fl${ATOFX.p.has(p.pkg)?' fxin':''}${e.team!=ST.VIEW?' al':''}${e.hifi&&!lock?'':' nc'}${ST.ATOSEL===e.f?' sel':''}${flMan(e.f)?' man':''}" data-i="${i}" title="${lock?'Not your faction':e.heli?'Helicopters are not flyable in BMS':e.hifi?'Click to fill the datacard':'Click to fill the datacard (weight, fuel and weapon values are not calculated for this aircraft)'}">${flInfo(e)}</div>`});
+    h+=`<div class="fl${ATOFX.p.has(p.pkg)?' fxin':''}${e.team!=ST.VIEW?' al':''}${e.hifi&&!lock?'':' nc'}${msLocked(e.f)?' ml':''}${ST.ATOSEL===e.f?' sel':''}${flMan(e.f)?' man':''}" data-i="${i}" title="${msLocked(e.f)?'This mission was made for another flight':lock?'Not your faction':e.heli?'Helicopters are not flyable in BMS':e.hifi?'Click to fill the datacard':'Click to fill the datacard (weight, fuel and weapon values are not calculated for this aircraft)'}">${flInfo(e)}</div>`});
    h+='</div>'})});
  el.innerHTML=h+'</div>';expand(el.querySelectorAll('.fxin'));ATOFX.c.clear();ATOFX.p.clear();
- const load=e=>{if(lock||e.heli)return;const k=ST.CL.findIndex(x=>x.f===e.f);if(k<0)return;$('fsel').value=k;apply(k)};
+ const load=e=>{if(lock||e.heli)return;if(msLocked(e.f)){appToast('This mission was made for another flight: load a campaign to use the other flights.');return}const k=ST.CL.findIndex(x=>x.f===e.f);if(k<0)return;$('fsel').value=k;apply(k)};
  el.querySelectorAll('.ct').forEach(d=>d.onclick=()=>{const c=d.dataset.c;if(ATOCAT.has(c)){const els=[];for(let n=d.nextElementSibling;n&&!n.classList.contains('ct');n=n.nextElementSibling)els.push(n);collapse(els,()=>{if(ATOONLYP!=null&&P.some(p=>p.cat==c&&p.pkg==ATOONLYP))ATOONLY=false;ATOCAT.delete(c);P.filter(p=>p.cat==c).forEach(p=>ATOOPEN.delete(p.pkg));atoList()})}else{ATOCAT.add(c);ATOFX.c.add(c);atoList()}});
  el.querySelectorAll('.ph').forEach(d=>d.onclick=()=>{const k=+d.dataset.p,pk=P.find(x=>x.pkg==k);if(pk&&pk.flights.length==1&&!ATOOPEN.has(k)){ATOOPEN.add(k);ATOFX.p.add(k);const n0=ATORN;load(pk.flights[0]);if(ATORN==n0)atoList();return}if(ATOOPEN.has(k)){collapse(d.parentElement.querySelectorAll('.fl'),()=>{ATOOPEN.delete(k);atoList()})}else{ATOOPEN.add(k);ATOFX.p.add(k);atoList()}});
  el.querySelectorAll('.fl').forEach(d=>d.onclick=()=>load(ATOL[+d.dataset.i]))}

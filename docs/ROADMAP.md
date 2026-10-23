@@ -57,3 +57,4 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - Missions opened by hand: take the DTC name/path only from the user's own DTC folder (no path taken from the file).
 - Not wanted: an automatic updater.
 - 0.9.5-beta (2026-10-23): start-up loading bar and version in the header, received missions saved in the missions folder, primary target and time on station for ON CALL / PRE-PLAN CAS, AI and FAC(A) included in the battalion rule.
+- 0.9.6-beta (2026-10-23): kneeboard Set Default / Load colours, package flights dashed after the first landing, PPT on a SAM can be removed from the map, DTC backups keep the original file name (index.json), window opens maximized again, a mission locks the ATO and map to its own flight, ESCORT primary target names the escorted flights, TE / campaign menu not in use is darkened, MAR credit to Adrian Chițan.

@@ -47,7 +47,15 @@ export async function dtcCampaignFiles(){
  for(const n of names)for(const d of dirs){const f=joinPath(d,n);if(f===ST.DTCF.path)continue;try{if(await IO.fileExists(f))found.push(f)}catch(e){}}
  if(stem&&!found.some(f=>f.toLowerCase().endsWith(stem.toLowerCase()+'.ini'))&&joinPath(dirs[0],stem+'.ini')!==ST.DTCF.path)found.push(joinPath(dirs[0],stem+'.ini'));
  return found}
-export async function dtcBackupOnce(path,bytes){const bd=joinPath(joinPath(await IO.appDir(),'backup'),'dtc'),h=[...path].reduce((a,c)=>(a*31+c.charCodeAt(0))>>>0,7).toString(36),bak=joinPath(bd,path.split(/[\\/]/).pop()+'.'+h+'.bak');if(!(await IO.fileExists(bak))){await IO.makeDir(bd);await IO.writeBytes(bak,bytes)}}
+// The original of a DTC is copied once, with its own name, into <program folder>\backup\dtc (to restore it, move it back into the BMS folder). Another file with the same name from
+// another folder gets " (2)", " (3)"... ; backup\dtc\index.json remembers which path each copy belongs to (so the copy is made only once per file and never overwritten).
+export async function dtcBackupOnce(path,bytes){
+ const bd=joinPath(joinPath(await IO.appDir(),'backup'),'dtc'),ix=joinPath(bd,'index.json'),base=path.split(/[\\/]/).pop();let map={};
+ try{if(await IO.fileExists(ix))map=JSON.parse(new TextDecoder().decode(await readBytes(ix)))||{}}catch(e){map={}}
+ const key=path.toLowerCase();if(map[key]&&await IO.fileExists(joinPath(bd,map[key])))return;
+ const used=new Set(Object.values(map).map(n=>n.toLowerCase())),m=/^(.*?)(\.[^.]*)?$/.exec(base);let name=base,k=2;
+ while(used.has(name.toLowerCase())||await IO.fileExists(joinPath(bd,name)))name=m[1]+' ('+k++ +')'+(m[2]||'');
+ await IO.makeDir(bd);await IO.writeBytes(joinPath(bd,name),bytes);map[key]=name;await IO.writeBytes(ix,new TextEncoder().encode(JSON.stringify(map,null,1)))}
 export async function dtcOverwrite(){
  if(!lines.length)return alert('Open a DTC file first.');
  if(!ST.DTCF||!ST.DTCF.path)return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings, or use "Save copy".');

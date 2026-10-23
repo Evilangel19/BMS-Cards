@@ -1,7 +1,7 @@
 // BVR timeline numbers for the datacard and the scheme (Flow charts of the BVR timeline: MTR > TR > DOR > DR > MAR > STERN WEZ).
-// MAR: the BVR1 paper model (airmissile.marShot) with the enemy's missile at standard conditions; when the missile is not in the data files, the Threat Guide's MAR is used.
-// DR  = MAR + Vc x Tnotch            (formule_bvr.docx)
-// DOR = DR + Vc x Trecommit          (formule_bvr.docx: "5-8 nm" on top of DR)
+// MAR: the model of "Beyond Visual Range Chronicles - Minimum Abort Range" v. 3 by Adrian Chitan, cases I and II (airmissile.marShot) with the enemy's missile at standard conditions; when the missile is not in the data files, the Threat Guide's MAR is used.
+// DR  = MAR + Vc x Tnotch
+// DOR = DR + Vc x Trecommit
 // STERN WEZ = the enemy missile's range against a target running away (tail-chase range of the model), kept below the MAR
 // TR, MTR and FR are arbitrary values: they depend on the kind of enemy (its missile class), see CAT.
 import { bvrShot, marShot, soundSpeed } from './airmissile.js';

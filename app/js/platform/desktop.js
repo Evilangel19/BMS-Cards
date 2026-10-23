@@ -187,3 +187,13 @@ export async function onCloseGuard(ok, dirty = () => false) {
   }
   addEventListener('beforeunload', e => { if (dirty()) { e.preventDefault(); e.returnValue = ''; } });
 }
+
+// ---- window: opens maximized again when it was left maximized ------------------
+export async function restoreWindow() {
+  try {
+    const w = T() && T().window && T().window.getCurrentWindow && T().window.getCurrentWindow(); if (!w) return;
+    let on = false; try { on = localStorage.getItem('bms.maximized') == '1'; } catch (e) {}
+    if (on) await w.maximize();
+    let tm = 0; window.addEventListener('resize', () => { clearTimeout(tm); tm = setTimeout(async () => { try { localStorage.setItem('bms.maximized', (await w.isMaximized()) ? '1' : '0'); } catch (e) {} }, 400); });
+  } catch (e) {}
+}

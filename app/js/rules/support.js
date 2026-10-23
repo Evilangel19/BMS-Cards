@@ -1,5 +1,5 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
-import {ord,acOf,actName,els0,hms,nearObj} from '../core/flight.js';
+import {ord,acOf,actName,els0,hms,nearObj,csOf} from '../core/flight.js';
 import {geoLL,hmN,locXY} from './geo.js';
 function svc(C,f){const B=[0,1,2,3,4,7,8],w=f.wps,a=w.find(p=>!B.includes(p.act));if(!a)return null;
  const g=w.filter(p=>p.act==a.act),st=g[0].arr,en=g[g.length-1].dep||g[g.length-1].arr,nm=actName(w,w.indexOf(g[0]),C.D.S[300+f.omis]||'');
@@ -9,7 +9,9 @@ function svc(C,f){const B=[0,1,2,3,4,7,8],w=f.wps,a=w.find(p=>!B.includes(p.act)
  const o=gnd&&!bn?nearObj(C,g[0].x,g[0].y):null;
  // CAS (on call, pre-planned, plain): the time that counts is the time on station, from the first attack point to the last one; the other ground attacks have a single TOT
  const cas=/^(ON CALL CAS|PRE-PLAN CAS|CAS)$/.test(mn);
- return{tm:!st?'':(gnd?(cas&&en&&en>st?hms(st)+' - '+hms(en):hms(st)):hmN(st)+' - '+hmN(en)),tgt:bn?bn.name:(o&&o[1])||nm,ll:bn?geoLL(C,bn.u.x,bn.u.y):o?geoLL(C,o[2],o[3]):''}}
+ // ESCORT: the flights of the package that attack ground targets are the ones escorted: "Escort Cobra 6, Viper 2"
+ const esc=mn=='ESCORT'?els0(C,f).filter(e=>e!==f&&e.kind=='flight'&&(e.wps||[]).some(p=>[14,15,16,17,19].includes(p.act))).map(e=>csOf(C,e)):[];
+ return{tm:!st?'':(gnd?(cas&&en&&en>st?hms(st)+' - '+hms(en):hms(st)):hmN(st)+' - '+hmN(en)),tgt:esc.length?nm+' '+esc.join(', '):bn?bn.name:(o&&o[1])||nm,ll:bn?geoLL(C,bn.u.x,bn.u.y):o?geoLL(C,o[2],o[3]):''}}
 // the hostile ground unit (battalion) closest to a point, within km; null when there is none
 function hostileGnd(C,f,x,y,km=1){let b=null,bd=km;const allied=(p,q)=>p==q||(p<4&&q<4);
  C.units.forEach(u=>{if(u.kind!='gnd'||u.nameId==null||allied(u.owner,f.owner))return;const d=Math.hypot(u.x-x,u.y-y);if(d<bd){bd=d;b=u}});

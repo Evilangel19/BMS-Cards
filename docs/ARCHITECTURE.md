@@ -158,7 +158,7 @@ Done: 16×2 cards, big two-page preview, unused cards + bin, import (jpg/png/web
 - **Layers**: `fp` = line + steerpoints; `fd` = label box + leg distances (one filter, labels sit on the leg midpoints nearest the view centre); `pk` ("Package") = mates and their tags. Option "Names" (was "Names always visible").
 - **Colours**: bullseye `pal.bull` (black on light bases); no casing on the line for light bases (`pal.casing` null); speed vector in the flight colour; airbases by faction (`airbaseSide`: owners from the `.obd` deltas and squadron hosts only; others white). TACAN and NDB icons from the supplied symbol sheet (`mapsymbols.js`).
 - **DTC mirroring**: map edits go through `dtcSet/dtcClear/afterDtc`, which refresh the Data Cartridge page (tables Precision targets, PPT threats, Geo lines) and vice versa; STPT 97/98 sync with the datacard primary/secondary.
-- **Overwrite** (`dtcOverwrite`): desktop only (path known from `pickFile`), confirm, `<file>.bak` written once, original encoding/BOM kept (`encodeDtc`). The `.cam` is never written.
+- **Overwrite** (`dtcOverwrite`): desktop only (path known from `pickFile`), confirm, a copy of the original (same name) written once into the program folder `backup\dtc` (`index.json` remembers the source path; same name from another folder = ` (2)`), original encoding/BOM kept (`encodeDtc`). The `.cam` is never written.
 - **Geo lines**: 4 lines x 6 points; LINEn = ini rows `lineSTPT_(6(n-1)..6(n-1)+5)` = STPT 31-54 (`mapdtc.js lineOf`, `freeSlot`, `dtcLines`, `removePoint`).
 
 ### Map page v8
@@ -304,7 +304,7 @@ Done: 16×2 cards, big two-page preview, unused cards + bin, import (jpg/png/web
 - Screenshot without base map: one short warning (same text for every base).
 - DTC Filters macro: no master checkbox; closing the macro switches the DTC filters off (their state is kept in `st.dtcFilMem`, saved in the prefs), opening it restores them.
 - Point popups: Delete buttons are red. `+` buttons, DTC Filters button and the player faction button use the program green (`--ac`).
-- DTC overwrite: the original is saved once in the program folder (`backup\dtc\<name>.<hash>.bak`), never next to the file in the BMS folder (`IO.appDir`/`IO.makeDir` are replaceable by tests).
+- DTC overwrite: the original is saved once in the program folder (`backup\dtc\<name>`, `index.json` maps source paths to copies), never next to the file in the BMS folder (`IO.appDir`/`IO.makeDir` are replaceable by tests).
 
 ## v29
 - AUTO buttons (PPT, BULLSEYE, FLOT, each tanker) work once: `AU` remembers what each generated (line + first point, or the PPT slots); `auUsed()` checks that it is still in the DTC, `autoRefresh()` (called from `dtc0` and `tankerList`) dims/disables the button (`.used`) and gives it back when the line/threats are deleted.
@@ -559,7 +559,8 @@ New tab **Missiles** (`core/missilespage.js`, maths in `core/airmissile.js`, num
 - Assumptions to check against BMS: ownship speed of the table in ft/s, third axis of the table = target altitude, mean missile speeds.
 - Tests: `tests/run-airmissile.mjs`, `tools/missiles-test.py`.
 
-### MAR (BVR1 paper)
+### MAR ("Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan)
+Cases I (uniform deceleration) and II (variable deceleration) of the paper. Case III (TacView encounters) is not used: it gives clearly smaller MARs (about 17 nm instead of 36-39 nm for the AIM-120C against a 500 kt target), so the MARs of the program are the optimistic ones. The paper's Table 2 has typos for fast targets (its formulas and Figure 1 agree with the program). The program uses the game's head-on Rmax as MOR and scales the stall speed with the altitude; the paper fixes MOR and works at 25 000 ft only.
 `airmissile.js`: `marUniform` (constant deceleration from vMax so that the missile covers its Rmax; stops at the stall speed = max(400 KIAS as TAS, target speed)) and `marVariable` (a = aMax ((v−vStall)/(vMax−vStall))², 1 s steps, ends at stall speed or Rmax). The paper's vMax / measured aMax for AIM-120B/C, AIM-7, AA-10C, AA-12, AIM-54C are in `MAR_MISSILE`; other missiles get the uniform case with vMax 2408 kt. Rmax = table range of the launch. Tests reproduce the paper's Tables 2 and 4 within a few nm.
 
 ### HARM modes and AIM-120 DLZ (manual TO 1F-16CMAM-34-1-1)
@@ -568,7 +569,7 @@ New tab **Missiles** (`core/missilespage.js`, maths in `core/airmissile.js`, num
 
 ## v70 – BVR timeline on the datacard
 - `app/js/core/bvrtimeline.js`: `CLASSES` (enemy aircraft from the Threat Guide: its fixed MAR and best radar missile), `STD` (standard conditions: 25 000 ft, Mach 0.9 both aircraft, head-on, T notch 15 s, T recommit 20 s, FR 15 nm) and `timeline(class, DB, std, ownMissile)`.
-- MAR: `marShot` (BVR1 paper) with the enemy missile when it is in the Misdata files, otherwise the Threat Guide value. DR = MAR + Vc·Tnotch, DOR = DR + Vc·Trecommit (formule_bvr.docx). MTR = Vc·time-to-active + minimum range of the selected own missile (no fixed definition, to be checked). FR is a set value.
+- MAR: `marShot` (Chițan paper) with the enemy missile when it is in the Misdata files, otherwise the Threat Guide value. DR = MAR + Vc·Tnotch, DOR = DR + Vc·Trecommit. MTR = Vc·time-to-active + minimum range of the selected own missile (no fixed definition, to be checked). FR is a set value.
 - Missiles page, BVR/MAR tab: "BVR timeline · datacard" card (standard conditions, four classes, table, "Fill datacard"). Datacard: fields `bv{0-3}_{0-5}` (Class, MTR, FR, MAR, DR, DOR) at y 793 + 28·row in the BVR box; filled through `deps.fillBvr` → `setField`. Values are rounded to integers.
 - Tests: run-airmissile (3 checks), missiles-test (3 checks).
 
@@ -843,3 +844,12 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `main.js` runs the 19 start-up steps in a loop behind `#boot` (full-screen bar with the percentage and the version); the program cannot be used before it is removed. A failing step leaves the error on the bar. The version (`core/version.js`) is also shown in the header (`#appver`).
 - A mission received from a pilot is saved at once in the missions folder (desktop app, `msfStoreReceived`) under its own name; an existing folder is never overwritten (" (2)", " (3)"...). It then appears in the "Send mission" list.
 - `svc()` (primary target and TOT of the card): the hostile battalion at the attack point is the primary for DEAD, SEAD, CAS, ON CALL CAS, PRE-PLAN CAS, BAI, SCAR, AI and FAC(A) (before only the plain "CAS" name matched, so pre-planned and on-call CAS showed the nearest village or object). The TOT of the three CAS kinds is the time on station: first attack point arrival to last departure (`hh:mm:ss - hh:mm:ss`); the other ground attacks keep one TOT. Golden files were rewritten for the changed CAS flights and for the packages that list them as secondary.
+
+## v104 - Small fixes (0.9.6-beta)
+- Kneeboard: `kbDefBtns` (Set Default blue, dimmed when the cards equal the default; Load green).
+- Map: package mates solid up to the first landing steerpoint, dashed after it; the DTC marker of a PPT is above the SAM unit marker (z 1100), and the unit popup offers "Remove STPT" when the point exists.
+- `dtcBackupOnce`: copy with the original name in `backup\dtc`, `index.json` maps source path to copy.
+- `restoreWindow` (platform/desktop.js): maximized state kept in localStorage; capabilities `core:window:allow-maximize/unmaximize/is-maximized`.
+- Mission lock: `ST.MSFLOCK = {C, key}` (set by `msfLoad`), `msLocked(f)` in ato.js: other flights/packages are dimmed in the ATO, refused by the map and disabled in the flight list; it ends when another campaign replaces `ST.C`.
+- `svc()`: ESCORT primary target = "Escort <callsigns of the package flights with ground-attack steerpoints>". SEAD unchanged.
+- `setSel`: the TE / campaign menu not in use gets `.dimsel`.

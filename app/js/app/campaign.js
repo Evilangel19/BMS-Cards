@@ -53,7 +53,7 @@ export function wxFillState(){const i=+$('fsel').value||0;let diff=false;try{wxA
 export let wxPage;
 export const campDir = ()=>ST.CFG.paths.campaigns||(ST.CFG.paths.bmsInstall?jp(ST.CFG.paths.bmsInstall,'Data',ST.TH?ST.TH.campaign:'Campaign'):'');
 // the campaign menu (.cam) and the Tactical Engagement menu (.tac) are separate; choosing in one clears the other
-export const setSel = n=>{const te=/\.tac$/i.test(n||'');$('csel').value=te?'':(n||'');$('tesel').value=te?n:''};
+export const setSel = n=>{const te=/\.tac$/i.test(n||'');$('csel').value=te?'':(n||'');$('tesel').value=te?n:'';$('csel').classList.toggle('dimsel',!!n&&te);$('tesel').classList.toggle('dimsel',!!n&&!te)};   // the menu not in use is darkened
 export async function fillCampaigns(){
  const sel=$('csel'),tsel=$('tesel'),d=campDir();
  if(!isDesktop()||!d){sel.innerHTML='<option value="">— set the BMS folder in Settings, or use Browse —</option>';tsel.innerHTML='<option value="">— select a tactical engagement —</option>';return}

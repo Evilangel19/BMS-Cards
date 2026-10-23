@@ -117,7 +117,7 @@ export async function msfLoad(text,file){
   if(p.weather&&p.weather.fmap){try{ST.WX=CAM.parseFmap(await wxUnpack(p.weather.fmap))}catch(e){ST.WX=null}}
   try{mapV.setTanks(Array.isArray(p.tanks)?p.tanks:[])}catch(e){}
   let i=ST.CL.findIndex(x=>x.f.id.n+':'+x.f.id.c==p.datacard.flight);if(i<0)i=0;
-  $('fsel').innerHTML=ST.CL.map((x,k)=>`<option value="${k}">${x.label}</option>`).join('');$('fsel').value=i;$('cinfo').textContent='Mission: '+p.name;
+  $('fsel').innerHTML=ST.CL.map((x,k)=>`<option value="${k}">${x.label}</option>`).join('');$('fsel').value=i;$('cinfo').textContent='Mission: '+p.name;ST.MSFLOCK={C:C2,key:p.datacard.flight};[...$('fsel').options].forEach((o,k)=>{o.disabled=k!==i});
   if(own){ST.name=p.dtc.name||'DTC.ini';let dpath=null;if(isDesktop()){const cs=[p.dtc.path,dtcDir()?joinPath(dtcDir(),ST.name):''].filter(Boolean);for(const c of cs){try{if(await IO.fileExists(c)){dpath=c;break}}catch(e){}}if(!dpath&&cs.length)dpath=cs[cs.length-1]}   // the DTC of the mission is written where this computer keeps its DTC
    ST.DTCF={path:dpath,enc:p.dtc.enc||'utf-8',bom:!!p.dtc.bom,orig:enc8(p.dtc.original)};parse(p.dtc.original);p.dtc.edits.forEach(e=>S(e.s,e.k,e.v));$('fn').textContent=ST.name+' · from the mission';afterDtc('target_98',true);dtcBtns()}
   atoSearch();apply(i,'fresh');
