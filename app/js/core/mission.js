@@ -80,33 +80,27 @@ export function applyDtcEdits(original, edits) {
 // ---- the parts of a DTC a mission can carry ----
 // A mission sent to other pilots does not bring the whole DTC of its author (the MFD pages, the EWS programs ... are personal): it brings groups of sections.
 // `mission` groups are the ones the author of a mission decides (they are on by default), the others are personal (off by default; the author can still turn them on).
-export const DTC_GROUPS = [
-  {id: 'stpt', label: 'Steerpoints, targets, geo lines and pre-planned threats', secs: ['STPT'], mission: true},
-  {id: 'nav', label: 'Nav offsets (VIP, VRP, OA)', secs: ['NAV OFFSETS'], mission: true},
-  {id: 'wpn', label: 'Weapon settings (FCC profiles, laser codes)', secs: ['FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser'], mission: true},
-  {id: 'harm', label: 'HARM', secs: ['HARM'], mission: true},
-  {id: 'iff', label: 'IFF', secs: ['IFF'], mission: true},
-  {id: 'com', label: 'Radio presets and comms', secs: ['Radio', 'COMMS'], mission: true},
-  {id: 'l16', label: 'Link 16', secs: ['LINK16'], mission: true},
-  {id: 'icp', label: 'ICP (Bingo, Alow and other ICP settings)', secs: ['ICP'], mission: true},
-  {id: 'ews', label: 'EWS programs (personal)', secs: ['EWS'], mission: false},
-  {id: 'mfd', label: 'MFD pages (personal)', secs: ['MFD', 'Bullseye'], mission: false},
-  {id: 'sys', label: 'Map options (personal)', secs: ['MAP_POP'], mission: false}];
+// what travels to other pilots: ONE block of the DTC (no choice): steerpoints 1-99 (targets, PPT, geo lines, weapon targets), nav offsets, FCC profiles, laser codes and the ICP section (Bingo, Alow)
+export const DTC_BLOCK_SECS = ['STPT', 'NAV OFFSETS', 'FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser', 'ICP'];
+export const DTC_GROUPS = [{id: 'mission', label: 'Steerpoints, targets, lines, nav offsets, weapons and Bingo/Alow', secs: DTC_BLOCK_SECS, mission: true}];
 // the groups of the lines [{s, k, v}] of a DTC: [{id, label, mission, items: [[s, k, v], ...]}], only the groups that have lines
 export function dtcShare(lines) {
   return DTC_GROUPS.map(g => ({id: g.id, label: g.label, mission: g.mission, items: (lines || []).filter(l => l.k !== undefined && g.secs.includes(l.s)).map(l => [l.s, l.k, String(l.v)])})).filter(g => g.items.length);
 }
-// the groups of a DTC saved inside a mission (the original with its edits)
+// the block of a DTC saved inside a mission (the original with its edits, or the block of a mission that travelled): [] or one group
 export function shareFromSaved(dtc) {
   if (!dtc) return [];
-  if (dtc.share && Array.isArray(dtc.share.groups)) return dtc.share.groups;
-  if (typeof dtc.original != 'string') return [];
-  return dtcShare(parseDtc(applyDtcEdits(dtc.original, dtc.edits || [])));
+  let items = [];
+  if (dtc.share && Array.isArray(dtc.share.groups)) dtc.share.groups.forEach(g => items.push(...(g.items || [])));
+  else if (typeof dtc.original == 'string') items = dtcShare(parseDtc(applyDtcEdits(dtc.original, dtc.edits || []))).flatMap(g => g.items);
+  items = items.filter(i => DTC_BLOCK_SECS.includes(i[0]));
+  return items.length ? [{...DTC_GROUPS[0], items}] : [];
 }
-// the part of a mission that travels to other pilots: the DTC is reduced to the ticked groups (`on` marks the ones applied by default), nothing of the program settings goes along
-export function shareMission(m, groups, ticked) {
-  const ids = new Set(ticked), out = JSON.parse(JSON.stringify(m)), pick = (groups || []).filter(g => ids.has(g.id)).map(g => ({id: g.id, label: g.label, mission: g.mission, items: g.items, on: true}));
-  out.dtc = {share: {groups: pick}, author: (m.dtc && m.dtc.author) || null}; out.settings = null; out.shared = true;
+// the part of a mission that travels to other pilots: the DTC is reduced to the block, nothing of the program settings goes along
+export function shareMission(m, groups) {
+  const out = JSON.parse(JSON.stringify(m));
+  out.dtc = (groups || []).length ? {share: {groups: groups.map(g => ({id: g.id, label: g.label, mission: true, items: g.items, on: true}))}, author: (m.dtc && m.dtc.author) || null} : null;
+  out.settings = null; out.shared = true;
   return out;
 }
 // slots of the steerpoint blocks: what the receiver has there and the mission does not is emptied, so no point of the receiver mixes with the mission
@@ -124,22 +118,22 @@ export function shareClears(existing, g) {
   }
   return out;
 }
-// what a group does to the DTC of the receiver: {change, add, clear, same}
+// what a group does to the DTC of the receiver: {change, add, clear, same, missing: [sections the receiver's DTC does not have], lost: lines of those sections}
 export function shareDiff(existing, g) {
-  const cur = new Map((existing || []).filter(l => l.k !== undefined).map(l => [l.s + '|' + l.k, norm(l.v)]));
-  let change = 0, add = 0, same = 0;
-  for (const [s, k, v] of g.items) { const c = cur.get(s + '|' + k); if (c === undefined) add++; else if (c !== norm(v)) change++; else same++; }
-  return {change, add, same, clear: shareClears(existing, g).length};
+  const cur = new Map((existing || []).filter(l => l.k !== undefined).map(l => [l.s + '|' + l.k, norm(l.v)])), secs = new Set((existing || []).map(l => l.s)), miss = new Set();
+  let change = 0, add = 0, same = 0, lost = 0;
+  for (const [s, k, v] of g.items) { if (!secs.has(s)) { miss.add(s); lost++; continue; } const c = cur.get(s + '|' + k); if (c === undefined) add++; else if (c !== norm(v)) change++; else same++; }
+  return {change, add, same, lost, missing: [...miss], clear: shareClears(existing, g).length};
 }
-// puts the items of the groups with the given ids into a DTC through set(section, key, value); `existing` = lines of the DTC of the receiver (to empty the slots the mission does not use); how many lines were written or emptied
+// puts the items of the groups with the given ids into a DTC through set(section, key, value); `existing` = lines of the DTC of the receiver (to empty the slots the mission does not use and to skip the sections it does not have): {n: lines written or emptied, skipped: lines of missing sections}
 export function applyShare(set, groups, ids, existing) {
-  const want = new Set(ids); let n = 0;
+  const want = new Set(ids), secs = existing ? new Set(existing.map(l => l.s)) : null; let n = 0, skipped = 0;
   for (const g of groups || []) if (want.has(g.id)) {
     const clr = shareClears(existing, g);
-    for (const [s, k, v] of g.items) { set(s, k, v); n++; }
+    for (const [s, k, v] of g.items) { if (secs && !secs.has(s)) { skipped++; continue; } set(s, k, v); n++; }
     for (const c of clr) { set(c.s, c.k, c.v); n++; }
   }
-  return n;
+  return {n, skipped};
 }
 
 // ---- the mission file ----

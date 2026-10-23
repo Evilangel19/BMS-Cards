@@ -89,14 +89,15 @@ export async function testNetwork(turn = []) {
 }
 export function createLink({stun = false, turn = [], onOpen = () => {}, onClose = () => {}, onMessage = () => {}} = {}) {
   const pc = new RTCPeerConnection({iceServers: [...(stun ? STUN : []), ...turn]});
-  let dc = null, rx = {};
+  let dc = null, rx = {}; const acks = {};
   const wire = ch => {
     dc = ch; ch.bufferedAmountLowThreshold = 1 << 20;
-    ch.onopen = () => onOpen(); ch.onclose = () => onClose();
+    ch.onopen = () => onOpen(); ch.onclose = () => { Object.keys(acks).forEach(i => { const a = acks[i]; delete acks[i]; a.rej(new Error('The connection with the pilot closed before he answered.')); }); onClose(); };
     ch.onmessage = async e => {
       let m; try { m = JSON.parse(e.data); } catch (x) { return; }
-      if (m.k == 'mp') { rx[m.id] = {name: m.name, n: m.n, parts: [], from: m.from}; }
-      else if (m.k == 'mc') { const r = rx[m.id]; if (!r) return; r.parts[m.i] = m.d; if (r.parts.filter(x => x !== undefined).length == r.n) { delete rx[m.id]; try { onMessage({k: 'mission', name: r.name, from: r.from, text: await unzip(r.parts.join(''))}); } catch (x) { onMessage({k: 'error', text: 'The mission received could not be read.'}); } } }
+      if (m.k == 'mack') { const a = acks[m.id]; if (a) { delete acks[m.id]; m.ok ? a.res() : a.rej(new Error(m.text || 'The pilot could not read the mission.')); } }
+      else if (m.k == 'mp') { rx[m.id] = {name: m.name, n: m.n, parts: [], from: m.from}; }
+      else if (m.k == 'mc') { const r = rx[m.id]; if (!r) return; r.parts[m.i] = m.d; if (r.parts.filter(x => x !== undefined).length == r.n) { delete rx[m.id]; let txt = null; try { txt = await unzip(r.parts.join('')); } catch (x) { onMessage({k: 'error', text: 'The mission received could not be read.'}); try { ch.send(JSON.stringify({k: 'mack', id: m.id, ok: false, text: 'The mission arrived but could not be read by the other pilot.'})); } catch (y) { /* closed */ } } if (txt !== null) { onMessage({k: 'mission', name: r.name, from: r.from, text: txt}); try { ch.send(JSON.stringify({k: 'mack', id: m.id, ok: true})); } catch (y) { /* closed */ } } } }
       else onMessage(m);
     };
   };
@@ -116,7 +117,10 @@ export function createLink({stun = false, turn = [], onOpen = () => {}, onClose 
       if (!dc || dc.readyState != 'open') throw new Error('Not connected.');
       const z = await zip(text), n = Math.ceil(z.length / CHUNK), id = Math.random().toString(36).slice(2);
       dc.send(JSON.stringify({k: 'mp', id, name, n, from}));
+      const answer = new Promise((res, rej) => { acks[id] = {res, rej}; setTimeout(() => { if (acks[id]) { delete acks[id]; rej(new Error('The other pilot did not confirm within 30 seconds: the mission may not have arrived.')); } }, 30000); });
+      answer.catch(() => {});
       for (let i = 0; i < n; i++) { if (dc.bufferedAmount > (1 << 20)) await new Promise(r => { dc.onbufferedamountlow = () => { dc.onbufferedamountlow = null; r(); }; }); dc.send(JSON.stringify({k: 'mc', id, i, d: z.slice(i * CHUNK, (i + 1) * CHUNK)})); }
+      await answer;
     },
     get open() { return !!dc && dc.readyState == 'open'; },
     close() { try { pc.close(); } catch (e) { /* closed */ } }
@@ -502,20 +506,20 @@ export function createSquadronPage(deps) {
   const sendFlow = async (targets) => {
     const T = typeof targets == 'function' ? targets : () => targets;
     if (!deps.mission) { const m = await deps.buildMission(), t = JSON.stringify(m); return doSend(T(), t, m.name); }
-    let src = [{id: '', label: 'Current mission'}], groups = [];
+    let src = [{id: '', label: 'Current mission'}], info = '';
     try { src = await deps.mission.sources(); } catch (e) {}
-    const ld = async (id) => { try { groups = await deps.mission.groups(id); } catch (e) { groups = []; } };
+    const ld = async (id) => { try { const g = await deps.mission.groups(id); info = g.length ? 'DTC data sent with it: ' + g[0].label + ' (' + g[0].count + ' lines). The receiver applies it to his own DTC.' : 'This mission has no DTC data: it goes without steerpoints.'; } catch (e) { info = 'The mission could not be read: ' + (e && e.message || e); } };
     await ld(src[0].id);
     const go = await new Promise(res => {
-      const draw = (o) => { o.querySelector('[data-grp]').innerHTML = groups.length ? groups.map(g => `<label style="display:flex;gap:8px;align-items:center;margin:3px 0"><input type="checkbox" data-g="${esc(g.id)}"${g.mission ? ' checked' : ''}> ${esc(g.label)} <span class="hint">· ${g.count} lines${g.mission ? '' : ' · personal'}</span></label>`).join('') : '<div class="hint">This mission has no DTC data.</div>'; };
-      pop(`<h3 style="margin:0 0 6px;font-size:15px">Send mission</h3><label class="hint">Mission</label><select data-src style="width:100%;margin:2px 0 10px">${src.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('')}</select><div class="hint" style="margin-bottom:4px">DTC data to share (the receiver applies it to <b>his own</b> DTC; EWS, MFD and map options are personal and off by default):</div><div data-grp></div><div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok>Send</button></div>`, (o, c) => {
-        draw(o); o.querySelector('[data-src]').onchange = async e => { await ld(src[+e.target.value].id); draw(o); };
+      pop(`<h3 style="margin:0 0 6px;font-size:15px">Send mission</h3><label class="hint">Mission</label><select data-src style="width:100%;margin:2px 0 10px">${src.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('')}</select><div class="hint" data-info style="margin-bottom:4px"></div><div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok>Send</button></div>`, (o, c) => {
+        const show = () => { o.querySelector('[data-info]').textContent = info; };
+        show(); o.querySelector('[data-src]').onchange = async e => { await ld(src[+e.target.value].id); show(); };
         o.querySelector('[data-x]').onclick = () => { c(); res(null); };
-        o.querySelector('[data-ok]').onclick = () => { const ids = [...o.querySelectorAll('input[data-g]')].filter(i => i.checked).map(i => i.dataset.g); const id = src[+o.querySelector('[data-src]').value].id; c(); res({id, ids}); };
+        o.querySelector('[data-ok]').onclick = () => { const id = src[+o.querySelector('[data-src]').value].id; c(); res({id}); };
       });
     });
     if (!go) return;
-    let m; try { m = await deps.mission.forSend(go.id, go.ids); } catch (e) { return result(false, 'Mission not sent', 'The mission could not be prepared: ' + (e && e.message || e)); }
+    let m; try { m = await deps.mission.forSend(go.id); } catch (e) { return result(false, 'Mission not sent', 'The mission could not be prepared: ' + (e && e.message || e)); }
     return doSend(T(), JSON.stringify(m), m.name);
   };
   const doSend = async (tg, text, name) => {
@@ -526,7 +530,7 @@ export function createSquadronPage(deps) {
     w.close();
     if (ok.length) say('Mission "' + name + '" sent to ' + ok.join(', ') + '.');
     if (bad.length) { say('Error: ' + bad.join(' | ')); result(false, ok.length ? 'Mission partly sent' : 'Mission not sent', (ok.length ? 'Sent to: ' + ok.join(', ') + '\n\n' : '') + 'Failed:\n' + bad.join('\n'), bad.join(' | ')); }
-    else result(true, 'Mission sent', 'Mission "' + name + '" was sent to ' + ok.join(', ') + '.');
+    else result(true, 'Mission delivered', 'Mission "' + name + '" was received by ' + ok.join(', ') + '.');
     drawSession();
   };
   const sentMsg = (m, n) => { say('Mission "' + m.name + '" sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); deps.toast && deps.toast('Mission sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.'); };

@@ -41,9 +41,9 @@ export async function dtcRevert(){
  for(let i=lines.length-1;i>=0;i--){const l=lines[i];if(!l.dirty)continue;if(!l.raw){lines.splice(i,1);continue}l.v=l.raw.slice(l.raw.indexOf('=')+1).trim();l.dirty=0}
  afterDtc('target_98',true);if($('fn'))$('fn').textContent=ST.name}
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.
-// BMS reads the DTC of a campaign from <campaign name>.ini (and Autosave.ini when the campaign is opened): those files are written with the same DTC
+// BMS reads the DTC of a campaign from <campaign name>.ini (Autosave.ini is written only when the campaign itself is the Autosave one, never otherwise): those files are written with the same DTC
 export async function dtcCampaignFiles(){
- const dirOf=p=>p.replace(/[\\/][^\\/]*$/,''),dirs=[...new Set([dirOf(ST.DTCF.path),dtcDir(),(()=>{try{return campDir()}catch(e){return''}})()].filter(Boolean))],stem=ST.C&&ST.C.name?PJ.safeName(ST.C.name):'',names=[stem&&stem+'.ini','Autosave.ini'].filter(Boolean),found=[];
+ const dirOf=p=>p.replace(/[\\/][^\\/]*$/,''),dirs=[...new Set([dirOf(ST.DTCF.path),dtcDir(),(()=>{try{return campDir()}catch(e){return''}})()].filter(Boolean))],stem=ST.C&&ST.C.name?PJ.safeName(ST.C.name):'',names=[stem&&stem+'.ini'].filter(Boolean),found=[];
  for(const n of names)for(const d of dirs){const f=joinPath(d,n);if(f===ST.DTCF.path)continue;try{if(await IO.fileExists(f))found.push(f)}catch(e){}}
  if(stem&&!found.some(f=>f.toLowerCase().endsWith(stem.toLowerCase()+'.ini'))&&joinPath(dirs[0],stem+'.ini')!==ST.DTCF.path)found.push(joinPath(dirs[0],stem+'.ini'));
  return found}

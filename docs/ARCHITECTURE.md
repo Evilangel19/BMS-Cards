@@ -831,3 +831,10 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Mission groups now also hold Radio/COMMS, LINK16 and ICP (Bingo, Alow...). Personal (off by default): EWS, MFD/Bullseye, MAP_POP.
 - `applyShare(set, groups, ids, existing)` also empties the slots of STPT and NAV OFFSETS that the receiver has and the mission does not fill (`shareClears`, using an empty line of the mission as pattern), so points of the two DTCs never mix. `shareDiff` feeds the preview in the receive dialog (changed / new / emptied / equal lines).
 - The callsign used to find `<callsign>.ini` is the one of the pilot profile on the Squadron page (`sqPage.me()`).
+
+## v102 - One DTC block, delivery answer, safer receive (0.9.4-beta)
+- No more group choice: a mission travels with ONE DTC block (`DTC_BLOCK_SECS`: STPT 1-99 with targets/PPT/lines/wpntarget, NAV OFFSETS, FCC_AGB/AIM/AGM, Laser, ICP = Bingo/Alow). MFD, EWS, Radio, COMMS, Link 16, HARM, IFF, map options never travel. `shareFromSaved` reduces any source (also old shared missions) to the block.
+- Receive (`msfShared`, before anything of the program is replaced, so a failure leaves it untouched): dialog with the counts (changed / new / emptied / equal) and warnings: the open DTC is not `<roster callsign>.ini`; sections the DTC does not have (those lines are skipped and reported, `applyShare` returns `{n, skipped}`); keys that do not exist in the DTC (possible incompatibility). The package is restored into temporary objects first (damaged package = nothing changed).
+- After a block is applied `MSFSIG` is set to a value that never matches: the program warns when closing until the DTC is written. Loading a mission asks first when the open DTC has unwritten changes.
+- `dtcCampaignFiles` never writes Autosave.ini unless the campaign itself is Autosave.
+- The link answers every mission: the receiver sends `mack` (ok / could not read) after reading it; the sender's popup says "delivered" only after that (30 s timeout, or the connection closing, = error).
