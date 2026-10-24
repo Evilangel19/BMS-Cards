@@ -630,7 +630,7 @@ export function createMap(host, deps) {
       fs.forEach((f, k) => { const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0, txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '', fl = toLL(f.e / FT_KM, f.n / FT_KM); OSL.push({ll: fl, name: f.name});
         L.marker(fl, {icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150})
           .bindTooltip(deps.esc(f.name) + txt, {direction: 'top', offset: [0, -4]})
-          .bindPopup(() => objPopup(o.name + ' ' + f.name, f.name + ' · ' + o.name + txt, f.n, f.e), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 200}).addTo(OSUB); });
+          .bindPopup(() => objPopup(o.name + ' ' + f.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 200}).addTo(OSUB); });
       if (fs.length) {   // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
         const bd = L.latLngBounds([ll]); OSL.forEach(r => bd.extend(r.ll));
         const go = () => { const z = Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50]))); map.setView(bd.getCenter(), z, {animate: an}); };
@@ -639,14 +639,14 @@ export function createMap(host, deps) {
       objLabels();
     }).catch(() => { toast('The sub-objectives could not be read.', true); });
   }
-  function objPopup(name, sub, n, e) {
+  function objPopup(name, sub, n, e, short) {   // short: the name a TGT steerpoint gets (11 characters in the DTC): the sub-objective's own name, or the objective's
     const d = document.createElement('div'); d.className = 'dtp'; const nm = name.slice(0, 40);
     d.innerHTML = `<div><b>${deps.esc(name)}</b></div><div class="hint" style="min-height:0">${deps.esc(sub)} · ${fmtLL(...toLL(e / FT_KM, n / FT_KM))}</div><div class="bar" style="margin:6px 0 0"><button type="button" class="btn g" data-a="wt">Add as weapon target</button><button type="button" class="btn g gn" data-a="st" title="Keep it as a TGT steerpoint (STPT 81-99)">＋ TGT STPT</button></div><div class="hint err" style="color:#ff6b6b;min-height:0"></div>`;
     const err = t => { d.querySelector('.err').textContent = t; };
     d.querySelector('[data-a=wt]').onclick = async () => { if (!EDIT) return; const r = await deps.dtc.wtPut({n, e, elv: 0, name: nm}); if (r == 'full') return err('No free weapon target left in the DTC.'); if (r == 'ok') { map.closePopup(); dtc(); toast('Weapon target added: ' + nm); } };
     d.querySelector('[data-a=st]').onclick = async () => {
       if (!EDIT) return; const P = deps.dtc.points(), slot = P ? freeSlot(P, 'prec') : -1; if (slot < 0) return err('There is no free TGT Steerpoint (STPT 81-99).');
-      const alt = deps.dtc.elev ? await deps.dtc.elev({n, e}) : 0, sn = String(name).replace(/[\s,]+/g, ' ').trim().slice(0, 11) || 'Map STPT ' + (GROUPS.prec.first + slot);
+      const alt = deps.dtc.elev ? await deps.dtc.elev({n, e}) : 0, sn = String(short || name).replace(/[\s,]+/g, ' ').trim().slice(0, 11) || 'Map STPT ' + (GROUPS.prec.first + slot);
       deps.dtc.set('prec', slot, {x: e / FT_KM, y: n / FT_KM, altFt: alt, name: sn}); map.closePopup(); dtc(); toast('Added as STPT ' + (GROUPS.prec.first + slot) + '.');
     };
     return ro(d);
@@ -840,7 +840,7 @@ export function createMap(host, deps) {
       : it.group == 'ppt' ? '<path d="M9 1.5L16.5 9L9 16.5L1.5 9Z" class="dti"/>' : '<rect x="4.5" y="4.5" width="9" height="9" class="dti"/>';
     return L.divIcon({className: 'dts ' + it.group, html: `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.stpt}</b>` + (it.group == 'ppt' && it.name ? `<i class="dtn" style="color:${col}">${deps.esc(pptLabel(it.name))}</i>` : ''), iconSize: [18, 18]});
   };
-  const dtcTip = it => `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + (it.slot % LINE_LEN + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
+  const dtcTip = it => `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + (it.slot % LINE_LEN + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
   // after a change (a point or a whole line deleted ...) an unfinished line is recalculated: the highlighted point and the Done button follow
   function dtc() { const am = addM && addM.g == 'line' && !addM.rect ? addM : null; try { dtc0(); } finally { if (am && addM === am) addStart('line', am.line); } }
   function dtc0() {
