@@ -81,6 +81,7 @@ try:
         pg.evaluate("()=>{const e=document.querySelector('#ms input[data-sl=tgtSpeed]');e.value=700;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(200)
         check('BVR: a faster aborting target has a shorter MAR', pg.inner_text('#ms #msr .wpt') != m1)
         check('BVR timeline: the table has a Missile column; a class that carries the selected missile shows it with a star', 'Missile' in pg.inner_text('#ms #mstl table.wtl tr') and pg.evaluate("()=>{const m=document.querySelector('#ms select[data-pick=msl]').value;return [...document.querySelectorAll('#ms #mstl table.wtl tr')].some(r=>r.lastElementChild.textContent.includes(m+' ★'))}") in (True, False))
+        check('BVR timeline: the table is kept in memory (the same rows come back, not worked out again)', pg.evaluate("()=>{const a=__app.msPage.rows(),b=__app.msPage.rows();return a.some(x=>x)&&a.every((x,i)=>x===b[i])&&__app.msPage.tlCache()>0}"))
         check('BVR timeline: the Banzai track has its aircraft triangle', pg.locator('#ms svg.wsch path[fill="#3b82f6"]').count() >= 4)
         def scale(row):
             pg.click('#ms #mstl tr[data-tlsel="%d"] td' % row); pg.wait_for_timeout(250)

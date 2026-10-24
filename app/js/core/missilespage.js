@@ -65,7 +65,14 @@ export function createMissilesPage(deps) {
   // BVR timeline card: standard conditions + up to 4 enemy classes -> MTR / TR / DOR / DR / MAR / STERN WEZ (+ FR), a scheme of the selected one and the datacard fill
   const STDF = [['alt', 'Altitude (ft)', 0, 50000, 1000], ['mach', 'Mach', 0.3, 2, 0.05], ['tNotch', 'T notch (s)', 0, 60, 1], ['tRecommit', 'T recommit (s)', 0, 90, 1]];
   const f1 = v => v == null ? '—' : (Math.round(v * 10) / 10).toString();
-  function tlRows() { return st.tl.cls.map(c => c ? timeline(c, DB, st.tl.std, st.bvr.msl) : null); }
+  // the timeline of a class is kept in memory: it is worked out again only when its inputs change (the class, the standard conditions, the missile, the missile data)
+  const TLC = {db: null, m: new Map()};
+  function tl1(c, std, msl) {
+    if (TLC.db !== DB) { TLC.db = DB; TLC.m.clear(); }
+    const key = JSON.stringify([c, std, msl]); if (TLC.m.has(key)) return TLC.m.get(key);
+    const r = timeline(c, DB, std, msl); if (TLC.m.size > 64) TLC.m.clear(); TLC.m.set(key, r); return r;
+  }
+  function tlRows() { return st.tl.cls.map(c => c ? tl1(c, st.tl.std, st.bvr.msl) : null); }
   // the scheme of the two flow charts: range down the page (the adversary at the top), the lines MTR > TR > DOR > DR > MAR > STERN WEZ, and the Launch-and-Leave (Skate / Short Skate) and Launch-and-Decide (Banzai / abort) tracks
   function scheme(r) {
     // one scale for every table (8.17 px per nm): a longer MTR makes the drawing taller instead of squeezing it (at least as tall as for 42.5 nm)
@@ -208,5 +215,5 @@ export function createMissilesPage(deps) {
     if (st.em && !E.some(x => x.v === st.em)) { const o = lastE.find(x => x.v === st.em), m = o && E.find(x => Math.abs(x.n - o.n) < 1 && Math.abs(x.e - o.e) < 1); if (m) st.em = m.v; }
     const same = sig(E) === sig(lastE); lastE = E; draw(same);
   }
-  return {refresh, rows: tlRows, calc: c => { load(); return c ? timeline(c, DB, st.tl.std, st.bvr.msl) : null; }, render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(false); }, root: deps.root, leave: detachMap, state: () => st, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o, mode: deps.only || o.mode || st.mode}; save(); refresh(); } }, result: () => res};
+  return {refresh, rows: tlRows, calc: c => { load(); return c ? tl1(c, st.tl.std, st.bvr.msl) : null; }, tlCache: () => TLC.m.size, render: () => { if (!deps.root.isConnected || deps.root.closest('.hide')) return; draw(false); }, root: deps.root, leave: detachMap, state: () => st, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o, mode: deps.only || o.mode || st.mode}; save(); refresh(); } }, result: () => res};
 }

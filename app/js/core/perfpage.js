@@ -9,7 +9,7 @@ const SL = {
   fuel: ['Fuel', ' lb', 0, 40000, 100], stores: ['Stores', ' lb', 0, 20000, 100], di: ['Drag index', '', 0, 300, 1], isa: ['Temperature', ' °C ISA', -40, 40, 1],
   alt: ['Altitude', ' ft', 0, 55000, 500], g: ['Ps at', ' g', 1, 9, .5], reserve: ['Reserve', ' lb', 0, 8000, 100], mach: ['Mach', '', .3, 2, .01],
   lres: ['Landing reserve', ' lb', 500, 4000, 100], jok: ['Joker above bingo', ' lb', 0, 2000, 100], elev: ['Field elevation', ' ft', -500, 9000, 100], hw: ['Headwind', ' kt', -20, 40, 1], slope: ['Slope', ' %', -3, 3, .1], lfuel: ['Landing fuel', ' lb', 0, 20000, 100]};
-const DEF = {mode: 'turn', ac: 'F-16CM-50', fuel: 7162, stores: 0, di: 0, isa: 0, alt: 15000, g: 1, ps: 'ab', reserve: 1500, mach: 0, elev: 0, hw: 0, slope: 0, power: 'ab', lfuel: 2500, rwy: 0, lres: 1500, jok: 1000};
+const DEF = {mode: 'field', ac: 'F-16CM-50', fuel: 7162, stores: 0, di: 0, isa: 0, alt: 15000, g: 1, ps: 'ab', reserve: 1500, mach: 0, elev: 0, hw: 0, slope: 0, power: 'ab', lfuel: 2500, rwy: 0, lres: 1500, jok: 1000};
 
 export function createPerfPage(deps) {
   const esc = deps.esc, KEY = 'pfstate1';

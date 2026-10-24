@@ -15,6 +15,8 @@ try:
         check('the Performance tab exists', pg.locator('[data-t=pf]').count() == 1)
         pg.click('[data-t=pf]'); pg.wait_for_timeout(1200)
         check('the page shows the aircraft (built-in F-16CM-50)', 'F-16CM-50' in pg.inner_text('#pf'))
+        check('the first tab, Take-off & landing, is the one open by default', pg.locator('#pf [data-mode=field].on').count() == 1 and pg.locator('#pf .wtabs button').first.get_attribute('data-mode') == 'field')
+        pg.click('#pf [data-mode=turn]'); pg.wait_for_timeout(600)
         check('turn tab: corner speed tile and three charts', 'corner speed' in pg.inner_text('#pf').lower() and pg.locator('#pf svg').count() >= 3)
         txt = pg.inner_text('#pf'); print('  ', txt[:200].replace('\n', ' | '))
         s0 = pg.inner_html('#pfr')
