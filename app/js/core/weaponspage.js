@@ -27,7 +27,7 @@ export function navRow(text, withStpt = true) {
 }
 export function createWeaponsPage(deps) {
   const {esc} = deps;
-  let st = {mode: 'popup', bomb: 'auto', oa1: 'top', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
+  let st = {mode: 'popup', bomb: 'auto', oa1: 'top', ref: 'vrp', src: 'dtc', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
   try { const o = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (o) st = {...st, ...o, inp: {...DEFAULTS, ...o.inp, heading: (o.inp && o.inp.heading) || 360}, hadb: {...HADB_DEFAULTS, ...o.hadb}, toss: {...TOSS_DEFAULTS, ...o.toss}, map: {...st.map, ...o.map}, mat: {...st.mat, ...o.mat}, fz: {...st.fz, ...o.fz}}; } catch (e) { /* none */ }
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* none */ } };
   let lethN = 0, res = null, ctx = null, mapNote = '', el = null, elKey = '', elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
@@ -49,11 +49,13 @@ export function createWeaponsPage(deps) {
     if (FP.length) FP.filter(w => w.n <= 24).forEach(w => T0.push({v: 'r:' + w.n, label: 'STPT ' + w.n, group: G.route, n: w.y * FT_KM, e: w.x * FT_KM, name: 'STPT ' + w.n, stpt: w.n}));
     else R.filter(z => +z.x || +z.y).forEach(z => T0.push({v: 'r:' + (z.n + 1), label: 'STPT ' + (z.n + 1), group: G.route, n: +z.x, e: +z.y, name: 'STPT ' + (z.n + 1), stpt: z.n + 1}));
     if (P) for (const g of ['line', 'ppt', 'prec']) (P[g] || []).filter(q => !q.empty).forEach(q => T0.push({v: g + ':' + q.slot, label: 'STPT ' + q.stpt + (q.name ? ' · ' + q.name : ''), group: g == 'prec' ? G.prec : g == 'line' ? G.line : isSam(q) ? G.sam : G.oth, n: q.y * FT_KM, e: q.x * FT_KM, name: q.name || 'STPT ' + q.stpt, pname: q.name, stpt: q.stpt, ringFt: g == 'ppt' ? (q.rngNm || 0) * FT_NM : 0}));
-    const order = [G.prec, G.sam, G.route, G.oth, G.line], T = order.flatMap(g => T0.filter(x => x.group == g));
+    const order = [G.prec, G.sam, G.route, G.oth, G.line], TA = order.flatMap(g => T0.filter(x => x.group == g));
+    // DTC entry: the game loads the pull-up point and the OA rows only on the route steerpoints 1-24 (25 is the bullseye); Manual entry: any steerpoint 1-99, typed in the DED
+    const TR = TA.filter(x => x.group == G.route && x.stpt >= 1 && x.stpt <= 24), T = st.src == 'man' || !TR.length ? TA : TR;   // no route steerpoint at all: every point stays choosable, with a red warning
     const t = T.find(x => x.v === st.tgt) || T[0] || null, tPos = t ? {n: t.n, e: t.e} : null;
-    const RL = [{v: 'tgt', label: 'Target itself', group: ''}, ...T.map(x => ({...x, pos: {n: x.n, e: x.e}}))], pick = RL.find(x => x.v === st.refPt) || RL[0];
+    const RL = [{v: 'tgt', label: 'Target itself', group: ''}, ...TA.map(x => ({...x, pos: {n: x.n, e: x.e}}))], pick = RL.find(x => x.v === st.refPt) || RL[0];
     const vipPos = pick && pick.pos ? pick.pos : tPos;
-    return {T, R, RL, t, sp: t ? {n: t.stpt} : null, tPos, stPos: tPos, vipPos, ref: st.ref == 'vip' ? vipPos : tPos};
+    return {T, TA, R, RL, t, sp: t ? {n: t.stpt} : null, tPos, stPos: tPos, vipPos, ref: st.ref == 'vip' ? vipPos : tPos};
   }
 
   // fuze: C1 (free-fall / GBU: two arming delays) or C2 (CBU: arming delay and burst altitude); values start from the DTC profile
@@ -113,7 +115,7 @@ export function createWeaponsPage(deps) {
     const eng = st.mode == 'hadb' ? computeHadb : st.mode == 'toss' ? computeToss : computePopup;
     res = eng(ctx.tPos, ctx.ref, {...cur(), ...fuzeInputs()});
     if (st.mode == 'toss' && st.mat.on && res && !res.error) {   // MAT: the toss against the WEZ of a PPT
-      const P = ctx.T.filter(x => x.ringFt > 0 && x.pname !== undefined && x.v.startsWith('ppt:')), p = P.find(x => x.v === st.mat.ppt) || P[0];
+      const P = ctx.TA.filter(x => x.ringFt > 0 && x.pname !== undefined && x.v.startsWith('ppt:')), p = P.find(x => x.v === st.mat.ppt) || P[0];
       const d = samAlt(p); if (p && d && !st.mat.man && st.mat.auto !== p.v) { st.mat.auto = p.v; st.mat.samMax = d.max; st.mat.samMin = d.min; if (st.toss.ingressAltitude < d.max) st.toss.ingressAltitude = Math.min(50000, d.max + 1000); res = eng(ctx.tPos, ctx.ref, {...cur(), ...fuzeInputs()}); }
       res.mat = p ? {...matCheck(res, {n: p.n, e: p.e, ringFt: p.ringFt}, {max: st.mat.samMax, min: Math.min(st.mat.samMin, st.mat.samMax)}), name: p.label, pos: {n: p.n, e: p.e}} : {missing: true};
     }
@@ -259,6 +261,14 @@ export function createWeaponsPage(deps) {
 
   // ---------- NAV OFFSETS ----------
   const elv = k => el && has(el[k]) ? el[k] : undefined;
+  // the game loads the pull-up point and the OA rows only on the route steerpoints 1-24 (25 is the bullseye): the DTC entry writes the NAV OFFSETS, the Manual entry never does
+  const routeOk = () => !!(ctx && ctx.t && ctx.t.group == 'Flight plan' && ctx.t.stpt >= 1 && ctx.t.stpt <= 24);
+  const writable = () => st.src == 'dtc' && routeOk();
+  const OFFKEY = /^(VIP|VIPPUP|VRP|VRPPUP|OA[12]-\d+)$/, zeroRow = k => /^OA/.test(k) ? '0,0,0' : '0,0,0,0';
+  const held = k => { const o = navRow(deps.G('NAV OFFSETS', k, ''), !k.startsWith('OA')); return [o.brg, o.rng, o.elev].some(v => +v); };
+  // every offset row of the DTC, but the ones kept, that still holds a value: a new attack replaces the earlier ones (and the game could not show them on another steerpoint)
+  const toClear = keep => [...new Set(deps.lines().filter(l => l.s == 'NAV OFFSETS' && OFFKEY.test(l.k) && !keep.includes(l.k)).map(l => l.k))].filter(held);
+  const plan = () => { const rows = writable() ? Object.values(offsets()) : []; return {rows, clr: toClear(rows.map(x => x.key))}; };
   function offsets() {
     const r = res, sp = ctx.stPos, o = {}, vip = st.ref == 'vip', n = ctx.sp ? ctx.sp.n : 0;
     o.pup = {key: vip ? 'VIPPUP' : 'VRPPUP', label: vip ? 'VIP → PUP' : 'TGT → PUP', row: offsetRow(ctx.ref, r.pup), stpt: n, alt: elv('pup')};
@@ -287,14 +297,22 @@ export function createWeaponsPage(deps) {
     if (st.mode == 'popup') Object.assign(c, {ph: h3(v.pullHeading) + '°', cl: Math.round(v.climbAngle) + '°', pd: fmt(v.pulldownAltitude), tn: side + ' ' + v.turnG + 'G', th: 'TGT visible'});
     else if (st.mode == 'hadb') Object.assign(c, {ph: h3(v.ingressHeading) + '°', cl: 'DA ' + v.diveAngle + '°', pd: 'AOD ' + (v.aod / FT_NM).toFixed(1), tn: side + ' ' + v.turnG + 'G', th: 'TGT not visible'});
     else Object.assign(c, {ph: h3(r.hasTurn ? v.ingressHeading : v.attackHeading) + '°', cl: 'RA ' + v.releaseAngle + '°', pd: 'PUL ' + (v.pullDistance / FT_NM).toFixed(1), tn: r.hasTurn ? side + ' ' + v.angleOff + '°' : 'none', th: 'TGT not visible'});
+    c.src = st.src;
+    if (st.src == 'man' && ctx.sp) { const O = offsets(), f = x => x ? [String(x.row.brg), String(x.row.rng), String(Math.round(x.alt !== undefined ? x.alt : 0))] : null; c.man = {stpt: ctx.sp.n, dv: f(O.ref), dp: f(O.pup), oa: f(O.oa1), ob: f(O.oa2)}; }
     return c;
+  }
+  // zero every offset row of the DTC (a mission that needs none)
+  async function clearAll() {
+    if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) { await deps.alert('This DTC has no NAV OFFSETS section.'); return; }
+    const clr = toClear([]); clr.forEach(k => wr('NAV OFFSETS', k, zeroRow(k)));
+    st.applied = null; st.cleared = clr; st.card = null; save(); draw(true); if (clr.length && deps.applied) deps.applied();
   }
 
   async function apply() {
     if (!res || res.error || !ctx.sp) return;
     if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) { await deps.alert('This DTC has no NAV OFFSETS section.'); return; }
     const agb = deps.lines().some(l => l.s == 'FCC_AGB');
-    const rows = Object.values(offsets()), tell = [];
+    const {rows, clr} = plan(), tell = [];
     // VIP / VRP rows (and their PUP rows) are "steerpoint, bearing, range, elevation" as the game and WDP write them; OA rows are "bearing, range, elevation" and carry the steerpoint in their name.
     // (Older versions of this program wrote bearing, range, elevation, steerpoint: still read.)
     const old = x => navRow(deps.G('NAV OFFSETS', x.key, ''), !x.key.startsWith('OA'));
@@ -306,16 +324,18 @@ export function createWeaponsPage(deps) {
       const o = old(x), el = x.alt !== undefined ? String(Math.round(x.alt)) : (o.elev === undefined || o.elev === '' ? '0' : o.elev), v = x.stpt ? [String(x.stpt), String(x.row.brg), String(x.row.rng), el] : [String(x.row.brg), String(x.row.rng), el];
       wr('NAV OFFSETS', x.key, v.join(',')); tell.push(x.key);
     });
+    clr.forEach(k => wr('NAV OFFSETS', k, zeroRow(k)));
     if (deps.G('NAV OFFSETS', 'Modesel', '') !== st.ref) { wr('NAV OFFSETS', 'Modesel', st.ref); tell.push('Modesel'); }
     if (agb) tell.push('Profile ' + st.fz.prof + ' (fuze, stick)'), fzWrite();
-    st.applied = tell; st.card = cardInfo(); save(); draw(true); if (deps.applied) deps.applied();
+    st.applied = tell; st.cleared = clr; st.card = cardInfo(); save(); draw(true); if (deps.applied) deps.applied();
   }
   // does Apply have anything to write? (the rows and settings it would write, compared with the DTC)
   function pending() {
     if (!res || res.error || !ctx || !ctx.sp || !deps.lines().some(l => l.s == 'NAV OFFSETS')) return false;
     const w = []; dry = w;
     try {
-      Object.values(offsets()).forEach(x => { const o = navRow(deps.G('NAV OFFSETS', x.key, ''), !!x.stpt), el = x.alt !== undefined ? String(Math.round(x.alt)) : (o.elev === undefined || o.elev === '' ? '0' : o.elev); wr('NAV OFFSETS', x.key, (x.stpt ? [String(x.stpt), String(x.row.brg), String(x.row.rng), el] : [String(x.row.brg), String(x.row.rng), el]).join(',')); });
+      const P = plan(); P.clr.forEach(k => wr('NAV OFFSETS', k, zeroRow(k)));
+      P.rows.forEach(x => { const o = navRow(deps.G('NAV OFFSETS', x.key, ''), !!x.stpt), el = x.alt !== undefined ? String(Math.round(x.alt)) : (o.elev === undefined || o.elev === '' ? '0' : o.elev); wr('NAV OFFSETS', x.key, (x.stpt ? [String(x.stpt), String(x.row.brg), String(x.row.rng), el] : [String(x.row.brg), String(x.row.rng), el]).join(',')); });
       wr('NAV OFFSETS', 'Modesel', st.ref);
       if (deps.lines().some(l => l.s == 'FCC_AGB')) fzWrite();
     } catch (e) { return true; } finally { dry = null; }
@@ -397,9 +417,17 @@ export function createWeaponsPage(deps) {
     return `<div class="wpt">${tiles}</div>${matResult(r)}
     <div class="wcard"><div class="wh"><h3>Vertical envelope</h3><span class="hint">altitudes AGL · distances to scale</span></div>${profile(r)}</div>
     <div class="wcard"><h3>NAV OFFSETS</h3><table class="dt"><tr><th></th><th>Bearing</th><th>Range ft</th><th>Elev.</th></tr>${rowsH}</table>
-    <p class="hint wnote">${st.applied ? 'Written: ' + st.applied.join(', ') : 'Apply to the DTC (top right) writes these rows and the weapon settings. Missing rows are created.'}</p></div>
-    ${fzc}
+    <p class="hint wnote">${doneText() || (st.src == 'man' ? 'Manual entry: Apply writes the weapon settings only and clears the offsets of the DTC. Type these rows in the DED.' : 'Apply to the DTC (top right) writes these rows and the weapon settings, and clears the other offsets. Missing rows are created.')}</p></div>
+    ${st.src == 'man' ? dedCard(O) : ''}${fzc}
     <div class="wcard"><h3>Results</h3><div class="kv">${kv}</div></div>`;
+  }
+
+  // Manual entry: the offsets are typed in the DED in flight (the DTC cannot carry them on a steerpoint outside the route)
+  function dedCard(O) {
+    const n = ctx.sp ? ctx.sp.n : 0, e = x => x.alt === undefined ? 0 : Math.round(x.alt), vals = x => `BRG ${b3(x.row.brg)}° · RNG ${fmt(x.row.rng)} ft · ELEV ${fmt(e(x))} ft`;
+    const li = [[`STPT ${n}`, 'Select it as the steerpoint (UFC / DED STPT page).'], ...(O.oa1 ? [['OA1', 'SEQ to the OA1 page: ' + vals(O.oa1)]] : []), ...(O.oa2 ? [['OA2', 'SEQ to the OA2 page: ' + vals(O.oa2)]] : []),
+      ...(O.ref ? [[O.ref.key, `LIST 9: TGT ${n}, ${O.ref.key}: TBRG ${b3(O.ref.row.brg)}° · RNG ${fmt(O.ref.row.rng)} ft · ELEV ${fmt(e(O.ref))} ft`]] : []), ...(O.pup ? [[O.pup.key.replace('PUP', ' PUP'), 'LIST 9, PUP: ' + vals(O.pup)]] : [])];
+    return `<div class="wcard wded"><h3>Type this in the DED</h3><table class="dt">${li.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table><p class="hint">Manual entry: the DTC is not written with these values (the game loads offsets only on route steerpoints 1-24). Apply writes the weapon settings and clears the offsets of the DTC.</p></div>`;
   }
 
   // the explanations sit in a hover tip beside the card title instead of taking room in the card
@@ -414,7 +442,7 @@ export function createWeaponsPage(deps) {
       detachMap(); failed = false; pend = null; document.body.classList.add('onharm'); if (deps.applyBtn) deps.applyBtn.classList.add('nil');
       const root = deps.root; if (!keepLeft || !root.contains(deps.harm.root)) {
         root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`; root.appendChild(deps.harm.root);
-        root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode == b.dataset.mode) return; st.mode = b.dataset.mode; st.applied = null; save(); deps.harm.leave(); draw(false); });
+        root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode == b.dataset.mode) return; st.mode = b.dataset.mode; st.applied = st.cleared = null; save(); deps.harm.leave(); draw(false); });
       }
       deps.harm.render(); return;
     }
@@ -430,8 +458,11 @@ export function createWeaponsPage(deps) {
       const md = st.mode, tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
       const refCard = `<div class="wcard"><h3>Reference</h3>
           <div class="wrow"><label>Reference</label>${seg('ref', [['vip', 'VIP'], ['vrp', 'VRP']], st.ref)}</div>
+          <div class="wrow"><label>Entry</label>${seg('src', [['dtc', 'DTC'], ['man', 'Manual']], st.src)}<span class="hint">${st.src == 'man' ? 'typed in the DED' : 'written into the DTC'}</span></div>
           ${md == 'popup' ? `<div class="wrow"><label>Profile</label>${seg('profileType', [[1, 'Type 1'], [2, 'Type 2']], i.profileType)}</div>` : ''}
-          <div class="wrow"><label>Target STPT</label><select data-pick="tgt">${tOpts || '<option>none set</option>'}</select></div>
+          <div class="wrow"><label>Target STPT <small>${st.src == 'man' ? '1-99' : '1-24'}</small></label><select data-pick="tgt">${tOpts || '<option>none set</option>'}</select></div>
+          ${st.src == 'dtc' && !routeOk() ? `<p class="wwarn">The game loads offsets only on the route steerpoints 1-24 (25 is the bullseye). This point is not one, so Apply writes no offsets: add a route steerpoint, or use Manual.</p>` : st.src == 'dtc' ? '' : `<p class="hint">Any steerpoint 1-99, offsets typed in the DED in flight.</p>`}
+          <div class="wrow"><label></label><button class="btn g" type="button" data-clearoff title="Zero every offset row (VIP, VRP, PUP, OA1, OA2) of the DTC: for a mission that needs none">Clear all offsets</button></div>
           <div class="wrow wvip"${st.ref == 'vip' ? '' : ' hidden'}><label>VIP point</label><select data-pick="refpt">${refOpts}</select></div>
           ${md == 'popup' ? `<div class="wvrp"${st.ref == 'vrp' ? '' : ' hidden'}>${slider('vrpToPup', 'VRP to PUP', ' nm', 1)}</div>` : ''}
           <div class="wrow"><label>Range model</label>${seg('rangeModel', [['low_drag', 'Low drag'], ['high_drag', 'High drag']], i.rangeModel)}</div></div>`;
@@ -452,7 +483,7 @@ export function createWeaponsPage(deps) {
           <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div>
           <div class="wfz" data-m="c2"${st.fz.mode == 'c2' ? '' : ' hidden'}><div class="wrow"><label>Weapon</label><select data-pick="cbu">${Object.keys(BD).map(k => `<option${k === st.fz.cbu ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>${fzSlider('c2ad', 'AD1')}${fzSlider('c2ba', 'Burst alt.')}</div>
           <p class="hint wnote">Arming delay: seconds after release. Burst altitude: ft above the target.</p></div>`;
-      const PL = ctx.T.filter(x => x.v.startsWith('ppt:')), pDef = PL.find(x => x.ringFt > 0);
+      const PL = ctx.TA.filter(x => x.v.startsWith('ppt:')), pDef = PL.find(x => x.ringFt > 0);
       const matCard = `<div class="wcard"><h3>MAT · SAM standoff</h3><div class="wrow"><label>MAT</label><span class="seg">${[[0, 'Off'], [1, 'On']].map(([v, l]) => `<button type="button" class="${st.mat.on == v ? 'on' : ''}" data-mat="on" data-v="${v}">${l}</button>`).join('')}</span></div>
         ${st.mat.on ? `<div class="wrow"><label>SAM (PPT)</label><select data-mat="ppt">${PL.map(x => `<option value="${x.v}"${(st.mat.ppt ? st.mat.ppt === x.v : x === pDef) ? ' selected' : ''}>${esc(x.label)}${x.ringFt ? ' · ' + (x.ringFt / FT_NM).toFixed(0) + ' nm' : ' · no ring'}</option>`).join('') || '<option>no PPT in the DTC</option>'}</select></div>
         <div class="slr"><label>SAM max alt.</label><input type="range" min="2000" max="150000" step="500" value="${st.mat.samMax}" data-mat="samMax"><em data-em="samMax">${fmt(st.mat.samMax)} ft</em></div>
@@ -494,35 +525,38 @@ export function createWeaponsPage(deps) {
     const ri = root.querySelector('input[data-sl=releaseAltitude]');
     if (ri && an.mra && an.mra.value != null) { const [a, b] = lim('releaseAltitude'); ri.classList.add('zone'); ri.style.setProperty('--z', Math.max(0, Math.min(100, (an.mra.value - a) / (b - a) * 100)).toFixed(1) + '%'); ri.title = 'Red: below the minimum acceptable release altitude (' + fmt(an.mra.value) + ' ft)'; }
   }
-  const note = () => { if (deps.applyNote) deps.applyNote.textContent = st.applied ? 'Written: ' + st.applied.join(', ') : ''; };
+  const doneText = () => st.applied ? 'Written: ' + (st.applied.length ? st.applied.join(', ') : 'nothing') + (st.cleared && st.cleared.length ? ' · Cleared: ' + st.cleared.join(', ') : '') : st.cleared ? 'Cleared: ' + (st.cleared.length ? st.cleared.join(', ') : 'nothing to clear') : '';
+  const note = () => { if (deps.applyNote) deps.applyNote.textContent = doneText(); };
 
   function wire(root) {
     const upd = () => { save(); draw(true); };
     root.querySelectorAll('[data-mat]').forEach(e => { const f = e.dataset.mat;
-      if (e.tagName == 'BUTTON') e.onclick = () => { st.mat.on = +e.dataset.v; const t = st.toss; if (st.mat.on && t.ingressAltitude < st.mat.samMax) t.ingressAltitude = Math.min(50000, st.mat.samMax + 1000); if (!st.mat.on && t.ingressAltitude > 2000) t.ingressAltitude = 2000; st.applied = null; fit = true; save(); draw(false); };
+      if (e.tagName == 'BUTTON') e.onclick = () => { st.mat.on = +e.dataset.v; const t = st.toss; if (st.mat.on && t.ingressAltitude < st.mat.samMax) t.ingressAltitude = Math.min(50000, st.mat.samMax + 1000); if (!st.mat.on && t.ingressAltitude > 2000) t.ingressAltitude = 2000; st.applied = st.cleared = null; fit = true; save(); draw(false); };
       else if (e.tagName == 'SELECT') e.onchange = () => { st.mat.ppt = e.value; st.mat.man = false; st.mat.auto = null; upd(); ['samMax', 'samMin'].forEach(f => { const i = root.querySelector(`[data-mat="${f}"]`), em = root.querySelector(`[data-em="${f}"]`); if (i) i.value = st.mat[f]; if (em) em.textContent = fmt(st.mat[f]) + ' ft'; }); };
       else e.oninput = () => { st.mat[f] = +e.value; st.mat.man = true; const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmt(e.value) + ' ft'; upd(); }; });
     root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => {
       const f = b.dataset.set, v = b.dataset.v;
+      if (f == 'src') { st.src = v; st.applied = st.cleared = null; fit = true; save(); draw(false); return; }
       if (f == 'mapon') { st.map.on = v == '1'; root.querySelector('.wmap .slr').hidden = !st.map.on; } else if (f == 'ref') st.ref = v; else cur()[f] = f == 'turnG' || f == 'profileType' ? +v : v;
       b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
       if (f == 'oa2Mode') root.querySelector('.wegr').hidden = v != 'egress';
       if (f == 'ref' || f == 'profileType') fit = true;
       if (f == 'ref') { root.querySelector('.wvip').hidden = v != 'vip'; const vr = root.querySelector('.wvrp'); if (vr) vr.hidden = v != 'vrp'; }
-      st.applied = null; upd();
+      st.applied = st.cleared = null; upd();
     });
-    root.querySelectorAll('[data-oa1]').forEach(b => b.onclick = () => { st.oa1 = b.dataset.oa1; root.querySelectorAll('[data-oa1]').forEach(x => x.classList.toggle('on', x.dataset.oa1 === st.oa1)); st.applied = null; save(); draw(true); });
-    root.querySelectorAll('input[data-sl]').forEach(inp => { inp.oninput = () => { const f = inp.dataset.sl, x = sliderOf(f); cur()[f] = NM[f] ? Math.round(+inp.value * FT_NM) : +inp.value; if (f == 'egressHeading') cur().egressTurn = 'set'; const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmt(inp.value, x[3]) + x[2]; const nb = root.querySelector(`[data-slnum="${f}"]`); if (nb) nb.value = inp.value; st.applied = null; upd(); }; });
-    root.querySelectorAll('input[data-slnum]').forEach(nb => nb.onchange = () => { const f = nb.dataset.slnum, [a, b] = lim(f); let n = Math.round(+nb.value); if (isNaN(n)) n = cur()[f]; n = Math.min(b, Math.max(a, n)); nb.value = n; cur()[f] = n; if (f == 'egressHeading') cur().egressTurn = 'set'; const sl = root.querySelector(`input[data-sl="${f}"]`); if (sl) sl.value = n; st.applied = null; upd(); });
+    root.querySelectorAll('[data-oa1]').forEach(b => b.onclick = () => { st.oa1 = b.dataset.oa1; root.querySelectorAll('[data-oa1]').forEach(x => x.classList.toggle('on', x.dataset.oa1 === st.oa1)); st.applied = st.cleared = null; save(); draw(true); });
+    root.querySelectorAll('input[data-sl]').forEach(inp => { inp.oninput = () => { const f = inp.dataset.sl, x = sliderOf(f); cur()[f] = NM[f] ? Math.round(+inp.value * FT_NM) : +inp.value; if (f == 'egressHeading') cur().egressTurn = 'set'; const em = root.querySelector(`[data-em="${f}"]`); if (em) em.textContent = fmt(inp.value, x[3]) + x[2]; const nb = root.querySelector(`[data-slnum="${f}"]`); if (nb) nb.value = inp.value; st.applied = st.cleared = null; upd(); }; });
+    root.querySelectorAll('input[data-slnum]').forEach(nb => nb.onchange = () => { const f = nb.dataset.slnum, [a, b] = lim(f); let n = Math.round(+nb.value); if (isNaN(n)) n = cur()[f]; n = Math.min(b, Math.max(a, n)); nb.value = n; cur()[f] = n; if (f == 'egressHeading') cur().egressTurn = 'set'; const sl = root.querySelector(`input[data-sl="${f}"]`); if (sl) sl.value = n; st.applied = st.cleared = null; upd(); });
     root.querySelectorAll('input[data-fz]').forEach(inp => inp.oninput = () => { const k = inp.dataset.fz; st.fz[k] = +inp.value; root.querySelector(`[data-fzem="${k}"]`).textContent = k == 'c2ba' ? fmt(st.fz[k]) + ' ft' : st.fz[k].toFixed(2) + ' s'; upd(); });
     root.querySelectorAll('[data-set=fzmode],[data-set=fzprof]').forEach(b => b.onclick = () => { if (b.dataset.set == 'fzmode') st.fz.mode = b.dataset.v; else { st.fz.prof = +b.dataset.v; fzLoad(); } save(); draw(false); });
     root.querySelectorAll('input[data-mop]').forEach(inp => inp.oninput = () => { st.map.op = +inp.value; root.querySelector('[data-em=mop]').textContent = inp.value + '%'; upd(); });
-    root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode == b.dataset.mode) return; st.mode = b.dataset.mode; st.applied = null; save(); draw(false); });
+    root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode == b.dataset.mode) return; st.mode = b.dataset.mode; st.applied = st.cleared = null; save(); draw(false); });
     const eb = root.querySelector('[data-edit]'); if (eb) { const lab = () => { const o = deps.isEdit && deps.isEdit(); eb.textContent = 'Edit points: ' + (o ? 'On' : 'Off'); eb.classList.toggle('on', !!o); }; eb.onclick = () => { if (deps.toggleEdit) deps.toggleEdit(); lab(); }; lab(); }
     const po = root.querySelector('[data-planonly]'); if (po) { const LAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; po.onclick = () => { const m = deps.cyclePlan ? deps.cyclePlan() : 0; po.textContent = LAB[m]; }; po.textContent = LAB[deps.planMode ? deps.planMode() : 0]; }
+    const co = root.querySelector('[data-clearoff]'); if (co) co.onclick = clearAll;
     const fb = root.querySelector('[data-fit]'); if (fb) fb.onclick = () => { fit = true; if (res && !res.error && M) drawMap(res); };
-    root.querySelectorAll('input[data-num]').forEach(inp => inp.onchange = () => { const f = inp.dataset.num, n = Math.round(+inp.value); if (!(n >= 1 && n <= 24)) { inp.value = cur()[f]; return; } cur()[f] = n; inp.value = n; st.applied = null; upd(); });
-    root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { if (s.dataset.pick == 'bomb') { st.bomb = s.value; save(); draw(true); return; } if (s.dataset.pick == 'cbu') { st.fz.cbu = s.value; save(); draw(true); return; } if (s.dataset.pick == 'refpt') st.refPt = s.value; else st.tgt = s.value; fit = true; st.applied = null; upd(); });
+    root.querySelectorAll('input[data-num]').forEach(inp => inp.onchange = () => { const f = inp.dataset.num, n = Math.round(+inp.value); if (!(n >= 1 && n <= 24)) { inp.value = cur()[f]; return; } cur()[f] = n; inp.value = n; st.applied = st.cleared = null; upd(); });
+    root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { if (s.dataset.pick == 'bomb') { st.bomb = s.value; save(); draw(true); return; } if (s.dataset.pick == 'cbu') { st.fz.cbu = s.value; save(); draw(true); return; } if (s.dataset.pick == 'refpt') st.refPt = s.value; else st.tgt = s.value; fit = true; st.applied = st.cleared = null; upd(); });
   }
 
   // the DTC changed (a point moved, renumbered, retyped or removed from the map): keep the chosen target / reference on the same point, then redraw
