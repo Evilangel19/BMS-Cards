@@ -9,6 +9,7 @@ Inspiration and reference:
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
 - "Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan - the MAR model (cases I and II: uniform and variable missile deceleration, vMax and measured deceleration of the missiles) used on the Missiles page and the datacard BVR timeline. Only the published method and numbers are used; no code.
+- TO 1F-16CMAM-34-1-1 BMS (the Falcon BMS manual), sections 4.2.15 and 4.2.16 and the lethality graphs of the general-purpose bombs - the three minimum release altitudes, the safe escape manoeuvres and the fragmentation area (radius, height, duration, read from the graphs) used on the Weapons page; the figures are estimates read from the graphs, not BMS code.
 
 Rule: code from other projects is reused only after checking its license. Each reused part is listed here with its
 source, license and author. (Nothing is reused yet.)

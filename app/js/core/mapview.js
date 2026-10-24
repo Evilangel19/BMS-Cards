@@ -86,6 +86,8 @@ const SUPPORT = new Set(['Support', 'C3I']);   // ATO categories shown by the "s
 const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 
 // deps: {getC(), getSel() -> flight or null, getView() -> team number, esc(text), D, flightInfo(f) -> {cs, text}}
+// names of points in the DTC: BMS accepts long steerpoint names, so only a generous cap; a weapon target from a sub-objective reads "sub-objective - objective"
+const NAME_MAX = 60, WT_SEP = ' - ', tgtName = t => String(t || '').replace(/[\s,]+/g, ' ').trim().slice(0, NAME_MAX);
 export function createMap(host, deps) {
   let map = null, G = {}, st = null, TL = null, OV = null, OVC = {}, baseTok = 0, curC = null, curSel, curView = null, imgName = '', shotK = 'dc', UL = [], LBL = [], DT = [], LNP = [], addM = null, PR = null, CR = null, pal = PAL.dark, LUM = {}, shotOn = false, SAMR = [], SAVED = null, dtcMst = () => {}, SX = false;
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
@@ -630,7 +632,7 @@ export function createMap(host, deps) {
       fs.forEach((f, k) => { const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0, txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '', fl = toLL(f.e / FT_KM, f.n / FT_KM); OSL.push({ll: fl, name: f.name});
         L.marker(fl, {icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150})
           .bindTooltip(deps.esc(f.name) + txt, {direction: 'top', offset: [0, -4]})
-          .bindPopup(() => objPopup(o.name + ' ' + f.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 200}).addTo(OSUB); });
+          .bindPopup(() => objPopup(o.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 200}).addTo(OSUB); });
       if (fs.length) {   // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
         const bd = L.latLngBounds([ll]); OSL.forEach(r => bd.extend(r.ll));
         const go = () => { const z = Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50]))); map.setView(bd.getCenter(), z, {animate: an}); };
@@ -639,14 +641,14 @@ export function createMap(host, deps) {
       objLabels();
     }).catch(() => { toast('The sub-objectives could not be read.', true); });
   }
-  function objPopup(name, sub, n, e, short) {   // short: the name a TGT steerpoint gets (11 characters in the DTC): the sub-objective's own name, or the objective's
-    const d = document.createElement('div'); d.className = 'dtp'; const nm = name.slice(0, 40);
-    d.innerHTML = `<div><b>${deps.esc(name)}</b></div><div class="hint" style="min-height:0">${deps.esc(sub)} · ${fmtLL(...toLL(e / FT_KM, n / FT_KM))}</div><div class="bar" style="margin:6px 0 0"><button type="button" class="btn g" data-a="wt">Add as weapon target</button><button type="button" class="btn g gn" data-a="st" title="Keep it as a TGT steerpoint (STPT 81-99)">＋ TGT STPT</button></div><div class="hint err" style="color:#ff6b6b;min-height:0"></div>`;
+  function objPopup(name, sub, n, e, short) {   // short: the sub-objective's own name; the weapon target is "sub-objective - objective", a TGT steerpoint takes the sub-objective's name (BMS accepts long steerpoint names)
+    const d = document.createElement('div'); d.className = 'dtp'; const nm = (short && String(short) !== name ? String(short) + WT_SEP + name : name).slice(0, NAME_MAX);
+    d.innerHTML = `<div><b>${deps.esc(nm)}</b></div><div class="hint" style="min-height:0">${deps.esc(sub)} · ${fmtLL(...toLL(e / FT_KM, n / FT_KM))}</div><div class="bar" style="margin:6px 0 0"><button type="button" class="btn g" data-a="wt">Add as weapon target</button><button type="button" class="btn g gn" data-a="st" title="Keep it as a TGT steerpoint (STPT 81-99)">＋ TGT STPT</button></div><div class="hint err" style="color:#ff6b6b;min-height:0"></div>`;
     const err = t => { d.querySelector('.err').textContent = t; };
     d.querySelector('[data-a=wt]').onclick = async () => { if (!EDIT) return; const r = await deps.dtc.wtPut({n, e, elv: 0, name: nm}); if (r == 'full') return err('No free weapon target left in the DTC.'); if (r == 'ok') { map.closePopup(); dtc(); toast('Weapon target added: ' + nm); } };
     d.querySelector('[data-a=st]').onclick = async () => {
       if (!EDIT) return; const P = deps.dtc.points(), slot = P ? freeSlot(P, 'prec') : -1; if (slot < 0) return err('There is no free TGT Steerpoint (STPT 81-99).');
-      const alt = deps.dtc.elev ? await deps.dtc.elev({n, e}) : 0, sn = String(short || name).replace(/[\s,]+/g, ' ').trim().slice(0, 11) || 'Map STPT ' + (GROUPS.prec.first + slot);
+      const alt = deps.dtc.elev ? await deps.dtc.elev({n, e}) : 0, sn = tgtName(short || name) || 'Map STPT ' + (GROUPS.prec.first + slot);
       deps.dtc.set('prec', slot, {x: e / FT_KM, y: n / FT_KM, altFt: alt, name: sn}); map.closePopup(); dtc(); toast('Added as STPT ' + (GROUPS.prec.first + slot) + '.');
     };
     return ro(d);
@@ -701,7 +703,7 @@ export function createMap(host, deps) {
   // any other unit a precision target
   function samPopup(m) {
     const w = document.createElement('div'), P = deps.dtc && deps.dtc.points(), k = pptForUnit(m.name), en = k >= 0 ? PPT[k] : null, g = m.sam || en ? 'ppt' : 'prec';
-    const slot = P ? freeSlot(P, g) : -1, name = g == 'prec' ? String(m.bn).replace(/[\s,]+/g, ' ').trim().slice(0, 11) : en ? en[0] : String(m.name).replace(/[\s,]+/g, ' ').trim().slice(0, 6), rngNm = en ? pptRng(en) : m.sam ? m.rng / 1.852 : 0;
+    const slot = P ? freeSlot(P, g) : -1, name = g == 'prec' ? tgtName(m.bn) : en ? en[0] : String(m.name).replace(/[\s,]+/g, ' ').trim().slice(0, 6), rngNm = en ? pptRng(en) : m.sam ? m.rng / 1.852 : 0;
     const what = g == 'ppt' ? 'Pre-planned' : 'precision target', btn = g == 'ppt' ? 'Add Pre-planned STPT' : 'Add TGT Steerpoint';
     w.className = 'dtp';
     const have = P ? P[g].find(q => !q.empty && Math.hypot(q.x - m.u.x, q.y - m.u.y) < 0.5) : null;
@@ -867,7 +869,7 @@ export function createMap(host, deps) {
     d.querySelector('[data-a=tgt]').onclick = () => {
       const P = deps.dtc.points(), slot = P ? freeSlot(P, 'prec') : -1, err = d.querySelector('.err');
       if (slot < 0) { err.textContent = 'There is no free TGT Steerpoint (STPT 81-99).'; return; }
-      const nm = String(w.name).replace(/[\s,]+/g, ' ').trim().slice(0, 11) || 'Map STPT ' + (GROUPS.prec.first + slot);
+      const nm = tgtName(String(w.name).split(WT_SEP)[0]) || 'Map STPT ' + (GROUPS.prec.first + slot);
       deps.dtc.set('prec', slot, {x: w.x, y: w.y, altFt: w.altFt, name: nm}); map.closePopup(); dtc(); toast('Added as STPT ' + (GROUPS.prec.first + slot) + '.');
     };
     d.querySelector('[data-a=wdel]').onclick = () => { if (!EDIT) return; deps.dtc.wtClear(w.n); map.closePopup(); dtc(); toast('Weapon target ' + (w.n + 1) + ' removed.'); };
@@ -949,7 +951,7 @@ export function createMap(host, deps) {
     const cv = w.querySelector('[data-a=conv]'); if (cv) cv.onclick = () => {   // PPT <-> TGT: the point moves to a free slot of the other group (the DTC, the lists and the pages follow)
       const P = deps.dtc.points(), to = it.group == 'ppt' ? 'prec' : 'ppt', slot = P ? freeSlot(P, to) : -1;
       if (slot < 0) return err(it.group == 'ppt' ? 'There is no free TGT Steerpoint (STPT 81-99).' : 'There is no free pre-planned slot (STPT 56-80).');
-      const nm = it.group == 'ppt' ? (String(pptLabel(it.name) || '').replace(/[\s,]+/g, ' ').trim().slice(0, 11) || 'Map STPT ' + (GROUPS.prec.first + slot)) : '';
+      const nm = it.group == 'ppt' ? (tgtName(pptLabel(it.name) || '') || 'Map STPT ' + (GROUPS.prec.first + slot)) : '';
       deps.dtc.set(to, slot, to == 'prec' ? {x: it.x, y: it.y, altFt: it.altFt, name: nm} : {x: it.x, y: it.y, altFt: 0, name: '', rngNm: 0});
       removePoint(deps.dtc.points(), it.group, it.slot, deps.dtc.set, deps.dtc.clear); map.closePopup(); dtc();
       const z = DT.find(q => q.it.group == to && q.it.slot == slot); if (z && to == 'ppt') z.mk.openPopup();

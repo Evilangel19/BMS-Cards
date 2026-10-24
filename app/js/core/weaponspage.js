@@ -3,6 +3,7 @@
 import D0 from '../data/index.js';
 const PPTL = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini)
 import {cbuFootprint} from '../bmsdata/bombdata.js';
+import {analyse, envelope, pickBomb, maneuvers, PULL_G, PULL_DELAY} from './lethal.js';
 import {computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow} from './popup.js';
 import {computeHadb, computeToss, matCheck, HADB_DEFAULTS, TOSS_DEFAULTS, HADB_LIMITS, TOSS_LIMITS} from './strike.js';
 
@@ -26,10 +27,10 @@ export function navRow(text, withStpt = true) {
 }
 export function createWeaponsPage(deps) {
   const {esc} = deps;
-  let st = {mode: 'popup', oa1: 'top', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
+  let st = {mode: 'popup', bomb: 'auto', oa1: 'top', ref: 'vrp', refPt: 'tgt', stpt: null, tgt: null, inp: {...DEFAULTS}, hadb: {...HADB_DEFAULTS}, toss: {...TOSS_DEFAULTS}, mat: {on: 0, ppt: '', samMax: 30000, samMin: 500}, map: {on: true, op: 80}, fz: {mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false}};
   try { const o = JSON.parse(sessionStorage.getItem(KEY) || 'null'); if (o) st = {...st, ...o, inp: {...DEFAULTS, ...o.inp, heading: (o.inp && o.inp.heading) || 360}, hadb: {...HADB_DEFAULTS, ...o.hadb}, toss: {...TOSS_DEFAULTS, ...o.toss}, map: {...st.map, ...o.map}, mat: {...st.mat, ...o.mat}, fz: {...st.fz, ...o.fz}}; } catch (e) { /* none */ }
   const save = () => { try { sessionStorage.setItem(KEY, JSON.stringify(st)); } catch (e) { /* none */ } };
-  let res = null, ctx = null, mapNote = '', el = null, elKey = '', elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
+  let lethN = 0, res = null, ctx = null, mapNote = '', el = null, elKey = '', elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
 
   const cur = () => st.mode == 'hadb' ? st.hadb : st.mode == 'toss' ? st.toss : st.inp;
   const lim = f => (st.mode == 'toss' && st.mat.on && f == 'ingressAltitude' ? [50, 50000, 250] : null) || (st.mode == 'hadb' ? HADB_LIMITS[f] : st.mode == 'toss' ? TOSS_LIMITS[f] : null) || LIMITS[f];
@@ -93,6 +94,18 @@ export function createWeaponsPage(deps) {
   const has = v => v !== null && v !== undefined && !isNaN(v);
   const msl = (agl, t) => has(t) ? `${fmt(agl)} ft AGL · ${fmt(agl + t)} MSL` : fmt(agl) + ' ft AGL';
 
+  // the bomb of the lethality model: from the loadout of the selected flight (the heaviest general-purpose bomb), or chosen by hand (500 / 1000 / 2000 lb class, or off)
+  const BOMBS = [['500', '500 lb class (MK-82)'], ['1000', '1000 lb class (MK-83, approximate)'], ['2000', '2000 lb class (MK-84)'], ['off', 'Not calculated']];
+  function bombSel() {
+    if (st.fz.mode == 'c2') return {env: null, label: 'cluster bomb: lethality not calculated'};
+    const b = st.bomb || 'auto';
+    if (b == 'off') return {env: null, label: 'not calculated'};
+    if (b != 'auto') return {env: envelope(+b), label: BOMBS.find(x => x[0] == b)[1], manual: true};
+    const L = deps.loadout ? deps.loadout() : [], p = pickBomb(L), names = [...new Set(L.map(w => w.name).filter(n => n && !/^(AIM|AA-|R-\d|ALQ|AN\/|TANK|.*tank)/i.test(n)))];
+    return p ? {env: envelope(p.lb), label: p.name + ' (' + p.lb + ' lb)', loadout: true, skipped: p.skipped} : {env: null, label: 'no covered bomb in the loadout' + (names.length ? ' (' + names.slice(0, 4).join(', ') + ')' : '')};
+  }
+  const fzKeys = () => st.fz.mode == 'c2' ? ['c2ad'] : ['c1ad1', 'c1ad2'];
+  const bombOpts = () => `<option value="auto"${(st.bomb || 'auto') == 'auto' ? ' selected' : ''}>Auto · ${esc(bombSel().label)}</option>${BOMBS.map(([v, l]) => `<option value="${v}"${st.bomb == v ? ' selected' : ''}>${l}</option>`).join('')}`;
   function compute() {
     if (!st.fz.loaded) fzLoad();
     ctx = gather(); res = null;
@@ -104,14 +117,16 @@ export function createWeaponsPage(deps) {
       const d = samAlt(p); if (p && d && !st.mat.man && st.mat.auto !== p.v) { st.mat.auto = p.v; st.mat.samMax = d.max; st.mat.samMin = d.min; if (st.toss.ingressAltitude < d.max) st.toss.ingressAltitude = Math.min(50000, d.max + 1000); res = eng(ctx.tPos, ctx.ref, {...cur(), ...fuzeInputs()}); }
       res.mat = p ? {...matCheck(res, {n: p.n, e: p.e, ringFt: p.ringFt}, {max: st.mat.samMax, min: Math.min(st.mat.samMin, st.mat.samMax)}), name: p.label, pos: {n: p.n, e: p.e}} : {missing: true};
     }
+    if (res && !res.error) { const sel = bombSel(), keys = fzKeys(); res.an = analyse(res, sel.env, keys.map(k => st.fz[k])); res.an.sel = sel; }
     loadElev();
   }
 
   // ---------- horizontal view: the Map page's own Leaflet map (its chosen layer and flight plan) with the pop-up drawn over it ----------
   const FT_KM = 3280.84;
   // one colour and one dash style per phase of the attack, the same in every drawing
-  const PH = {ingress: ['Ingress', '#34d399', ''], climb: ['Climb', '#fbbf24', ''], pull: ['Pull-down / pull-up', '#e879f9', ''], dive: ['Dive and tracking', '#38bdf8', ''], fall: ['Bomb fall', '#ff5d5d', '6 5'], egress: ['Egress / OA', '#a78bfa', '2 6'], ref: ['VIP to target', '#cbd5e1', '4 4']};
-  const legendKeys = horiz => st.mode == 'hadb' ? ['ingress', 'pull', 'dive', 'fall', 'egress', ...(horiz && st.ref == 'vip' ? ['ref'] : [])] : st.mode == 'toss' ? ['ingress', 'pull', 'climb', 'fall', ...(horiz && st.ref == 'vip' ? ['ref'] : [])] : ['ingress', 'climb', 'pull', 'dive', 'fall', 'egress', ...(horiz && st.ref == 'vip' ? ['ref'] : [])];
+  const PH = {ingress: ['Ingress', '#34d399', ''], climb: ['Climb', '#fbbf24', ''], pull: ['Pull-down / pull-up', '#e879f9', ''], dive: ['Dive and tracking', '#38bdf8', ''], fall: ['Bomb fall', '#ff5d5d', '6 5'], egress: ['Egress / OA', '#a78bfa', '2 6'], ref: ['VIP to target', '#cbd5e1', '4 4'], leth: ['Lethal zone', '#ff5d5d', '2 3'], escape: ['Safe escape (CLM)', '#34d399', '8 4']};
+  const legendKeys = horiz => [...legendBase(horiz), ...(res && res.an && res.an.env ? (horiz || st.mode == 'toss' ? ['leth'] : ['leth', 'escape']) : [])];
+  const legendBase = horiz => st.mode == 'hadb' ? ['ingress', 'pull', 'dive', 'fall', 'egress', ...(horiz && st.ref == 'vip' ? ['ref'] : [])] : st.mode == 'toss' ? ['ingress', 'pull', 'climb', 'fall', ...(horiz && st.ref == 'vip' ? ['ref'] : [])] : ['ingress', 'climb', 'pull', 'dive', 'fall', 'egress', ...(horiz && st.ref == 'vip' ? ['ref'] : [])];
   const legend = keys => `<div class="wleg">${keys.map(k => `<span><svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${PH[k][1]}" stroke-width="3"${PH[k][2] ? ` stroke-dasharray="${PH[k][2]}"` : ''}/></svg>${PH[k][0]}</span>`).join('')}</div>`;
   let M = null, pend = null, failed = false, fit = true;
   async function ensureMap() {
@@ -166,6 +181,8 @@ export function createWeaponsPage(deps) {
     (D.arrows || []).forEach(a => arrow(...a));
     (D.labels || []).forEach(a => lab(...a));
     r.impacts.forEach(q => dot(q, '#ff5d5d', 3, 'Impact ' + q.i + ' · ' + (q.d >= 0 ? '+' : '−') + fmt(Math.abs(q.d)) + ' ft'));
+    const an = r.an, LQ = an && an.env ? [r.impacts[0], r.impacts[r.impacts.length - 1]].filter((q, i, a) => a.indexOf(q) === i) : []; lethN = LQ.length;   // lethal radius around the first and the last impact of the stick
+    if (an && an.env) LQ.forEach(q => L.circle(ll(q), {renderer: RN, radius: an.env.out * .3048, color: '#ff3b3b', weight: 2, opacity: .95, fillColor: '#ff3b3b', fillOpacity: .07, interactive: false}).addTo(WL));
     const cb = cbuInfo(r);
     if (cb) r.impacts.forEach(q => { const c = project(q, v.attackHeading + 180, cb.shortBy); L.circle(ll(c), {renderer: RN, radius: cb.diameter / 2 * .3048, color: '#ff5d5d', weight: 2, opacity: .9, dashArray: '6 5', fillColor: '#ff5d5d', fillOpacity: .12, interactive: false}).addTo(WL); });
     D.marks.forEach(([p, label, fill, kind, dir, off, tip]) => { if (kind == 'dia') dia(p, fill, label); else dot(p, fill, kind == 'big' ? 7 : kind == 'small' ? 4 : kind == 'small5' ? 5 : 6, tip || label); if (label) lab(p, label, dir || 'right', off || [8, 0]); });
@@ -194,7 +211,7 @@ export function createWeaponsPage(deps) {
     return `<svg viewBox="0 0 ${W} ${H}" class="wpp" role="img" aria-label="Where the bombs of the stick hit"><rect width="${W}" height="${H}" rx="6" fill="#0f1419"/>
       <path d="M30 ${y} H${W - 30}" stroke="#2a3441" stroke-width="2"/><path d="M${W - 30} ${y} l-9 -5 v10z" fill="#2a3441"/>
       <g font-family="system-ui,sans-serif" font-size="11" fill="#cfd8e2"><path d="M${X(0)} ${y - 26} V${y + 20}" stroke="#fff" stroke-dasharray="3 3"/><path d="M${X(0)} ${H - 24} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111"/><text x="${X(0) + 10}" y="${H - 8}" fill="#fff">target</text><text x="${W - 34}" y="${y - 30}" text-anchor="end" fill="#8b98a8">attack heading →</text>${ticks}${marks}${foot}</g></svg>
-      <div class="hint" style="margin-top:6px">${I.length} pulse${I.length > 1 ? 's' : ''} × ${pair ? 'pair' : 'single'} · stick ${fmt(v.stickLength)} ft${I.length > 1 ? ` · every ${gap.toFixed(2)} s` : ''} ${cb ? ` · CBU footprint ${fmt(cb.diameter)} ft` : ''} · ${v.stickMode == 'mid' ? 'target in the middle of the stick' : 'first bomb on the target'}${pair ? ' · the sideways gap of a pair is not shown' : ''}</div>`;
+      <div class="hint" style="margin-top:6px">${I.length} pulse${I.length > 1 ? 's' : ''} × ${pair ? 'pair' : 'single'} · stick ${fmt(v.stickLength)} ft${I.length > 1 ? ` · every ${gap.toFixed(2)} s` : ''} ${cb ? ` · CBU footprint ${fmt(cb.diameter)} ft` : ''}${r.an && r.an.env ? ` · lethal radius ${fmt(r.an.env.out)} ft around each impact for ${Math.round(r.an.env.t)} s after the last (red circles on the map)` : ''} · ${v.stickMode == 'mid' ? 'target in the middle of the stick' : 'first bomb on the target'}${pair ? ' · the sideways gap of a pair is not shown' : ''}</div>`;
   }
 
   // ---------- side profile ----------
@@ -218,7 +235,9 @@ export function createWeaponsPage(deps) {
     let oa1 = null;
     if (oa1Top()) oa1 = st.mode == 'popup' ? [spec.marks.find(m => /^PDWN/.test(m[1]))[0][0], r.v.pulldownAltitude] : igEnd ? [igEnd[0], igEnd[1]] : null;
     else oa1 = st.mode == 'popup' ? [r.v.aod, 0] : igStart ? [Math.min(igEnd[0], igStart[0] + 6000), igStart[1]] : null;
-    const pts = [...spec.segs.flatMap(z => z[1]), ...(oa1 ? [oa1] : [])];
+    const an = r.an, env = an && an.env, I = r.impacts, dI = env ? [I[0].d, I[I.length - 1].d].filter((d, i, a) => a.indexOf(d) === i) : [];
+    const epath = env && an.path ? an.path.filter(q => q.t <= an.window.to && q.x <= I[I.length - 1].d + env.out + 600) : [];   // the escape path, until it has left the zone to the side
+    const pts = [...spec.segs.flatMap(z => z[1]), ...(oa1 ? [oa1] : []), ...(env ? [[I[0].d - env.out, 0], [I[I.length - 1].d + env.out, 0], [I[0].d, env.up]] : []), ...epath.map(q => [q.x, q.alt])];
     const x0 = Math.min(...pts.map(p => p[0])) - 300, x1 = Math.max(400, ...pts.map(p => p[0])), top = Math.max(...pts.map(p => p[1])), ymax = Math.max(top, r.mat && !r.mat.missing ? Math.min(r.mat.samMax, top * 1.25) : 0) * 1.15;
     let W = 360, H, sx, sy;
     if (r.kind == 'toss') { const s = Math.min((620 - 56) / (x1 - x0), (520 - 44) / ymax); W = Math.max(360, Math.round((x1 - x0) * s + 56)); H = Math.max(220, Math.round(ymax * s + 44)); sx = sy = s; }   // kept to scale: at most 620 x 520, readable at any length; the view scrolls sideways
@@ -229,10 +248,12 @@ export function createWeaponsPage(deps) {
     const tx = (p, t, dx = 6, dy = -6) => `<text x="${(px(p[0]) + dx).toFixed(1)}" y="${(py(p[1]) + dy).toFixed(1)}">${esc(t)}</text>`;
     let grid = ''; const step = ymax > 24000 ? 8000 : ymax > 12000 ? 4000 : ymax > 6000 ? 2000 : ymax > 2500 ? 1000 : 500; for (let a = step; a < ymax; a += step) grid += `<path d="M0 ${py(a).toFixed(1)} H${W}"/><text x="3" y="${(py(a) - 2).toFixed(1)}" stroke="none">${fmt(a)}</text>`;
     let bubble = ''; if (r.mat && !r.mat.missing && r.mat.chord) { const m = r.mat, a = Math.max(x0, m.chord[0]), b = Math.min(x1, m.chord[1]), sTop = Math.min(m.samMax, ymax / 1.15 * 1.1); if (b > a) bubble = `<rect x="${px(a).toFixed(1)}" y="${py(sTop).toFixed(1)}" width="${(px(b) - px(a)).toFixed(1)}" height="${Math.max(2, py(m.samMin) - py(sTop)).toFixed(1)}" rx="10" fill="#ff5d5d" fill-opacity=".14" stroke="#ff5d5d" stroke-dasharray="5 4"/><text x="${(px(a) + 8).toFixed(1)}" y="${(py(sTop) + 13).toFixed(1)}" fill="#ff9d9d" font-size="10" font-family="system-ui,sans-serif">SAM WEZ ${fmt(m.samMin)}–${fmt(m.samMax)} ft</text>`; }
+    const domePath = d => { const a = []; for (let k = 0; k <= 36; k++) { const th = Math.PI * k / 36; a.push([d + env.out * Math.cos(th), env.up * Math.sin(th)]); } return path(a) + ' Z'; };
+    const dome = env ? dI.map(d => `<path d="${domePath(d)}" fill="#ff5d5d" fill-opacity=".09" stroke="#ff5d5d" stroke-width="1.4" stroke-dasharray="2 3"/>`).join('') + `<g fill="#ff8a8a" font-size="10" font-family="system-ui,sans-serif">${tx([dI[0], env.up], 'lethal ' + Math.round(env.t) + ' s', -14, -6)}</g>` : '';
     const seg4 = (d, k) => `<path d="${d}" fill="none" stroke="${PH[k][1]}" stroke-width="2.6"${PH[k][2] ? ` stroke-dasharray="${PH[k][2]}"` : ''}/>`;
     return `<div class="wpvs"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wpv"${r.kind == 'toss' && W > 360 ? ' data-wide' : ''} role="img" aria-label="Side profile of the attack">
       <rect width="${W}" height="${H}" rx="6" fill="#0f1419"/><path d="M0 ${py(0)} H${W}" stroke="#2a3441"/><g stroke="#2a3441" stroke-dasharray="2 4" fill="#8b98a8" font-size="9" font-family="system-ui,sans-serif">${grid}</g>
-      ${bubble}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${spec.marks.map(m => dot(m[0], m[2])).join('')}${oa1 ? `<path d="M${px(oa1[0]).toFixed(1)} ${(py(oa1[1]) - 7).toFixed(1)} l5.5 12 h-11z" fill="#a78bfa" stroke="#111" stroke-width="1.5"><title>OA1</title></path>` : ''}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      ${bubble}${dome}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${epath.length > 1 ? seg4(path(epath.map(q => [q.x, q.alt])), 'escape') : ''}${an && an.viol && !an.viol.ground ? `<circle cx="${px(an.viol.x).toFixed(1)}" cy="${py(an.viol.alt).toFixed(1)}" r="7" fill="none" stroke="#ff5d5d" stroke-width="2.2"><title>Inside the lethal zone ${an.viol.t.toFixed(1)} s after the release</title></circle>` : ''}${spec.marks.map(m => dot(m[0], m[2])).join('')}${oa1 ? `<path d="M${px(oa1[0]).toFixed(1)} ${(py(oa1[1]) - 7).toFixed(1)} l5.5 12 h-11z" fill="#a78bfa" stroke="#111" stroke-width="1.5"><title>OA1</title></path>` : ''}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
       <g fill="#9aa8b8" font-size="10" font-family="system-ui,sans-serif">${spec.marks.map(m => tx(m[0], m[1], m[3] === undefined ? 6 : m[3], m[4] === undefined ? -6 : m[4])).join('')}${oa1 ? tx(oa1, 'OA1', 8, 14) : ''}${tx([0, 0], spec.tgt, -70, -8)}</g></svg></div>${legend(legendKeys(false))}`;
   }
 
@@ -313,6 +334,21 @@ export function createWeaponsPage(deps) {
   const fzSlider = k => { const [a, b, q] = FZ[k], v = st.fz[k], ba = k == 'c2ba'; return `<div class="slr"><label>${k == 'c2ba' ? 'Burst alt.' : 'AD' + (k.endsWith('2') ? '2' : '1')}</label><input type="range" min="${a}" max="${b}" step="${q}" value="${v}" data-fz="${k}"><em data-fzem="${k}">${ba ? fmt(v) + ' ft' : v.toFixed(2) + ' s'}</em></div>`; };
   const sliderOf = f => SL.find(x => x[0] === f) || (f == 'heading' ? [f, 'Heading', '°', 0] : f == 'egressAltitude' ? [f, 'Egress alt.', ' ft', 0] : [f, 'Egress range', ' nm', 1]);
 
+  // lethality, minimum acceptable release altitude and the guided safe escape (TO 1F-16CMAM-34-1-1 BMS 4.2.15 and 4.2.16)
+  function safetyRows(v) {
+    const an = res && res.an; if (!an) return '';
+    const k = (a, b, bad) => `<span>${a}</span><b class="${bad ? 'wbad' : ''}">${b}</b>`, env = an.env, sel = an.sel, m = an.mra;
+    let h = k('BOMB', esc(sel.label) + (sel.loadout ? ' · from the loadout' : sel.manual ? ' · chosen' : '') + (sel.skipped && sel.skipped.length ? ' · not covered: ' + esc(sel.skipped.join(', ')) : ''));
+    if (env) h += k('LETHALITY', `radius ${fmt(env.out)} ft, up to ${fmt(env.up)} ft; the fragments fall for ${Math.round(env.t)} s after the last impact${env.approx ? ' (interpolated between the 500 and 2000 lb classes: approximate)' : ''}`);
+    if (m && m.value != null) h += k('MRA', `${fmt(m.value)} ft AGL, the highest of: fragmentation area ${m.frag == null ? 'not calculated' : fmt(m.frag)} · dive recovery ${fmt(m.recovery)} · arming delay ${fmt(m.arming)}${an.below ? ' · the release altitude is BELOW it' : ''}`, an.below);
+    if (an.far) return h + k('ESCAPE', `Release ${nm2(an.far.range)} from the target: ${an.far.ok ? 'outside' : 'INSIDE'} the ${fmt(env.out)} ft radius. Turn away after the release; no dive recovery is needed.`, !an.far.ok);
+    if (st.mode == 'toss') return h;
+    const man = maneuvers(v.diveAngle);
+    if (!man.length) return h + k('ESCAPE', `No planned safe escape above a 60° dive.`, true);
+    h += k('ESCAPE', `Straight on for ${PULL_DELAY} s after the last release, then pull ${PULL_G} G in 2 s toward the horizon, MIL power. CLM: keep ${PULL_G} G to a 20° climb, relax to 30°.${man.includes('Turning') ? ' Turning (dives to 20°): roll to 60–85° bank, pull ' + PULL_G + ' G until 60° off the release heading.' : ''}${man.includes('Level turning') ? ' Level turning (to 25°): wings-level pull, then a level pull until 60° off the release heading.' : ''}`);
+    if (env) h += an.viol ? k('CHECK', an.viol.ground ? 'The climb-out path reaches the ground.' : `CLM path: INSIDE the lethal zone ${an.viol.t.toFixed(1)} s after the release (${fmt(Math.abs(an.viol.x))} ft ${an.viol.x < 0 ? 'before' : 'past'} the target, ${fmt(an.viol.alt)} ft AGL). Release higher${m && m.value ? ' (at least ' + fmt(m.value) + ' ft)' : ''}.`, true) : k('CHECK', 'CLM path: clear of the lethal zone.');
+    return h;
+  }
   // what the fuze delays mean for this drop: has the bomb fallen long enough to be armed, and where / how high is it then
   function fuzeCard(v, f, turn) {
     const row = (lab, a) => `<span>${lab}</span><b class="${a.armed ? '' : 'wbad'}">${a.armed ? 'armed after ' + a.delay.toFixed(2) + ' s · ' + fmt(a.alt) + ' ft AGL · ' + nm2(a.x) + ' from release' : 'NOT ARMED: ' + a.delay.toFixed(2) + ' s is more than the ' + f.tof.toFixed(1) + ' s fall'}</b>`;
@@ -320,6 +356,7 @@ export function createWeaponsPage(deps) {
     const cb = f.burst && ctx && res ? cbuInfo(res) : null;
     if (f.burst) h += `<span>BURST</span><b class="${f.burst.armedFirst ? '' : 'wbad'}">${fmt(f.burst.alt)} ft AGL · ${f.burst.t.toFixed(1)} s after release · ${fmt(f.burst.shortBy)} ft short of the impact point${f.burst.armedFirst ? '' : ' · opens before it is armed'}</b>`;
     if (cb) h += `<span>FOOTPRINT</span><b>${fmt(cb.diameter)} ft across (${nm2(cb.diameter)}) · ${Math.round(cb.effect * 100)}% effect · ${st.fz.cbu}: full effect up to ${fmt(cb.d.lethalHeight)} ft, none above ${fmt(cb.d.ineffectiveHeight)} ft</b>`;
+    h += safetyRows(v);
     return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and fuze ${f.mode == 'c2' ? 'C2 (CBU)' : 'C1'}</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
   }
 
@@ -345,7 +382,7 @@ export function createWeaponsPage(deps) {
     let tiles, kv, turn;
     if (st.mode == 'hadb') {
       tiles = pupTile + `<div class="tile"><span>Dive angle / angle off</span><b>${v.diveAngle}° / ${v.angleOff}°</b></div>`;
-      kv = tgtElev + k('INGRESS ALT', msl(v.ingressAltitude, T)) + k('RALT', msl(v.releaseAltitude, T)) + k('AOD', nm2(v.aod)) + k('RELEASE RNG', nm2(v.releaseRange)) + k('WHEEL RNG', nm2(v.wheelRange)) + k('RADIUS', nm2(v.turnRadius)) + k('TURN ANGLE', Math.round(v.turnAngle) + '°') + k('TURN DROP', fmt(v.altitudeLoss) + ' ft') + k('TOF STICK', v.tofStick.toFixed(1) + ' s');
+      kv = tgtElev + k('INGRESS ALT', msl(v.ingressAltitude, T)) + k('RALT', msl(v.releaseAltitude, T)) + `<span>MRA</span><b class="${r.an && r.an.below ? 'wbad' : ''}">${fmt(r.an && r.an.mra.value != null ? r.an.mra.value : 0)} ft AGL</b>` + k('AOD', nm2(v.aod)) + k('RELEASE RNG', nm2(v.releaseRange)) + k('WHEEL RNG', nm2(v.wheelRange)) + k('RADIUS', nm2(v.turnRadius)) + k('TURN ANGLE', Math.round(v.turnAngle) + '°') + k('TURN DROP', fmt(v.altitudeLoss) + ' ft') + k('TOF STICK', v.tofStick.toFixed(1) + ' s');
       turn = k('INGRESS HDG', h3(v.ingressHeading) + '°') + k('ATTACK HDG', h3(v.attackHeading) + '°') + k('ANGLE OFF', v.angleOff + '°') + k('TURN', v.side == 'left' ? 'Left' : 'Right') + k('TURN G', v.turnG + ' G') + k('OA1 TO VIP', nm2(v.oa1ToVip));
     } else if (st.mode == 'toss') {
       tiles = pupTile + `<div class="tile"><span>Release angle / pull-up</span><b>${v.releaseAngle}° / ${v.turnG} G</b></div>`;
@@ -353,7 +390,7 @@ export function createWeaponsPage(deps) {
       turn = k('ATTACK HDG', h3(v.attackHeading) + '°') + (r.hasTurn ? k('INGRESS HDG', h3(v.ingressHeading) + '°') + k('ANGLE OFF', v.angleOff + '°') + k('TURN', v.side == 'left' ? 'Left' : 'Right') : k('TURN', 'none')) + k('OA1 TO VIP', nm2(v.oa1ToVip));
     } else {
       tiles = pupTile + `<div class="tile"><span>Dive / climb angle</span><b>${v.diveAngle}° / ${v.climbAngle}°</b></div>`;
-      kv = tgtElev + k('PDWN', msl(v.pulldownAltitude, T)) + k('APEX', msl(v.apexAltitude, T)) + k('RALT', msl(v.releaseAltitude, T)) + k('MRA', fmt(v.mra) + ' ft AGL') + k('AOD', nm2(v.aod)) + k('MAP', nm2(v.mapDistance)) + k('RADIUS', nm2(v.turnRadius)) + k('ALTLOSS', fmt(v.altitudeLoss) + ' ft') + k('GNDC', fmt(v.groundClearance) + ' ft AGL') + k('TOF STICK', v.tofStick.toFixed(1) + ' s');
+      kv = tgtElev + k('PDWN', msl(v.pulldownAltitude, T)) + k('APEX', msl(v.apexAltitude, T)) + k('RALT', msl(v.releaseAltitude, T)) + `<span>MRA</span><b class="${r.an && r.an.below ? 'wbad' : ''}">${fmt(r.an && r.an.mra.value != null ? r.an.mra.value : v.mra)} ft AGL</b>` + k('AOD', nm2(v.aod)) + k('MAP', nm2(v.mapDistance)) + k('RADIUS', nm2(v.turnRadius)) + k('ALTLOSS', fmt(v.altitudeLoss) + ' ft') + k('GNDC', fmt(v.groundClearance) + ' ft AGL') + k('TOF STICK', v.tofStick.toFixed(1) + ' s');
       turn = (v.profileType == 1 ? k('APPROACH', h3(v.approachHeading) + '°') + k('OFFSET ANG', Math.round(v.offsetAngle) + '°') : '') + k('CLIMB HDG', h3(v.pullHeading) + '°') + k('CLIMB ANG', v.climbAngle + '°') + k('ANGLE OFF', v.angleOff + '°') + k('ATTACK HDG', h3(v.attackHeading) + '°') + k('TURN', v.side == 'left' ? 'Left' : 'Right');
     }
     const fzc = fuzeCard(v, r.fuze, turn);
@@ -412,7 +449,7 @@ export function createWeaponsPage(deps) {
           <div class="wrow"><label>Aiming point</label>${seg('stickMode', [['mid', 'Stick centre'], ['start', 'First bomb']], i.stickMode)}</div>
           <div class="wrow"><label>Bomb profile</label>${seg('fzprof', [[1, '1'], [2, '2']], st.fz.prof)}<span class="hint">Apply writes into it</span></div>
           <div class="wrow"><label>Fuze</label>${seg('fzmode', [['c1', 'C1 · GP / GBU'], ['c2', 'C2 · CBU']], st.fz.mode)}</div>
-          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div>
+          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div>
           <div class="wfz" data-m="c2"${st.fz.mode == 'c2' ? '' : ' hidden'}><div class="wrow"><label>Weapon</label><select data-pick="cbu">${Object.keys(BD).map(k => `<option${k === st.fz.cbu ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>${fzSlider('c2ad', 'AD1')}${fzSlider('c2ba', 'Burst alt.')}</div>
           <p class="hint wnote">Arming delay: seconds after release. Burst altitude: ft above the target.</p></div>`;
       const PL = ctx.T.filter(x => x.v.startsWith('ppt:')), pDef = PL.find(x => x.ringFt > 0);
@@ -443,7 +480,19 @@ export function createWeaponsPage(deps) {
     }
     const rv = root.querySelector('#wpr'); paint();
     rv.innerHTML = results(); rv.querySelectorAll('.wpvs').forEach(e => { e.scrollLeft = e.scrollWidth; }); const mn = root.querySelector('#wpmn'); if (mn) mn.textContent = mapNote;
-    note();
+    flagSliders(); note();
+  }
+  // sliders whose value breaks a limit turn red (lethal.js flags): a tip says why. The release altitude track shows the minimum acceptable altitude as a red stretch.
+  function flagSliders() {
+    const root = deps.root, an = res && !res.error && res.an;
+    root.querySelectorAll('.slr.bad').forEach(e => { e.classList.remove('bad'); e.removeAttribute('title'); });
+    root.querySelectorAll('input.zone').forEach(i => { i.classList.remove('zone'); i.style.removeProperty('--z'); });
+    const bs = root.querySelector('select[data-pick=bomb]'); if (bs) bs.innerHTML = bombOpts();
+    if (!an) return;
+    const mark = (sel, msg) => { const i = root.querySelector(sel), row = i && i.closest('.slr'); if (row) { row.classList.add('bad'); row.title = msg; } };
+    Object.entries(an.flags || {}).forEach(([k, m]) => { if (/^ad\d$/.test(k)) mark(`input[data-fz="${fzKeys()[+k.slice(2)]}"]`, m); else mark(`input[data-sl="${k}"]`, m); });
+    const ri = root.querySelector('input[data-sl=releaseAltitude]');
+    if (ri && an.mra && an.mra.value != null) { const [a, b] = lim('releaseAltitude'); ri.classList.add('zone'); ri.style.setProperty('--z', Math.max(0, Math.min(100, (an.mra.value - a) / (b - a) * 100)).toFixed(1) + '%'); ri.title = 'Red: below the minimum acceptable release altitude (' + fmt(an.mra.value) + ' ft)'; }
   }
   const note = () => { if (deps.applyNote) deps.applyNote.textContent = st.applied ? 'Written: ' + st.applied.join(', ') : ''; };
 
@@ -473,7 +522,7 @@ export function createWeaponsPage(deps) {
     const po = root.querySelector('[data-planonly]'); if (po) { const LAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; po.onclick = () => { const m = deps.cyclePlan ? deps.cyclePlan() : 0; po.textContent = LAB[m]; }; po.textContent = LAB[deps.planMode ? deps.planMode() : 0]; }
     const fb = root.querySelector('[data-fit]'); if (fb) fb.onclick = () => { fit = true; if (res && !res.error && M) drawMap(res); };
     root.querySelectorAll('input[data-num]').forEach(inp => inp.onchange = () => { const f = inp.dataset.num, n = Math.round(+inp.value); if (!(n >= 1 && n <= 24)) { inp.value = cur()[f]; return; } cur()[f] = n; inp.value = n; st.applied = null; upd(); });
-    root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { if (s.dataset.pick == 'cbu') { st.fz.cbu = s.value; save(); draw(true); return; } if (s.dataset.pick == 'refpt') st.refPt = s.value; else st.tgt = s.value; fit = true; st.applied = null; upd(); });
+    root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { if (s.dataset.pick == 'bomb') { st.bomb = s.value; save(); draw(true); return; } if (s.dataset.pick == 'cbu') { st.fz.cbu = s.value; save(); draw(true); return; } if (s.dataset.pick == 'refpt') st.refPt = s.value; else st.tgt = s.value; fit = true; st.applied = null; upd(); });
   }
 
   // the DTC changed (a point moved, renumbered, retyped or removed from the map): keep the chosen target / reference on the same point, then redraw
@@ -484,5 +533,7 @@ export function createWeaponsPage(deps) {
     if (!ctx) return; const oldT = ctx.T, sig = c => JSON.stringify(c.T.map(x => [x.v, x.label]));
     try { const was = sig(ctx); ctx = gather(); st.tgt = remap(st.tgt, oldT, ctx.T); st.refPt = remap(st.refPt, oldT, ctx.T); compute(); if (deps.root.closest('.hide')) return; draw(sig(ctx) === was); } catch (e) { /* none */ }
   }
-  return {refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
+  // for the tests: what the lethality analysis found and how many lethal circles the map holds
+  const lethal = () => res && res.an ? {env: res.an.env, mra: res.an.mra, below: res.an.below, viol: res.an.viol, flags: res.an.flags, circles: lethN} : null;
+  return {lethal, refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
 }
