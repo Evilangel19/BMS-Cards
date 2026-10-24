@@ -1,7 +1,7 @@
 import {ST} from './state.js';
 import {$, esc} from './base.js';
 import {atoSearch} from './ato.js';
-import {CYC, F, FD, ML, buildForm, cycle, setField} from './datacard.js';
+import {CYC, F, FD, ML, buildForm, cycle, setField, ptChoices, ptPick} from './datacard.js';
 import {MFD, YC, draw} from './cardview.js';
 import {sqPage} from './pages.js';
 
@@ -22,6 +22,12 @@ export function openMenu(d){closeMenu();const m=$('chm'),c=$('cv'),k=c.getBoundi
  m.style.display='block';const w=Math.max(b.w*SX*k,130),W=c.getBoundingClientRect().width;m.style.width=w+'px';m.style.left=Math.max(0,Math.min(b.x*SX*k+b.w*SX*k/2-w/2,W-w))+'px';
  const top=b.y*SY*k+b.h*SY*k+4;m.style.top=Math.min(top,Math.max(0,c.getBoundingClientRect().height-Math.min(m.scrollHeight,260)-4))+'px';
  m.onclick=e=>{const t=e.target.closest('button');if(!t)return;closeMenu();setField(d.k,t.dataset.v)};const on=m.querySelector('.on');if(on)m.scrollTop=on.offsetTop-60}
+// the Primary / Secondary boxes: a menu of the points that can be shown there (see ptChoices)
+export function openPtMenu(d){closeMenu();const w=d.k=='pri'?1:2,L=ptChoices(w),m=$('chm'),c=$('cv'),k=c.getBoundingClientRect().width/2048,b=boxOf(d);let g=null,h='';
+ L.forEach((x,i)=>{if(x.grp!==g){g=x.grp;if(g)h+=`<div class="gh">${esc(g)}</div>`}h+=`<button type="button" data-i="${i}">${esc(x.label)}</button>`});
+ m.innerHTML=h;m.style.display='block';const W=c.getBoundingClientRect().width,wd=Math.min(Math.max(b.w*SX*k,300),W);m.style.width=wd+'px';m.style.left=Math.max(0,Math.min(b.x*SX*k+b.w*SX*k/2-wd/2,W-wd))+'px';
+ const top=b.y*SY*k+b.h*SY*k+4;m.style.top=Math.min(top,Math.max(0,c.getBoundingClientRect().height-Math.min(m.scrollHeight,260)-4))+'px';m.scrollTop=0;
+ m.onclick=e=>{const t=e.target.closest('button');if(!t)return;closeMenu();ptPick(w,L[+t.dataset.i])}}
 export function openEd(d,sel=true){closeEd(true);const ed=$('ed'),c=$('cv'),k=c.getBoundingClientRect().width/2048,b=boxOf(d),ml=ML.includes(d.k)||d.k=='atis'||!!d.multi;
  ed.innerHTML='';const l=document.createElement('div');l.className='l';l.textContent=d.lab;
  const i=document.createElement(ml?'textarea':'input');i.value=F[d.k]||'';if(ml)i.rows=Math.max(2,Math.round(b.h/17));
@@ -44,7 +50,7 @@ export async function init15() {
   document.addEventListener('mousedown',e=>{const m=$('chm');if(m&&m.style.display!=='none'&&!m.contains(e.target)&&e.target.id!=='cv')closeMenu()});
   $('cv').addEventListener('mousemove',ev=>{const d=cellAt(ev),h=$('cellhov');if(!d||(EDK===d.k)){h.style.display='none';$('cv').style.cursor='';return}$('cv').style.cursor='pointer';place(h,d,0,0);h.style.display='block'});
   $('cv').addEventListener('mouseleave',()=>{$('cellhov').style.display='none'});
-  $('cv').addEventListener('click',ev=>{const d=cellAt(ev);if(d&&CYC[d.k]){closeEd(true);if(CYC[d.k].length>6)openMenu(d);else cycle(d.k)}else if(d)openEd(d);else closeEd(true)});
+  $('cv').addEventListener('click',ev=>{const d=cellAt(ev);if(d&&(d.k=='pri'||d.k=='sec')&&ST.C){closeEd(true);openPtMenu(d)}else if(d&&CYC[d.k]){closeEd(true);if(CYC[d.k].length>6)openMenu(d);else cycle(d.k)}else if(d)openEd(d);else closeEd(true)});
   window.addEventListener('resize',()=>closeEd(true));
   try{ST.FORMON=localStorage.getItem('bmsform')==='1'}catch(e){}
   $('mdctog').onclick=()=>{closeEd(true);ST.MDCON=!ST.MDCON;try{localStorage.setItem('bmsmdc',ST.MDCON?'1':'0')}catch(e){}ST.KBG=null;mdcBtn();buildForm();draw()};

@@ -50,7 +50,8 @@ export function stepper(i){if(i.dataset.nst||i.closest('#ed'))return;i.dataset.n
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick=openSettings;
-  loadConfig().then(async r=>{ST.CFG=r.config;applyAnim();if(r.warnings.length)alert('Settings: '+r.warnings.join('\n'));kbMemLoad();await loadGameData();await fillCampaigns()}).catch(()=>{});
+  const boot=loadConfig().then(async r=>{ST.CFG=r.config;applyAnim();if(r.warnings.length)alert('Settings: '+r.warnings.join('\n'));kbMemLoad();await loadGameData();await fillCampaigns()}).catch(()=>{});
+  await Promise.race([boot,new Promise(r=>setTimeout(r,30000))]);   // the start-up bar waits for the game data and the campaign list (30 s at most)
   document.querySelectorAll('input[type=number]').forEach(stepper);
   new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
 }

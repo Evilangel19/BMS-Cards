@@ -840,7 +840,7 @@ export function createMap(host, deps) {
       : it.group == 'ppt' ? '<path d="M9 1.5L16.5 9L9 16.5L1.5 9Z" class="dti"/>' : '<rect x="4.5" y="4.5" width="9" height="9" class="dti"/>';
     return L.divIcon({className: 'dts ' + it.group, html: `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.stpt}</b>` + (it.group == 'ppt' && it.name ? `<i class="dtn" style="color:${col}">${deps.esc(pptLabel(it.name))}</i>` : ''), iconSize: [18, 18]});
   };
-  const dtcTip = it => `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + (it.slot % LINE_LEN + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
+  const dtcTip = it => `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + (it.slot % LINE_LEN + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
   // after a change (a point or a whole line deleted ...) an unfinished line is recalculated: the highlighted point and the Done button follow
   function dtc() { const am = addM && addM.g == 'line' && !addM.rect ? addM : null; try { dtc0(); } finally { if (am && addM === am) addStart('line', am.line); } }
   function dtc0() {

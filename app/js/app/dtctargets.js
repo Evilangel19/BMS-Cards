@@ -6,7 +6,7 @@ import {readTarget, targetLine} from '../core/targets.js';
 import {heightsAt} from '../bmsdata/heightmap.js';
 import {openTargetPicker} from '../core/targetpicker.js';
 import {fmtLL as mFmtLL, toLL as mToLL, flightRoute as mFlightRoute, legs as mLegs, fromLL as mFromLL} from '../core/mapdata.js';
-import {nAcf as fNAcf, csOf as fCsOf, actName as fActName, FORMS as fFORMS} from '../core/flight.js';
+import {nearObj as fNearObj, nAcf as fNAcf, csOf as fCsOf, actName as fActName, FORMS as fFORMS} from '../core/flight.js';
 import {ST} from './state.js';
 import {$, animOn, esc, jp} from './base.js';
 import {G, S, lines, stpts, view} from './dtcfile.js';
@@ -42,7 +42,7 @@ export let TDATA;
 // run 8: statements that run when the program starts (in the order of the original file)
 export async function init8() {
   TDATA = createTargetData({dir:()=>ST.OBJDIR,camp:()=>ST.OBJCAMP,readBytes:(...a)=>readBytes(...a),jp:(...a)=>jp(...a)});
-  ST.dtcPage=createDtcPage({elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},nav:$('dnav'),view:$('view'),esc,anim:animOn,lines:()=>lines,G,S,FT_KM,
+  ST.dtcPage=createDtcPage({nearName:(x,y)=>{try{const o=ST.C&&fNearObj(ST.C,x,y,3);return o?String(o[1]):''}catch(e){return ''}},elev:async pts=>{const t=await terrain();return t?heightsAt((o,l)=>readRange(t.path,o,l),t.spec,pts):null},nav:$('dnav'),view:$('view'),esc,anim:animOn,lines:()=>lines,G,S,FT_KM,
    points:()=>dtcPoints(lines),route:()=>stpts(),
    routeSet:(n,f,v)=>{const r=stpts().find(z=>z.n==n);if(!r)return;r[f]=v;const p=r.l.v.split(',').map(a=>a.trim());p[0]=r.x;p[1]=r.y;p[2]=(-r.alt).toFixed(6);p[3]=r.t;S('STPT',r.l.k,p.join(', '));dtcChanged('STPT',r.l.k)},
    ll:(n,e)=>{try{return mFmtLL(...mToLL(e/FT_KM,n/FT_KM))}catch(x){return ''}},

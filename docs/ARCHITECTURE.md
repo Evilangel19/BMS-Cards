@@ -853,3 +853,10 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Mission lock: `ST.MSFLOCK = {C, key}` (set by `msfLoad`), `msLocked(f)` in ato.js: other flights/packages are dimmed in the ATO, refused by the map and disabled in the flight list; it ends when another campaign replaces `ST.C`.
 - `svc()`: ESCORT primary target = "Escort <callsigns of the package flights with ground-attack steerpoints>". SEAD unchanged.
 - `setSel`: the TE / campaign menu not in use gets `.dimsel`.
+
+## v105 - Primary / secondary menu, received card (0.9.7-beta)
+- `datacard.js`: `ptChoices(w)` / `ptPick(w, choice)`; the weapon-target rule for the primary (`wpnPri`) is gone. A choice marks `pri/d1/ll1` (or `sec/d2/ll2`) as manual; `applyDTC` leaves manual STPT 99 / 98 boxes alone. `editor.js`: `openPtMenu` (click on the box, `#chm`). TOT of a chosen point = `CAM.svc(...).tm` of the selected flight.
+- `dtcapply.js`: `msfFreeze(fl)`; `ST.MSFCARD = {C, key, vals}` is set by `msfLoad` (non-empty values of the mission's card). It is applied at the end of `apply()` (not on Reset) and of `applyDTC()`, so IFF, Link 16, laser, delivery data, pilots and the MAR table survive a new fill of the card on the receiver's computer.
+- `nearName` (pages.js / dtctargets.js): the closest campaign object (3 km) is shown beside precision targets on the DTC page and in the map tooltip.
+- Start-up: `init18` awaits `loadGameData` and `fillCampaigns` (30 s at most). Kneeboard: `KBSAVED` / `kbSig` dim Save to BMS. Pilot menu: white background, black text.
+- Test: `tools/datacardpick-test.py`.

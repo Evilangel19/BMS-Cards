@@ -56,7 +56,8 @@ export function kbDelete(it){KBLIB=KBLIB.filter(x=>x!==it);Object.values(KBTH).f
 export const kbCopy = a=>a.map(r=>({left:{...r.left},right:{...r.right}}));
 export let KBDEF;
 // Set Default: blue, dimmed once the current cards are the default; Load: green
-function kbDefBtns(){const a=$('kbdef');if(!a||!KBDEF)return;const same=JSON.stringify(kbCopy(KBS))===JSON.stringify(kbCopy(KBDEF));a.classList.toggle('nil',same)}
+let KBSAVED='';const kbSig=()=>JSON.stringify([KBFMT,KBFIT,KBS],(k,v)=>k=='item'&&v&&typeof v=='object'?String(v.n||v.name||v.id||''):v);
+function kbDefBtns(){const sv=$('kbsave');if(sv)sv.classList.toggle('nil',!!KBSAVED&&KBSAVED===kbSig());const a=$('kbdef');if(!a||!KBDEF)return;const same=JSON.stringify(kbCopy(KBS))===JSON.stringify(kbCopy(KBDEF));a.classList.toggle('nil',same)}
 // Another theater: its own arrangement of the cards comes back (what was placed there), the pictures stay in the one library. A theater without an arrangement starts from the current one.
 // Set Default / Load do not depend on the theater.
 export function kbSyncTheater(name){if(!name)return;if(!KBTHNOW){KBTHNOW=name;return}if(KBTHNOW===name)return;
@@ -159,7 +160,7 @@ export function kbRender(keepMenu){const el=$('kn');if(!el)return;kbMemLater();i
  $('kbdef').onclick=()=>{KBDEF=kbCopy(KBS);$('kbst').textContent='Current cards remembered as the default.';kbDefBtns()};
  $('kbldef').onclick=()=>{KBS=kbCopy(KBDEF);kbRender()};
  $('kbclr').onclick=async()=>{if(!await confirm('Take every card off the kneeboard? (Imported cards stay among the unused ones. Nothing is written to the BMS folder until you press Save.)'))return;KBS=kbEmpty();KBSEL=0;kbRender();$('kbst').textContent='Kneeboard emptied.'};
- $('kbf1').onclick=()=>{KBFMT='dxt1';$('kbf1').classList.remove('g');$('kbf5').classList.add('g')};$('kbf5').onclick=()=>{KBFMT='dxt5';$('kbf5').classList.remove('g');$('kbf1').classList.add('g')};
+ $('kbf1').onclick=()=>{KBFMT='dxt1';kbDefBtns();$('kbf1').classList.remove('g');$('kbf5').classList.add('g')};$('kbf5').onclick=()=>{KBFMT='dxt5';kbDefBtns();$('kbf5').classList.remove('g');$('kbf1').classList.add('g')};
  $('kbfit').onchange=()=>{KBFIT=$('kbfit').checked;kbThumbs()};
  $('kbrest').onclick=kbRestore;$('kbsave').onclick=kbSave;
  if($('kbimp'))$('kbimp').onclick=async()=>{const fs=await pickFiles({exts:['jpg','jpeg','png','webp','pdf'],title:'Kneeboard cards (images or PDF)'});if(fs.length)kbImport(fs,null,0)};
@@ -212,7 +213,7 @@ export async function kbSave(){const dir=kbDir(),st=$('kbst'),rows=KBS.map((s,i)
    const dd=kbRow(i).getContext('2d').getImageData(0,0,2048,2048).data,bytes=KBFMT=='dxt5'?toDDS5(2048,dd):toDDS(2048,dd);
    if(isDesktop()){const path=joinPath(dir,rowFile(i)),bk=await kbBackupDir(),orig=joinPath(bk,rowFile(i));if(await fileExists(path)&&!await fileExists(orig)){await makeDir(bk);await writeBytes(orig,await readBytes(path))}await writeBytes(path,bytes)}
    else saveFile(new Blob([bytes]),rowFile(i));done++}
-  $('kbprog').firstChild.style.width='100%';st.textContent='Done: '+done+' file(s) written.';$('kbsave').classList.remove('flash');void $('kbsave').offsetWidth;$('kbsave').classList.add('flash');setTimeout(()=>{const b=$('kbprog');if(b)b.firstChild.style.width='0'},1200)}catch(e){st.textContent='';alert('Could not write '+(rows[done]!==undefined?rowFile(rows[done]):'the files')+': '+(e&&e.message||e)+'\n\n'+done+' file(s) were written before the error.')}
+  $('kbprog').firstChild.style.width='100%';st.textContent='Done: '+done+' file(s) written.';KBSAVED=kbSig();kbDefBtns();$('kbsave').classList.remove('flash');void $('kbsave').offsetWidth;$('kbsave').classList.add('flash');setTimeout(()=>{const b=$('kbprog');if(b)b.firstChild.style.width='0'},1200)}catch(e){st.textContent='';alert('Could not write '+(rows[done]!==undefined?rowFile(rows[done]):'the files')+': '+(e&&e.message||e)+'\n\n'+done+' file(s) were written before the error.')}
  $('kbsave').disabled=false}
 
 // run 17: statements that run when the program starts (in the order of the original file)

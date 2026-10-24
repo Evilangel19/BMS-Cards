@@ -3,7 +3,8 @@ import {CLASSES as BVR_CLASSES} from '../core/bvrtimeline.js';
 import {savePrefs} from '../platform/desktop.js';
 import {readTarget} from '../core/targets.js';
 import {CAM} from '../core/cam-core.js';
-import {FT_KM} from '../core/mapdtc.js';
+import {FT_KM, dtcPoints} from '../core/mapdtc.js';
+import {nearObj} from '../core/flight.js';
 import {ST} from './state.js';
 import {perfFill, perfLater} from './perf.js';
 import {$, esc} from './base.js';
@@ -38,13 +39,24 @@ export function dcSync(g,on){ST.DCS[g]=!!on;try{savePrefs('dtcprefs.json',{sync:
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
 export function mirrorToCard(sec,key){(MIRK[sec+'|'+key]||[]).forEach(k=>{const m=MIR[k],v=m.to(G(sec,key,''));F[k]=v;if(ST.AUTO)ST.AUTO[k]=v;ST.MANK.delete(k);const d=FD.find(z=>z.k==k);if(d&&d.el)d.el.value=v;
   if(k=='bingo'){F.joker=String(Math.round(+v)+1000);if(ST.AUTO)ST.AUTO.joker=F.joker;ST.MANK.delete('joker');const j=FD.find(z=>z.k=='joker');if(j&&j.el)j.el.value=F.joker}});markMan();draw()}
-// Primary target of the datacard: STPT 99 (handled with the secondary, STPT 98) or, without it, the first weapon target of the DTC; with neither, the one of the flight
-export let PRIW = false;
-export const hasPri99 = ()=>{const q=G('STPT','target_98','').split(',').map(x=>x.trim());return q.length>=4&&+q[3]>=0&&!!(+q[0]||+q[1])};
-export function wpnPri(){if(!lines.length)return;if(hasPri99()){PRIW=false;return}
- let w=null;for(let n=0;n<100&&!w;n++){if(!lines.some(l=>l.s=='STPT'&&l.k==='wpntarget_'+n))continue;const t=readTarget(G('STPT','wpntarget_'+n,''));if(t&&(t.n||t.e))w={name:(t.name&&!/^not set$/i.test(t.name))?t.name:'WPN TGT '+(n+1),ll:CAM.geoLL(ST.C,t.e/FT_KM,t.n/FT_KM)}}
- if(w){F.pri=w.name;F.ll1=w.ll;PRIW=true}else if(PRIW){F.pri=(ST.AUTO&&ST.AUTO.pri)||'';F.ll1=(ST.AUTO&&ST.AUTO.ll1)||'';PRIW=false}}
-export function dtcChanged(sec,key,fromCard){dtcBtns();if(sec=='STPT'&&/^wpntarget_/.test(key)){wpnPri();try{draw()}catch(e){}}try{if(mapV.isReady()){mapV.refreshDtcButtons();if(sec=='STPT')mapV.refreshDtc()}}catch(e){}if(!fromCard)mirrorToCard(sec,key)}
+// Primary / secondary of the datacard: the rules of the flight (fillCard), STPT 99 / 98 of the DTC when they are used, or a point chosen by hand (click on the box: ptMenu)
+// Click on Primary / Secondary: the points the pilot can show there (w = 1 primary, 2 secondary). A point chosen by hand brings its name, the TOT of this flight's action steerpoint
+// (the rule of the flight: time on station for CAS, the patrol time of a CAP...) and its coordinates; "Auto" gives the rules back.
+export function ptChoices(w){
+ const pk=w==1?'pri':'sec',A=ST.AUTO||{},out=[{grp:'',label:'Auto'+(A[pk]?' · '+A[pk]:''),auto:true}];
+ if(w==2)out.push({grp:'',label:'None (empty)',v:{name:'',tot:'',ll:''}});
+ const fl=ST.C&&ST.CL[+$('fsel').value||0]&&ST.CL[+$('fsel').value||0].f;let tot='';try{const sv=fl&&CAM.svc(ST.C,fl);tot=sv?sv.tm:''}catch(e){}
+ const near=(x,y)=>{try{const o=nearObj(ST.C,x,y,3);return o?String(o[1]):''}catch(e){return ''}},P=dtcPoints(lines);
+ if(P){[['prec','Precision targets (TGT)','STPT '],['ppt','Pre-planned threats (PPT)','PPT ']].forEach(([g,grp,pre])=>P[g].filter(p=>!p.empty).forEach(p=>{
+  const nm=p.name||near(p.x,p.y)||('STPT '+p.stpt);out.push({grp,label:'STPT '+p.stpt+' · '+nm,v:{name:nm,tot,ll:CAM.geoLL(ST.C,p.x,p.y)}})}))}
+ for(let n=0;n<100;n++){if(!lines.some(l=>l.s=='STPT'&&l.k==='wpntarget_'+n))continue;const t=readTarget(G('STPT','wpntarget_'+n,''));if(!t||!(t.n||t.e))continue;
+  const nm=(t.name&&!/^not set$/i.test(t.name))?t.name:'WPN TGT '+(n+1);out.push({grp:'Weapon targets (SPICE)',label:'WPN TGT '+(n+1)+' · '+nm,v:{name:nm,tot,ll:CAM.geoLL(ST.C,t.e/FT_KM,t.n/FT_KM)}})}
+ return out}
+export function ptPick(w,c){
+ const K=w==1?['pri','d1','ll1']:['sec','d2','ll2'],A=ST.AUTO||{};
+ if(c.auto){K.forEach(k=>{ST.MANK.delete(k);F[k]=A[k]||'';const d=(ST.MDCON?MFD:FD).find(z=>z.k==k);if(d&&d.el)d.el.value=F[k]});markMan();draw();return}
+ setField(K[0],c.v.name);setField(K[1],c.v.tot);setField(K[2],c.v.ll)}
+export function dtcChanged(sec,key,fromCard){dtcBtns();try{if(mapV.isReady()){mapV.refreshDtcButtons();if(sec=='STPT')mapV.refreshDtc()}}catch(e){}if(!fromCard)mirrorToCard(sec,key)}
 // who uses each frequency: the flights of the package, the support flights and the airbases of the datacard being shown
 export function freqOwners(){const m=new Map(),add=(f,l)=>{if(f&&/^\d/.test(f)&&l&&!m.has(f))m.set(f,l)};
  for(let i=0;i<5;i++){const cs=F[`pk${i}_0`];add(F[`pk${i}_2`],cs&&cs+' · UHF');add(F[`pk${i}_3`],cs&&cs+' · VHF')}

@@ -3,12 +3,16 @@ import {CAM} from '../core/cam-core.js';
 import {dtcKey, dtcValue, dtcEmpty} from '../core/mapdtc.js';
 import {ST} from './state.js';
 import {G, S, lines, view} from './dtcfile.js';
-import {F, wpnPri} from './datacard.js';
+import {F} from './datacard.js';
 import {$} from './base.js';
 import {mapV} from './pages.js';
 import {draw} from './cardview.js';
 
-export function applyDTC(fl){if(!lines.length)return;const g=(s,k)=>G(s,k,'');
+// The datacard of a received mission is the sender's: what his DTC, his Link 16 / IFF files and his pilot list filled in (IFF, Link 16, laser, delivery data, pilots, MAR table...) is kept
+// whenever the card is built again on this computer (another DTC opened, the flight selected again). ST.MSFCARD = {C, key, vals} is set by msfLoad; values changed by hand here (ST.MANK) win.
+export function msfFreeze(fl){const c=ST.MSFCARD;if(!c||c.C!==ST.C||!fl||!fl.id||c.key!==fl.id.n+':'+fl.id.c)return;Object.keys(c.vals).forEach(k=>{if(!ST.MANK||!ST.MANK.has(k))F[k]=c.vals[k]})}
+export function applyDTC(fl){applyDTC0(fl);msfFreeze(fl)}
+function applyDTC0(fl){if(!lines.length)return;const g=(s,k)=>G(s,k,'');
  for(let i=0;i<6;i++){const c=g('EWS',`PGM ${i} Comment`);if(c)F['ews'+i]=c}
  const al=g('ICP','Alow AGL'),ms=g('ICP','Alow MSL'),bf=g('ICP','Bingo_Fuel');if(al!=='')F.alow=String(Math.round(+al));if(ms!=='')F.msl=String(Math.round(+ms));if(bf!==''){F.bingo=String(Math.round(+bf));F.joker=String(Math.round(+bf)+1000)}
  const SUB={7:'CCIP',8:'CCRP'},FZ={0:'NSTL',1:'NOSE',2:'TAIL'},bc=g('Laser','LaserTGP');
@@ -43,13 +47,13 @@ export function applyDTC(fl){if(!lines.length)return;const g=(s,k)=>G(s,k,'');
    EV.map(e=>e.T).filter(T=>T>t0&&T<=t1).sort((x,y)=>x-y).forEach(T=>{const k=k4f(T),c=show3?c3at(T):'',s=[];if(show3&&c&&c!==p3){s.push('M3 '+c);p3=c}if(k&&k!==pk){s.push('M4 '+k);pk=k}
     if(s.length)out.push((q=>String(Math.floor(q/36e5)%24).padStart(2,'0')+':'+String(Math.floor(q/6e4)%60).padStart(2,'0'))(T)+' '+s.join(' '))});
    if(out.length)F.free=(F.free?F.free+'\n\n':'')+'IFF from '+out.slice(0,3).join(' | ')+(show3?' (M3 Leader)':'')}}
- [['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([k,fk,lk,dn])=>{const s=g('STPT',k).split(',').map(x=>x.trim());
-  if(s.length>=4&&+s[3]>=0&&(+s[0]||+s[1])&&ST.C){F[fk]=(s[4]&&!/^not set$/i.test(s[4]))?s[4]:dn;F[lk]=CAM.geoLL(ST.C,+s[1]/3280.84,+s[0]/3280.84)}});wpnPri()}
+ [['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([k,fk,lk,dn])=>{if(ST.MANK&&ST.MANK.has(fk))return;const s=g('STPT',k).split(',').map(x=>x.trim());
+  if(s.length>=4&&+s[3]>=0&&(+s[0]||+s[1])&&ST.C){F[fk]=(s[4]&&!/^not set$/i.test(s[4]))?s[4]:dn;F[lk]=CAM.geoLL(ST.C,+s[1]/3280.84,+s[0]/3280.84)}});}
 /* ATO column: mission categories > packages > flights, for one faction at a time. The player's faction (from the campaign's player squadron) is selectable; other factions can be read but are locked (red). Only F-16 flights fill the datacard. */
 // a DTC steerpoint was changed on the map: keep the DTC page and the datacard (STPT 98 / 99 -> secondary / primary) in step
 export function dtcSet(g,slot,patch,fromPage){const k=dtcKey(g,slot);S('STPT',k,dtcValue(g,G('STPT',k,''),patch));afterDtc(k,fromPage)}
 export function dtcClear(g,slot,fromPage){const k=dtcKey(g,slot);S('STPT',k,dtcEmpty(g));afterDtc(k,fromPage)}
 export function dtcBtns(){const d=lines.some(l=>l.dirty);[['saveow',!d],['dtcrev',!d]].forEach(([i,n])=>{const b=$(i);if(b)b.classList.toggle('nil',n)})}
 export function afterDtc(k,fromPage){dtcBtns();try{ST.wpPage&&ST.wpPage.refresh&&ST.wpPage.refresh()}catch(e){}try{view()}catch(e){}if(fromPage){try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}}
- if(ST.C&&/^(target_9[78]|wpntarget_\d+)$/.test(k)){[['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([kk,fk,lk,dn])=>{const q=G('STPT',kk).split(',').map(x=>x.trim());
-  if(q.length>=4&&+q[3]>=0&&(+q[0]||+q[1])){F[fk]=(q[4]&&!/^not set$/i.test(q[4]))?q[4]:dn;F[lk]=CAM.geoLL(ST.C,+q[1]/3280.84,+q[0]/3280.84)}else{F[fk]='';F[lk]=''}});wpnPri();draw()}}
+ if(ST.C&&/^(target_9[78]|wpntarget_\d+)$/.test(k)){[['target_98','pri','ll1','STPT 99'],['target_97','sec','ll2','STPT 98']].forEach(([kk,fk,lk,dn])=>{if(ST.MANK&&ST.MANK.has(fk))return;const q=G('STPT',kk).split(',').map(x=>x.trim());
+  if(q.length>=4&&+q[3]>=0&&(+q[0]||+q[1])){F[fk]=(q[4]&&!/^not set$/i.test(q[4]))?q[4]:dn;F[lk]=CAM.geoLL(ST.C,+q[1]/3280.84,+q[0]/3280.84)}else{F[fk]='';F[lk]=''}});draw()}}
