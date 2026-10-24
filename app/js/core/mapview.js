@@ -4,6 +4,8 @@ import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import {objState, featState} from '../parsers/cam.js';
+import {offsetRow} from './popup.js';
+import {OFF_KEYS, OFF_COLORS} from './mapoffs.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
 import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
 import {getGeo} from '../rules/geo.js';
@@ -142,13 +144,15 @@ export function createMap(host, deps) {
     };
     G.coastD = mkCoast(COAST.dark); G.coastL = mkCoast(COAST.light); G.coast = G.coastD;
     MAP_LAYERS.forEach(([k]) => G[k] = L.layerGroup());
+    G.off = L.layerGroup().addTo(map);   // offsets placed on a route steerpoint
     G.su = L.layerGroup().addTo(map);   // SAM units: shown with their unit layer or with their range layer
     map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
     map.on('moveend', () => { placeLabels(); const b = map.getBounds(); PREF.view = {b: [[b.getSouth(), b.getWest()], [b.getNorth(), b.getEast()]]}; persist(); });
     const zc = () => { const z = map.getZoom(); host.classList.toggle('zlo', z < 8); host.classList.toggle('zmid', z >= 8 && z < 9.5); };
     map.on('zoomend', zc); zc();
     host.addEventListener('click', e => { const d = e.target.closest && e.target.closest('.flb div[data-lb]'); if (d && LBP[d.dataset.lb]) { e.stopPropagation(); e.preventDefault(); LBP[d.dataset.lb](); } }, true);
-    map.on('click', e => { if (shotOn) return; foldAll(); if (addM) addPlace(e.latlng); });
+    map.on('click', e => { if (shotOn) return; if (OFFP) { offPlace(e.latlng); return; } foldAll(); if (addM) addPlace(e.latlng); });
+    document.addEventListener('keydown', e => { if (e.key == 'Escape' && OFFP) offCancel(); });
     map.on('mousemove', e => { $('mpllc').textContent = fmtLL(e.latlng.lat, e.latlng.lng); });
     try { const b = await idb.get('mapimg'); if (b) imgName = b.name || 'picture'; } catch (e) { /* no database */ }
     panel(); setBase();
@@ -749,7 +753,7 @@ export function createMap(host, deps) {
   // Line and steerpoints are in the "fp" layer, leg distances and the label box in "fd", the package mates in "pk". Lines go to their own pane, above rings and units.
   function plan(C, f) {
     const L = window.L; ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers()); LBL = [];
-    const r = C && f ? flightRoute(C, f) : []; if (!r.length) return;
+    const r = C && f ? flightRoute(C, f) : []; OFFR = r.map(p => ({n: p.n, ll: p.ll})); offDraw(); if (!r.length) return;
     els0(C, f).filter(m => m !== f && m.wps && m.wps.length > 1).forEach((m, i) => member(C, m, i));
     const mn = C.D.S[300 + f.omis] || '', lg = legs(r), ll = r.map(p => p.ll);
     // from the first landing steerpoint on (recovery, diversion) the line is dashed
@@ -762,7 +766,7 @@ export function createMap(host, deps) {
       const act = isActivity(p.act), shape = p.act == 4 ? '<rect x="2.5" y="2.5" width="13" height="13" class="wpi"/>' : act ? '<path d="M9 2.5L16 15H2Z" class="wpi"/>' : '<circle cx="9" cy="9" r="6.5" class="wpi"/>';   // refuel = square, other activity = triangle
       const mk = L.marker(p.ll, {icon: L.divIcon({className: 'wps', html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`, iconSize: [18, 18]}), zIndexOffset: 1000, keyboard: false});
       const l = lg[i], t = p.arr > 0 ? hms(p.arr).slice(0, 8) + 'Z' : '';
-      mk.bindPopup(`<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}`,
+      mk.bindPopup(() => stpPopup(`<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}`, p, mk),
         {className: 'mpop', closeButton: false, autoPan: false, offset: [0, -4]});
       mk.on('popupopen', () => mk._icon && mk._icon.classList.add('sel')); mk.on('popupclose', () => mk._icon && mk._icon.classList.remove('sel'));
       mk.addTo(G.fp);
@@ -797,6 +801,55 @@ export function createMap(host, deps) {
       if (best) { o.mk.setLatLng(best); o.mk.setOpacity(1); } else o.mk.setOpacity(0);
     });
   }
+  // ---- offsets of a route steerpoint (1-24), placed on the map: OA1, OA2, VRP, VRP PUP, VIP, VIP PUP (deps.offs; the Weapons page shows and writes them) ----
+  let OFFR = [], OFFP = null, OFFRE = 0;   // OFFR: the route steerpoints of the picked flight; OFFP: the point waiting for a click {n, at, key, mk}; OFFRE: steerpoint whose panel opens again after a placement
+  const neOf = ll => { const [x, y] = fromLL(ll[0], ll[1]); return {n: y * FT_KM, e: x * FT_KM}; };
+  const posLL = q => toLL(q.e / FT_KM, q.n / FT_KM);
+  function offDraw() {
+    if (!G.off) return; G.off.clearLayers(); if (!deps.offs) return; const L = window.L, all = deps.offs.all();
+    Object.keys(all).forEach(n => {
+      const rp = OFFR.find(x => x.n == +n); if (!rp) return; const at = neOf(rp.ll), p = deps.offs.get(+n, at);
+      OFF_KEYS.forEach(([k, lab]) => {
+        const q = p[k]; if (!q) return; const ll = posLL(q), c = OFF_COLORS[k];
+        L.polyline([rp.ll, ll], {renderer: PR, color: c, weight: 1.5, opacity: .8, dashArray: '4 4', interactive: false}).addTo(G.off);
+        const mk = L.marker(ll, {icon: L.divIcon({className: 'offp', html: `<i style="background:${c}"></i><b>${lab} · ${n}</b>`, iconSize: [0, 0]}), draggable: true, zIndexOffset: 900, keyboard: false}).addTo(G.off);
+        mk.on('dragend', () => { const g = mk.getLatLng(), np = neOf([g.lat, g.lng]); deps.offs.set(+n, at, k, {...np, alt: undefined}); offElev(+n, at, k, np); });
+        mk.bindTooltip(`${lab} of STPT ${n}: drag to move`, {direction: 'top', offset: [0, -6]});
+      });
+    });
+  }
+  async function offElev(n, at, k, pos) {   // the terrain elevation under the point (when the BMS folder is known)
+    try { const a = deps.dtc && deps.dtc.elev ? await deps.dtc.elev(pos) : null; if (a !== null && a !== undefined && !isNaN(a)) deps.offs.set(n, at, k, {...pos, alt: a}); } catch (e) { /* none */ }
+  }
+  function offCancel() { OFFP = null; if (map) map.getContainer().style.cursor = ''; toast('Placing cancelled.'); }
+  function offPlace(latlng) {
+    const o = OFFP, [x, y] = fromLL(latlng.lat, latlng.lng); if (x < 0 || x > 1024 || y < 0 || y > 1024) return toast('That is outside the theater.', true);
+    OFFP = null; map.getContainer().style.cursor = ''; const pos = {n: y * FT_KM, e: x * FT_KM};
+    deps.offs.set(o.n, o.at, o.key, pos); OFFRE = o.n; offDraw(); offElev(o.n, o.at, o.key, pos).then(() => { offDraw(); if (o.mk && o.mk.isPopupOpen && o.mk.isPopupOpen()) { OFFRE = o.n; o.mk.openPopup(); } });
+    o.mk.openPopup();
+  }
+  // a handler that redraws the popup runs after the click has finished (the clicked button is gone by then, and the click must not reach the map and close the popup)
+  const later = f => ev => { ev.stopPropagation(); setTimeout(f, 0); };
+  function stpPopup(html, p, mk) {
+    const d = document.createElement('div'); d.innerHTML = html + (deps.offs && p.n >= 1 && p.n <= 24 ? '<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map">Offsets</button></div>' : '');
+    const b = d.querySelector('[data-a=offs]'); if (b) b.onclick = later(() => offPanel(d, p, mk));
+    if (OFFRE === p.n) { OFFRE = 0; offPanel(d, p, mk); }
+    return d;
+  }
+  function offPanel(d, p, mk) {
+    const at = neOf(p.ll), line = k => { const q = deps.offs.get(p.n, at)[k]; return q ? q : null; };
+    const paint = () => {
+      const rows = OFF_KEYS.map(([k, lab]) => { const q = line(k), r = q ? offsetRow(at, q) : null;
+        return `<tr><td style="color:${OFF_COLORS[k]};font-weight:600">${lab}</td><td>${r ? String(r.brg.toFixed(1)).padStart(5, '0') + '° · ' + r.rng.toLocaleString('en-US') + ' ft' : '<span class="hint">not placed</span>'}</td><td>${q && k != 'vip' ? `<input type="number" data-el="${k}" value="${q.alt !== undefined ? q.alt : ''}" placeholder="elev" style="width:62px" title="Elevation (ft MSL) written with the offset: from the terrain, editable"> ft` : ''}</td><td><button class="btn g" type="button" data-pl="${k}">${q ? 'Move' : 'Place'}</button>${q ? `<button class="btn g" type="button" data-rm="${k}" title="Remove">×</button>` : ''}</td></tr>`; }).join('');
+      d.innerHTML = `<div><b>Steerpoint ${p.n} · offsets</b></div><table class="dt moff">${rows}</table><div class="hint" style="min-height:0">Bearing and range from the steerpoint. Press Place, then click the map; drag a point to move it. The Weapons page shows them and Apply writes them into the DTC.</div><div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-bk>Back</button></div>`;
+      d.querySelectorAll('[data-pl]').forEach(b => b.onclick = later(() => { OFFP = {n: p.n, at, key: b.dataset.pl, mk}; map.closePopup(); map.getContainer().style.cursor = 'crosshair'; toast('Click the map to place ' + OFF_KEYS.find(z => z[0] == b.dataset.pl)[1] + ' of STPT ' + p.n + ' (Esc cancels).'); }));
+      d.querySelectorAll('[data-rm]').forEach(b => b.onclick = later(() => { deps.offs.remove(p.n, at, b.dataset.rm); offDraw(); paint(); }));
+      d.querySelectorAll('[data-el]').forEach(i => i.onchange = () => { const q = line(i.dataset.el); if (q) deps.offs.set(p.n, at, i.dataset.el, {n: q.n, e: q.e, alt: i.value === '' ? undefined : +i.value}); });
+      d.querySelector('[data-bk]').onclick = later(() => { map.closePopup(); mk.openPopup(); });
+    };
+    paint();
+  }
+
   // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
   function member(C, m, k) {
     const L = window.L, r = flightRoute(C, m), info = deps.flightInfo(m), pick = () => deps.selectFlight && deps.selectFlight(m), ll = r.map(p => p.ll);

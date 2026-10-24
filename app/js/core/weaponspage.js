@@ -271,15 +271,21 @@ export function createWeaponsPage(deps) {
   const plan = () => { const rows = writable() ? Object.values(offsets()) : []; return {rows, clr: toClear(rows.map(x => x.key))}; };
   function offsets() {
     const r = res, sp = ctx.stPos, o = {}, vip = st.ref == 'vip', n = ctx.sp ? ctx.sp.n : 0;
+    const mo = deps.offs && sp && n ? deps.offs.get(n, ctx.tPos) : {}, mp = k => mo[k] ? {n: mo[k].n, e: mo[k].e} : null, mal = (k, d) => mo[k] && mo[k].alt !== undefined ? mo[k].alt : d;   // points placed on the Map page replace the computed ones
     o.pup = {key: vip ? 'VIPPUP' : 'VRPPUP', label: vip ? 'VIP → PUP' : 'TGT → PUP', row: offsetRow(ctx.ref, r.pup), stpt: n, alt: elv('pup')};
     const noVrp = r.kind == 'toss' && !r.hasTurn && !vip;
     if (!noVrp) o.ref = vip ? {key: 'VIP', label: 'VIP → TGT', row: offsetRow(ctx.vipPos, ctx.tPos), stpt: n, alt: elv('tgt')} : {key: 'VRP', label: 'TGT → VRP', row: offsetRow(ctx.tPos, r.vrp), stpt: n, alt: elv('vrp')};
+    const MP = ' · map';
+    if (mp(vip ? 'vipPup' : 'vrpPup')) o.pup = {...o.pup, label: o.pup.label + MP, row: offsetRow(vip && mp('vip') ? mp('vip') : ctx.ref, mp(vip ? 'vipPup' : 'vrpPup')), alt: mal(vip ? 'vipPup' : 'vrpPup', o.pup.alt)};
+    if (vip ? mp('vip') : mp('vrp')) o.ref = vip ? {key: 'VIP', label: 'VIP → TGT' + MP, row: offsetRow(mp('vip'), ctx.tPos), stpt: n, alt: elv('tgt')} : {key: 'VRP', label: 'TGT → VRP' + MP, row: offsetRow(ctx.tPos, mp('vrp')), stpt: n, alt: mal('vrp', elv('vrp'))};
     if (sp) {
       // OA1 follows the button of the attack profile: the top of the manoeuvre (pop-up: pull-down point at the pull-down altitude, HADB / TOSS: the PUP at the ingress altitude, MSL) or the other reference
       const tg = elv('tgt') || 0, igE = r.vert && r.vert.segs.find(z => z[0] == 'ingress'), pupAlt = igE ? igE[1][igE[1].length - 1][1] : r.v.ingressAltitude;
       o.oa1 = oa1Top() ? {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + (st.mode == 'popup' ? ' · top of climb' : ' · PUP'), row: offsetRow(sp, oa1Pos(r)), alt: (st.mode == 'popup' ? r.v.pulldownAltitude : pupAlt) + tg}
         : {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + (st.mode == 'popup' ? ' · aim-off' : ' · line-up'), row: offsetRow(sp, r.oa), alt: elv('oa')};
       if (r.oa2) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n, row: offsetRow(sp, r.oa2), alt: r.oa2Alt};
+      if (mp('oa1')) o.oa1 = {key: 'OA1-' + n, label: 'OA1 · STPT ' + n + MP, row: offsetRow(sp, mp('oa1')), alt: mal('oa1', o.oa1 ? o.oa1.alt : elv('oa'))};
+      if (mp('oa2')) o.oa2 = {key: 'OA2-' + n, label: 'OA2 · STPT ' + n + MP, row: offsetRow(sp, mp('oa2')), alt: mal('oa2', o.oa2 ? o.oa2.alt : r.oa2Alt)};
     }
     return o;
   }
@@ -568,6 +574,7 @@ export function createWeaponsPage(deps) {
     try { const was = sig(ctx); ctx = gather(); st.tgt = remap(st.tgt, oldT, ctx.T); st.refPt = remap(st.refPt, oldT, ctx.T); compute(); if (deps.root.closest('.hide')) return; draw(sig(ctx) === was); } catch (e) { /* none */ }
   }
   // for the tests: what the lethality analysis found and how many lethal circles the map holds
+  if (deps.offs) deps.offs.onChange(() => { st.applied = st.cleared = null; if (!deps.root.closest('.hide') && ctx) { try { draw(true); } catch (e) { /* none */ } } });
   const lethal = () => res && res.an ? {env: res.an.env, mra: res.an.mra, below: res.an.below, viol: res.an.viol, flags: res.an.flags, circles: lethN} : null;
   return {lethal, refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
 }
