@@ -24,6 +24,8 @@ export function bombClass(name) {
   if (/MK-?84|GBU-?(10|31)(?!\d)/i.test(n)) return {lb: 2000};
   return null;
 }
+// GPS / INS guided bombs (JDAM, JSOW, GBU-54, SDB): they glide, so the ballistic range and fall time of the page are only a rough guide, and their arming delay is set on the SMS CNTL page (PROF 1-4), not in the DTC
+export const isGuided = name => /JDAM|GBU-?(31|32|38|54|39|53)(?!\d)|JSOW|AGM-?154/i.test(String(name || ''));
 // the bomb of a loadout [{name, n}]: the heaviest covered one; skipped = the other weapon names that are not covered
 export function pickBomb(list) {
   let best = null; const skipped = [];

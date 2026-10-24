@@ -3,7 +3,7 @@
 import D0 from '../data/index.js';
 const PPTL = new Proxy([], {get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt});   // the threat list is read from the BMS installation (Ppt.ini)
 import {cbuFootprint} from '../bmsdata/bombdata.js';
-import {analyse, envelope, pickBomb, maneuvers, PULL_G, PULL_DELAY} from './lethal.js';
+import {analyse, envelope, pickBomb, isGuided, maneuvers, PULL_G, PULL_DELAY} from './lethal.js';
 import {computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow} from './popup.js';
 import {computeHadb, computeToss, matCheck, HADB_DEFAULTS, TOSS_DEFAULTS, HADB_LIMITS, TOSS_LIMITS} from './strike.js';
 
@@ -104,8 +104,10 @@ export function createWeaponsPage(deps) {
     if (b == 'off') return {env: null, label: 'not calculated'};
     if (b != 'auto') return {env: envelope(+b), label: BOMBS.find(x => x[0] == b)[1], manual: true};
     const L = deps.loadout ? deps.loadout() : [], p = pickBomb(L), names = [...new Set(L.map(w => w.name).filter(n => n && !/^(AIM|AA-|R-\d|ALQ|AN\/|TANK|.*tank)/i.test(n)))];
-    return p ? {env: envelope(p.lb), label: p.name + ' (' + p.lb + ' lb)', loadout: true, skipped: p.skipped} : {env: null, label: 'no covered bomb in the loadout' + (names.length ? ' (' + names.slice(0, 4).join(', ') + ')' : '')};
+    return p ? {env: envelope(p.lb), label: p.name + ' (' + p.lb + ' lb)', loadout: true, skipped: p.skipped, guided: isGuided(p.name)} : {env: null, label: 'no covered bomb in the loadout' + (names.length ? ' (' + names.slice(0, 4).join(', ') + ')' : '')};
   }
+  const guided = () => st.fz.mode == 'c1' && !!bombSel().guided;   // a guided bomb of the loadout: the C1 arming delays are not set here
+  const GUIDED_NOTE = 'Guided bomb (JDAM, JSOW, GBU-54): set its arming delay and impact azimuth by hand on the SMS CNTL page, PROF 1-4. The profiles here are ballistic and not accurate for guided bombs, which glide.';
   const fzKeys = () => st.fz.mode == 'c2' ? ['c2ad'] : ['c1ad1', 'c1ad2'];
   const bombOpts = () => `<option value="auto"${(st.bomb || 'auto') == 'auto' ? ' selected' : ''}>Auto · ${esc(bombSel().label)}</option>${BOMBS.map(([v, l]) => `<option value="${v}"${st.bomb == v ? ' selected' : ''}>${l}</option>`).join('')}`;
   function compute() {
@@ -119,7 +121,7 @@ export function createWeaponsPage(deps) {
       const d = samAlt(p); if (p && d && !st.mat.man && st.mat.auto !== p.v) { st.mat.auto = p.v; st.mat.samMax = d.max; st.mat.samMin = d.min; if (st.toss.ingressAltitude < d.max) st.toss.ingressAltitude = Math.min(50000, d.max + 1000); res = eng(ctx.tPos, ctx.ref, {...cur(), ...fuzeInputs()}); }
       res.mat = p ? {...matCheck(res, {n: p.n, e: p.e, ringFt: p.ringFt}, {max: st.mat.samMax, min: Math.min(st.mat.samMin, st.mat.samMax)}), name: p.label, pos: {n: p.n, e: p.e}} : {missing: true};
     }
-    if (res && !res.error) { const sel = bombSel(), keys = fzKeys(); res.an = analyse(res, sel.env, keys.map(k => st.fz[k])); res.an.sel = sel; }
+    if (res && !res.error) { const sel = bombSel(), keys = fzKeys(); res.an = analyse(res, sel.env, sel.guided && st.fz.mode == 'c1' ? [] : keys.map(k => st.fz[k])); res.an.sel = sel; }
     loadElev();
   }
 
@@ -378,7 +380,8 @@ export function createWeaponsPage(deps) {
   // what the fuze delays mean for this drop: has the bomb fallen long enough to be armed, and where / how high is it then
   function fuzeCard(v, f, turn) {
     const row = (lab, a) => `<span>${lab}</span><b class="${a.armed ? '' : 'wbad'}">${a.armed ? 'armed after ' + a.delay.toFixed(2) + ' s · ' + fmt(a.alt) + ' ft AGL · ' + nm2(a.x) + ' from release' : 'NOT ARMED: ' + a.delay.toFixed(2) + ' s is more than the ' + f.tof.toFixed(1) + ' s fall'}</b>`;
-    let h = `<span>FALL TIME</span><b>${f.tof.toFixed(1)} s</b>` + row('AD1', f.ad1) + (f.ad2 ? row('AD2', f.ad2) : '');
+    const gd = f.mode != 'c2' && res && res.an && res.an.sel && res.an.sel.guided;
+    let h = `<span>FALL TIME</span><b>${f.tof.toFixed(1)} s</b>` + (gd ? `<span>GUIDED</span><b>${GUIDED_NOTE}</b>` : row('AD1', f.ad1) + (f.ad2 ? row('AD2', f.ad2) : ''));
     const cb = f.burst && ctx && res ? cbuInfo(res) : null;
     if (f.burst) h += `<span>BURST</span><b class="${f.burst.armedFirst ? '' : 'wbad'}">${fmt(f.burst.alt)} ft AGL · ${f.burst.t.toFixed(1)} s after release · ${fmt(f.burst.shortBy)} ft short of the impact point${f.burst.armedFirst ? '' : ' · opens before it is armed'}</b>`;
     if (cb) h += `<span>FOOTPRINT</span><b>${fmt(cb.diameter)} ft across (${nm2(cb.diameter)}) · ${Math.round(cb.effect * 100)}% effect · ${st.fz.cbu}: full effect up to ${fmt(cb.d.lethalHeight)} ft, none above ${fmt(cb.d.ineffectiveHeight)} ft</b>`;
@@ -486,7 +489,7 @@ export function createWeaponsPage(deps) {
           <div class="wrow"><label>Aiming point</label>${seg('stickMode', [['mid', 'Stick centre'], ['start', 'First bomb']], i.stickMode)}</div>
           <div class="wrow"><label>Bomb profile</label>${seg('fzprof', [[1, '1'], [2, '2']], st.fz.prof)}<span class="hint">Apply writes into it</span></div>
           <div class="wrow"><label>Fuze</label>${seg('fzmode', [['c1', 'C1 · GP / GBU'], ['c2', 'C2 · CBU']], st.fz.mode)}</div>
-          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div>
+          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div><p class="hint wguide"${guided() ? '' : ' hidden'}>${GUIDED_NOTE}</p><div class="wads"${guided() ? ' hidden' : ''}>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div></div>
           <div class="wfz" data-m="c2"${st.fz.mode == 'c2' ? '' : ' hidden'}><div class="wrow"><label>Weapon</label><select data-pick="cbu">${Object.keys(BD).map(k => `<option${k === st.fz.cbu ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>${fzSlider('c2ad', 'AD1')}${fzSlider('c2ba', 'Burst alt.')}</div>
           <p class="hint wnote">Arming delay: seconds after release. Burst altitude: ft above the target.</p></div>`;
       const PL = ctx.TA.filter(x => x.v.startsWith('ppt:')), pDef = PL.find(x => x.ringFt > 0);
@@ -500,7 +503,7 @@ export function createWeaponsPage(deps) {
       if (md == 'hadb') mid = `<div class="wcard"><h3>Release</h3>${sl(['diveAngle', 'releaseAltitude', 'releaseSpeed', 'timeOnFinal'])}<p class="hint wnote">High altitude dive bombing: roll in at the VIP, turn and dive onto the target. The ingress altitude is not chosen: release altitude, dive angle and tracking time give it. Speeds are true airspeed.</p></div>
         <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">The ingress heading is the attack heading turned away by the angle off. Fly over OA1 and the VIP, at the VIP turn in with the chosen G.</p></div>${egressCard}${weaponCard}`;
       else if (md == 'toss') mid = `<div class="wcard"><h3>Release</h3>${sl(['releaseAngle', 'ingressAltitude', 'ingressSpeed', 'releaseSpeed', 'releaseExtra'])}<p class="hint wnote">Low altitude toss: level at the ingress altitude, at the VIP pull up to the release angle, release, turn away. The release altitude is the lowest the pull-up gives plus the extra climb. Speeds are true airspeed.</p></div>${matCard}
-        <div class="wcard"><h3>Line-up and turn</h3>${sl(['heading'])}${sideRow('Turn')}${sl(['angleOff'])}${gRow('Pull-up G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">Angle off 0 = no turn before the line-up (then there are no VRP and OA2). Otherwise the ingress comes in turned away by the angle off, VRP is where the turn starts and OA2 lines up with it.</p></div>${egressCard}${weaponCard}`;
+        <div class="wcard"><h3>Line-up and turn</h3>${sl(['heading'])}${sideRow('Turn')}${sl(['angleOff'])}${gRow('Pull-up G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">Angle off 0 = no turn before the line-up (then there are no VRP and OA2). Otherwise the ingress comes in turned away by the angle off, VRP is where the turn starts and OA2 lines up with it. OA1 sits on the attack line before the VIP: it is the line-up point, fly toward it before the pull-up. OA2 exists only when the angle off is more than 0: it sits on the ingress leg before the turn. Both are cues to steer by, not mandatory.</p></div>${egressCard}${weaponCard}`;
       else mid = `<div class="wcard"><h3>Attack profile</h3>${SL.slice(0, 5).map(x => slider(x[0], x[1], x[2], x[3])).join('')}
           ${sideRow('Turn')}${gRow('Turn G')}
           <div class="wrow"><label>Heading of</label>${seg('headingMode', [['attack', 'Attack run'], ['ingress', 'Climb']], i.headingMode)}</div>${slider('heading', 'Heading', '°', 0)}
@@ -525,6 +528,7 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('.slr.bad').forEach(e => { e.classList.remove('bad'); e.removeAttribute('title'); });
     root.querySelectorAll('input.zone').forEach(i => { i.classList.remove('zone'); i.style.removeProperty('--z'); });
     const bs = root.querySelector('select[data-pick=bomb]'); if (bs) bs.innerHTML = bombOpts();
+    const gd = guided(); root.querySelectorAll('.wguide').forEach(e => { e.hidden = !gd; }); root.querySelectorAll('.wads').forEach(e => { e.hidden = gd; });
     if (!an) return;
     const mark = (sel, msg) => { const i = root.querySelector(sel), row = i && i.closest('.slr'); if (row) { row.classList.add('bad'); row.title = msg; } };
     Object.entries(an.flags || {}).forEach(([k, m]) => { if (/^ad\d$/.test(k)) mark(`input[data-fz="${fzKeys()[+k.slice(2)]}"]`, m); else mark(`input[data-sl="${k}"]`, m); });

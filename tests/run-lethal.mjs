@@ -1,7 +1,7 @@
 // Lethality, minimum acceptable release altitude and safe escape (core/lethal.js): the envelope classes, the bomb names, the three MRAs, the escape check.
 import { computePopup } from '../app/js/core/popup.js';
 import { computeHadb, computeToss } from '../app/js/core/strike.js';
-import { analyse, envelope, bombClass, pickBomb, maneuvers, recoveryMra, escapePath } from '../app/js/core/lethal.js';
+import { analyse, envelope, bombClass, pickBomb, isGuided, maneuvers, recoveryMra, escapePath } from '../app/js/core/lethal.js';
 let n = 0, bad = 0;
 const ck = (name, ok) => { n++; if (!ok) { bad++; console.log('FAIL', name); } };
 const near = (a, b, t = 1) => Math.abs(a - b) <= t;
@@ -14,6 +14,7 @@ ck('1000 lb lies between the two and is approximate', e10.out > 3600 && e10.out 
 ck('weights outside the classes stay on the nearest class', envelope(250).out === 3600 && envelope(4000).out === 3700 && envelope(0) === null);
 // bomb names from the loadout
 ck('MK-82 / GBU-12 / GBU-38 are 500 lb', [bombClass('Mk-82'), bombClass('GBU-12'), bombClass('GBU-38')].every(c => c && c.lb === 500));
+ck('JDAM / GBU-54 / JSOW are guided, free-fall and laser bombs are not', isGuided('GBU-31(v)3/B /AP') && isGuided('GBU-38') && isGuided('GBU-54') && isGuided('AGM-154A JSOW') && !isGuided('Mk-82') && !isGuided('GBU-12B/B') && !isGuided('GBU-100') && !isGuided(''));
 ck('the BMS names with suffixes are recognised (GBU-12B/B /HE, Mk-82 AIR, GBU-31(v)1/B /HE, GBU-10C)', bombClass('GBU-12B/B /HE').lb === 500 && bombClass('Mk-82 AIR').lb === 500 && bombClass('GBU-31(v)1/B /HE').lb === 2000 && bombClass('GBU-10C/B').lb === 2000 && bombClass('GBU-100') === null);
 ck('MK-83 and GBU-32 are 1000 lb, MK-84 and GBU-31 2000 lb', bombClass('Mk-83').lb === 1000 && bombClass('GBU-32').lb === 1000 && bombClass('Mk-84 AIR').lb === 2000 && bombClass('GBU-31(V)1').lb === 2000);
 ck('cluster, incendiary, armour-piercing, missiles and unknown weapons are not covered', ['CBU-87', 'CBU-105', 'Mk-77', 'BLU-109', 'GBU-24', 'AGM-65', 'JSOW', 'Mk-20 Rockeye', 'Fuel tank'].every(w => bombClass(w) === null));
