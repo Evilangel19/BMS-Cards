@@ -95,7 +95,7 @@ export function createMap(host, deps) {
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
   const migrate = o => { const r = Object.assign({}, o); OBJ_LAYERS.forEach(([t]) => { if (r['o' + t] && r['oa' + t] === undefined) r['oa' + t] = r['oe' + t] = true; delete r['o' + t]; }); return r; };   // the old single 'objects' switch of a type becomes the allied and the enemy one
-  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), migrate(PREF.on || {})), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
+  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), migrate(PREF.on || {})), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Allied objects', 'Enemy objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
   st = mkSt();
   const persist = () => { store.set(PREF); if (deps.savePrefs) deps.savePrefs(PREF); };
   // the satellite layer: the built-in one (Sentinel-2 by EOX) or, when it is switched on in the Settings, the user's own tile provider
@@ -184,7 +184,7 @@ export function createMap(host, deps) {
     else if (fast) body.style.display = 'none';
     else { const an = body.animate([{height: body.offsetHeight + 'px', opacity: 1}, {height: '0px', opacity: 0}], {duration: 150, easing: 'ease-out'}); an.onfinish = () => { body.style.display = 'none'; }; }
   }
-  const MACRO = ['Navigation', 'Selected flight', 'Ground and naval units', 'SAM range', 'In flight', 'Objects', 'Display'];   // sections with a switch for all their layers
+  const MACRO = ['Navigation', 'Selected flight', 'Ground and naval units', 'SAM range', 'In flight', 'Allied objects', 'Enemy objects', 'Display'];   // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]).concat(n == 'Display' ? ['names'] : []);   // the "only ..." switches are not part of a section's master switch
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
