@@ -64,7 +64,7 @@ try:
         pg.click('#mpbaseb'); pg.wait_for_timeout(250)
         pg.click('#mpfilb'); pg.wait_for_timeout(250)
         check('filters are a drop-down like the levels, apart from the levels', pg.is_visible('#mpbar') and pg.locator('#mpbar input[name=mpbase]').count() == 0 and pg.inner_text('#mpbaseb').startswith('LEVELS'))
-        check('the Objects section starts closed, with nothing on (first start)', pg.evaluate("()=>document.querySelector('#mpbar .mpsb[data-sec=\"Enemy objects\"]').style.display=='none'&&![...document.querySelectorAll('#mpbar input[data-k^=o]')].some(i=>i.checked)"))
+        check('the Objects section starts closed, with nothing on (first start)', pg.evaluate("()=>document.querySelector('#mpbar .mpsb[data-sec=\"Objects\"]').style.display=='none'&&![...document.querySelectorAll('#mpbar input[data-k^=o]')].some(i=>i.checked)"))
         bases = pg.locator('#mpbase input[name=mpbase]').evaluate_all('e=>e.map(x=>x.value)')
         check('6 base maps (coastlines, BMS, BMS folder, imported, topo, satellite), 12 layers + 3 x 18 object layers + 4 DTC layers, the SAM-crossing and Names switches', bases == ['coast', 'sat', 'bms', 'sky', 'topo', 'img'] and pg.locator('#mpbar input[data-k]').count() == 71 and pg.locator('#mpdtc input[data-k]').count() == 4 and pg.locator('#mpbar input[data-k=wp]').count() == 0 and pg.locator('#mpbar input[data-k=ld]').count() == 0)
         check('no custom-tiles option, no time slider, no unspotted layers', 'Custom' not in pg.inner_text('#mpbar') and pg.locator('#mptm input').count() == 0 and 'not spotted' not in pg.inner_text('#mpbar'))
