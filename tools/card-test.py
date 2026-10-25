@@ -14,7 +14,18 @@ try:
         pg.goto('http://localhost:8781/app/index.html'); pg.wait_for_timeout(900)
         pg.wait_for_selector('#boot', state='detached', timeout=30000)
         check('the loading bar is gone once the program has started and the version is shown', pg.locator('#boot').count() == 0 and pg.inner_text('#appver').startswith('v0.'))
+        check('no yellow marks and no clickable cells while there is no card', pg.locator('#cvhl i').count() == 0)
+        import base64
+        FX = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/tests/fixtures/beartrap/'
+        pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_2_.ini', encoding='latin1').read())
+        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()); pg.wait_for_timeout(1200)
+        pg.evaluate("()=>{const s=document.querySelector('#fsel');if(s&&s.options.length>1){s.value=s.options[1].value;s.onchange&&s.onchange()}}"); pg.wait_for_timeout(1200)
         check('the cells filled from a list or by automatic values carry a yellow mark over the card (an overlay, not drawn into the card)', pg.locator('#cvhl i').count() >= 5 and pg.evaluate("()=>getComputedStyle(document.querySelector('#cvhl i')).backgroundColor").startswith('rgba(255, 222, 0'))
+        def inside():
+            return pg.evaluate("()=>{const c=document.getElementById('cv').getBoundingClientRect();return [...document.querySelectorAll('#cvhl i')].every(i=>{const r=i.getBoundingClientRect();return r.left>=c.left-1&&r.right<=c.right+1&&r.top>=c.top-1&&r.bottom<=c.bottom+1})}")
+        check('every mark lies inside the card', inside())
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(500); pg.click('text=Datacard >> nth=0'); pg.wait_for_timeout(500)
+        check('after another page the marks are still inside the card', pg.locator('#cvhl i').count() >= 5 and inside())
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
         check('the Datacard keeps its own cells (405 fields)', pg.evaluate("__app.FD.length") == 405)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")

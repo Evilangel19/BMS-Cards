@@ -251,17 +251,43 @@ export function campaignSquadrons(C) {
 // ---------- images: the logo of a squadron and the avatar of a pilot ----------
 // A picture picked by the user (JPG, PNG or WebP) is shrunk to a small data URL (so it can travel with the roster); one received from another pilot is accepted only if it looks like one.
 export const okImg = u => typeof u == 'string' && u.length < 90000 && /^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(u);
-export const FITS = [['fit', 'Whole picture'], ['c', 'Fill · centre'], ['t', 'Fill · top'], ['b', 'Fill · bottom'], ['l', 'Fill · left'], ['r', 'Fill · right']];
-// The result is a square of `size` pixels. fit: the whole picture, centred, with transparent margins; the others fill the square and cut the rest away, keeping the chosen part.
-export async function shrinkImage(file, size = 128, fit = 'fit') {
+// A window to place the picture before it is shrunk: drag it, zoom with the slider or the wheel, "Whole picture" or "Fill" as starting points; OK gives a square (round = shown as a circle).
+// Resolves to the data URL, or null when cancelled.
+export async function cropImage(file, size = 128, round = false, title = 'Picture') {
   if (!/^image\/(jpeg|png|webp)$/.test(file.type || '') && !/\.(jpe?g|png|webp)$/i.test(file.name || '')) throw new Error('Pick a JPG, PNG or WebP image.');
-  const bmp = await createImageBitmap(file), c = document.createElement('canvas'); c.width = c.height = size;
-  const fill = fit != 'fit' && FITS.some(f => f[0] == fit), k = (fill ? Math.max : Math.min)(size / bmp.width, size / bmp.height), w = bmp.width * k, h = bmp.height * k;
-  const px = fit == 'l' ? 0 : fit == 'r' ? 1 : .5, py = fit == 't' ? 0 : fit == 'b' ? 1 : .5;
-  c.getContext('2d').drawImage(bmp, (size - w) * px, (size - h) * py, w, h);
-  let u = c.toDataURL('image/webp', 0.85); if (!u.startsWith('data:image/webp')) u = c.toDataURL('image/png');
-  if (!okImg(u)) throw new Error('The image is too big or could not be read.');
-  return u;
+  const bmp = await createImageBitmap(file), P = 260, fitK = Math.min(P / bmp.width, P / bmp.height), fillK = Math.max(P / bmp.width, P / bmp.height);
+  let k = fitK, ox = (P - bmp.width * k) / 2, oy = (P - bmp.height * k) / 2;
+  const w = document.createElement('div'); w.className = 'sqcrop';
+  w.innerHTML = `<div class="sqcbox" role="dialog" aria-label="${title}"><h3>${title}</h3><div class="sqcv${round ? ' round' : ''}"><canvas width="${P}" height="${P}"></canvas></div>
+    <div class="hint" style="min-height:0">Drag the picture to move it, use the slider or the wheel to zoom.</div>
+    <input type="range" class="sqcz" min="0" max="1000" value="0" aria-label="Zoom">
+    <div class="bar"><button class="btn g" data-m="fit">Whole picture</button><button class="btn g" data-m="fill">Fill</button></div>
+    <div class="bar" style="justify-content:flex-end"><button class="btn g" data-m="no">Cancel</button><button class="btn gn" data-m="ok">OK</button></div></div>`;
+  document.body.append(w);
+  const cv = w.querySelector('canvas'), x = cv.getContext('2d'), zs = w.querySelector('.sqcz'), maxK = fillK * 4;
+  const toZ = () => { zs.value = Math.round(1000 * Math.log(k / fitK) / Math.log(maxK / fitK)); };
+  const paint = () => { x.clearRect(0, 0, P, P); x.drawImage(bmp, ox, oy, bmp.width * k, bmp.height * k); };
+  const zoomTo = (nk, cx = P / 2, cy = P / 2) => { nk = Math.min(maxK, Math.max(fitK / 2, nk)); ox = cx - (cx - ox) * nk / k; oy = cy - (cy - oy) * nk / k; k = nk; toZ(); paint(); };
+  const place = m => { k = m == 'fit' ? fitK : fillK; ox = (P - bmp.width * k) / 2; oy = (P - bmp.height * k) / 2; toZ(); paint(); };
+  zs.max = 1000; zs.oninput = () => zoomTo(fitK * Math.pow(maxK / fitK, zs.value / 1000));
+  let drag = null;
+  cv.onpointerdown = e => { drag = [e.clientX, e.clientY, ox, oy]; cv.setPointerCapture(e.pointerId); };
+  cv.onpointermove = e => { if (!drag) return; ox = drag[2] + e.clientX - drag[0]; oy = drag[3] + e.clientY - drag[1]; paint(); };
+  cv.onpointerup = cv.onpointercancel = () => { drag = null; };
+  cv.onwheel = e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoomTo(k * (e.deltaY < 0 ? 1.1 : 1 / 1.1), (e.clientX - r.left) * P / r.width, (e.clientY - r.top) * P / r.height); };
+  paint();
+  return new Promise((res, rej) => {
+    const done = v => { document.removeEventListener('keydown', key); w.remove(); res(v); };
+    const key = e => { if (e.key == 'Escape') done(null); };
+    document.addEventListener('keydown', key);
+    w.onclick = e => { const m = e.target.closest && e.target.closest('[data-m]'); if (e.target == w) done(null); if (!m) return; const a = m.dataset.m;
+      if (a == 'fit' || a == 'fill') return place(a);
+      if (a == 'no') return done(null);
+      const o = document.createElement('canvas'); o.width = o.height = size; const f = size / P; o.getContext('2d').drawImage(bmp, ox * f, oy * f, bmp.width * k * f, bmp.height * k * f);
+      let u = o.toDataURL('image/webp', 0.85); if (!u.startsWith('data:image/webp')) u = o.toDataURL('image/png');
+      if (!okImg(u)) { w.remove(); document.removeEventListener('keydown', key); return rej(new Error('The image is too big or could not be read.')); }
+      done(u); };
+  });
 }
 
 // ---------- the page ----------
@@ -272,7 +298,7 @@ export async function shrinkImage(file, size = 128, fit = 'fit') {
 export function createSquadronPage(deps) {
   const {root, esc} = deps; const $ = s => root.querySelector(s);
   let pilot = null, lbkErr = '', recv = [], log = [], saveT = null, PB = null, pbErr = '', cSel = null;
-  let DB = {uid: randHex(8), squads: [], cur: '', cs: '', stun: false, turn: '', lbk: '', av: '', fit: 'fit', tab: 'members'};
+  let DB = {uid: randHex(8), squads: [], cur: '', cs: '', stun: false, turn: '', lbk: '', av: '', tab: 'members'};
   const swarms = new Map();   // squadron id -> swarm
   const say = t => { log.unshift(new Date().toTimeString().slice(0, 8) + '  ' + t); log = log.slice(0, 40); const l = $('#sqlog'); if (l) l.textContent = log.join('\n'); };
   const save = () => { clearTimeout(saveT); saveT = setTimeout(() => { try { deps.store && deps.store.save(DB); } catch (e) { /* not saved */ } }, 300); };
@@ -294,7 +320,6 @@ export function createSquadronPage(deps) {
     if (deps.saveReceived) deps.saveReceived(m.text, m.name).then(d => { if (d) { r0.saved = d; say('Mission "' + m.name + '" saved in ' + d); deps.toast && deps.toast('Saved in your missions folder: ' + d); } }).catch(e => say('The received mission could not be saved: ' + (e && e.message || e))); pop(`<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(label(m.from || who))}.<br>Load it now? (it opens the mission and applies the DTC groups you choose to your own DTC)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`, (o, c) => { o.querySelector('[data-x]').onclick = c; o.querySelector('[data-ok]').onclick = async () => { c(); try { await deps.loadMission(r0.text); say('Mission "' + r0.name + '" loaded.'); } catch (e) { result(false, 'Mission not loaded', String(e && e.message || e)); } }; }); };
   const mkMe = q => { const m = me(), r = q.roster[DB.uid]; if (!r) q.roster[DB.uid] = {uid: DB.uid, name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av, role: '', notes: '', ts: Date.now(), lastSeen: Date.now()}; else Object.assign(r, {name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av}); };
 
-  const fitSel = () => `<select class="sqfit" title="How a picture that is not square is cut when it is resized">${FITS.map(f => `<option value="${f[0]}"${DB.fit == f[0] ? ' selected' : ''}>${f[1]}</option>`).join('')}</select>`;
   const avDraw = () => { const b = $('#sqavbox'); if (b) b.innerHTML = okImg(DB.av) ? `<img class="sqav big" src="${DB.av}" alt="">` : '<span class="sqav big"></span>'; };
   const avDone = () => { avDraw(); DB.squads.forEach(q => { mkMe(q); q.roster[DB.uid].ts = Date.now(); const w = swarms.get(q.id); if (w) w.broadcast({k: 'hello2', ...me()}); }); save(); drawAll(); };
 
@@ -402,7 +427,7 @@ export function createSquadronPage(deps) {
       ${own ? `<div class="sqedit" id="sqedit" hidden><input id="sqname" value="${esc(q.name)}" maxlength="40" placeholder="Name of the squadron"><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"><button class="btn g gn" id="sqeditok">Save</button><button class="btn g" id="sqeditx">Cancel</button></div>` : ''}
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
-      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button><span class="sqfitw">Resize: ' + fitSel() + '</span>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
+      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
     const tb = $('#sqtabbox'); tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${orderRoster(q, [q.roster[DB.uid] || {uid: DB.uid}, ...list], onUid).map(r => row(r, r.uid == DB.uid)).join('')}</tbody></table>
       ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
     drawList(q, list, onUid, m);
@@ -552,7 +577,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
 </div><div class="sqpane" data-pane="me">
-<div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button> <span class="sqfitw">Resize: ${fitSel()}</span><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
 <div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
 </div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
@@ -570,10 +595,9 @@ export function createSquadronPage(deps) {
  <h4>Connected</h4><div id="sqmem"></div><div class="bar"><button class="btn g gn" id="sqsend" style="display:none">Send my mission to the session</button></div><div class="err" id="sqerr"></div></details></div>
 <div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div></div></div>`;
     $('#sqtabs').onclick = e => { const b = e.target.closest('[data-tab]'); if (b) { DB.tab = b.dataset.tab; save(); showTab(); } };
-    $('#sqlogofile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; const q = cur(); if (!f || !owns(q)) return; try { q.logo = await shrinkImage(f, 192, DB.fit); touchSquad(q); drawAll(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
-    root.addEventListener('change', e => { const f = e.target.closest && e.target.closest('.sqfit'); if (!f) return; DB.fit = f.value; save(); root.querySelectorAll('.sqfit').forEach(x => { x.value = DB.fit; }); });
+    $('#sqlogofile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; const q = cur(); if (!f || !owns(q)) return; try { const u = await cropImage(f, 192, false, 'Squadron logo'); if (!u) return; q.logo = u; touchSquad(q); drawAll(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
     $('#sqavb').onclick = () => $('#sqavfile').click();
-    $('#sqavfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { DB.av = await shrinkImage(f, 128, DB.fit); avDone(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
+    $('#sqavfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (!f) return; try { const u = await cropImage(f, 128, true, 'Avatar'); if (!u) return; DB.av = u; avDone(); } catch (x) { deps.toast && deps.toast(String(x && x.message || x)); } };
     $('#sqavx').onclick = () => { DB.av = ''; avDone(); };
     $('#sqopen').onclick = () => $('#sqfile').click();
     $('#sqfile').onchange = async e => { const f = e.target.files[0]; e.target.value = ''; if (f) await readLbk(f.name, new Uint8Array(await f.arrayBuffer())); };
