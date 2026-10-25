@@ -1,5 +1,6 @@
 // Map page data: converts campaign grid coordinates (km, x = east, y = north, origin 512/512 at the theater
 // center) to latitude/longitude and builds the point/line sets the map layers draw. Pure functions, no DOM.
+import {carriers, carrierRadio} from './carriers.js';
 import {tmInv, tmFwd, getGeo} from '../rules/geo.js';
 import {ord} from './flight.js';
 import {allyOf, hostileOf} from './coalitions.js';
@@ -66,10 +67,11 @@ const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 // Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, noFcr, ally, spotted}] seen from team `view`.
 // noFcr: a SAM unit whose fire control radar vehicle is gone (the class names the slot of that vehicle, the roster has 2 bits of count per slot): it cannot engage, so no ring and no automatic threat.
 export function mapUnits(C, view) {
+  const cvs = new Map(carriers(C).map(r => [r.unit, r]));
   const D = C.D, mates = [0, 1, 2, 3, 4, 5, 6, 7].filter(t => allyOf(C, t, view));
   return C.units.filter(u => (u.kind == 'gnd' || u.kind == 'sea') && u.c).map(u => {
     const i = (D.un || {})[u.c.i] || ['?', 0, 0, -1, 0], ally = allyOf(C, u.owner, view), hostile = hostileOf(C, u.owner, view);
-    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], det: i[4] || 0, detAir: i[5] || i[4] || 0, slot: i[3] == null ? -1 : i[3], sam: SAMCAT.has(i[0]) && i[1] > 0, noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0, ally, hostile, spotted: ally || spottedBy(u, mates)};
+    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], det: i[4] || 0, detAir: i[5] || i[4] || 0, slot: i[3] == null ? -1 : i[3], sam: SAMCAT.has(i[0]) && i[1] > 0, noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0, ally, hostile, spotted: ally || spottedBy(u, mates), carrier: cvs.has(u) ? Object.assign({name: cvs.get(u)[1]}, carrierRadio(C, cvs.get(u))) : null};
   });
 }
 

@@ -673,8 +673,8 @@ export function createMap(host, deps) {
     UL = mapUnits(C, view).filter(m => m.spotted);
     UL.forEach(m => { if (m.sam) { const k = pptForUnit(m.name); if (k >= 0 && PPT[k][1] > 1000) m.rng = Math.round(PPT[k][1] / FT_KM * 10) / 10; } });   // same ring as the pre-planned threat of the list
     UL.forEach(m => {
-      const s = unitSymbol(m.cat, side(m.ally, m.owner));
-      const tip = '<b>' + deps.esc(m.bn) + '</b><br>' + deps.esc(m.name) + ' · ' + deps.esc(m.cat) + ' · ' + deps.esc(teamName(C.D, m.owner)) + (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') + (m.noFcr ? '<br><b style="color:#ff8a8a">No FCR</b>' : '');
+      const s = unitSymbol(m.carrier ? 'Carrier' : m.cat, side(m.ally, m.owner));
+      const tip = '<b>' + deps.esc(m.bn) + '</b><br>' + deps.esc(m.name) + ' · ' + deps.esc(m.cat) + ' · ' + deps.esc(teamName(C.D, m.owner)) + (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') + (m.noFcr ? '<br><b style="color:#ff8a8a">No FCR</b>' : '') + (m.carrier ? '<br>' + deps.esc(m.carrier.name) + (m.carrier.tcn ? ' · TACAN ' + m.carrier.tcn : '') + (m.carrier.uhf ? ' · UHF ' + m.carrier.uhf : '') : '');
       const mk = L.marker(m.ll, {icon: L.divIcon({className: 'nsym', html: s.html + '<i class="nm">' + deps.esc(m.bn) + '</i>', iconSize: [s.w, s.h]}), keyboard: false, zIndexOffset: m.sam ? 800 + Math.round(Math.min(m.rng || 0, 190)) : m.ally ? 0 : 200}).bindTooltip(tip, {direction: 'top', offset: [0, -s.h / 2]});   // exact position; when icons overlap the SAM / air defense units are on top (the dangerous ones), the longest range on top (SA-10 over SHORAD), then the enemy ones
       if (!m.ally) mk.bindPopup(() => ro(samPopup(m)), {className: 'mpop', closeButton: false, autoPan: false, minWidth: 190});   // an enemy unit can become a PPT threat
       m.mk = mk; if (m.sam) G.su.addLayer(mk); else mk.addTo(G[m.ally ? 'uf' : 'ue']);
@@ -751,7 +751,7 @@ export function createMap(host, deps) {
       for (let k = 1; k <= 9; k++) { const q = flightState(f, C.now - k * 10000); if (!q) break; back.push(q.ll); }
       if (back.length > 1 && pal === PAL.game) L.polyline(back, {color: '#000', weight: 6.2, opacity: 1, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
       if (back.length > 1) L.polyline(back, {color: col, weight: 3, opacity: .85, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
-      const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" class="ol"/><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
+      const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x=".35" y=".35" width="13.3" height="13.3" class="ol"/><rect x="3.65" y="3.65" width="6.7" height="6.7" class="ol"/><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
       L.marker(s.ll, {icon: L.divIcon({className: ally ? 'trk al' : 'trk', html, iconSize: [14, 14]}), zIndexOffset: 500, keyboard: false})
         .on('click', () => { if (ally && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
         .bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);

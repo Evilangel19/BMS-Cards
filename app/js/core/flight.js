@@ -1,5 +1,6 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 import {allyOf} from './coalitions.js';
+import {carrierNear} from './carriers.js';
 const ord=n=>n+(['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)%4]||'th');
 const locBE=(C,u,codes)=>{if(!C.bull||!u)return '';const w=u.wps.find(p=>codes?codes.includes(p.act):![0,1,2,3,4,7,8].includes(p.act));if(!w)return '';const n=w.y-C.bull.y,e=w.x-C.bull.x,b=Math.round((Math.atan2(e,n)*180/Math.PI+360)%360)%360;return String(b).padStart(3,'0')+'/'+Math.round(Math.hypot(n,e)/1.852)};
 function fac(C,f,u6){if(!u6||!C)return null;const el=els0(C,f),all=el.flatMap(e=>e.wps),ts=all.map(p=>p.arr).filter(Boolean),a=ts.length?Math.min(...ts):-1e15,b=all.length?Math.max(...all.map(p=>p.dep||p.arr)):1e15;
@@ -32,7 +33,7 @@ const isHiFi=n=>/^F-16/.test(n)||(/^F-15/.test(n)&&!/^F-15[EKI]/.test(n)&&!/JASD
 const isHeli=n=>/^(UH|AH|CH|MH|OH|HH|SH|MV|Mi-|Ka-|Z-\d|WZ-|MD-)/i.test(n);
 function listFlights(C,rx=/F-16/){return C.units.filter(x=>x.kind=='flight'&&x.wps.length>3&&(rx?rx.test(acOf(C,x)):!isHeli(acOf(C,x)))).map(f=>({f,label:`${csOf(C,f)} · ${acOf(C,f)} x${nAcf(f)} · ${C.D.S[300+f.omis]||'?'} · ${hms(f.wps[0].arr)}`}))}
 const clean=n=>n.replace(/\s*\(.*\)/,'').replace(/ (AB|Airbase|Airport|Intl Airport)$/,'');
-function nearAb(C,x,y){let b=null,bd=9;C.D.ob.forEach(o=>{if(!C.D.ab[o[0]])return;const d=Math.hypot(o[2]-x,o[3]-y);if(d<bd){bd=d;b=o}});return b}
+function nearAb(C,x,y){let b=null,bd=9;C.D.ob.forEach(o=>{if(!C.D.ab[o[0]])return;const d=Math.hypot(o[2]-x,o[3]-y);if(d<bd){bd=d;b=o}});const cv=carrierNear(C,x,y);return cv&&(!b||cv.d<bd)?cv.row:b}   /* a carrier (a unit at sea with its own airbase row) counts as a base within 25 km */
 function nearObj(C,x,y,km=3){let b=null,bd=km;C.D.ob.forEach(o=>{const d=Math.hypot(o[2]-x,o[3]-y);if(d<bd){bd=d;b=o}});return b}
 const mach=(gs,alt)=>{const T=Math.max(216.65,288.15-0.0019812*alt);return gs/(38.967854*Math.sqrt(T))};
 const els0=(C,f)=>{const P=C.byId[f.pkg.n+':'+f.pkg.c];return(P&&P.els||[]).map(e=>C.byId[e.n+':'+e.c]).filter(Boolean)};

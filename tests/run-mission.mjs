@@ -21,6 +21,10 @@ for (const R0 of [0, 60]) for (const s of [{ name: 'beartrap', cam: 'PSI_BEAR_TR
     if (!f2 || JSON.stringify(CAM.fillCard(C, x.f)) !== JSON.stringify(CAM.fillCard(R, f2))) { diff++; if (diff < 4) console.log('  differs:', x.label); }
   }
   const avg = Math.round(sizes.reduce((a, b) => a + b, 0) / sizes.length / 1024);
+  if (s.name === 'evilkorea') { CAM.initialOwners(C, new Uint8Array(fs.readFileSync(path.join(root, 'tests', 'fixtures', 'saves', 'Save1.cam'))));
+    const fv = { f: C.units.find(u => u.kind === 'flight' && u.wps && u.wps[0] && u.wps[0].x === 773 && u.wps[0].y === 107) }, sn = JSON.parse(JSON.stringify(P.snapshotCampaign(C, fv.f, { radiusNm: R0 }))), R = P.restoreCampaign(sn, C.D);
+    ck(`@${R0} nm: owners and damage of the objectives come back (campaign ids): ${R.objOwn.size} / ${R.objFeat.size}`, R.objOwn.size === C.objOwn.size && R.objFeat.size === C.objFeat.size && [...C.objFeat].every(([k, v]) => { const w = R.objFeat.get(k); return w instanceof Uint8Array && w.length === v.length && w.every((q, i) => q === v[i]); }));
+    ck(`@${R0} nm: the ship the flight leaves is still a base after the trip through the file (${CAM.fillCard(R, P.snapshotFlight(R, sn)).ab0_0})`, /Vinson/.test(CAM.fillCard(R, P.snapshotFlight(R, sn)).ab0_0 || '')); }
   ck(`${s.name} @${R0} nm: the datacard of every flight (${flights.length}) is the same from the package alone (average ${avg} KB, whole campaign ${Math.round(full / 1024)} KB)`, diff === 0);
   const a = P.snapshotCampaign(C, flights[0].f, { radiusNm: 20 }), b = P.snapshotCampaign(C, flights[0].f, { radiusNm: 120 });
   if (R0 === 0) ck(`${s.name}: a larger radius takes more units`, b.units.length > a.units.length && a.units.some(u => u.kind === 'flight' && u.id.n === flights[0].f.id.n));

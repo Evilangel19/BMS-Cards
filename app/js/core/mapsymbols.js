@@ -16,6 +16,7 @@ const G = { // inner signs in a [-1, 1] box; stroke only
   basedef: '<path d="M-.95 .75Q0-1.15 .95 .75M-.95 .75H.95"/>',
   abn: '<path d="M-1-1L1 1M-1 1L1-1"/><path d="M-.6-.9Q0-1.5 .6-.9" transform="translate(0 -.1)"/>',
   ship: '<path d="M-1-.1H1L.6 .7H-.6ZM-.2-.1V-.7H.35V-.1"/>',
+  carrier: '<path d="M-1-.25H1L.8 .6H-.85ZM.3-.25V-.8H.65V-.25M-.65 .12H.1"/>',   /* flat deck, island, deck line */
   sub: '<ellipse cy=".3" rx="1" ry=".35"/><path d="M-.15-.05V-.6H.3V-.05"/>',
   hq: 'T:HQ', eng: 'T:E', sup: 'T:S', sf: 'T:SF', mar: 'T:M', unk: 'T:?'
 };
@@ -24,7 +25,7 @@ export const CAT_GLYPH = {
   'Infantry': 'inf', 'Airborne': 'abn', 'Air Assault': 'abn', 'Airmobile': 'abn', 'Marine': 'mar', 'Amphibian Assault': 'mar', 'Spec Ops': 'sf',
   'Engineer': 'eng', 'HQ': 'hq', 'Supply': 'sup', 'Rocket': 'rocket', 'Rocket Artillery': 'rocket', 'Missile': 'missile',
   'SP Artillery': 'art', 'Towed Artillery': 'art', 'SP Guns': 'art', 'Towed Gun': 'art',
-  'Air Defense': 'ad', 'SHORAD': 'shorad', 'AAA': 'aaa', 'Base Defense': 'basedef',
+  'Carrier': 'carrier', 'Air Defense': 'ad', 'SHORAD': 'shorad', 'AAA': 'aaa', 'Base Defense': 'basedef',
   'SAG': 'ship', 'CSG': 'ship', 'ARG': 'ship', 'ASW/SUW': 'ship', 'Sub': 'sub', 'MV': 'ship'};
 export const glyphOf = cat => CAT_GLYPH[cat] || 'unk';
 const COL = {friend: '#4f8cff', hostile: '#ff5d5d', neutral: '#4cc38a'};
