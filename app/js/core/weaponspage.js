@@ -433,10 +433,9 @@ export function createWeaponsPage(deps) {
 
   // Manual entry: the offsets are typed in the DED in flight (the DTC cannot carry them on a steerpoint outside the route)
   function dedCard(O) {
-    const n = ctx.sp ? ctx.sp.n : 0, e = x => x.alt === undefined ? 0 : Math.round(x.alt), vals = x => `BRG ${b3(x.row.brg)}° · RNG ${fmt(x.row.rng)} ft · ELEV ${fmt(e(x))} ft`;
-    const li = [[`STPT ${n}`, 'Select it as the steerpoint (UFC / DED STPT page).'], ...(O.oa1 ? [['OA1', 'SEQ to the OA1 page: ' + vals(O.oa1)]] : []), ...(O.oa2 ? [['OA2', 'SEQ to the OA2 page: ' + vals(O.oa2)]] : []),
-      ...(O.ref ? [[O.ref.key, `LIST 9: TGT ${n}, ${O.ref.key}: TBRG ${b3(O.ref.row.brg)}° · RNG ${fmt(O.ref.row.rng)} ft · ELEV ${fmt(e(O.ref))} ft`]] : []), ...(O.pup ? [[O.pup.key.replace('PUP', ' PUP'), 'LIST 9, PUP: ' + vals(O.pup)]] : [])];
-    return `<div class="wcard wded"><h3>Type this in the DED</h3><table class="dt">${li.map(([a, b]) => `<tr><td>${esc(a)}</td><td>${esc(b)}</td></tr>`).join('')}</table><p class="hint">Manual entry: the DTC is not written with these values (the game loads offsets only on route steerpoints 1-24). Apply writes the weapon settings and clears the offsets of the DTC.</p></div>`;
+    const n = ctx.sp ? ctx.sp.n : 0, e = x => x.alt === undefined ? 0 : Math.round(x.alt);
+    const li = [...(O.oa1 ? [['OA1', O.oa1]] : []), ...(O.oa2 ? [['OA2', O.oa2]] : []), ...(O.ref ? [[O.ref.key + ' · TGT ' + n, O.ref]] : []), ...(O.pup ? [[O.pup.key.replace('PUP', ' PUP'), O.pup]] : [])];
+    return `<div class="wcard wded"><h3>Type this in the DED · STPT ${n}</h3><table class="dt"><tr><th></th><th>BRG</th><th>RNG ft</th><th>ELEV ft</th></tr>${li.map(([a, x]) => `<tr><td>${esc(a)}</td><td>${b3(x.row.brg)}°</td><td>${fmt(x.row.rng)}</td><td>${fmt(e(x))}</td></tr>`).join('')}</table></div>`;
   }
 
   // the explanations sit in a hover tip beside the card title instead of taking room in the card

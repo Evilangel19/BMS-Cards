@@ -301,7 +301,7 @@ try:
         pg.click('#wp [data-set=src][data-v=man]'); pg.wait_for_timeout(300)
         mv = pg.locator('select[data-pick=tgt] option').evaluate_all('e=>e.map(o=>o.value)')
         check('Manual entry lists every steerpoint (route, TGT, PPT ...)', any(v.startswith('prec:') for v in mv) or any(v.startswith('ppt:') for v in mv) or len(mv) > len(vals))
-        check('Manual entry shows the card with what to type in the DED', pg.locator('#wp .wded').count() == 1 and 'STPT' in pg.inner_text('#wp .wded') and 'LIST 9' in pg.inner_text('#wp .wded'))
+        check('Manual entry shows the card with what to type in the DED', pg.locator('#wp .wded').count() == 1 and 'STPT' in pg.inner_text('#wp .wded') and 'BRG' in pg.inner_text('#wp .wded') and 'LIST' not in pg.inner_text('#wp .wded') and 'SEQ' not in pg.inner_text('#wp .wded'))
         setl('OA1-3', '10,500,100')
         pg.click('#wpapply'); pg.wait_for_timeout(500)
         check('Manual entry: Apply writes no offset rows and clears the old ones', ln('OA1-3') == '0,0,0' and ln('VRPPUP') == '0,0,0,0' and ln('VRP') == '0,0,0,0')
