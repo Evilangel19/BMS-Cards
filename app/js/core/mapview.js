@@ -114,7 +114,7 @@ export function createMap(host, deps) {
   const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo'];
   function mirror() { if (!away) return; away.classList.add('mpx'); MIRROR.forEach(k => away.classList.toggle(k, host.classList.contains(k))); for (const n of host.style) if (n.startsWith('--')) away.style.setProperty(n, host.style.getPropertyValue(n)); }
   // the DTC points can be dragged on the Map page; on the Weapons pages only after "Edit points"
-  let EDIT = true;
+  let EDIT = true, WEDIT = false;   // WEDIT: the choice of the user for the Weapons pages ("Edit points"), kept while the pages are redrawn
   const ro = w => { if (!EDIT) w.querySelectorAll('input,select,button').forEach(x => { x.disabled = true; }); return w; };   // with the editing off the popups only show
   function setEdit(b) { EDIT = !!b; if (map) map.closePopup(); if (!EDIT) addStop && addStop(); DT.forEach(e => { try { if (EDIT) e.mk.dragging.enable(); else e.mk.dragging.disable(); } catch (x) { /* none */ } }); return EDIT; }
   function detach() { if (!away || !map) return; if (MO) { MO.disconnect(); MO = null; } away.classList.remove('mpx', ...MIRROR); for (const n of [...away.style]) if (n.startsWith('--')) away.style.removeProperty(n); away = null; setEdit(true); const c = map.getContainer(); ['tilePane', 'coastP'].forEach(k => { const p = map.getPane(k); if (p) p.style.opacity = ''; }); home.insertBefore(c, home.firstChild); bgOp(); map.invalidateSize(); }
@@ -775,7 +775,7 @@ export function createMap(host, deps) {
       if (back.length > 1) L.polyline(back, {color: col, weight: 3, opacity: .85, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
       const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x=".25" y=".25" width="13.5" height="13.5" class="ol"/><rect x="2.75" y="2.75" width="8.5" height="8.5" class="ol"/><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
       L.marker(s.ll, {icon: L.divIcon({className: ally ? 'trk al' : 'trk', html, iconSize: [14, 14]}), zIndexOffset: 500, keyboard: false})
-        .on('click', () => { if (ally && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
+        .on('click', () => { if (ally && EDIT && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
         .bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);
     });
   }
@@ -885,7 +885,7 @@ export function createMap(host, deps) {
 
   // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
   function member(C, m, k) {
-    const L = window.L, r = flightRoute(C, m), info = deps.flightInfo(m), pick = () => deps.selectFlight && deps.selectFlight(m), ll = r.map(p => p.ll);
+    const L = window.L, r = flightRoute(C, m), info = deps.flightInfo(m), pick = () => EDIT && deps.selectFlight && deps.selectFlight(m), ll = r.map(p => p.ll);
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
     (li > 0 && li < r.length - 1 ? [[ll.slice(0, li + 1), null], [ll.slice(li), '7 6']] : [[ll, null]]).forEach(([pl, dash]) =>
@@ -1311,6 +1311,7 @@ export function createMap(host, deps) {
     dtcItems: () => DT.map(e => ({stpt: e.it.stpt, name: e.it.name, group: e.it.group})), refresh, fromLL, refreshDtc: () => { if (map) { dtc(); sync(); } }, refreshDtcButtons: () => { if (map) dtcInfo(); }, autoPptSlots: () => { const P = deps.dtc && deps.dtc.points(), o = new Set(); if (P && AU.ppt) AU.ppt.forEach(z => { const q = P.ppt[z.slot]; if (q && !q.empty && Math.hypot(q.x - z.x, q.y - z.y) < 3) o.add(z.slot); }); return o; },
     lineNotes: () => { const P = deps.dtc && deps.dtc.points(), o = {}; if (!P) return o; Object.entries(AU).forEach(([k, r]) => { if (k != 'ppt' && auLine(P, r)) o[r.line] = k == 'bull' ? 'Bullseye line (AUTO)' : k == 'front' ? 'Front line (AUTO)' : k.startsWith('tk:') ? 'Tanker ' + k.slice(3) : k; }); dtcLines({line: P.line.filter(p => !p.empty)}).forEach(run => { const tk = (PREF.tanks || []).find(t => run.pts.length > 1 && Math.hypot(t.x - run.pts[0].x, t.y - run.pts[0].y) < 0.05); if (tk && !o[run.line]) o[run.line] = 'Tanker ' + tk.cs; }); return o; }, shotStart, shotTake, shotStop, toLL, fmtLL, isReady: () => !!map, get leaflet() { return map; }, state: () => st,
     // number of objects drawn in a layer (0 when the layer is off); picture overlay (for tests)
+    objectsAll: on => { OBJ_LAYERS.forEach(([t]) => { st.on['o' + t] = !!on; const c = host.querySelector(`input[data-k=o${t}]`); if (c) c.checked = !!on; }); save(); masters(); sync(); }, objectsOn: () => OBJ_LAYERS.every(([t]) => st.on['o' + t]),
     count: k => map && G[k] && map.hasLayer(G[k]) ? G[k].getLayers().length : 0,
     overlay: () => OV,
     // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the Weapons page as a background
@@ -1318,13 +1319,13 @@ export function createMap(host, deps) {
     async attach(el) {
       if (!map) { try { await init(); } catch (e) { return null; } }
       const c = map.getContainer(); if (!home) home = c.parentNode;
-      el.appendChild(c); away = el; mirror(); MO = new MutationObserver(mirror); MO.observe(host, {attributes: true, attributeFilter: ['class', 'style']}); setEdit(false); map.invalidateSize(); refresh();
+      el.appendChild(c); away = el; mirror(); MO = new MutationObserver(mirror); MO.observe(host, {attributes: true, attributeFilter: ['class', 'style']}); setEdit(WEDIT); map.invalidateSize(); refresh();
       return {L: window.L, map};
     },
     // the labels of the tanker tracks are kept with the mission (they belong to the DTC lines drawn from the tanker list)
     tanks: () => (PREF.tanks || []).slice(),
     setTanks: a => { PENDTK = a; if (map) { mergeTanks(); dtc(); sync(); } },
-    detach: () => detach(), toggleEdit: () => setEdit(!EDIT), isEdit: () => EDIT, cyclePlan, planMode: () => PLANMODE,
+    detach: () => detach(), toggleEdit: () => { const r = setEdit(!EDIT); if (away) WEDIT = r; return r; }, isEdit: () => EDIT, cyclePlan, planMode: () => PLANMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
     // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
     theaterChanged: () => { OVC = {imgBlob: OVC.imgBlob}; PREF.view = null; if (!map) return; try { baseMenu(); } catch (e) { /* menu not drawn yet */ } map.fitBounds(theaterBounds()); setBase(); refresh(); },

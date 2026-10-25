@@ -509,7 +509,7 @@ export function createWeaponsPage(deps) {
           <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
         <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: all as chosen on the Map page, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
-          <div class="wrow wmap"><label>Map layer</label>${seg('mapon', [['1', 'On'], ['0', 'Off']], st.map.on ? 1 : 0)}<div class="slr"${st.map.on ? '' : ' hidden'}><label>Opacity</label><input type="range" min="0" max="100" step="5" value="${st.map.op}" data-mop><em data-em="mop">${st.map.op}%</em></div><span class="hint" id="wpmn"></span></div>
+          <div class="wrow wmap"><label>Map layer</label>${seg('mapon', [['1', 'On'], ['0', 'Off']], st.map.on ? 1 : 0)}<div class="slr"${st.map.on ? '' : ' hidden'}><label>Opacity</label><input type="range" min="0" max="100" step="5" value="${st.map.op}" data-mop><em data-em="mop">${st.map.op}%</em></div><span class="hint" id="wpmn"></span><div class="wobj"><label>Objects</label>${seg('objon', [['1', 'On'], ['0', 'Off']], deps.objectsOn && deps.objectsOn() ? 1 : 0)}</div></div>
           <div id="wph" class="wmapbox"></div><div id="wpl1"></div><p class="hint wnote">The layer and the flight plan are those of the Map page. Scroll to zoom, drag to move.</p></div>
           <div class="wcard" id="wpic"><div class="wh"><h3>Impact pattern</h3><span class="hint">distance from the target along the attack line</span></div><div id="wpp"></div></div>
           <div class="wmid" id="wpe" hidden></div></div>
@@ -545,6 +545,7 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('[data-set]').forEach(b => b.onclick = () => {
       const f = b.dataset.set, v = b.dataset.v;
       if (f == 'src') { st.src = v; st.applied = st.cleared = null; fit = true; save(); draw(false); return; }
+      if (f == 'objon') { if (deps.objectsAll) deps.objectsAll(v == '1'); b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); return; }
       if (f == 'mapon') { st.map.on = v == '1'; root.querySelector('.wmap .slr').hidden = !st.map.on; } else if (f == 'ref') st.ref = v; else cur()[f] = f == 'turnG' || f == 'profileType' ? +v : v;
       b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
       if (f == 'oa2Mode') root.querySelector('.wegr').hidden = v != 'egress';
