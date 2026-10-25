@@ -29,19 +29,42 @@ const eagleP = (cx, cy, w, fill, line) => `<path transform="translate(${cx} ${cy
 const OAK = 'M0 -18C4 -16 5 -12 3 -10C8 -10 9 -5 5 -3C10 -2 10 4 5 5C7 8 4 13 0 17C-4 13 -7 8 -5 5C-10 4 -10 -2 -5 -3C-9 -5 -8 -10 -3 -10C-5 -12 -4 -16 0 -18Z';
 const oak = (cx, cy, s, fill, rot = 0) => `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${s})"><path d="${OAK}" fill="${fill}" stroke="#0008" stroke-width="${(1 / s).toFixed(2)}" stroke-linejoin="round"/><path d="M0 -14V17M0 6L-4 1M0 6L4 1M0 -1L-3.5 -5M0 -1L3.5 -5" stroke="#0007" stroke-width="${(0.8 / s).toFixed(2)}" fill="none"/><path d="M0 17V21" stroke="#0008" stroke-width="${(1.6 / s).toFixed(2)}" stroke-linecap="round"/></g>`;
 
+// Heraldic eagle of the US insignia (spread wings made of feathers, head turned to its left, striped shield on the chest, tail), drawn in a 100 x 60 box and
+// centred on (cx, cy) with width w. claws: 'arrows' = olive branch and arrows (colonel's eagle), 'bolts' = lightning bolts (Air Medal), '' = none.
+let EC = 0;
+const eagleH = (cx, cy, w, fill, edge, claws = '') => {
+  const id = 'ec' + (EC++), E = edge || '#000a', f = (L, a) => `<g transform="translate(56 24) rotate(${a})"><path d="M0 -3.2L${L - 4} -4.6Q${L + 1.5} 0 ${L - 4} 4.6L0 3.2Z" fill="${fill}" stroke="${E}" stroke-width=".7" stroke-linejoin="round"/><path d="M2 0H${L - 3}" stroke="${E}" stroke-width=".5" opacity=".6"/></g>`;
+  const wing = m => `<g transform="${m < 0 ? 'translate(100 0) scale(-1 1)' : ''}">${[[36, 10], [40, 1], [43, -8], [45, -17], [46, -26], [46, -35], [44, -44]].map(([L, a]) => f(L, a)).join('')}<ellipse cx="60" cy="22" rx="10" ry="6.5" transform="rotate(-18 60 22)" fill="${fill}" stroke="${E}" stroke-width=".7"/></g>`;
+  const tail = [-26, -13, 0, 13, 26].map(a => `<g transform="translate(50 47) rotate(${a + 90})"><path d="M0 -2.6L10 -3.4Q12.5 0 10 3.4L0 2.6Z" fill="${fill}" stroke="${E}" stroke-width=".6"/></g>`).join('');
+  const shield = 'M41 17H59V36Q59 46 50 50Q41 46 41 36Z';
+  const stripes = [0, 1, 2, 3, 4].map(k => `<rect x="${41 + k * 3.6}" y="23" width="3.6" height="30" fill="${k % 2 ? '#0006' : '#fff4'}"/>`).join('');
+  const head = `<ellipse cx="50" cy="16" rx="9.5" ry="6" fill="${fill}" stroke="${E}" stroke-width=".7"/><ellipse cx="47.5" cy="9.5" rx="7" ry="6.4" fill="${fill}" stroke="${E}" stroke-width=".7"/><path d="M42 8.2Q33.5 8.6 32.4 16.5Q36.8 12.8 42.5 14Z" fill="${fill}" stroke="${E}" stroke-width=".8" stroke-linejoin="round"/><circle cx="45.6" cy="8.4" r="1.2" fill="${E}"/>`;
+  const br = claws == 'arrows' ? `<path d="M36 52Q24 50 12 56" fill="none" stroke="${E}" stroke-width="1.6" stroke-linecap="round"/>${[[30, 52, -25], [24, 52.4, 20], [18, 54, -20], [14, 56, 25]].map(([x, y, a]) => `<ellipse cx="${x}" cy="${y}" rx="3.6" ry="1.7" transform="rotate(${a} ${x} ${y})" fill="${fill}" stroke="${E}" stroke-width=".5"/>`).join('')}<g stroke="${E}" stroke-width="1.1" stroke-linecap="round">${[0, 3, 6].map(d => `<path d="M64 ${51 + d * .5}L90 ${54 + d}"/>`).join('')}</g><g fill="${fill}" stroke="${E}" stroke-width=".5">${[0, 3, 6].map(d => `<path d="M90 ${54 + d}l-4 -2.2v4.4z"/>`).join('')}</g>` : claws == 'bolts' ? `<g fill="${fill}" stroke="${E}" stroke-width=".8" stroke-linejoin="round"><path d="M34 46l-9 7h5l-7 7 12-9h-5z"/><path d="M66 46l9 7h-5l7 7-12-9h5z"/></g>` : '';
+  const claw = `<g fill="${fill}" stroke="${E}" stroke-width=".6"><path d="M41 49l-1.5 7 3-1.5 1.5 2 1-6z"/><path d="M59 49l1.5 7-3-1.5-1.5 2-1-6z"/></g>`;
+  return `<g transform="translate(${cx} ${cy}) scale(${w / 100}) translate(-50 -30)"><defs><clipPath id="${id}"><path d="${shield}"/></clipPath></defs>${wing(1)}${wing(-1)}${tail}${br}${claw}<path d="${shield}" fill="${fill}"/><g clip-path="url(#${id})">${stripes}<rect x="41" y="17" width="18" height="6" fill="#0007"/></g><path d="${shield}" fill="none" stroke="${E}" stroke-width=".9"/>${head}</g>`;
+};
+// the oak leaf of the major and lieutenant colonel: seven pointed lobes cut like a faceted metal leaf, a short stem (about 33 units high at scale 1)
+const leafP = (cx, cy, sc, lit, dark, edge, rot = 0) => {
+  const R = 16, r = 11.4, P = (a, rr) => [rr * Math.sin(a * Math.PI / 180), -rr * Math.cos(a * Math.PI / 180)], tips = Array.from({length: 7}, (_, k) => 360 / 7 * (k - 3)).map(a => a), pts = [];
+  const step = 360 / 7;
+  const sil = [], fac = [];
+  tips.forEach((a, k) => { const t = P(a, R), nl = P(a - step / 2, r), nr = P(a + step / 2, r); sil.push(...(k == 0 ? [nl] : []), t, nr); fac.push(`<polygon points="0,0 ${nl.join()} ${t.join()}" fill="${dark}"/><polygon points="0,0 ${t.join()} ${nr.join()}" fill="${lit}"/>`); });
+  return `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${sc})"><rect x="-1.7" y="${r - 1}" width="3.4" height="${R + 1 - r + 0.4}" fill="${dark}" stroke="${edge}" stroke-width=".8"/>${fac.join('')}<polygon points="${sil.map(q => q.map(v => v.toFixed(2)).join()).join(' ')}" fill="none" stroke="${edge}" stroke-width="1.1" stroke-linejoin="round"/><path d="${tips.map(a => 'M0 0L' + P(a, R - 1).join()).join('')}" stroke="${edge}" stroke-width=".5" opacity=".55"/></g>`;
+};
+
 const BODY = [
   // Air Force Cross: bronze cross with beveled arms, a green laurel wreath and a bronze eagle in the middle
-  i => `<g fill="url(#mg${i})" stroke="#0007" stroke-width="1.1" stroke-linejoin="round">${[0, 90, 180, 270].map(a => arm(a, 26, 5, 8)).join('')}<rect x="27" y="59" width="10" height="10"/></g><g stroke="#fff6" stroke-width=".9" fill="none">${[0, 90, 180, 270].map(a => `<path transform="rotate(${a} 32 64)" d="M32 56V41"/>`).join('')}</g>${laurel(32, 64.5, 11.5, '#3d7a3a', 7, .9)}<circle cx="32" cy="64.5" r="8.4" fill="${BRONZE[1]}" stroke="#0007" stroke-width=".8"/>${eagleP(32, 65, 13, BRONZE[0], '#3a230f')}`,
+  i => `<g stroke="#fff6" stroke-width=".9" fill="none">${[0, 90, 180, 270].map(a => `<path transform="rotate(${a} 32 64)" d="M32 56V41"/>`).join('')}</g><g fill="url(#mg${i})" stroke="#0007" stroke-width="1.1" stroke-linejoin="round">${[0, 90, 180, 270].map(a => arm(a, 26, 5, 8)).join('')}<rect x="27" y="59" width="10" height="10"/></g>${laurel(32, 64.5, 12.6, '#3d7a3a', 8, 1)}<circle cx="32" cy="64.5" r="9.6" fill="${BRONZE[1]}" stroke="#0007" stroke-width=".8"/>${eagleH(32, 64.5, 17, BRONZE[0], '#3a230f')}`,
   // Silver Star: a gold star with a small laurel wreath and a silver star in the middle
   i => `<polygon points="${star(32, 65, 29, 11.5)}" fill="url(#mg${i})" stroke="#0007" stroke-width="1.2" stroke-linejoin="round"/>${laurel(32, 64.5, 8.2, GOLD[2], 7, .75)}<polygon points="${star(32, 65, 5.3, 2.3)}" fill="${SILVER[0]}" stroke="#0008" stroke-width=".7" stroke-linejoin="round"/>`,
   // Distinguished Flying Cross: a gold cross with rays between the arms and a big four-bladed propeller
   i => `<g stroke="${GOLD[2]}" stroke-width="1.1" opacity=".9">${[45, 135, 225, 315].flatMap(a => [-14, -7, 0, 7, 14].map(d => `<path transform="rotate(${a + d} 32 64)" d="M32 55V${37 + Math.abs(d) * 0.25}"/>`)).join('')}</g><g fill="url(#mg${i})" stroke="#0007" stroke-width="1.1" stroke-linejoin="round">${[0, 90, 180, 270].map(a => arm(a, 28, 4.5, 8)).join('')}<rect x="27.5" y="59.5" width="9" height="9"/></g><g fill="url(#mg${i})" stroke="#4a3208" stroke-width="1" stroke-linejoin="round">${[45, 135, 225, 315].map(a => `<path transform="rotate(${a} 32 64)" d="M32 64C25.5 59 25.5 49 32 42C38.5 49 38.5 59 32 64Z"/>`).join('')}</g><circle cx="32" cy="64" r="2.6" fill="${GOLD[2]}" stroke="#fff8" stroke-width=".6"/>`,
   // Air Medal: a bronze star of twelve rays with an eagle holding lightning bolts
-  i => `<polygon points="${star(32, 64, 29, 21, 12, -90)}" fill="url(#mg${i})" stroke="#0007" stroke-width="1.1" stroke-linejoin="round"/>${eagleP(32, 62, 28, BRONZE[0], '#3a230f')}<path d="M24 74L29 67L27 67L32 60M40 74L35 67L37 67L32 60" fill="none" stroke="${BRONZE[2]}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>`,
+  i => `<polygon points="${star(32, 64, 29, 21, 12, -90)}" fill="url(#mg${i})" stroke="#0007" stroke-width="1.1" stroke-linejoin="round"/><circle cx="32" cy="64" r="17" fill="${BRONZE[1]}" opacity=".55"/>${eagleH(32, 64, 30, BRONZE[0], '#3a230f', 'bolts')}`,
   // Korea: a bronze disc with the Korean gate (a gateway with two roofs)
-  i => disc(i, `<g fill="${BRONZE[2]}" stroke="#2a1808" stroke-width=".6" stroke-linejoin="round"><path d="M19 57Q32 49.5 45 57L43 59.5H21Z"/><path d="M23 52Q32 46 41 52L39.5 54.5H24.5Z"/><rect x="24" y="59.5" width="16" height="2.4"/><rect x="24" y="62" width="3.4" height="12"/><rect x="36.6" y="62" width="3.4" height="12"/><rect x="21" y="74" width="22" height="2.4"/></g><rect x="28.3" y="62.3" width="7.4" height="11.7" fill="${BRONZE[0]}" opacity=".55"/>`),
+  i => disc(i, `<g fill="${BRONZE[2]}" stroke="#2a1808" stroke-width=".6" stroke-linejoin="round"><path d="M19 57Q32 49.5 45 57L43 59.5H21Z"/><path d="M23 52Q32 46 41 52L39.5 54.5H24.5Z"/><rect x="24" y="59.5" width="16" height="2.4"/><rect x="24" y="62" width="3.4" height="12"/><rect x="36.6" y="62" width="3.4" height="12"/><rect x="21" y="74" width="22" height="2.4"/></g><rect x="28.3" y="62.3" width="7.4" height="11.7" fill="${BRONZE[0]}" opacity=".55"/><path id="kp${i}" d="M14.5 64A17.5 17.5 0 0 1 49.5 64" fill="none"/><text font-size="4.6" font-weight="700" fill="${BRONZE[2]}" letter-spacing=".6" text-anchor="middle" font-family="Georgia,serif"><textPath href="#kp${i}" startOffset="50%">KOREAN SERVICE</textPath></text>`),
   // Longevity: a ribbon bar (the real award is a ribbon only) with an oak leaf cluster of three leaves
-  i => `<g transform="translate(0 -4)"><rect x="9" y="52" width="46" height="24" rx="1.5" fill="#0006"/>${stripes(i, 10, 44, 53, 22)}<rect x="9" y="52" width="46" height="24" rx="1.5" fill="none" stroke="#0008" stroke-width="1"/>${[-7, 0, 7].map((dx, k) => oak(32 + dx, 64, 0.34, SILVER[0], k * 25 - 25)).join('')}</g>`
+  i => `<g transform="translate(0 -4)"><rect x="9" y="52" width="46" height="24" rx="1.5" fill="#0006"/>${stripes(i, 10, 44, 53, 22)}<rect x="9" y="52" width="46" height="24" rx="1.5" fill="none" stroke="#0008" stroke-width="1"/>${[-8, 0, 8].map((dx, k) => leafP(32 + dx, 64, 0.36, SILVER[0], SILVER[1], '#0008', k * 28 - 28)).join('')}</g>`
 ];
 
 const grad = (i, p) => `<linearGradient id="mg${i}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${p[0]}"/><stop offset=".55" stop-color="${p[1]}"/><stop offset="1" stop-color="${p[2]}"/></linearGradient>`;
@@ -60,22 +83,11 @@ function rankSvg(r) {
   const id = 'rk' + (RK++), met = (c, k) => `<linearGradient id="${id}${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".5" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient>`;
   const defs = `<defs>${met(GOLD, 'g')}${met(SILVER, 's')}</defs>`, G = `url(#${id}g)`, S = `url(#${id}s)`, E = '#0009';
   const bar = (x, f) => `<rect x="${x}" y="7" width="8" height="26" rx="1" fill="${f}" stroke="${E}" stroke-width=".9"/><rect x="${x + 1.2}" y="8.2" width="2" height="23.6" fill="#fff6"/>`;
-  // oak leaf: three rounded lobes on each side, two acorns on the stem; the outline is the union of the shapes (dark pass below the fill pass)
-  const leaf = f => {
-    const sh = [['ellipse', 0, -1, 4.4, 13], ['circle', 0, -12.6, 3.3], ...[-1, 1].flatMap(m => [['circle', m * 5.2, -8.6, 3.5], ['circle', m * 6.4, -2.2, 4], ['circle', m * 5.4, 4.6, 3.4]])];
-    const el = (a, k) => a[0] == 'circle' ? `<circle cx="${a[1]}" cy="${a[2]}" r="${a[3] + k}"/>` : `<ellipse cx="${a[1]}" cy="${a[2]}" rx="${a[3] + k}" ry="${a[4] + k}"/>`;
-    const ac = [-1, 1].map(m => `<ellipse cx="${m * 3.6}" cy="15.2" rx="2.2" ry="2.8"/>`).join('');
-    return `<g transform="translate(20 18) scale(.98)"><g fill="${E}" stroke="${E}" stroke-width="1.6">${sh.map(a => el(a, .5)).join('')}${ac}<path d="M0 8V15" /></g><g fill="${f}">${sh.map(a => el(a, 0)).join('')}${ac}</g><path d="M0 9.5V17" stroke="${E}" stroke-width="1.2"/><g stroke="${E}" stroke-width=".8" fill="none" opacity=".75"><path d="M0 -14V10"/><path d="M0 6L-5 3M0 6L5 3M0 -1L-5.5 -4M0 -1L5.5 -4M0 -7L-4 -9M0 -7L4 -9"/></g><g fill="#0006">${[-1, 1].map(m => `<path d="M${m * 3.6 - 2.2} 14.6a2.2 1.6 0 0 1 4.4 0z"/>`).join('')}</g></g>`;
-  };
-  // eagle with spread wings, head turned to its left, shield on the chest, tail fan
-  const eagle = f => {
-    const wing = m => `<path transform="scale(${m} 1)" d="M3 -8C8 -13 15 -13 19.5 -8.5L18.2 -5.3L19.6 -3L16.6 -1.6L17.2 1.2L13.6 1L13.4 3.8L9.6 2.4L5 3.4Z"/>`;
-    const vein = m => `<path transform="scale(${m} 1)" d="M6 -5L17 -6.5M6 -2.5L15.5 -2.4M6 0L13 0.4" stroke="${E}" stroke-width=".7" fill="none" opacity=".7"/>`;
-    const body = `<path d="M-2.6 -8.4C-4.6 -5 -4.4 0 -3.3 4L-4.8 8.6L-2.2 7.7L-1 11.2L0 8.6L1 11.2L2.2 7.7L4.8 8.6L3.3 4C4.4 0 4.6 -5 2.6 -8.4Z"/><circle cx="-0.4" cy="-11.4" r="2.9"/><path d="M-2.7 -12.4L-6.3 -10.9L-2.9 -10Z"/>`;
-    return `<g transform="translate(20 21.5) scale(.98)"><g fill="${E}" stroke="${E}" stroke-width="1.5" stroke-linejoin="round">${wing(1)}${wing(-1)}${body}</g><g fill="${f}">${wing(1)}${wing(-1)}${body}</g>${vein(1)}${vein(-1)}<path d="M-2.4 -3.4H2.4V1.4Q0 3.8 -2.4 1.4Z" fill="#0007"/><path d="M-0.1 -11.9L-1 -12.6" stroke="#0008" stroke-width=".8"/></g>`;
-  };
+  // oak leaf (major: gold, lieutenant colonel: silver) and the colonel's eagle with olive branch and arrows: shaped after the insignia table, lit and shaded facets
+  const leaf = (lit, dark) => leafP(20, 19.5, 1.1, lit, dark, E);
+  const eagle = (f) => eagleH(20, 21, 39, f, E, 'arrows');
   const stars = n => Array.from({length: n}, (_, k) => { const sz = n == 1 ? 9 : n == 2 ? 7.4 : n == 3 ? 6 : 4.5, dx = (k - (n - 1) / 2) * sz * 2.15; return `<polygon points="${star(20 + dx, 20.5, sz, sz * .4)}" fill="${S}" stroke="${E}" stroke-width=".8" stroke-linejoin="round"/>`; }).join('');
-  const art = [bar(16, G), bar(16, S), bar(8.5, S) + bar(23.5, S), leaf(G), leaf(S), eagle(S), stars(1), stars(2), stars(3), stars(4)][r];
-  return art ? `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">${defs}${art}</svg>` : '';
+  const art = [bar(16, G), bar(16, S), bar(8.5, S) + bar(23.5, S), leaf('#f4dc8c', '#b88a26'), leaf('#eef2f6', '#8a96a4'), eagle(S), stars(1), stars(2), stars(3), stars(4)][r];
+  return art ? `<svg viewBox="0 0 40 40" width="48" height="48" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">${defs}${art}</svg>` : '';
 }
 export {rankSvg};
