@@ -632,6 +632,7 @@ try:
         pg.uncheck('#mpfilw input[data-k=sx]'); pg.uncheck('#mpfilw input[data-k=fs]'); pg.wait_for_timeout(250)
         check('pressed again it brings the previous choice back', cnt('ab') > 30 and cnt('fp') > 0 and cnt('se') > 0 and pg.is_checked('#mpfilw input[data-k=ab]') and not pg.is_checked('#mpfilw input[data-k=nav]') and 'Clear' in pg.inner_text('#mpclr'))
         pg.evaluate("document.querySelectorAll('#mpbar input.mst').forEach(i=>{if(i.checked||i.indeterminate){i.click();if(i.checked)i.click()}})"); pg.wait_for_timeout(250)
+        if pg.is_checked('#mpfilw input[data-k=names]'): pg.uncheck('#mpfilw input[data-k=names]'); pg.wait_for_timeout(150)   # Names has no master switch of its own
         check('with every filter switched off by hand the button offers All filters', 'All filters' in pg.inner_text('#mpclr') and pg.locator('#mpfilw input[data-k]:checked').count() == 0)
         pg.click('#mpclr'); pg.wait_for_timeout(300)
         check('and All filters switches every layer on (the "only" switches stay off)', cnt('ab') > 30 and cnt('fp') > 0 and cnt('se') > 0 and not pg.is_checked('#mpfilw input[data-k=sx]') and not pg.is_checked('#mpfilw input[data-k=fs]') and 'Clear filters' in pg.inner_text('#mpclr'))
@@ -765,7 +766,7 @@ try:
         check('editing tiles are compact (%s)' % bw, bw[0] <= 120 and bw[1] >= 36 and bw[0] / bw[1] < 3.2)
         rg = pg.evaluate("(()=>{const e=document.getElementById('mpfill');const cs=getComputedStyle(e);return [cs.paddingLeft,cs.borderLeftWidth]})()")
         check('range sliders have no padding/border (reach min and max) %s' % rg, rg == ['0px', '0px'])
-        check('allied outline is wider', pg.evaluate("[...document.styleSheets].some(s=>[...s.cssRules].some(r=>r.cssText.includes('.trk.al svg')&&(r.cssText.match(/drop-shadow/g)||[]).length>=4))"))
+        check('the flight symbol has its own black outline (rect.ol), not a drop-shadow', pg.evaluate("[...document.styleSheets].some(s=>[...s.cssRules].some(r=>r.cssText.includes('.trk rect.ol')))") and not pg.evaluate("[...document.styleSheets].some(s=>[...s.cssRules].some(r=>r.cssText.includes('.trk.al svg')&&r.cssText.includes('drop-shadow')))"))
         check('tanker label has the size of the other labels', pg.evaluate("[...document.styleSheets].every(s=>[...s.cssRules].every(r=>!(r.selectorText||'').includes('.flb.tk')||!/font-size|padding/.test(r.cssText)))"))
         check('no Hide all drawings button (closing the Filters menu does the same); the attack filter is just called Attack', pg.locator('#mpdhide').count() == 0 and 'Pop-up/HADB/TOSS/HARM' in pg.inner_text('#mpdfrows') and 'Weapons page' not in pg.inner_text('#mpdfrows'))
         pg.evaluate("""()=>{window.__targetData={objectives:async()=>[{id:1,name:'Chongjin Thermal Power Plant',type:20,n:2875827.35,e:2293401.28,ocd:985}],features:async o=>[]}}""")
