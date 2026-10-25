@@ -218,7 +218,7 @@ export function createMap(host, deps) {
     f.innerHTML = `<div class="mph"><b>Objects</b><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><label class="mpr mpoc" title="Allied objects get a ring in the allied colour, enemy objects in red; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed."><input type="checkbox" id="mpocol"${st.on.ocol ? ' checked' : ''}> <span class="lt">Colour objects by owner</span></label>`;
     w.appendChild(f);
     const shut = () => { const g = $('mpobj'); if (g) g.style.display = 'none'; const r = document.querySelector('#mpbar .mpo'); if (r) { r.classList.remove('act'); r.querySelector('i').textContent = '◂'; } };
-    const place = () => { f.style.top = Math.max(0, row.getBoundingClientRect().top - w.getBoundingClientRect().top - 40) + 'px'; };
+    const place = () => { const wt = w.getBoundingClientRect().top, mb = el.getBoundingClientRect().bottom - wt; f.style.maxHeight = Math.max(120, mb) + 'px'; f.style.top = Math.max(0, mb - f.offsetHeight) + 'px'; };   // the bottom edge lines up with the bottom of the filter menu
     const open = o => { f.style.display = o ? '' : 'none'; row.classList.toggle('act', o); row.querySelector('i').textContent = o ? '▸' : '◂'; if (o) place(); };
     row.onclick = e => { e.stopPropagation(); open(f.style.display == 'none'); };
     f.onclick = e => e.stopPropagation();

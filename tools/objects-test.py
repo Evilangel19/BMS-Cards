@@ -43,6 +43,7 @@ try:
         check('the fill (intact / damaged / destroyed) is untouched by the owner colouring', all(r0[k]['bg'] == r1[k]['bg'] for k in r0))
         pg.evaluate("()=>{const c=document.querySelector('#mpocol');c.checked=false;c.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(200)
         check('the side panel opens from the Objects row and closes with Escape', pg.evaluate("()=>{const r=document.querySelector('#mpbar .mpo'),f=document.querySelector('#mpobj');r.click();const o=f.style.display!='none';document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));return o&&f.style.display=='none'}"))
+        check('the side panel bottom lines up with the bottom of the filter menu', pg.evaluate("()=>{const m=document.querySelector('#mpbar');if(getComputedStyle(m).display=='none')document.querySelector('#mpfilb').click();const r=document.querySelector('#mpbar .mpo'),f=document.querySelector('#mpobj');r.click();const d=Math.abs(f.getBoundingClientRect().bottom-document.querySelector('#mpbar').getBoundingClientRect().bottom);document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));return d<2}"))
         tog('o20', False); pg.wait_for_timeout(600)
         check('off: nothing is drawn', names() == [])
         # airfields: the symbol is blue (ours or an ally's) or red (enemy) and stands in for the dot of the Airbases switch: a click on it opens the objective
