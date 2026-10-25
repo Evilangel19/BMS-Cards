@@ -326,7 +326,10 @@ try:
         pg.click('.leaflet-popup [data-a=offs]'); pg.wait_for_timeout(300)
         check('map: the Offsets panel lists the six points', pg.locator('.leaflet-popup [data-pl]').count() == 6)
         pg.locator('.leaflet-popup [data-pl=oa1]').click(); pg.wait_for_timeout(200)
-        bx = pg.locator('#wph').bounding_box(); pg.mouse.click(bx['x'] + bx['width'] * .35, bx['y'] + bx['height'] * .3); pg.wait_for_timeout(700)
+        bx = pg.locator('#wph').bounding_box()
+        for fx, fy in ((.35, .3), (.6, .25), (.25, .6), (.7, .6)):   # a marker under the pointer takes the click: try another place of the map
+            pg.mouse.click(bx['x'] + bx['width'] * fx, bx['y'] + bx['height'] * fy); pg.wait_for_timeout(700)
+            if pg.locator('.leaflet-popup [data-rm=oa1]').count() == 1: break
         check('map: after the click the panel comes back with OA1 placed', pg.locator('.leaflet-popup [data-rm=oa1]').count() == 1 and pg.locator('#wph .offp').count() >= 1)
         stn = pg.evaluate("()=>{const o=JSON.parse(sessionStorage.getItem('mapoffs1')||'{}');return Object.keys(o)}")
         check('map: the offsets are kept per steerpoint', stn == ['4'])
