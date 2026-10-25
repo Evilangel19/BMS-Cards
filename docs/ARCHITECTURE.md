@@ -942,3 +942,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 
 - The map styles are written for `:is(#mpbody, .mpx).game ...`: `#mpbody` is the Map page, `.mpx` the element that borrows the map (Weapons page, `attach`). `mirror()` copies the classes in `MIRROR` (palette, zoom size, names...) and the `--` variables from the Map page element to it and keeps them in step with a `MutationObserver` until `detach()`.
 
+## v118 - Patch 0.9.9-beta.11
+
+- `objFly(el)` (mapview.js) builds `#mpobj`, a panel inside `#mpfilw` (right: 100%) with the 18 object switches (`layerRow('o' + t)`), all / none and the `#mpocol` switch; the Objects row of the menu (`.mps.mpo`) keeps the master `input.mst` and the count badge (`masters()`), it only opens / closes the panel (not `toggleSec`). Tests look for the switches in `#mpfilw`.
+- Owner colouring is `st.on.ocol` (host class `ocol`, set in `sync`): `dotIcon(state, sub, side)` adds the class `oa` / `oe` only for allied / enemy objectives (`side` of `objDraw`); the CSS draws a ring with `box-shadow` and leaves `background` and `border` (the intact / damaged / destroyed state) alone. Neutral and unknown objectives, sub-objectives and airfield symbols are not touched.
+

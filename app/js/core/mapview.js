@@ -193,6 +193,7 @@ export function createMap(host, deps) {
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
     host.querySelectorAll('#mpbar input.mst').forEach(i => { const k = secKeys(i.dataset.sec), n = k.filter(x => st.on[x]).length; i.checked = n == k.length; i.indeterminate = n > 0 && n < k.length; });
+    const oc = $('mpoc'); if (oc) { const n = secKeys('Objects').filter(x => st.on[x]).length; oc.textContent = n ? n + ' on' : ''; }
     clrLabel();
   }
   function setLayers(keys, on) {
@@ -209,23 +210,41 @@ export function createMap(host, deps) {
     const set = (o, fade) => { st[key] = o; save(); show(o); if (!o && fade && !(deps.anim && !deps.anim()) && m.style.display != 'none') { m.animate([{opacity: 1, transform: 'none'}, {opacity: 0, transform: `translateY(${up ? 6 : -6}px)`}], {duration: 150, easing: 'ease-in'}).onfinish = () => { if (!st[key]) m.style.display = 'none'; }; return; } if (o) { m.style.display = ''; if (!(deps.anim && !deps.anim())) m.animate([{opacity: 0, transform: `translateY(${up ? 6 : -6}px)`}, {opacity: 1, transform: 'none'}], {duration: 150, easing: 'ease-out'}); } else m.style.display = 'none'; };
     b.onclick = () => set(!st[key], true); m.style.display = st[key] ? '' : 'none'; show(!!st[key]); return set;
   }
+  // The object types open in a panel beside the filter menu (it keeps the menu short): 2 columns, all / none, and the owner colouring of the dots
+  let OFLY = false;
+  function objFly(el) {
+    const w = $('mpfilw'), row = el.querySelector('.mpo'); if (!w || !row) return; let f = $('mpobj'); if (f) f.remove();
+    f = document.createElement('div'); f.id = 'mpobj'; f.style.display = 'none';
+    f.innerHTML = `<div class="mph"><b>Objects</b><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><label class="mpr mpoc" title="Allied objects get a ring in the allied colour, enemy objects in red; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed."><input type="checkbox" id="mpocol"${st.on.ocol ? ' checked' : ''}> <span class="lt">Colour objects by owner</span></label>`;
+    w.appendChild(f);
+    const shut = () => { const g = $('mpobj'); if (g) g.style.display = 'none'; const r = document.querySelector('#mpbar .mpo'); if (r) { r.classList.remove('act'); r.querySelector('i').textContent = '◂'; } };
+    const place = () => { f.style.top = Math.max(0, row.getBoundingClientRect().top - w.getBoundingClientRect().top - 40) + 'px'; };
+    const open = o => { f.style.display = o ? '' : 'none'; row.classList.toggle('act', o); row.querySelector('i').textContent = o ? '▸' : '◂'; if (o) place(); };
+    row.onclick = e => { e.stopPropagation(); open(f.style.display == 'none'); };
+    f.onclick = e => e.stopPropagation();
+    f.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked; save(); masters(); sync(); });
+    f.querySelectorAll('a[data-a]').forEach(a => a.onclick = () => setLayers(secKeys('Objects'), a.dataset.a == 'all'));
+    $('mpocol').onchange = () => { st.on.ocol = $('mpocol').checked; save(); host.classList.toggle('ocol', st.on.ocol); };
+    if (!OFLY) { OFLY = true; document.addEventListener('mousedown', e => { const g = $('mpobj'); if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) shut(); }); document.addEventListener('keydown', e => { if (e.key == 'Escape') shut(); }); }
+  }
   function panel() {
     const el = $('mpbar'), ITEMS = [];
     MAP_LAYERS.filter(l => l[3] != 'DTC steerpoints').forEach(l => { ITEMS.push([l[0], l[1], l[3]]); if (l[0] == 'uf') ITEMS.push(['sj', SAMTXT.sj, 'Ground and naval units', 1]); if (l[0] == 'se') ITEMS.push(['sx', SAMTXT.sx, 'SAM range', 1]); if (l[0] == 'ff') ITEMS.push(['fs', SAMTXT.fs, 'In flight', 1]); });
     MAP_OPTS.filter(o => !['sx', 'fs', 'sj'].includes(o[0])).forEach(o => ITEMS.push(o));
-    const secs = [...new Set(ITEMS.map(l => l[2]))].filter(n => n != 'Names').sort((a, b) => (a == 'Objects') * 2 + (a == 'Display') - (b == 'Objects') * 2 - (b == 'Display'));   // Display, then Objects; the Names switch is the very last row
+    const secs = [...new Set(ITEMS.map(l => l[2]))].filter(n => n != 'Names' && n != 'Objects').sort((a, b) => (a == 'Display') - (b == 'Display'));   // Display, then Objects; the Names switch is the very last row
     const secHtml = n => {
       const closed = st.closed.includes(n);
       return `<div class="mps${MACRO.includes(n) ? ' mac' : ''}" data-sec="${n}"><i>${closed ? '▸' : '▾'}</i>${MACRO.includes(n) ? `<input type="checkbox" class="mst" data-sec="${n}" title="All of ${n}">` : ''}<span>${n}</span></div><div class="mpsb" data-sec="${n}"${closed ? ' style="display:none"' : ''}>${ITEMS.filter(l => l[2] == n).map(layerRow).join('')}</div>`;
     };
-    el.innerHTML = `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button> <button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` + secs.map(secHtml).join('') + `<div class="mpl">${ITEMS.filter(l => l[2] == 'Names').map(layerRow).join('')}</div>`;
+    el.innerHTML = `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button> <button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` + secs.map(secHtml).join('') + `<div class="mps mac mpo" data-sec="Objects" title="Choose the object types in a panel beside this menu"><i>◂</i><input type="checkbox" class="mst" data-sec="Objects" title="All of Objects"><span>Objects</span><em id="mpoc"></em></div><div class="mpl">${ITEMS.filter(l => l[2] == 'Names').map(layerRow).join('')}</div>`;
     const sb = el.querySelector('.mpsb[data-sec="SAM range"]');   // transparency of the colour inside the SAM unit rings
     if (sb) { sb.insertAdjacentHTML('beforeend', `<label class="mpr" title="Colour inside the SAM rings of the units: 0 = transparent"><span class="lt">Ring fill</span><input type="range" id="mpfill" min="0" max="60" value="${st.on.ringfill == null ? 8 : st.on.ringfill}" style="flex:1;min-width:0"></label>`); $('mpfill').oninput = () => { st.on.ringfill = +$('mpfill').value; save(); sams(deps.getC(), deps.getSel()); DT.forEach(e => e.it.group == 'ppt' && e.ring && e.ring.setStyle({fillOpacity: st.on.ringfill / 100})); }; }
     const rcRow = el.querySelector('input[data-k=rc]');   // altitude of the radar coverage
     if (rcRow) { const lab = rcRow.closest('label') || rcRow.parentElement; lab.insertAdjacentHTML('afterend', `<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>`);
       const lab2 = () => { $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft'; }; lab2();
       $('mprca').oninput = () => { st.on.rcalt = RC_LEVELS[+$('mprca').value]; save(); lab2(); if (st.on.rc) radarCov(); }; }
-    el.querySelectorAll('.mps').forEach(h => h.onclick = () => toggleSec(h));
+    el.querySelectorAll('.mps:not(.mpo)').forEach(h => h.onclick = () => toggleSec(h));
+    objFly(el);
     el.querySelectorAll('input.mst').forEach(i => { i.onclick = e => e.stopPropagation(); i.onchange = () => setLayers(secKeys(i.dataset.sec), i.checked); });
     el.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked;
       const par = {sx: 'se', fs: 'ff', sj: 'uf'}[i.dataset.k]; if (i.checked && par && !st.on[par]) { st.on[par] = true; const c = el.querySelector(`input[data-k=${par}]`); if (c) c.checked = true; }   // an "only" switch needs its layer
@@ -233,7 +252,7 @@ export function createMap(host, deps) {
       if (i.dataset.k == 'fs') { samRows(); flights(deps.getC(), deps.getView(), deps.getSel()); } masters(); sync(); });
     $('mpshot').onclick = () => shotStart('dc'); $('mpshotkb').onclick = () => shotStart('kb');
     $('mpfa').onclick = () => {   // every section open, or - when all are open - every section folded
-      const hs = [...el.querySelectorAll('.mps')], allOpen = hs.every(h => h.nextElementSibling.style.display != 'none');
+      const hs = [...el.querySelectorAll('.mps:not(.mpo)')], allOpen = hs.every(h => h.nextElementSibling.style.display != 'none');
       hs.forEach(h => { const open = h.nextElementSibling.style.display != 'none'; if (open == allOpen) toggleSec(h); });
     };
     $('mpclr').onclick = clearFilters; ddown($('mpfilb'), el, 'filOpen', false);
@@ -600,7 +619,7 @@ export function createMap(host, deps) {
   let OBL = null, OBLP = null, OBK = '', OBJB = new Set(), OSUB = null, OLBL = null, OSEL = null, OHOOK = false, OJ = [];
   const objClear = () => { if (OSUB) OSUB.clearLayers(); if (OLBL) OLBL.clearLayers(); OSEL = null; OSL = []; };
   const dotSize = () => { const z = Math.min(13, map ? map.getZoom() : 8); return Math.round((3 + (z - 5) * 1.25) * 10) / 10; };   // 3 px zoomed out, about 13 px at the maximum zoom
-  const dotIcon = (state, sub) => window.L.divIcon({className: 'nobj' + (sub ? ' sub' : ''), html: '<i class="s' + state + '"></i>', iconSize: [22, 22], iconAnchor: [11, 11]});
+  const dotIcon = (state, sub, side) => window.L.divIcon({className: 'nobj' + (sub ? ' sub' : ''), html: '<i class="s' + state + (side == 'a' || side == 'e' ? ' o' + side : '') + '"></i>', iconSize: [22, 22], iconAnchor: [11, 11]});
   const NAMEZ = 13;   // the names are written from this zoom (the maximum of the base maps); above it the sub-objectives get theirs too
   let ABV = null, OSL = [], ABM = new Map(), ABACT = new Map();
   function objLabels() {
@@ -629,7 +648,7 @@ export function createMap(host, deps) {
         const am = (t == 1 || t == 2) && abv ? ABM.get(o.id) : null, tip = deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), act = () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); };
         if (am) { ABACT.set(o.id, {g, run: act}); am.setTooltipContent(tip); return; }   // an airfield: its own symbol is the clickable one, no dot over it
         OJ.push({t, o, ll, g});
-        L.marker(ll, {icon: dotIcon(state), keyboard: false, zIndexOffset: 100})
+        L.marker(ll, {icon: dotIcon(state, false, side), keyboard: false, zIndexOffset: 100})
           .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), {direction: 'top', offset: [0, -6]})
           .on('click', () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); }).addTo(g);   // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
@@ -666,7 +685,7 @@ export function createMap(host, deps) {
     };
     return ro(d);
   }
-  function sync() { unitVis(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); objDraw(); radarCov(); }
+  function sync() { unitVis(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); host.classList.toggle('ocol', !!st.on.ocol); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); objDraw(); radarCov(); }
 
   const side = (ally, owner) => ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile';
   // units and SAM rings (campaign / faction change)
