@@ -1,7 +1,7 @@
 import {mergeConfig} from '../config/config.js';
 import {CAM} from '../core/cam-core.js';
 import {initWidgets} from '../core/widgets.js';
-import {fileExists, writeBytes, makeDir, appDir, removeFile, saveBlob as saveFile, join as joinPath} from '../platform/desktop.js';
+import {fileExists, writeBytes, makeDir, appDir, removeFile, join as joinPath} from '../platform/desktop.js';
 import {ST} from './state.js';
 import {atoHints, scrollKeep} from './ato.js';
 import {wxPage} from './campaign.js';
@@ -10,7 +10,6 @@ import {mapV, pfPage, sqPage} from './pages.js';
 import {draw} from './cardview.js';
 import {dcPage, kbRender} from './kneeboard.js';
 
-export const saveBlob = (b,n,dir)=>saveFile(b,n,dir||ST.CFG.paths.exportDir);
 export const $ = id=>document.getElementById(id);
 import {saveConfig} from '../platform/desktop.js';
 // the program keeps the last DTC and campaign (for the "load the last ones at start" option); written to the settings only when it changes

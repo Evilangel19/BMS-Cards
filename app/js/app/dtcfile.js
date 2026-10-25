@@ -58,7 +58,7 @@ export async function dtcBackupOnce(path,bytes){
  await IO.makeDir(bd);await IO.writeBytes(joinPath(bd,name),bytes);map[key]=name;await IO.writeBytes(ix,new TextEncoder().encode(JSON.stringify(map,null,1)))}
 export async function dtcOverwrite(){
  if(!lines.length)return alert('Open a DTC file first.');
- if(!ST.DTCF||!ST.DTCF.path)return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings, or use "Save copy".');
+ if(!ST.DTCF||!ST.DTCF.path)return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
  if(!lines.some(l=>l.dirty))return;
  let extra=[];try{extra=await dtcCampaignFiles()}catch(e){}
  if(!await confirm('Overwrite this file with your changes?\n\n'+ST.DTCF.path+(extra.length?'\n\nThe same DTC is written to the campaign files BMS loads in the game:\n'+extra.join('\n'):'')+'\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'))return;

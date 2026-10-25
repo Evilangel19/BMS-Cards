@@ -4,12 +4,8 @@
     "bmsInstall": "",
     "campaigns": "",
     "dtc": "",
-    "exportDir": "",
     "kneeboardDir": "",
     "missions": ""
-  },
-  "export": {
-    "fileName": "kneeboard"
   },
   "ui": {
     "animations": true,

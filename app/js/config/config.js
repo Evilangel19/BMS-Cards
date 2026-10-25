@@ -5,12 +5,8 @@ export const DEFAULTS = {
     bmsInstall: '',     // Falcon BMS install folder (used to read game data, next step)
     campaigns: '',      // folder opened by "Open campaign" and the other import buttons
     dtc: '',            // folder opened by "Open DTC"
-    exportDir: '',      // (not shown in the Settings any more; kept so old settings files still load)
     kneeboardDir: '',   // where the kneeboard DDS files go (empty = BMS Data\TerrData\Objects\KoreaObj)
     missions: '',       // folder where the mission folders are made (empty = "missions" next to the program)
-  },
-  export: {
-    fileName: 'kneeboard', // base name proposed for exported files
   },
   ui: {
     animations: true,   // short transitions and animations (also off when the system asks for reduced motion)

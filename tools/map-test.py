@@ -707,7 +707,7 @@ try:
         pg.check('#mpbase input[value=topo]'); pg.wait_for_timeout(900)
         check('the BMS colours (outlines, chips) are on the topographic map too', pg.evaluate("document.getElementById('mpbody').classList.contains('game')") and pg.evaluate("__app.mapV.state().base") == 'topo')
         pg.check('#mpbase input[value=coast]'); pg.wait_for_timeout(500)
-        check('the DDS page gap is always removed: no option for it', pg.evaluate("__app.CFG.export.removePageGap") is None)
+        check('the DDS page gap is always removed: no option for it', pg.evaluate("(__app.CFG.export||{}).removePageGap") is None)
         check('the BULLSEYE tile carries the sight icon, AUTO the bolt, DELETE the bin', pg.locator('#mpdbull svg').count() == 1 and pg.locator('#mpdauto svg').count() == 1 and pg.locator('#mpddel svg').count() == 1)
         # the program's own message boxes
         pg.evaluate("()=>{window.__pyDialog=()=>new Promise(()=>{});window.__r=undefined;confirm('Take it away?\\nReally.').then(v=>{window.__r=v})}"); pg.wait_for_timeout(400)

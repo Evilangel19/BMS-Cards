@@ -5,7 +5,7 @@
 Datacard and kneeboard planner for **Falcon BMS 4.38.1**.
 
 Reads campaign files (.cam, .fmap, .twx, Link16, IFF, DTC .ini) and fills the datacard of a chosen flight.
-Exports a BMS-compatible DDS (DXT1, or DXT5 with mipmaps) and a PNG preview.
+Writes the kneeboard as BMS-compatible DDS files (DXT1, or DXT5 with mipmaps).
 
 ## Status
 - `app/` - the interface. The game data (aircraft, weapons, objects, airbases, radio, threats) is read from your own Falcon BMS installation (set its folder in Settings): none of it is included.
