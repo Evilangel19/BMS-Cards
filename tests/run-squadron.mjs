@@ -57,6 +57,6 @@ ck('okImg accepts small webp/png/jpeg data URLs only', SQ.okImg('data:image/png;
   const m2 = SQ.mergeRoster(m1.roster, {a: {uid: 'a', ts: 3, role: 'x'}}); ck('mergeRoster: an entry without picture keeps the one already known', m2.roster.a.av == png && m2.roster.a.role == 'x'); }
 { const svgs = MEDALS.map((_, i) => medalSvg(i, 'u'));
   ck('medals: one picture for each of the six medals of the logbook, with the same names', svgs.length === 6 && medalNames().join('|') === MEDALS.join('|') && svgs.every((v, i) => v.startsWith('<svg') && v.endsWith('</svg>') && v.includes('aria-label="' + MEDALS[i] + '"')));
-  ck('medals: no unfinished tag or placeholder in a picture, gradient ids made unique', svgs.every((v, i) => !/undefined|NaN/.test(v) && v.includes('id="mg' + i + 'u"') && v.includes('url(#mg' + i + 'u)')) && medalSvg(6) === '' && medalSvg(-1) === '');
+  ck('medals: no unfinished tag or placeholder in a picture, gradient ids made unique', svgs.every((v, i) => !/undefined|NaN/.test(v) && v.includes('id="mg' + i + 'u"') && (i === 5 || v.includes('url(#mg' + i + 'u)'))) && medalSvg(6) === '' && medalSvg(-1) === '');
   ck('ranks: an insignia for each of the ten ranks, none for an unknown one', Array.from({ length: 10 }, (_, r) => rankSvg(r)).every(v => v.startsWith('<svg') && !/undefined|NaN/.test(v)) && rankSvg(10) === '' && rankSvg(-1) === ''); }
 process.exit(ok ? 0 : 1);
