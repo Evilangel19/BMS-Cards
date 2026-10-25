@@ -717,7 +717,7 @@ try:
         check('the Display filters offer a radar coverage layer, off by default; the weather filter is gone', pg.locator('#mpbar input[data-k=rc]').count() == 1 and pg.locator('#mpbar input[data-k=wx]').count() == 0 and not rcs())
         rcn = lambda: pg.evaluate("(()=>{let n=0;__app.mapV.leaflet.eachLayer(l=>{if(l.options&&l.options.className=='rcov')n++});return n})()")
         check('off: no coverage on the map', rcn() == 0)
-        pg.evaluate("()=>{__app.mapV.units().slice(0,4).forEach((m,i)=>{m.det=150;m.slot=0;m.noFcr=false;m.ally=(i==3)})}")
+        pg.evaluate("()=>{__app.mapV.units().slice(0,4).forEach((m,i)=>{m.det=150;m.slot=0;m.noFcr=false;m.ally=(i==3);m.hostile=(i!=3)})}")
         rct(); pg.wait_for_timeout(800)
         check('on: one coverage polygon per enemy radar (3 of 4 given: the allied one is not drawn), flat horizon without terrain data (%d)' % rcn(), rcn() == 3)
         rcw = lambda: pg.evaluate("(()=>{let w=0;__app.mapV.leaflet.eachLayer(l=>{if(l.options&&l.options.className=='rcov'){const b=l.getBounds();w=Math.max(w,b.getEast()-b.getWest())}});return w})()")
