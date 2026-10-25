@@ -18,7 +18,9 @@ const lbkXor = (u8, enc) => {
 export const decodeLbk = u8 => lbkXor(u8, false);
 export const encodeLbk = u8 => lbkXor(u8, true);
 const cstr = (u8, o, n) => { let s = ''; for (let i = o; i < Math.min(u8.length, o + n); i++) { if (!u8[i]) break; s += String.fromCharCode(u8[i]); } return s.trim(); };
-// fields of a BMS 4.38 logbook (372 bytes): name, callsign, commentary (the motto), squadron and the statistics (the password is not read; the medals are not decoded yet)
+// fields of a BMS 4.38 logbook (372 bytes): name, callsign, commentary (the motto), squadron, the statistics and the medals (the password is not read)
+// Medals: six counters, one byte each, from offset 140 in the order of the game's logbook editor. Checked on a logbook with 2 Distinguished Flying Cross, 9 Air Medal and 8 Korea Campaign; the other three (offsets 140, 141, 145) were 0 there, so their place is by the order only.
+export const MEDALS = ['Air Force Cross', 'Silver Star', 'Distinguished Flying Cross', 'Air Medal', 'Korea Campaign', 'Longevity'];
 export const RANK_AB = ['2nd Lt.', '1st Lt.', 'Capt.', 'Maj.', 'Lt. Col.', 'Col.', 'Brig. Gen.', 'Maj. Gen.', 'Lt. Gen.', 'Gen.'];
 export const RANKS = ['2nd Lt', '1st Lt', 'Capt', 'Maj', 'Lt Col', 'Col', 'Brig Gen', 'Maj Gen', 'Lt Gen', 'Gen'];
 export function parseLbk(u8) {
@@ -28,6 +30,7 @@ export function parseLbk(u8) {
   const dv = new DataView(d.buffer, d.byteOffset, d.byteLength), u16 = a => dv.getUint16(a, true), i32 = a => dv.getInt32(a, true), f32 = a => Math.round(dv.getFloat32(a, true) * 1000) / 1000;
   // offsets calibrated on a logbook seen in the game (Evil19: 219.3 h, 41 A-A, 553 A-G, 67 static, 1 naval, 127 missions ...)
   o.stats = {rank: u16(80), hours: f32(72), ace: f32(76), commissioned: cstr(d, 45, 9), campaigns: [u16(100), u16(102), u16(104)], missions: u16(106), score: i32(108), lastMission: i32(112), consecutive: u16(116),
+    medals: MEDALS.map((_, i) => d[140 + i]),
     aa: u16(118), ag: u16(128), st: u16(130), nav: u16(132), dog: {won: u16(84), lost: u16(86), onWon: u16(88), onLost: u16(90), kills: u16(92), deaths: u16(94), onKills: u16(96), onDeaths: u16(98)}};
   if (!o.name && !o.callsign) throw new Error('The logbook could not be decoded (no name and no callsign).');
   return o;
@@ -388,7 +391,7 @@ export function createSquadronPage(deps) {
     b.innerHTML = `<table class="sqt"><thead><tr><th>Pilot</th><th>Squadron</th>${t ? '<th>Rank</th><th>Hours</th><th>Missions</th><th>A-A</th><th>A-G</th><th>Static</th><th>Naval</th><th>Ace</th><th>Score</th><th>Dogfights W/L</th>' : ''}</tr></thead><tbody><tr>
       <td class="sqpl">${okImg(m.av) ? `<img class="sqav" src="${m.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc(pilot.callsign || '—')}</b><div class="hint" style="min-height:0">${esc(pilot.name || '—')}</div></span></td>
       <td>${esc(pilot.squadron || '—')}${pilot.motto ? `<div class="hint" style="min-height:0">${esc(pilot.motto)}</div>` : ''}</td>
-      ${t ? `<td>${esc(RANKS[t.rank] || '—')}</td><td>${t.hours.toFixed(1)}</td><td>${t.missions}</td><td>${t.aa}</td><td>${t.ag}</td><td>${t.st}</td><td>${t.nav}</td><td>${t.ace.toFixed(3)}</td><td>${t.score}</td><td>${d.won}/${d.lost}</td>` : ''}</tr>${t ? `<tr><td colspan="2" style="border:0"></td><td colspan="10" class="hint" style="border:0;padding-top:2px">Campaigns ${esc(t.campaigns.join('/'))} · dogfight kills/deaths ${d.kills}/${d.deaths}${t.commissioned ? ' · commissioned ' + esc(t.commissioned) : ''}. Medals are not read yet.</td></tr>` : ''}</tbody></table>`; };
+      ${t ? `<td>${esc(RANKS[t.rank] || '—')}</td><td>${t.hours.toFixed(1)}</td><td>${t.missions}</td><td>${t.aa}</td><td>${t.ag}</td><td>${t.st}</td><td>${t.nav}</td><td>${t.ace.toFixed(3)}</td><td>${t.score}</td><td>${d.won}/${d.lost}</td>` : ''}</tr>${t ? `<tr><td colspan="2" style="border:0"></td><td colspan="10" class="hint" style="border:0;padding-top:2px">Campaigns ${esc(t.campaigns.join('/'))} · dogfight kills/deaths ${d.kills}/${d.deaths}${t.commissioned ? ' · commissioned ' + esc(t.commissioned) : ''}. Medals: ${esc(MEDALS.map((n, i) => t.medals[i] ? n + ' ' + t.medals[i] : '').filter(Boolean).join(' · ') || 'none')}.</td></tr>` : ''}</tbody></table>`; };
   async function readLbk(name, u8) {
     try { pilot = parseLbk(u8 || await deps.lbk.read(name)); DB.lbk = name; if (!DB.cs) DB.cs = pilot.callsign; lbkErr = ''; if ($('#sqcs')) $('#sqcs').value = DB.cs; DB.squads.forEach(q => { mkMe(q); q.roster[DB.uid].ts = Date.now(); pushSync(q); }); save(); }
     catch (e) { pilot = null; lbkErr = String(e && e.message || e); }

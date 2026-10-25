@@ -4,11 +4,13 @@ let ok = true; const ck = (n, c) => { ok &&= !!c; console.log(c ? 'ok  ' : 'FAIL
 // a logbook as BMS writes it (field offsets of a 372 byte file), then encoded
 const put = (u8, o, s) => { for (let i = 0; i < s.length; i++) u8[o + i] = s.charCodeAt(i); };
 const plain = new Uint8Array(372); put(plain, 0, 'Test Pilot'); put(plain, 21, 'Viper11'); put(plain, 225, 'Per aspera ad astra'); put(plain, 346, 'Red Devils');
+plain[142] = 2; plain[143] = 9; plain[144] = 8;
 const enc = encodeLbk(plain);
 ck('the encoded logbook is not readable', !new TextDecoder('latin1').decode(enc).includes('Viper11'));
 ck('decode(encode(x)) is x', decodeLbk(enc).every((v, i) => v == plain[i]));
 const p = parseLbk(enc);
 ck('name, callsign, motto and squadron are read', p.name == 'Test Pilot' && p.callsign == 'Viper11' && p.motto == 'Per aspera ad astra' && p.squadron == 'Red Devils');
+ck('the medals are read (Distinguished Flying Cross 2, Air Medal 9, Korea Campaign 8)', JSON.stringify(p.stats.medals) == '[0,0,2,9,8,0]');
 let bad = ''; try { parseLbk(new Uint8Array(10)); } catch (e) { bad = e.message; } ck('a short file is refused', /logbook/.test(bad));
 // the first byte of a real file is chained from 0x58 (a name starting with C)
 const one = new Uint8Array(372); one[0] = 67; ck('first byte uses the 0x58 start', encodeLbk(one)[0] == (67 ^ 0x58 ^ 'F'.charCodeAt(0)));
