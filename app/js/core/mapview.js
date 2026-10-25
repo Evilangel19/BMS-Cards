@@ -109,12 +109,15 @@ export function createMap(host, deps) {
   const save = () => { Object.assign(PREF, {base: st.base, coastLight: st.cl, on: st.on, closed: st.closed, dtcOpen: st.dtcOpen, dtcFilOpen: st.dtcFilOpen, dtcFilMem: st.dtcFilMem, baseOpen: st.baseOpen, filOpen: st.filOpen}); persist(); };
   const $ = id => host.querySelector('#' + id);
 
-  let home = null, away = null;
+  let home = null, away = null, MO = null;
+  /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
+  const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo'];
+  function mirror() { if (!away) return; away.classList.add('mpx'); MIRROR.forEach(k => away.classList.toggle(k, host.classList.contains(k))); for (const n of host.style) if (n.startsWith('--')) away.style.setProperty(n, host.style.getPropertyValue(n)); }
   // the DTC points can be dragged on the Map page; on the Weapons pages only after "Edit points"
   let EDIT = true;
   const ro = w => { if (!EDIT) w.querySelectorAll('input,select,button').forEach(x => { x.disabled = true; }); return w; };   // with the editing off the popups only show
   function setEdit(b) { EDIT = !!b; if (map) map.closePopup(); if (!EDIT) addStop && addStop(); DT.forEach(e => { try { if (EDIT) e.mk.dragging.enable(); else e.mk.dragging.disable(); } catch (x) { /* none */ } }); return EDIT; }
-  function detach() { if (!away || !map) return; away = null; setEdit(true); const c = map.getContainer(); ['tilePane', 'coastP'].forEach(k => { const p = map.getPane(k); if (p) p.style.opacity = ''; }); home.insertBefore(c, home.firstChild); bgOp(); map.invalidateSize(); }
+  function detach() { if (!away || !map) return; if (MO) { MO.disconnect(); MO = null; } away.classList.remove('mpx', ...MIRROR); for (const n of [...away.style]) if (n.startsWith('--')) away.style.removeProperty(n); away = null; setEdit(true); const c = map.getContainer(); ['tilePane', 'coastP'].forEach(k => { const p = map.getPane(k); if (p) p.style.opacity = ''; }); home.insertBefore(c, home.firstChild); bgOp(); map.invalidateSize(); }
   async function init() {
     const L = await loadLeaflet();
     if (deps.loadPrefs) { try { const fp = await deps.loadPrefs(); if (fp && typeof fp == 'object') { PREF = Object.assign(PREF, fp); st = mkSt(); } } catch (e) { /* no file */ } }
@@ -1296,7 +1299,7 @@ export function createMap(host, deps) {
     async attach(el) {
       if (!map) { try { await init(); } catch (e) { return null; } }
       const c = map.getContainer(); if (!home) home = c.parentNode;
-      el.appendChild(c); away = el; setEdit(false); map.invalidateSize(); refresh();
+      el.appendChild(c); away = el; mirror(); MO = new MutationObserver(mirror); MO.observe(host, {attributes: true, attributeFilter: ['class', 'style']}); setEdit(false); map.invalidateSize(); refresh();
       return {L: window.L, map};
     },
     // the labels of the tanker tracks are kept with the mission (they belong to the DTC lines drawn from the tanker list)

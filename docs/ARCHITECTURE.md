@@ -938,3 +938,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `unitVis`: with the JTAC switch (`sj`) on, allied non-SAM units are shown only when they are the JTAC unit of the selected flight (`jtacPick`, rule unchanged), so none when there is no JTAC; allied SAM / SHORAD units follow `sf` only while `sj` is on. The row label says `(select a CAS flight)` without a selected flight and `(no JTAC for this flight)` with one.
 - BMS colours: the old `drop-shadow` filter of `.trk.al` is gone; the coloured square is 11 x 11 (CSS geometry on `#mpbody.game`), the two black rects (`ol`) are 0.9 px wide, outside and inside it.
 
+## v117 - Patch 0.9.9-beta.10
+
+- The map styles are written for `:is(#mpbody, .mpx).game ...`: `#mpbody` is the Map page, `.mpx` the element that borrows the map (Weapons page, `attach`). `mirror()` copies the classes in `MIRROR` (palette, zoom size, names...) and the `--` variables from the Map page element to it and keeps them in step with a `MutationObserver` until `detach()`.
+

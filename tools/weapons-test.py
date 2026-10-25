@@ -77,6 +77,7 @@ try:
         check('map layer off hides the picture', pg.locator('#wph .leaflet-tile-pane').evaluate("e=>e.style.opacity") == '0')
         zb = pg.evaluate("()=>__app.mapV.leaflet.getZoom()"); pg.click('#wph .leaflet-control-zoom-in'); pg.wait_for_timeout(500)
         check('zoom works', pg.evaluate("()=>__app.mapV.leaflet.getZoom()") > zb)
+        check('the map on this page gets the palette classes and colour variables of the Map page (BMS colours, zoom size, names)', pg.evaluate("()=>{const h=document.getElementById('wph'),m=document.getElementById('mpbody');if(!h||!m||!h.classList.contains('mpx'))return false;const ks=['game','lt','sat','cl','names','nofd','zlo','zmid'];return ks.every(k=>h.classList.contains(k)==m.classList.contains(k))&&h.style.getPropertyValue('--plan')==m.style.getPropertyValue('--plan')&&h.style.getPropertyValue('--plan')!==''}"))
         pg.click('[data-fit]'); pg.wait_for_timeout(300)
         # any steerpoint of the route can carry VIP / VRP and the offsets: rows are created, the 4th value is the steerpoint number
         setl('target_5', '110000.000000, 130000.000000, -500.000000, 1, ')
