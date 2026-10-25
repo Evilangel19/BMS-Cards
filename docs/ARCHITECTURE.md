@@ -888,5 +888,5 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Datacard: BVR cells re-laid in `dctemplate.js` (Class 114, five columns of 42), FD boxes aligned with `CELLS`; RNG / ELV of Delivery carry ' ft'; `Automatic rules` tooltip; editor `#ed` blue.
 - Kneeboard `kbInsert`: nearest free slot of the column takes the shift; the insert bar is 7 px, outside the card.
 - Squadron: `cropImage(file, size, round, title)` (squadron.js) opens a `.sqcrop` window (260 px canvas, pointer drag, wheel and slider zoom, Whole picture / Fill, Cancel / OK) and resolves to a square data URL or null; logo 192 px, avatar 128 px (round preview), shown at 112 px.
-- Datacard editor: `cardOn()` (editor.js, alpha of the canvas) gates `cellAt` and `ST.hlDraw`; a `ResizeObserver` on `#cv` redraws the yellow marks (also when the page is shown again); BVR MTR..DOR cells are marked too.
+- Datacard editor: `cardOn()` (editor.js, alpha of the canvas) gates `cellAt` and `ST.hlDraw`; a `ResizeObserver` on `#cv` redraws the yellow marks (also when the page is shown again); marks only the cells with a choice (CYC, tospec, BVR MTR..DOR, pri/sec, roster), no longer the automatically filled ones.
 - Versions: `0.9.9-beta.2`.

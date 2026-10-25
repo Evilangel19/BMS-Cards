@@ -50,7 +50,7 @@ export const mdcBtn = ()=>{$('mdctog').classList.toggle('on',ST.MDCON);$('mdctog
 export async function init15() {
   document.addEventListener('mousedown',e=>{const m=$('chm');if(m&&m.style.display!=='none'&&!m.contains(e.target)&&e.target.id!=='cv')closeMenu()});
   // yellow marks, over the card in the editor only (never drawn into the canvas, so the kneeboard and the exports stay clean): the cells that are filled from automatic values or chosen from a list
-  ST.hlDraw=()=>{const h=$('cvhl'),c=$('cv');if(!h||!c)return;h.innerHTML='';if(!c.offsetWidth||!cardOn())return;(ST.MDCON?MFD:FD).forEach(d=>{const on=!!CYC[d.k]||/^bv\d_[1-5]$/.test(d.k)||(/^fl\d_0$/.test(d.k)&&sqPage.roster().length>0)||((d.k=='pri'||d.k=='sec')&&!!ST.C)||(ST.AUTO&&ST.AUTO[d.k]!==undefined&&ST.AUTO[d.k]!=='');if(!on)return;const e=document.createElement('i');place(e,d,0,0);h.append(e)})};
+  ST.hlDraw=()=>{const h=$('cvhl'),c=$('cv');if(!h||!c)return;h.innerHTML='';if(!c.offsetWidth||!cardOn())return;(ST.MDCON?MFD:FD).forEach(d=>{const on=!!CYC[d.k]||d.k=='tospec'||/^bv\d_[1-5]$/.test(d.k)||(/^fl\d_0$/.test(d.k)&&sqPage.roster().length>0)||((d.k=='pri'||d.k=='sec')&&!!ST.C); if(!on)return;const e=document.createElement('i');place(e,d,0,0);h.append(e)})};
   window.addEventListener('resize',()=>{try{ST.hlDraw()}catch(e){}});
   if(window.ResizeObserver)new ResizeObserver(()=>{try{ST.hlDraw()}catch(e){}}).observe($('cv'));
   try{ST.hlDraw()}catch(e){}
