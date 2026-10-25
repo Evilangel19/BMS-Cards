@@ -215,7 +215,7 @@ export function createMap(host, deps) {
   function objFly(el) {
     const w = $('mpfilw'), row = el.querySelector('.mpo'); if (!w || !row) return; let f = $('mpobj'); if (f) f.remove();
     f = document.createElement('div'); f.id = 'mpobj'; f.style.display = 'none';
-    f.innerHTML = `<div class="mph"><b>Objects</b><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><label class="mpr mpoc" title="Allied objects get a ring in the allied colour, enemy objects in red; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed."><input type="checkbox" id="mpocol"${st.on.ocol ? ' checked' : ''}> <span class="lt">Colour objects by owner</span></label>`;
+    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
     w.appendChild(f);
     const an = () => !(deps.anim && !deps.anim()), hide = g => { if (g.style.display == 'none') return; if (an()) g.animate([{opacity: 1, transform: 'none'}, {opacity: 0, transform: 'translateX(8px)'}], {duration: 110, easing: 'ease-in'}).onfinish = () => { if (g.dataset.o != '1') g.style.display = 'none'; }; else g.style.display = 'none'; };
     const shut = () => { const g = $('mpobj'); if (g) { g.dataset.o = ''; hide(g); } const r = document.querySelector('#mpbar .mpo'); if (r) { r.classList.remove('act'); r.querySelector('i').textContent = '◂'; } };
@@ -225,7 +225,7 @@ export function createMap(host, deps) {
     f.onclick = e => e.stopPropagation();
     f.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked; save(); masters(); sync(); });
     f.querySelectorAll('a[data-a]').forEach(a => a.onclick = () => setLayers(secKeys('Objects'), a.dataset.a == 'all'));
-    $('mpocol').onchange = () => { st.on.ocol = $('mpocol').checked; save(); host.classList.toggle('ocol', st.on.ocol); };
+    $('mpocol').onclick = () => { st.on.ocol = !st.on.ocol; save(); host.classList.toggle('ocol', st.on.ocol); const b = $('mpocol'); b.classList.toggle('g', !st.on.ocol); b.textContent = 'Colour by owner: ' + (st.on.ocol ? 'On' : 'Off'); };
     if (!OFLY) { OFLY = true; document.addEventListener('mousedown', e => { const g = $('mpobj'); if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) shut(); }); document.addEventListener('keydown', e => { if (e.key == 'Escape') shut(); }); }
   }
   function panel() {
