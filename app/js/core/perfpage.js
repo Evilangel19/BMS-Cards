@@ -107,6 +107,35 @@ export function createPerfPage(deps) {
       <div class="wcard"><h3>Best range by altitude · ${fmt(gw())} lb</h3><div class="wtbl"><table><tr><th>Alt (ft)</th><th>Mach</th><th>KCAS</th><th>KTAS</th><th>lb/h</th><th>nm/1000 lb</th><th>Best endurance</th></tr>${tb}</table></div></div>`;
     return {tiles, body};
   }
+  // the distances of the take-off and of the landing drawn on a runway, to one scale (the runway length is the one of the page: red where a distance goes beyond it)
+  const TD_FT = 1000;   // landing: touchdown at the usual aiming point, 1 000 ft from the threshold
+  function runwayChart(t, l, rw) {
+    const TO = t.stuck ? [] : [['Ground roll', 0, t.roll, '#34d399'], ['To 50 ft', 0, t.to50, '#86efac'], ['Abort at rotation, full stop', 0, t.abort, '#fbbf24']];
+    const LD = [['Brakes', l.rollBrakes, '#38bdf8'], ['Aerobrake + brakes', l.rollAero, '#a78bfa'], ['No brakes', l.rollNoBrakes, '#f472b6']].map(([a, d, c]) => [a, TD_FT, TD_FT + d, c]);
+    const ends = [...TO, ...LD].map(x => x[2]).filter(v => isFinite(v) && v > 0), L = Math.max(rw || 0, ...ends) * 1.04;
+    if (!(L > 0)) return '';
+    const W = 700, X0 = 12, X1 = W - 12, sx = d => X0 + Math.min(d, L) / L * (X1 - X0), step = L > 9000 ? 2000 : 1000, f = v => fmt(v);
+    const sec = (title, y0, lanes, td) => {
+      const ry = y0 + 18, rEnd = rw ? sx(rw) : X1, mid = ry + 12;
+      let g = `<text x="${X0}" y="${y0 + 11}" fill="#cbd5e1" font-size="12" font-weight="600">${title}</text>`;
+      g += `<rect x="${X0}" y="${ry}" width="${(rEnd - X0).toFixed(1)}" height="24" rx="2" fill="#3a424d"/>`;
+      if (rw && L > rw) g += `<rect x="${rEnd.toFixed(1)}" y="${ry}" width="${(X1 - rEnd).toFixed(1)}" height="24" fill="#ff5d5d" opacity=".14"/><path d="M${rEnd.toFixed(1)} ${ry}V${ry + 24}" stroke="#ff5d5d" stroke-width="2"/><text x="${(rEnd > X1 - 120 ? rEnd - 4 : rEnd + 4).toFixed(1)}" y="${y0 + 11}" fill="#ff8a8a" font-size="10" text-anchor="${rEnd > X1 - 120 ? 'end' : 'start'}">runway end ${f(rw)} ft</text>`;
+      if (!rw) g += `<text x="${X1}" y="${y0 + 11}" fill="#8b98a8" font-size="10" text-anchor="end">runway length not set</text>`;
+      g += `<path d="M${(X0 + 26).toFixed(1)} ${mid}H${(rEnd - 8).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="10 8" opacity=".7"/>`;
+      g += [0, 1, 2, 3, 4].map(i => `<rect x="${X0 + 3}" y="${ry + 3 + i * 4.2}" width="12" height="2.4" fill="#e5e7eb" opacity=".8"/>`).join('');
+      if (td) g += `<path d="M${sx(TD_FT).toFixed(1)} ${ry}v24" stroke="#fff" stroke-width="2"/><text x="${(sx(TD_FT) + 5).toFixed(1)}" y="${ry + 9}" fill="#fff" font-size="9">touchdown</text>`;
+      for (let d = 0; d <= L; d += step) g += `<path d="M${sx(d).toFixed(1)} ${ry + 24}v4" stroke="#6b7785"/><text x="${sx(d).toFixed(1)}" y="${ry + 38}" fill="#8b98a8" font-size="9" text-anchor="${d == 0 ? 'start' : 'middle'}">${d / 1000}k ft</text>`;
+      let y = ry + 46;
+      lanes.forEach(([name, a, b, c]) => {
+        const bad = rw && b > rw, val = b - a, x = sx(a), w = Math.max(2, sx(b) - x);
+        g += `<text x="${x.toFixed(1)}" y="${y + 9}" fill="${bad ? '#ff8a8a' : '#cbd5e1'}" font-size="10">${name} · ${f(val)} ft${a ? ' after touchdown' : ''}${bad ? ' · beyond the runway' : ''}</text><rect x="${x.toFixed(1)}" y="${y + 13}" width="${w.toFixed(1)}" height="6" rx="3" fill="${bad ? '#ff5d5d' : c}"/>`;
+        y += 24;
+      });
+      return {g, h: y - y0 + 6};
+    };
+    const a = sec('Take-off, from the start of the roll', 0, TO, false), b = sec('Landing, from touchdown (aiming point ' + f(TD_FT) + ' ft from the threshold)', a.h + 8, LD, true), H = a.h + 8 + b.h;
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block" role="img" aria-label="Take-off and landing distances on the runway, to scale" font-family="system-ui,sans-serif">${a.g}${b.g}</svg>`;
+  }
   function fieldTab() {
     const hw = V('hw'), o = {W: gw(), elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, power: st.power, di: st.di}, t = P.takeoff(ac, o);
     const wl = empty() + st.stores + st.lfuel, l = P.landing(ac, {W: wl, elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, di: st.di}), rw = runwayFt();
@@ -115,7 +144,8 @@ export function createPerfPage(deps) {
     const tTiles = t.stuck ? '<p class="wperr">The thrust is not enough to reach lift-off speed with this weight, drag and power.</p>' : `<div class="wpt">${tile('Rotate / lift-off', fmt(t.vr) + ' / ' + fmt(t.vlof) + ' kt', 'at ' + fmt(t.aLO) + '° of pitch')}${tile('Ground roll', fmt(t.roll) + ' ft' + ok(rw, t.roll), fmt(t.time) + ' s')}${tile('To 50 ft', fmt(t.to50) + ' ft' + ok(rw, t.to50), 'climb ' + fmt(t.gamma) + '°')}${tile('Abort at rotation', fmt(t.abort) + ' ft' + ok(rw, t.abort), 'full brakes, idle')}${tile('Refusal speed', rf == null ? '—' : rf >= 224.5 ? '225+ kt' : fmt(rf) + ' kt', rf == null ? 'set the runway length' : 'stop on ' + fmt(rw) + ' ft')}${tile('Military power', rpm == null ? '—' : rpm + ' %', 'max rpm: the lead sets 2% less')}</div>`;
     const lTiles = `<div class="wpt">${tile('Approach / touchdown', fmt(l.vapp) + ' / ' + fmt(l.vtd) + ' kt', 'at ' + fmt(l.aApp, 1) + '° · ' + fmt(wl) + ' lb')}${tile('Roll, brakes', fmt(l.rollBrakes) + ' ft' + ok(rw, l.rollBrakes), 'from touchdown')}${tile('Roll, aerobrake + brakes', fmt(l.rollAero) + ' ft' + ok(rw, l.rollAero), 'nose up to 100 kt, speed brake')}${tile('Roll, no brakes', fmt(l.rollNoBrakes) + ' ft' + ok(rw, l.rollNoBrakes), 'rolling friction only')}</div>`;
     return {tiles: '', body: `<div class="wcard"><h3>Take-off · ${fmt(gw())} lb · ${st.power == 'ab' ? 'afterburner' : 'military'}</h3>${tTiles}<p class="hint wnote">Model: thrust and drag from the BMS tables with the gear down, wheel friction ${ac.ground.roll}, rotation at the optimum pitch of the file; the distance to 50 ft assumes a constant climb. A guide, not a figure of the simulator.</p></div>
-      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at half of the maximum alpha, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p></div>`};
+      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at half of the maximum alpha, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p></div>
+      <div class="wcard"><h3>Runway<span class="wtip" title="The distances of the two cards drawn to scale on the runway length of the page (the Runway box); without a length they are drawn to scale only against each other. Red: beyond the runway. A guide, like the figures above.">ⓘ</span></h3>${runwayChart(t, l, rw)}</div>`};
   }
 
   function planTab() {

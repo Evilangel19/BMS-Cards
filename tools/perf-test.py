@@ -93,6 +93,7 @@ try:
         check('Turn: the specific excess power card is in the third column', pg.locator('#pfr2').count() == 1 and 'specific excess power' in pg.inner_text('#pfr2').lower())
         pg.screenshot(path='/tmp/pf6.png')
         pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(500); check('Take-off: no third column', pg.locator('#pfr2').count() == 0)
+        check('Take-off & landing: the runway drawing holds the take-off and the landing distances', pg.locator('#pf svg[aria-label*=runway]').count() == 1 and pg.locator('#pf svg[aria-label*=runway] rect[rx="3"]').count() == 6)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:
