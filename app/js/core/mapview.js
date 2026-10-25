@@ -41,7 +41,7 @@ export const MAP_LAYERS = [
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
-  ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
+  ...OBJ_LAYERS.map(([t, l]) => ['oa' + t, l, false, 'Allied objects']), ...OBJ_LAYERS.map(([t, l]) => ['oe' + t, l, false, 'Enemy objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
 const ALLY = '#4f8cff', ENEMY = '#ff5d5d';
@@ -94,7 +94,8 @@ export function createMap(host, deps) {
   let map = null, G = {}, st = null, TL = null, OV = null, OVC = {}, baseTok = 0, curC = null, curSel, curView = null, imgName = '', shotK = 'dc', UL = [], LBL = [], DT = [], LNP = [], addM = null, PR = null, CR = null, pal = PAL.dark, LUM = {}, shotOn = false, SAMR = [], SAVED = null, dtcMst = () => {}, SX = false;
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
-  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), PREF.on || {}), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
+  const migrate = o => { const r = Object.assign({}, o); OBJ_LAYERS.forEach(([t]) => { if (r['o' + t] && r['oa' + t] === undefined) r['oa' + t] = r['oe' + t] = true; delete r['o' + t]; }); return r; };   // the old single 'objects' switch of a type becomes the allied and the enemy one
+  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), migrate(PREF.on || {})), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
   st = mkSt();
   const persist = () => { store.set(PREF); if (deps.savePrefs) deps.savePrefs(PREF); };
   // the satellite layer: the built-in one (Sentinel-2 by EOX) or, when it is switched on in the Settings, the user's own tile provider
@@ -591,6 +592,7 @@ export function createMap(host, deps) {
   // objectives (factories, power plants, radars ...): read when a type is first switched on and drawn as dots, white whatever the owner. The state comes from the
   // campaign file (the features of the objectives that were hit): grey = damaged, black = destroyed (the other way round on light maps, where intact is black and
   // destroyed white). A click zooms to the maximum and shows the sub-objectives as smaller dots; the full names are written next to the objectives only at the maximum zoom.
+  const GU = {};   // objectives of an owner not known: shown when the allied or the enemy switch of their type is on
   let OBL = null, OBLP = null, OBK = '', OBJB = new Set(), OSUB = null, OLBL = null, OSEL = null, OHOOK = false, OJ = [];
   const objClear = () => { if (OSUB) OSUB.clearLayers(); if (OLBL) OLBL.clearLayers(); OSEL = null; OSL = []; };
   const dotSize = () => { const z = Math.min(13, map ? map.getZoom() : 8); return Math.round((3 + (z - 5) * 1.25) * 10) / 10; };   // 3 px zoomed out, about 13 px at the maximum zoom
@@ -602,29 +604,31 @@ export function createMap(host, deps) {
     const z = map.getZoom(); if (z < NAMEZ - 0.01) return;
     const bd = map.getBounds().pad(0.1), L = window.L; let n = 0;
     const lab = (ll, name, cls) => L.marker(ll, {interactive: false, keyboard: false, icon: L.divIcon({className: 'nobjl' + cls, html: '<span>' + deps.esc(name) + '</span>', iconSize: [0, 0], iconAnchor: [-9, 7]})}).addTo(OLBL);
-    OJ.forEach(r => { if (n > 400 || !bd.contains(r.ll) || !map.hasLayer(G['o' + r.t])) return; n++; lab(r.ll, r.o.name, ''); });
+    OJ.forEach(r => { if (n > 400 || !bd.contains(r.ll) || !map.hasLayer(r.g)) return; n++; lab(r.ll, r.o.name, ''); });
     if (z >= 14) OSL.forEach(r => { if (bd.contains(r.ll)) lab(r.ll, r.name, ' sl'); });
   }
   const objSize = () => { host.style.setProperty('--os', dotSize() + 'px'); host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px'); };
   function objDraw() {
-    const on = OBJ_LAYERS.filter(([t]) => st.on['o' + t]); if (!map) return;
-    if (!on.length) { objClear(); return; }
-    if (!OBL) { if (!OBLP && deps.objects) OBLP = deps.objects.list().then(l => { OBL = l; objDraw(); }).catch(e => { OBLP = null; toast('Objects: ' + (e && e.message || e), true); OBJ_LAYERS.forEach(([t]) => { st.on['o' + t] = false; }); save(); panel(); sync(); }); return; }
-    const C = deps.getC(), key = (C && C.name) + '|' + (C && C.now), L = window.L;
+    const on = OBJ_LAYERS.filter(([t]) => st.on['oa' + t] || st.on['oe' + t]); if (!map) return;
+    if (!on.length) { objClear(); Object.values(GU).forEach(g => map.removeLayer(g)); return; }
+    if (!OBL) { if (!OBLP && deps.objects) OBLP = deps.objects.list().then(l => { OBL = l; objDraw(); }).catch(e => { OBLP = null; toast('Objects: ' + (e && e.message || e), true); OBJ_LAYERS.forEach(([t]) => { st.on['oa' + t] = st.on['oe' + t] = false; }); save(); panel(); sync(); }); return; }
+    const C = deps.getC(), view = deps.getView(), key = (C && C.name) + '|' + (C && C.now) + '|' + view, L = window.L;
     if (!OSUB) { OSUB = L.layerGroup().addTo(map); OLBL = L.layerGroup().addTo(map); }
     if (!OHOOK) { OHOOK = true; map.on('moveend zoomend', objLabels); map.on('zoom zoomend', objSize); map.on('click', () => { if (OSEL) objClear(); }); }
     objSize();
-    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => G['o' + t].clearLayers()); OBK = key; OBJB = new Set(); OJ = []; objClear(); }
+    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => { G['oa' + t].clearLayers(); G['oe' + t].clearLayers(); if (GU[t]) GU[t].clearLayers(); }); OBK = key; OBJB = new Set(); OJ = []; objClear(); }
     on.forEach(([t, lab]) => {
       if (OBJB.has(t)) return; OBJB.add(t);
       OBL.filter(o => o.type == t).forEach(o => {
         const fs = C && C.objFeat ? C.objFeat.get(o.id) : null, state = objState(fs), ll = toLL(o.e / FT_KM, o.n / FT_KM);
-        OJ.push({t, o, ll});
+        const ow = C ? airbaseOwner(C, o.id) : null, side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'e', g = side == 'a' ? G['oa' + t] : side == 'e' ? G['oe' + t] : (GU[t] = GU[t] || L.layerGroup()), own = ow ? ' · ' + teamName(C.D, ow) : '';
+        OJ.push({t, o, ll, g});
         L.marker(ll, {icon: dotIcon(state), keyboard: false, zIndexOffset: 100})
-          .bindTooltip(deps.esc(o.name) + ' · ' + lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), {direction: 'top', offset: [0, -6]})
-          .on('click', () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); }).addTo(G['o' + t]);   // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
+          .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), {direction: 'top', offset: [0, -6]})
+          .on('click', () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); }).addTo(g);   // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
     });
+    OBJ_LAYERS.forEach(([t]) => { const g = GU[t]; if (!g) return; if (st.on['oa' + t] || st.on['oe' + t]) g.addTo(map); else map.removeLayer(g); });
     objLabels();
   }
   // zoom to the objective and show its sub-objectives

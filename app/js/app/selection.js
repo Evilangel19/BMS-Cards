@@ -4,7 +4,8 @@ import {ST} from './state.js';
 import {F, FD, CYC, buildForm} from './datacard.js';
 import {$} from './base.js';
 import {ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch} from './ato.js';
-import {wxApply, wxPrep} from './campaign.js';
+import {wxApply, wxPrep, campDir} from './campaign.js';
+import {join as joinPath, listDir, readBytes, isDesktop} from '../platform/desktop.js';
 import {applyDTC, msfFreeze} from './dtcapply.js';
 import {draw} from './cardview.js';
 import {perfFill} from './perf.js';
@@ -24,7 +25,10 @@ export function apply(i,mode){if(mode!=='reset'&&mode!=='fresh'&&ST.CURK!==null&
  {const k=fkey(ST.CL[i].f);ST.AUTO={};FD.forEach(d=>{ST.AUTO[d.k]=F[d.k]||''});ST.CURK=k;ST.MANK=new Set();if(mode==='reset')ST.OVR.delete(k);else if(ST.OVR.has(k)){Object.assign(F,ST.OVR.get(k));ST.MANK=new Set(Object.keys(ST.OVR.get(k)))}}
  buildForm();markMan();draw();atoSearch();perfFill(i);wxPrep(i)}
 export const pick = ()=>{const all=ST.CL.map((_,i)=>i),mine=all.filter(i=>ST.CL[i].f.owner==ST.C.playerTeam),hi=mine.filter(i=>CAM.isHiFi(ST.CL[i].f&&ST.C.D.ac[ST.CL[i].f.c.i]||'')),hi2=all.filter(i=>CAM.isHiFi(ST.C.D.ac[ST.CL[i].f.c.i]||''));return hi.length?hi:mine.length?mine:hi2.length?hi2:all};
+// The owners of the untouched objectives are in the scenario file the campaign was saved from (Save3.cam ...: the campaign file holds only the changes): looked for in the Campaign folder
+export async function loadBaseOwners(C){try{if(!C||!C.base||!isDesktop())return 0;const dir=campDir();if(!dir)return 0;const e=(await listDir(dir)).find(x=>!x.isDirectory&&x.name.toLowerCase()===C.base.toLowerCase()+'.cam');if(!e)return 0;return CAM.initialOwners(C,new Uint8Array(await readBytes(joinPath(dir,e.name))))}catch(x){return 0}}
 export async function loadCam(file){if(!CAM.D.ct.length)return alert('The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.');try{ST.C=CAM.openCam(new Uint8Array(await file.arrayBuffer()),CAM.D,file.name);ST.CL=CAM.listFlights(ST.C,null);manClear()}catch(e){return alert('Unable to read the campaign: '+e.message+(ST.THEATERS.length>1?'\n\nThe selected theater is "'+(ST.TH?ST.TH.name:'?')+'": a campaign of another theater cannot be read with its tables. Choose the right theater in the theater menu and open the campaign again.':''))}
+ await loadBaseOwners(ST.C);
  if(ST.C.ver>CAM.CAM_VER_MAX)alert('This campaign file is newer ('+ST.C.ver+') than the versions this program was checked with (up to '+CAM.CAM_VER_MAX+', Falcon BMS 4.38.1): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.');
  if(!ST.CL.length)return alert('No flight with a datacard found in this campaign.');
  $('fsel').innerHTML=ST.CL.map((x,i)=>`<option value="${i}">${x.label}</option>`).join('');const pk=()=>{const m=pick();return m[Math.floor(Math.random()*m.length)]};const i=pk();$('fsel').value=i;atoSearch();apply(i);atoCloseState();atoSearch()}

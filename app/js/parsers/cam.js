@@ -73,6 +73,14 @@ export const objOwners=E=>objDeltas(E).own;
 // state of a feature / of an objective: 0 intact, 1 damaged, 2 destroyed
 export const featState=v=>v===0||v===6?0:v>=3&&v<=5?2:1;
 export function objState(st){if(!st||!st.length)return 0;let d=0,x=0;for(const v of st){const s=featState(v);if(s)d++;if(s==2)x++}return !d?0:x==st.length?2:1}
+// The scenario a saved campaign was started from (a file such as Save3.cam in the Campaign folder): 40 characters at 1990 of the "cmp" section; '' when not known
+export function baseCampaign(E,ver){try{if(ver<52||!E.cmp)return '';const b=E.cmp,h=new DataView(b.buffer,b.byteOffset,b.byteLength),r=lzExpand(b.subarray(8),h.getUint32(4,true));let t='';for(let i=1990;i<2030&&r[i];i++)t+=String.fromCharCode(r[i]);return t.trim()}catch(e){return ''}}
+// Objectives as the scenario starts (section "obj" of Save0..5.cam; a saved campaign only holds the changes, see objDeltas): Map objective id -> owner (team).
+// Record: type u16, the base fields of a campaign entity (id 8, entity type 2, x y 4, z 4, spot 4, 4, owner 1, campaign id 2), last repair 4, flags 4, supply, fuel, losses, features (count + bytes),
+// priority, name id 2, parent 8, first owner, links (count, 16 bytes each), radar flag (+32), 16 + 12 bytes, name 80. Known for versions 106 and later; null when the section does not read exactly.
+export function objInitial(E){try{const ver=+new TextDecoder().decode(E.ver);if(ver<106||!E.obj)return null;const b=E.obj,h=new DataView(b.buffer,b.byteOffset,b.byteLength),num=h.getInt16(0,true),u=lzExpand(b.subarray(10),h.getInt32(2,true)),d=new DataView(u.buffer,u.byteOffset,u.byteLength),out=new Map();let p=0;
+ for(let i=0;i<num;i++){p+=2;const id=d.getUint32(p,true);p+=8+2+4+4+4+4;const ow=u[p];p+=1+2+4+4+3;const ns=u[p++];p+=ns+1+2+8+1;const lk=u[p++];p+=16*lk;if(u[p++]>0)p+=32;p+=16+12+80;if(p>u.length)return null;out.set(id,ow)}
+ return p==u.length?out:null}catch(e){return null}}
 // highest campaign file version this reader was checked against (BMS 4.38.1 writes 109); a newer file may carry fields read wrongly
 export const CAM_VER_MAX=110;
 // Tactical Engagement files (.tac) are campaign files with one more section, "te" (text): the teams of the engagement. Teams that have a name (not "---"): [{n, name}]; the first one is the player's side
@@ -83,4 +91,4 @@ export function openCam(u8,D,name){const E=camToc(u8),OD=objDeltas(E),ver=+new T
  let bull=null,playerSq=null,now=null;try{if(E.cmp){const b=E.cmp,h=new DataView(b.buffer,b.byteOffset,b.byteLength);now=new DataView(lzExpand(b.subarray(8),h.getUint32(4,true)).buffer).getUint32(0,true)}}catch(e){}try{if(ver>=52){const b=E.cmp,h=new DataView(b.buffer,b.byteOffset,b.byteLength),r=lzExpand(b.subarray(8),h.getUint32(4,true)),d=new DataView(r.buffer);bull={x:d.getInt16(1946,true),y:d.getInt16(1948,true)};playerSq=d.getUint32(2110,true)}}catch(e){}
  const ps=playerSq&&units.find(x=>x.kind=='sqd'&&x.id.n==playerSq),te=E.te?teTeams(E.te):null,playerTeam=ps?ps.owner:(te&&te.length?te[0].n:null);
  let stance=null,squads={};try{stance=teamStances(E.tea,ver)}catch(e){}try{squads=squadNames(E,ver)}catch(e){}
- return{ver,isTe:!!E.te,units,byId,D,bull,now,playerSq,playerTeam,stance,squads,objOwn:OD.own,objFeat:OD.feat,parse:{num:pu.num,count:units.length,end:pu.end,len:pu.len},name:(name||'').replace(/\.(cam|tac)$/i,'')}}
+ return{ver,isTe:!!E.te,units,byId,D,bull,now,playerSq,playerTeam,stance,squads,base:baseCampaign(E,ver),objOwn:OD.own,objFeat:OD.feat,parse:{num:pu.num,count:units.length,end:pu.end,len:pu.len},name:(name||'').replace(/\.(cam|tac)$/i,'')}}
