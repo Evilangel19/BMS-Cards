@@ -21,11 +21,11 @@ function applyDTC0(fl){if(!lines.length)return;const g=(s,k)=>G(s,k,'');
   F[`wp${n}_ad`]=(+k('C1_AD1')/100).toFixed(2).padStart(5,'0');F[`wp${n}_hb`]=String(Math.round(+k('C2_BA'))).padStart(4,'0');
   F[`wp${n}_ang`]=String(Math.round(+k('Release_Angle')));F[`wp${n}_rp`]=String(+k('Release_Pulse')+1);F[`wp${n}_spc`]=String(Math.round(+k('Release_Spacing')));if(bc)F[`wp${n}_bc`]=bc});
  const ms2=(g('NAV OFFSETS','Modesel')||'').toUpperCase();if(ms2==='VRP'||ms2==='VIP'){F.dmode=ms2;
-  const fill=(key,pre)=>{const n=navRow(g('NAV OFFSETS',key)),v=[n.brg,n.rng,n.elev].map(Number);if(v.some(x=>x))v.slice(0,3).forEach((x,i)=>F[pre+i]=String(x))};fill(ms2,'dv');fill(ms2+'PUP','dp');
+  const fill=(key,pre)=>{const n=navRow(g('NAV OFFSETS',key)),v=[n.brg,n.rng,n.elev].map(Number);if(v.some(x=>x))v.slice(0,3).forEach((x,i)=>F[pre+i]=i?x+' ft':String(x))};fill(ms2,'dv');fill(ms2+'PUP','dp');
   // attack data of the Weapons page (written by its Apply): label, OA1 / OA2 rows of the steerpoint and the profile numbers
   const wc=ST.wpPage&&ST.wpPage.card&&ST.wpPage.card(),n4=navRow(g('NAV OFFSETS',ms2)).stpt||0;if(wc&&String(wc.ref).toUpperCase()===ms2){F.dlab=wc.label;
-   if(wc.man){const m=wc.man;F.dmode=ms2+' · STPT '+m.stpt;[['dv',m.dv],['dp',m.dp],['oa',m.oa],['ob',m.ob]].forEach(([pre,v])=>{if(v&&v.some(x=>+x))v.forEach((x,i)=>F[pre+i]=String(x))})}
-   [['OA1-','oa'],['OA2-','ob']].forEach(([a,pre])=>{const n=n4?navRow(g('NAV OFFSETS',a+n4),false):null,v=n?[n.brg,n.rng,n.elev].map(Number):[];if(v.some(x=>x))v.forEach((x,i)=>F[pre+i]=String(x))});
+   if(wc.man){const m=wc.man;F.dmode=ms2+' · STPT '+m.stpt;[['dv',m.dv],['dp',m.dp],['oa',m.oa],['ob',m.ob]].forEach(([pre,v])=>{if(v&&v.some(x=>+x))v.forEach((x,i)=>F[pre+i]=i?x+' ft':String(x))})}
+   [['OA1-','oa'],['OA2-','ob']].forEach(([a,pre])=>{const n=n4?navRow(g('NAV OFFSETS',a+n4),false):null,v=n?[n.brg,n.rng,n.elev].map(Number):[];if(v.some(x=>x))v.forEach((x,i)=>F[pre+i]=i?x+' ft':String(x))});
    ['ph','cl','pd','tn','ah','th','ia','is','rh','rs'].forEach(k=>{if(wc[k]!==undefined)F['dl_'+k]=String(wc[k])})}}
  if(fl&&ST.C){const u6=+g('Radio','UHF_6'),jt=CAM.jtac(ST.C,fl,u6>0);if(jt){F.su4_0='JTAC - '+(jt.name||jt.cat);F.free=(F.free?F.free+'\n\n':'')+'JTAC: Redwolf/Eyeball/Troll + n. (random)';F.su4_3=jt.loc;F.su4_2=(u6/1000).toFixed(3);const sv=CAM.svc(ST.C,fl);if(sv)F.sn4=sv.tm}else{const fc=CAM.fac(ST.C,fl,u6>0);if(fc){F.su4_0=fc.ty;F.su4_2=(u6/1000).toFixed(3);F.su4_3=fc.loc;F.sn4=fc.tm}}}
  if(fl&&ST.C&&g('IFF','Mode2 Code')!==''){const P=ST.IFFP&&ST.IFFP[fl.owner],B=[0,1,2,3,4,7,8],tot=CAM.totMs(ST.C,fl),tm=Math.floor(tot/60000)%1440;

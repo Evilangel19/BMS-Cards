@@ -97,22 +97,22 @@ export async function init4() {
   ['Lead','Wing','Element','Wing 2'].forEach((r,i)=>['Name','IDM','TCN','Link 16','LND','CONF','IFF 2/3 4'].forEach((c,j)=>{if(j==4)return;add(`fl${i}_${j}`,r+' '+c,[105,318,395,473,551,630,709][j],234+28*i,[210,74,74,155,74,74,74][j],'Flight')}));
   for(let i=0;i<5;i++)['Callsign','Aircraft','UHF','VHF','STN','TCN','Task'].forEach((c,j)=>add(`pk${i}_${j}`,'Pack '+(i+1)+' '+c,[28,183,318,395,473,551,630][j],374+28*i,[150,132,74,74,74,74,155][j],'Package'));
   for(let i=0;i<24;i++)['Action','TOS','HDG','Dist','Mach/TAS','Alt','Min.Fuel','Formation'].forEach((c,j)=>add(`fp${i}_${j}`,c,[78,183,318,395,473,551,630,711][j],542+28*i,[100,132,74,74,74,74,74,76][j],'Flightplan'));
-  [['cs','Callsign',988,39,120],['pkg','Package',1192,39,66],['mis','Mission',1350,39,240],['aa','A-A',890,94,215],['ag','A-G',890,122,215],['ecm','ECM',890,150,215],['tanks','Tanks',890,178,215],
+  [['cs','Callsign',985,39,120],['pkg','Package',1192,39,66],['mis','Mission',1350,39,240],['aa','A-A',890,94,215],['ag','A-G',890,122,215],['ecm','ECM',890,150,215],['tanks','Tanks',890,178,215],
   ['gw','Gross Wgt',1190,94,70],['drag','Drag idx',1190,122,70],['alow','ALOW',1190,150,70],['msl','MSL',1190,178,70],['tospec','TO Spec',1350,67,70],['rot','Rotation',1350,94,70],['ref','Refusal',1350,122,70],['mp','Mil Power',1350,150,70],['mc','Mil Climb',1350,178,70],
-  ['fuel','Fuel',1517,67,70],['tof','TO Fuel',1517,94,70],['setf','Set Fuel',1517,122,70],['joker','Joker',1517,150,70],['bingo','Bingo',1517,178,70]].forEach(a=>add(a[0],a[1],a[2],a[3],a[4],'Loadout'));
+  ['fuel','Fuel',1514,67,83],['tof','TO Fuel',1514,94,83],['setf','Set Fuel',1514,122,83],['joker','Joker',1514,150,83],['bingo','Bingo',1514,178,83]].forEach(a=>add(a[0],a[1],a[2],a[3],a[4],'Loadout'));
   [['pri','Primary',925,207,330],['sec','Secondary',1350,207,240],['d1','TOT Primary',925,235,330],['d2','TOT Secondary',1350,235,240],['ll1','Lat&Long 1',925,262,330],['ll2','Lat&Long 2',1350,262,240]].forEach(a=>add(a[0],a[1],a[2],a[3],a[4],'Target'));
   for(let i=0;i<6;i++)add('ews'+i,'EWS THR '+(i+1),[947,1048,1156,1260,1370,1500][i],290,[74,80,76,80,100,94][i],'EWS');
-  [[1,1054,1188,930],[2,1418,1544,1296]].forEach(([n,xa,xb,xm])=>{add(`wp${n}_mode`,`Profile ${n} mode`,xm,326,62,'Weapon');
+  [[1,1054,1188,930],[2,1421,1544,1296]].forEach(([n,xa,xb,xm])=>{add(`wp${n}_mode`,`Profile ${n} mode`,xm,326,62,'Weapon');
    [['fuze','Fuze',xa,318],['sgl','SGL/PAIR',xb,318],['ad','AD',xa,346],['rp','RP',xb,346],['hb','BA',xa,374],['spc','SPACING',xb,374],['ang','REL ANG',xa,402],['bc','B. CODE',xb,402]].forEach(([k,l,x,y])=>add(`wp${n}_${k}`,`Profile ${n} ${l}`,x,y,48,'Weapon'))});
   add('dmode','Delivery mode',924,430,180,'Delivery');
-  add('dlab','Attack',851,430,74,'Delivery');
+  add('dlab','Attack',842,430,77,'Delivery');
   [['0','TBRG',458],['1','RNG',486],['2','ELV',514]].forEach(([k,l,y])=>{add('dv'+k,l+' (VRP/VIP)',926,y,176,'Delivery');add('dp'+k,l+' (PUP)',1266,y,74,'Delivery');add('oa'+k,l+' (OA1)',1109,y,72,'Delivery');add('ob'+k,l+' (OA2)',1186,y,72,'Delivery')});
   [['ph','Pull heading',431],['cl','Climb',458],['pd','Pull down',486],['tn','Turn',514],['ah','Attack heading',543],['th','Target in HUD',571]].forEach(([k,l,y])=>add('dl_'+k,l,1431,y,165,'Delivery'));
   [['ia','Ingress altitude',925,543,180],['is','Ingress speed',925,571,180],['rh','Release height',1189,543,150],['rs','Release speed',1189,571,150]].forEach(([k,l,x,y,w])=>add('dl_'+k,l,x,y,w,'Delivery'));
   ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>['Type','TACAN','UHF','LOC'].forEach((c,j)=>add(`su${i}_${j}`,r+' '+c,[925,1110,1188,1266][j],625+28*i,[180,70,70,75][j],'Support')));
   ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>add('sn'+i,'Notes '+r+' (operating time)',1352,625+28*i,240,'Support'));
   ['Tanker 1','Tanker 2','AWACS','JSTAR','FAC'].forEach((r,i)=>add('sn'+i,'Notes '+r+' (times)',1352,625+28*i,240,'Support'));
-  for(let i=0;i<4;i++)[['Class',1265,120],['MTR',1388,38],['FR',1428,44],['MAR',1474,36],['DR',1511,40],['DOR',1553,42]].forEach(([c,x,w],j)=>add(`bv${i}_${j}`,'BVR '+(i+1)+' '+c,x,793+28*i,w,'BVR timeline'));
+  for(let i=0;i<4;i++)[['Class',1265,112],['MTR',1380,40],['FR',1424,40],['MAR',1468,40],['DR',1512,40],['DOR',1556,40]].forEach(([c,x,w],j)=>add(`bv${i}_${j}`,'BVR '+(i+1)+' '+c,x,793+28*i,w,'BVR timeline'));
   add('roe','ROE',1268,931,325,'Free text');
   add('free','Notes (airfield frequencies / backup)',1272,998,320,'Free text');
   add('eph','Ephemerides (Sun / Moon)',1272,1153,320,'Free text');

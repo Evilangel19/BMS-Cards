@@ -106,7 +106,7 @@ export async function init5() {
    [['TBRG',881,458],['RNG',881,486],['ELV',881,513],['Climb',1390,458],['Pull Dwn',1390,486],['Turn',1390,513],['Ingress Alt',881,542],['Rel Height',1145,542],['Attack hdg',1390,542],['Ingress Spd',881,570],['Rel Spd',1145,570],['TGT in HUD',1390,570]].forEach(([t,x,y])=>a(t,x,y));
    [['AC Type',1010],['TACAN',1146],['UHF',1225],['LOC',1303]].forEach(([t,x])=>a(t,x,597));a('Notes:',1344,597,{l:1});
    ['Tanker 1','Tanker 2','AWACS','JSTAR','JTAC/FAC'].forEach((t,i)=>a(t,880,625+28*i));
-   [['Class',1325],['MTR',1407],['FR',1451],['MAR',1493],['DR',1535],['DOR',1578]].forEach(([t,x])=>a(t,x,765));a('ROE',1431,905);
+   [['Class',1321],['MTR',1401],['FR',1445],['MAR',1489],['DR',1533],['DOR',1577]].forEach(([t,x])=>a(t,x,765));a('ROE',1431,905);
    [['Airbase',15,138],['Flight',15,265],['Package',15,417],['Flightplan',15,849],['TO / Loadout',828,123],['TGT',828,235],['Weapon',828,360],['Delivery',828,500],['Support',828,676],['Profile 1',856,360],['Profile 2',1243,360]].forEach(([t,x,y])=>a(t,x,y,{r:1}));
    return L})();
   try{ST.MDCON=localStorage.getItem('bmsmdc')==='1'}catch(e){}
