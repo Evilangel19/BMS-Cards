@@ -64,7 +64,7 @@ export function freqOwners(){const m=new Map(),add=(f,l)=>{if(f&&/^\d/.test(f)&&
  for(let i=0;i<3;i++){const n=F[`ab${i}_0`];add(F[`ab${i}_2`],n&&n+' GND');add(F[`ab${i}_3`],n&&n+' APP')}
  return m}
 export function bvRow(i,cls){const r=cls&&ST.msPage&&ST.msPage.calc?ST.msPage.calc(cls):null;[r&&r.mtr,r&&r.fr,r&&r.mar,r&&r.dr,r&&r.dor].forEach((x,j)=>{const kk=`bv${i}_${j+1}`;F[kk]=x==null?'':String(Math.round(x));if(ST.AUTO)ST.MANK.add(kk);const e=FD.find(z=>z.k==kk);if(e&&e.el)e.el.value=F[kk]})}
-export function setField(k,v,from){F[k]=v;if(k=='gw'||k=='fuel'||k=='drag'||k=='ab0_5')perfLater();if(/^bv\d_0$/.test(k)){const bi=+k[2];bvRow(bi,v)}if(ST.AUTO){ST.MANK.add(k);if(k=='ab0_4')ST.MANK.add('atis')}if(k=='ab0_4'&&wxAt(F.__dep&&F.__dep[3])&&F.__dep){F.atis=CAM.atisText(wxAt(F.__dep[3]),F.__dep,F.ab0_4)+(F.__taf?'\n'+F.__taf:'');const ea=FD.find(z=>z.k=='atis');if(ea&&ea.el)ea.el.value=F.atis}
+export function setField(k,v,from){if(k=='ldsel'&&ST.ldSet){ST.ldSet(v);return}F[k]=v;if(k=='gw'||k=='fuel'||k=='drag'||k=='ab0_5')perfLater();if(/^bv\d_0$/.test(k)){const bi=+k[2];bvRow(bi,v)}if(ST.AUTO){ST.MANK.add(k);if(k=='ab0_4')ST.MANK.add('atis')}if(k=='ab0_4'&&wxAt(F.__dep&&F.__dep[3])&&F.__dep){F.atis=CAM.atisText(wxAt(F.__dep[3]),F.__dep,F.ab0_4)+(F.__taf?'\n'+F.__taf:'');const ea=FD.find(z=>z.k=='atis');if(ea&&ea.el)ea.el.value=F.atis}
  const d=(ST.MDCON?MFD:FD).find(z=>z.k==k);if(d&&d.el&&d.el!==from&&d.el.value!==v)d.el.value=v;markMan();draw();if(MIR[k]&&ST.DCS[MIR[k].grp])pushOne(k)}
 export function closePilotMenu(){const m=$('pnmenu');if(m)m.remove();document.removeEventListener('mousedown',pnOut,true)}
 export function pnOut(e){const m=$('pnmenu');if(m&&!m.contains(e.target)&&!e.target.classList.contains('pnb'))closePilotMenu()}
@@ -74,7 +74,7 @@ export function pilotMenu(d,inp,btn){const had=$('pnmenu');closePilotMenu();if(h
  m.onclick=e=>{const b=e.target.closest('.pni');if(!b)return;inp.value=b.textContent;setField(d.k,b.textContent,inp);closePilotMenu()};
  setTimeout(()=>document.addEventListener('mousedown',pnOut,true),0)}
 export const GORDER = ['Airbase','Flight','Package','Flightplan','Loadout','Target','EWS','Weapon','Delivery','Support','BVR timeline','Mission','Data link','Audio presets','NAV','Server','Free text'];
-export function buildForm(){const f=$('form');f.innerHTML='';const gr0={},seen=new Set();(ST.MDCON?MFD:FD).forEach(d=>{if(seen.has(d.k))return;seen.add(d.k);(gr0[d.grp]=gr0[d.grp]||[]).push(d)});const gr={};[...GORDER,...Object.keys(gr0)].forEach(g=>{if(gr0[g]&&!gr[g])gr[g]=gr0[g]});
+export function buildForm(){const f=$('form');f.innerHTML='';const gr0={},seen=new Set();(ST.MDCON?MFD:FD).forEach(d=>{if(seen.has(d.k)||d.k=='ldsel'&&!CYC.ldsel)return;seen.add(d.k);(gr0[d.grp]=gr0[d.grp]||[]).push(d)});const gr={};[...GORDER,...Object.keys(gr0)].forEach(g=>{if(gr0[g]&&!gr[g])gr[g]=gr0[g]});
  for(const g in gr){const dt=document.createElement('details');dt.innerHTML='<summary>'+g+'</summary>';const w=document.createElement('div');
   const cols=g=='Flightplan'?8:g=='Airbase'||g=='Flight'||g=='Package'?7:4;
   w.className='gr';w.style.gridTemplateColumns=`repeat(${cols},1fr)`;
@@ -117,6 +117,7 @@ export async function init4() {
   add('free','Notes (airfield frequencies / backup)',1272,998,320,'Free text');
   add('eph','Ephemerides (Sun / Moon)',1272,1153,320,'Free text');
   [1,2].forEach(n=>{CYC[`wp${n}_mode`]=['CCRP','CCIP'];CYC[`wp${n}_fuze`]=['NSTL','NOSE','TAIL'];CYC[`wp${n}_sgl`]=['SGL','PAIR']});
+  add('ldsel','Loadout of aircraft',1020,67,85,'Loadout');   // only used when the aircraft of the flight carry different loadouts: a list of the groups (CYC.ldsel, set when a flight is applied)
   for(let i=0;i<4;i++)CYC[`bv${i}_0`]=BVR_CLASSES.map(c=>c.n);
   CYC.tospec=['AB','MIL']; // a click on TO Spec switches afterburner / military power take-off (the angle follows the aircraft)
   try{TOPOWER=localStorage.getItem('bmstopower')==='mil'?'mil':'ab'}catch(e){}

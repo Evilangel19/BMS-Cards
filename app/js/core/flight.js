@@ -36,4 +36,9 @@ function nearObj(C,x,y,km=3){let b=null,bd=km;C.D.ob.forEach(o=>{const d=Math.hy
 const mach=(gs,alt)=>{const T=Math.max(216.65,288.15-0.0019812*alt);return gs/(38.967854*Math.sqrt(T))};
 const els0=(C,f)=>{const P=C.byId[f.pkg.n+':'+f.pkg.c];return(P&&P.els||[]).map(e=>C.byId[e.n+':'+e.c]).filter(Boolean)};
 function totMs(C,f){const B=[0,1,2,3,4,7,8],a=f.wps.find(p=>!B.includes(p.act)&&p.arr)||f.wps.find(p=>p.arr);return a?a.arr:0}
-export {ord,isHiFi,isHeli,locBE,fac,actName,acOf,csOf,nAcf,opWin,rmf,FORMS,hms,tcnStr,listFlights,clean,nearAb,nearObj,mach,els0,totMs};
+// The loadouts of a flight: one list when all aircraft share it, else one per aircraft (up to 4). Aircraft with the same loadout form one group: [{ac:[1,2], ids, cn, label:'A/C 1-2'}].
+const loadGroups=f=>{const n=Math.max(1,Math.min(4,nAcf(f))),L=f.loads||[],key=l=>l?l.ids.join()+'|'+l.cn.join():'',G=[];
+ for(let i=0;i<n;i++){const l=L.length>1?(L[i]||L[L.length-1]):L[0],k=key(l);let g=G.find(x=>x.k==k);if(!g){g={k,ac:[],l:l||{ids:[],cn:[]}};G.push(g)}g.ac.push(i+1)}
+ const rg=a=>a.every((v,i)=>!i||v==a[i-1]+1)?(a.length>1?a[0]+'-'+a[a.length-1]:''+a[0]):a.join(',');
+ return G.map(g=>({ac:g.ac,ids:g.l.ids,cn:g.l.cn,label:'A/C '+rg(g.ac)}))};
+export {loadGroups,ord,isHiFi,isHeli,locBE,fac,actName,acOf,csOf,nAcf,opWin,rmf,FORMS,hms,tcnStr,listFlights,clean,nearAb,nearObj,mach,els0,totMs};

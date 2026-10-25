@@ -12,7 +12,7 @@ export const BOX = {atis:[30,76],roe:[918,982],free:[986,1134],eph:[1138,1196]};
 export const boxOf = d=>{if(d.mdc)return{x:d.x,y:d.y0,w:d.w,h:d.h};const b=BOX[d.k],yc=(YC&&YC[d.k]!==undefined)?YC[d.k]:d.y;return b?{x:d.x,y:b[0],w:d.w,h:b[1]-b[0]}:{x:d.x,y:yc-12,w:d.w,h:24}};
 export const cardOn=()=>{try{return $('cv').getContext('2d').getImageData(2,2,1,1).data[3]>0}catch(e){return false}};
 export function cellAt(ev){if(!cardOn())return null;const c=$('cv'),r=c.getBoundingClientRect(),tx=(ev.clientX-r.left)/r.width*2048/SX,ty=(ev.clientY-r.top)/r.height*2048/SY;let best=null,ba=1e12;
- (ST.MDCON?MFD:FD).forEach(d=>{const b=boxOf(d);if(tx>=b.x&&tx<=b.x+b.w&&ty>=b.y&&ty<=b.y+b.h&&b.w*b.h<ba){ba=b.w*b.h;best=d}});return best}
+ (ST.MDCON?MFD:FD).forEach(d=>{if(d.k=='ldsel'&&!CYC.ldsel)return;const b=boxOf(d);if(tx>=b.x&&tx<=b.x+b.w&&ty>=b.y&&ty<=b.y+b.h&&b.w*b.h<ba){ba=b.w*b.h;best=d}});return best}
 export function place(el,d,minW,pad){const c=$('cv'),k=c.getBoundingClientRect().width/2048,b=boxOf(d);
  el.style.left=(b.x*SX*k-pad)+'px';el.style.top=(b.y*SY*k-pad)+'px';el.style.width=Math.max(b.w*SX*k+2*pad,minW)+'px';el.style.height=(b.h*SY*k+2*pad)+'px'}
 export let EDK = null;
@@ -50,7 +50,7 @@ export const mdcBtn = ()=>{$('mdctog').classList.toggle('on',ST.MDCON);$('mdctog
 export async function init15() {
   document.addEventListener('mousedown',e=>{const m=$('chm');if(m&&m.style.display!=='none'&&!m.contains(e.target)&&e.target.id!=='cv')closeMenu()});
   // yellow marks, over the card in the editor only (never drawn into the canvas, so the kneeboard and the exports stay clean): the cells that are filled from automatic values or chosen from a list
-  ST.hlDraw=()=>{const h=$('cvhl'),c=$('cv');if(!h||!c)return;h.innerHTML='';if(!c.offsetWidth||!cardOn())return;(ST.MDCON?MFD:FD).forEach(d=>{const on=!!CYC[d.k]||d.k=='tospec'||/^bv\d_[1-5]$/.test(d.k)||(/^fl\d_0$/.test(d.k)&&sqPage.roster().length>0)||((d.k=='pri'||d.k=='sec')&&!!ST.C); if(!on)return;const e=document.createElement('i');place(e,d,0,0);h.append(e)})};
+  ST.hlDraw=()=>{const h=$('cvhl'),c=$('cv');if(!h||!c)return;h.innerHTML='';if(!c.offsetWidth||!cardOn())return;(ST.MDCON?MFD:FD).forEach(d=>{const on=!!CYC[d.k]&&d.k!='ldsel'||d.k=='ldsel'&&!!CYC.ldsel||d.k=='tospec'||/^bv\d_[1-5]$/.test(d.k)||(/^fl\d_0$/.test(d.k)&&sqPage.roster().length>0)||((d.k=='pri'||d.k=='sec')&&!!ST.C); if(!on)return;const e=document.createElement('i');place(e,d,0,0);h.append(e)})};
   window.addEventListener('resize',()=>{try{ST.hlDraw()}catch(e){}});
   if(window.ResizeObserver)new ResizeObserver(()=>{try{ST.hlDraw()}catch(e){}}).observe($('cv'));
   try{ST.hlDraw()}catch(e){}

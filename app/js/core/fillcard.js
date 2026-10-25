@@ -1,10 +1,11 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
-import {FORMS,isHiFi,acOf,actName,clean,csOf,els0,hms,locBE,mach,nAcf,nearAb,opWin,rmf,tcnStr} from './flight.js';
+import {FORMS,isHiFi,acOf,actName,clean,csOf,els0,hms,locBE,mach,nAcf,loadGroups,nearAb,opWin,rmf,tcnStr} from './flight.js';
 import {tcnFor} from '../rules/airbase.js';
 import {pickTankers,svc} from '../rules/support.js';
 import {ephem} from '../rules/ephemerides.js';
 import {rackLoad,weaponClass} from '../bmsdata/bmsdata.js';
-function fillCard(C,f){const D=C.D,F={},w=f.wps,S=D.S;
+// ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
+function fillCard(C,f,ld=0){const D=C.D,F={},w=f.wps,S=D.S,LG0=loadGroups(f),LG=LG0[Math.max(0,Math.min(ld|0,LG0.length-1))];if(LG0.length>1)F.ldsel=LG.label;
  const abRow=(i,o)=>{const a=D.ab[o[0]];const f3=v=>v?(v/1000).toFixed(3):'';
   [clean(o[1]),tcnFor(C,o,a),f3(a[12]),f3(a[13]),C.D.el[o[0]]||'','',a[7]?(a[7]/100).toFixed(2):''].forEach((v,j)=>F[`ab${i}_${j}`]=v)};
  const tk=w.find(p=>p.act==1),lands=w.filter(p=>p.act==7),dep=tk&&nearAb(C,tk.x,tk.y),arr=lands[0]&&nearAb(C,lands[0].x,lands[0].y),alt=lands.length>1&&nearAb(C,lands[lands.length-1].x,lands[lands.length-1].y);
@@ -22,10 +23,10 @@ function fillCard(C,f){const D=C.D,F={},w=f.wps,S=D.S;
  {const ty0=acOf(C,f);if(isHiFi(ty0))w.forEach((p,i)=>{if(i<24&&p.act==7){F[`fp${i}_4`]='- / 300';F[`fp${i}_5`]='1500'}})}
  w.forEach((p,i)=>{if(i<24)for(let c=1;c<=7;c++)if(!F[`fp${i}_${c}`])F[`fp${i}_${c}`]='---'});
  {const ti=w.findIndex(p=>p.act==1),li=w.findIndex(p=>p.act==7),hm5=i=>i>=0&&i<24?String(F[`fp${i}_1`]||'').slice(0,5):'';F.to_time=hm5(ti);F.ld_time=hm5(li)}   // take-off and landing time for the top block of the MDC format
- const ws={};(f.loads[0]||{ids:[],cn:[]}).ids.forEach((id,k)=>{const c=f.loads[0].cn[k];if(id&&c&&id!=492){const n=D.wn[id]||'#'+id;ws[n]=(ws[n]||0)+c}});
+ const ws={};LG.ids.forEach((id,k)=>{const c=LG.cn[k];if(id&&c&&id!=492){const n=D.wn[id]||'#'+id;ws[n]=(ws[n]||0)+c}});
  const g={aa:[],ag:[],ecm:[],tanks:[]};Object.entries(ws).forEach(([n,c])=>{const s=c+'x '+n;g[/^AIM|^AA-/i.test(n)?'aa':/tank|fuel|370|300 ?gal|TK/i.test(n)?'tanks':/ALQ|HTS|AAQ|sniper|lantirn|litening|pod|AN\//i.test(n)?'ecm':'ag'].push(s)});
  for(const k in g)F[k]=g[k].join(', ');
- {const L0=f.loads[0]||{ids:[],cn:[]},ty=acOf(C,f).replace(/\s*ROK\w*$/,''),ew=D.ew[ty];let wl=0,dg=0,fu=(D.fi&&D.fi[ty])||7162;L0.ids.forEach((id,k)=>{const c=L0.cn[k],q=D.wt[id];if(id&&c&&id!=492&&q){wl+=q[0]*c;dg+=q[1]*c;if(D.tf[id])fu+=D.tf[id]*c}});
+ {const L0=LG,ty=acOf(C,f).replace(/\s*ROK\w*$/,''),ew=D.ew[ty];let wl=0,dg=0,fu=(D.fi&&D.fi[ty])||7162;L0.ids.forEach((id,k)=>{const c=L0.cn[k],q=D.wt[id];if(id&&c&&id!=492&&q){wl+=q[0]*c;dg+=q[1]*c;if(D.tf[id])fu+=D.tf[id]*c}});
   // the pylons and racks of each station (BmsRack.dat + the hardpoint groups of the aircraft file) weigh and drag too: BMS counts them in Munitions and Drag Factor
   {const hp=D.hp&&D.hp[ty];if(D.rk&&hp)L0.ids.forEach((id,k)=>{const c=L0.cn[k];if(!id||!c||id==492||!hp[k]||hp[k]=='0')return;const r=rackLoad(D.rk,hp[k],id,weaponClass(D.wn[id],!!D.tf[id]));if(r){wl+=r.w;dg+=r.d}})}
   if(ew&&isHiFi(ty)){F.drag=String(dg+1);F.fuel=String(fu);F.gw=String(ew+fu+wl)}}

@@ -890,3 +890,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Squadron: `cropImage(file, size, round, title)` (squadron.js) opens a `.sqcrop` window (260 px canvas, pointer drag, wheel and slider zoom, Whole picture / Fill, Cancel / OK) and resolves to a square data URL or null; logo 192 px, avatar 128 px (round preview), shown at 112 px.
 - Datacard editor: `cardOn()` (editor.js, alpha of the canvas) gates `cellAt` and `ST.hlDraw`; a `ResizeObserver` on `#cv` redraws the yellow marks (also when the page is shown again); marks only the cells with a choice (CYC, tospec, BVR MTR..DOR, pri/sec, roster), no longer the automatically filled ones.
 - Versions: `0.9.9-beta.2`.
+
+## v110 - Beta 3 (in preparation)
+- `loadGroups(f)` (flight.js): the loadouts of a flight (`f.loads` has one entry when the aircraft share it, one per aircraft otherwise) merged into groups of aircraft with the same loadout (`label` 'A/C 1-2'). `fillCard(C, f, ld)` describes group `ld` (rows A-A / A-G / ECM / Tanks, Gross Wgt, Drag, Fuel) and sets `F.ldsel` when there is more than one.
+- Field `ldsel` (Config cell, `CYC.ldsel` set by `apply()` only when there are several groups); `setField('ldsel')` calls `ST.ldSet` (selection.js), which refills the loadout keys, drops their manual marks and runs `perfFill`. The choice is kept per flight in `ST.LDX` (campaign id), cleared with `manClear`. Test: `tools/loadout-test.py` (needs `PSI_BEAR_TRAP_26-double.cam` in the gitignored fixtures).

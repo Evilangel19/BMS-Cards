@@ -27,7 +27,7 @@ try:
         pg.click('[data-t=mp]'); pg.wait_for_timeout(500); pg.click('text=Datacard >> nth=0'); pg.wait_for_timeout(500)
         check('after another page the marks are still inside the card', pg.locator('#cvhl i').count() >= 5 and inside())
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
-        check('the Datacard keeps its own cells (405 fields)', pg.evaluate("__app.FD.length") == 405)
+        check('the Datacard keeps its own cells (406 fields)', pg.evaluate("__app.FD.length") == 406)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
         need = ['cs', 'pkg', 'mis', 'atis', 'ab0_0', 'ab2_6', 'fl0_0', 'fl3_6', 'pk4_6', 'fp0_0', 'fp23_7', 'aa', 'tanks', 'gw', 'bingo', 'joker', 'pri', 'll2', 'ews5', 'wp1_mode', 'wp2_bc', 'dmode', 'dv2', 'ob2', 'dl_rs', 'su4_3', 'sn4', 'bv3_5', 'roe', 'free', 'eph',
                 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav1_2', 'dl0_ndl', 'dl1_dn', 'srv', 'contracts']
