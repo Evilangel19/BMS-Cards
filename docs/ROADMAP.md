@@ -1,6 +1,20 @@
-# BMS Cards: open items (updated 2026-10-21)
+# BMS Cards: open items (updated 2026-10-25)
 
 `main` holds the **0.8 alpha** build until this merge; `dev` was merged into `main` as **0.9 beta** (2026-10-22).
+
+## How to read this list (2026-10-25)
+Labels used for a feature or a number: **Verified** (checked in the game or on real files), **Implemented** (works, not checked in the game yet), **Estimated** (an approximate model of ours, shown as such: DLZ / MAR, time of flight, A-pole / F-pole, fuel plan, radar coverage polygons, JDAM / JSOW ballistics, JTAC choice), **Blocked** (data or knowledge missing: squadron experience, morale, supply, mission rating; the time a unit was spotted), **Deferred / Excluded** (on purpose: briefing import, MDC autofill, Balkans coastlines and AIP, automatic updater, moving the data to a user folder, TURN server unless STUN fails).
+
+| Area | Status |
+|---|---|
+| Korea campaigns, kneeboard per theater, EW radar state, ground unit names, logbook (medals, counters) | Verified / Implemented |
+| Balkans and `.cam` v110, Tactical Engagement | Implemented (few samples) |
+| Friend and foe (map, ATO, support data) | Implemented, one rule since 0.9.9-beta.4 |
+| Objective owners (scenario file under the campaign changes) | Verified on the Bear Trap campaign |
+| Squadron online (WebRTC) | Implemented, field tests with real pilots missing |
+| NAV OFFSETS, DTC writing | Implemented, DED checks open |
+| Weapons / DLZ / Missiles / Performance / Fuel / Radar coverage / Weather | Estimated or Implemented, to be calibrated in the game |
+| HARM TI / GI table, runway headings and lengths | Closed |
 
 ## Decided 2026-10-21 (user)
 Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fine), online backlog (field test only). Done: kneeboard per theater, non-AA unit names, EW radar state, radar coverage OK, Balkans positions OK. Chioggia fixed in code (navaid by OCD class name "Air Nav Beacon"); to confirm on the real PC.
@@ -11,7 +25,7 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 3. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser (the UOAF `bms_html_briefing` project and EZBoards both read it).
 4. Ideas to define with the user: Mil Climb schedule; time at which a unit is spotted; EW radar state of SAM units; names of non-air-defense units (now "ordinal + category + Battalion"); AIP vs game runway length; interpolated terrain elevation (bilinear) if the 3-31 ft differences ever matter.
 5. **BEFORE the 0.9 beta (decided 2026-10-21)**, in this order:
-   a. DONE: warnings for a campaign file newer than 109 and for XML tables without the expected fields.
+   a. DONE: warnings for a campaign file newer than 110 (the highest version checked: Korea files and one Balkans file) and for XML tables without the expected fields.
    b. Other theaters (Balkans), DONE in code 2026-10-21, to check on the real PC: the `.cam` v110 is read with the class table OF THE THEATER (`Falcon4_CT.xml` of its objects folder); map centre from `Theater.txt` (`setGeo`); weather map v5 (5 arrays after the winds); `.tdf` paths written in full no longer get the add-on folder twice; the Korea-only base maps are hidden in other theaters. NOT done: offline coastlines of other theaters (the basemap data covers East Asia only), AIP of other theaters (`KTO_AIP.pdf` is Korea's), the kneeboard folder `KoreaObj`, theater map picture other than a custom import, other theater's `Falcon4_*` tables not found fall back to empty.
    c. DONE (2026-10-21): Tactical Engagement files read like campaigns, with their own menu (see ARCHITECTURE v93). To check on the real PC: TE list in the game's Campaign folder, the DTC `<TE name>.ini` written for a TE, other TEs (weather, several player flights).
    d. DONE (2026-10-22): `app/index.html` split into modules in `app/js/app` (see ARCHITECTURE v99).
@@ -22,22 +36,22 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - Radar coverage (Map > Display > "Radar coverage at 5,000 ft"): compare the polygons with the game's blue circles around fixed stations (read from OCD/FED/FCD; the FCD detection unit is assumed to be km) and with SAM / ship radars; speed with the real HeightMap.raw.
 - Terrain elevation (HeightMap.raw) against the airbase elevations of the AIP; Misdata units; VIP; physical toss; performance numbers; takeoff lift gain (1.43, calibrated on one WDP point: collect heavy-load points).
 - Missiles: 2-3 DLZ readings in the cockpit against Rmax / DLZ / MAR of the Missiles page.
-- Take-off fuel: Min.Fuel never above the fuel on board (legs under 300 kt flown at 300 kt); TO Fuel with 10 min of taxi (~300 lb).
+- Take-off fuel (estimate, decided 2026-10-25: adequate, to be adjusted after many flights in the game): TO Fuel with 10 min of taxi (~300 lb); legs under 300 kt are flown at 300 kt. Min.Fuel may be higher than the fuel on board: the plan then reports a shortage (`short` in `fuelPlan`), it is not cut to the load.
 - Weather: hourly maps (`WeatherMapsUpdates`) and the 10 wind layers (0-50,000 ft) against the game; the Weather tab (conditions, wind barbs, temperature, pressure, clouds, visibility); fuel plan with winds aloft.
-- HARM: Target Isolate / Glide Inhibit as the manual table (default glides and flexes; TI no flex; GI no LOTG but EOMG; both neither). Doubtful: EOMG with TI off and GI on (NC): the forum says yes, one user could not see it. Manual pages 468-474 could not be read from here.
+- HARM: CLOSED 2026-10-25. Target Isolate / Glide Inhibit as the manual table (BMS 4.38 avionics manual, table of 4.2.5.1.4.4): TI and GI off glides and flexes; TI on: no flex; GI on: no LOTG but EOMG (and flex); both on: neither. An in-flight look is welcome but no longer a question of the program.
 - Own satellite layer (Settings): a real provider (address, key, credit, deepest zoom) on the Map, Weapons and Weather pages.
 - Cards in memory (`cardmemory`) come back after a restart; opening a mission file merges its cards.
 - Screenshot angle: proportions on datacard and kneeboard at several angles with the real map.
 - NAV OFFSETS: VIP / VIPPUP / VRP / VRPPUP written as `steerpoint,bearing,range,elevation`; check that VRP / VIP / OA1 / OA2 show in the DED. OA1 button (Weapons) drives the OA1 row.
 - Overwriting the DTC also writes `<campaign name>.ini` and `Autosave.ini`, which BMS loads for a campaign (to confirm in game).
 - Runway length from the objective files: checked on 7 bases (within 0.3%); compare with the AIP of the game; bases without an ATC file get no automatic length.
+- Runway headings: CLOSED 2026-10-25. With an ATC file the heading is the magnetic one of the game (BMS 4.38 keeps them magnetic in the ATC files); without it the program shows number x 10 as an approximation. Parallel runways: the L/R letters are not in the ATC files, so two ends with the same number are shown once (accepted limit).
 - Docs tab, online squadron (missions, leader, roster sync).
 
 ## Assumptions made when reading BMS files (to confirm)
-- Runway headings from the ATC files (no L/R); without an ATC file heading = number x 10 (magnetic or true unknown).
 - Airbase elevation from the AIP table; terrain elevation format deduced (little-endian signed 16-bit feet, one floor sample, no interpolation).
 - Misdata: ownship speed in ft/s, third axis = target altitude, table multiplier; mean missile speed Mach 2.2 (HARM) and 2.5 (BVR); Rmax against aspect is an estimate.
-- Fuel: 10 min idle taxi, 500 lb joker margin, 300 kt floor on slow legs.
+- Fuel: 10 min idle taxi, joker = bingo + 1,000 lb by default (changeable in Performance; the old 500 lb value is converted), 300 kt floor on slow legs; the result is an estimate, not a guarantee.
 - Weather: wind direction is where it comes FROM; layers at 0, 3, 6, 9, 12, 18, 24, 30, 40, 50 thousand ft (BMS manual only); condition 0 sunny, 1 fair, 2 poor, 3 inclement (a few 4s drawn as inclement). The Weather page draws the cells axis-aligned (the real grid is turned by the grid convergence, small); temperature and pressure exist only at the surface; it uses the base map chosen on the Map page.
 - HARM switches from the manual table (BMS 4.38 manual); the side view is schematic.
 - Radar coverage: UCD / FCD `Det_LowAir` taken as km, 4/3 earth radius, 5,000 ft MSL; owners of fixed stations come from the scenario file the campaign was saved from (Save0..5.cam in the Campaign folder; grey only when that file is not found).
@@ -50,11 +64,11 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - 0.9.3-beta (2026-10-23): radio, Link 16 and ICP (Bingo/Alow) in the mission block; receiver's unused steerpoint/nav slots are emptied; preview of changes when loading a shared mission.
 - 0.9.4-beta (2026-10-23): single DTC block for sharing, no Autosave.ini unless the campaign is Autosave, receiver warnings (other DTC than the roster callsign, sections missing, possible incompatibility), delivery answer from the receiver, close warning when the DTC is not written, no half-loaded mission.
 
-## Before 1.0 / when leaving the beta (decided 2026-10-23, not started)
-- Tauri permissions: replace the `**` scope of the fs permissions (read, write, remove, mkdir...) with the folders the program needs (program/data folder, DTC folder, BMS install, mission folders chosen by the user); remove what is not used.
-- CSP: set a restrictive `csp` in `tauri.conf.json` (no `null`); check that nothing needs inline/external scripts beyond what the pages already use; keep `withGlobalTauri` only if still needed.
-- Data folder: move config, missions and backups away from the exe folder to a fixed per-user folder, with a one-time migration of the existing data; decide then whether a portable mode stays.
-- Missions opened by hand: take the DTC name/path only from the user's own DTC folder (no path taken from the file).
+## Before 1.0 / when leaving the beta (decided 2026-10-23, updated 2026-10-25)
+- Tauri permissions: PARTLY DONE (0.9.9-beta.4): writing programs and scripts (exe, dll, bat, ps1, lnk...) and the Windows / Startup folders is denied in `src-tauri/capabilities/default.json`. Still open: replace the `**` allow scope with the folders the program needs; to be done and tested on the real PC (the BMS folder can be anywhere).
+- CSP: decided 2026-10-25: set a restrictive `csp` in `tauri.conf.json` (now `null`) in the LAST beta before the official release, not before. It must allow the map providers (OSM, OpenTopoMap, EOX, s2maps and the user's own satellite layer), `cdn.falcon-bms.com`, the squadron trackers and STUN, `blob:` and `data:` images; keep `withGlobalTauri` only if still needed. Check with every Playwright suite and by hand in the desktop app.
+- Data folder: EXCLUDED (decided 2026-10-25): the program stays portable (config, missions and backups next to the exe); no move to a user folder.
+- Missions opened by hand: DONE (0.9.9-beta.4): the DTC path stored in a mission file is never used (and no longer written); the file name is cleaned (no folders, `.ini` only) and the DTC is written only in the DTC folder of this computer.
 - Not wanted: an automatic updater.
 - 0.9.5-beta (2026-10-23): start-up loading bar and version in the header, received missions saved in the missions folder, primary target and time on station for ON CALL / PRE-PLAN CAS, AI and FAC(A) included in the battalion rule.
 - 0.9.6-beta (2026-10-23): kneeboard Set Default / Load colours, package flights dashed after the first landing, PPT on a SAM can be removed from the map, DTC backups keep the original file name (index.json), window opens maximized again, a mission locks the ATO and map to its own flight, ESCORT primary target names the escorted flights, TE / campaign menu not in use is darkened, MAR credit to Adrian Chițan.
@@ -64,3 +78,5 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - 0.9.9-beta.1 (2026-10-25): offsets on the map: the leader follows a dragged point, clean panel, 'Delete offsets' button on the steerpoint popup (red when it has offsets); Weapons: one 'Clear offsets' button next to Apply (every steerpoint and profile; red when the DTC holds offsets), AD1 / AD2 in the fuze tooltip (AD1 NOSE, AD2 TAIL / NSTL), 'Ripple centre'; Performance: runway drawing of the take-off and landing distances, reset link red; Kneeboard: Load in the common green; Datacard editor: yellow marks on the cells filled automatically or from a list (overlay, not in the kneeboard). Version numbering: 0.9.9-beta.N for the small patches (Cargo and Tauri need three numbers).
 - 0.9.9-beta.2 (2026-10-25): top bar: one 'Open ▾' menu (DTC…, Mission…, Campaign…) instead of three buttons; Datacard: BVR columns of equal width (MAR), pop-up / callsign / fuel / profile-2 cells centred, distances with the unit (ft) in Delivery, 'Automatic rules' tooltip lists every rule, editor box blue; Weapons: the manual card holds only the values to type; Kneeboard: a card dropped between two takes the nearest free slot first, stronger insert bar; Squadron: bigger logos and avatars (112 px, stored 192 / 128), a window to place the picture before it is shrunk (drag, zoom, Whole picture / Fill, Cancel / OK); Datacard editor: yellow marks only on the cells with a choice (lists, CCRP/CCIP, fuze, SGL/PAIR, TO spec, BVR table, primary and secondary, roster), only when a card is shown (also after another page), and the cells of a card that is not shown are not clickable.
 - 0.9.9-beta.3 (2026-10-25): Squadron: the logbook medals and the campaign counters (killed, human kills, friendly kills) are read; Objects on the map split in two sections, Allied objects and Enemy objects (objectives of an owner not known follow either switch), the owner shown in the tooltip; the initial owner of every objective is read from the scenario file the campaign was started from (Save0..5.cam, section obj), under the changes of the campaign: the radar coverage of fixed stations now knows allied and enemy stations; Datacard: a flight whose aircraft carry different loadouts has a list in the Config cell (A/C 1-2, A/C 3-4…, marked in yellow); the loadout rows, gross weight, drag, fuel and the Performance values follow the group chosen.
+
+- 0.9.9-beta.4 (2026-10-25): one rule for friend and foe from the relations of the campaign (`core/coalitions.js`: map, ATO, tankers, JTAC, FAC(A), battalion near a target; the JTAC no longer needs a team of 4 or more); missions: the DTC path of a file is ignored and not written, the DTC name is cleaned; Tauri: writing programs / scripts and system folders denied; Squadron > My pilot redone: rank insignia, statistics in groups (Flying, Kills, Dogfights online and offline, Campaigns) and a medal case with a drawn picture for each of the six medals; HARM and runway headings closed in this list; data folder excluded (portable).
