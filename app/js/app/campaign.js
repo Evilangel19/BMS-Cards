@@ -56,7 +56,7 @@ export const campDir = ()=>ST.CFG.paths.campaigns||(ST.CFG.paths.bmsInstall?jp(S
 export const setSel = n=>{const te=/\.tac$/i.test(n||'');$('csel').value=te?'':(n||'');$('tesel').value=te?n:'';$('csel').classList.toggle('dimsel',!!n&&te);$('tesel').classList.toggle('dimsel',!!n&&!te)};   // the menu not in use is darkened
 export async function fillCampaigns(){
  const sel=$('csel'),tsel=$('tesel'),d=campDir();
- if(!isDesktop()||!d){sel.innerHTML='<option value="">— set the BMS folder in Settings, or use Browse —</option>';tsel.innerHTML='<option value="">— select a tactical engagement —</option>';return}
+ if(!isDesktop()||!d){sel.innerHTML='<option value="">— set the BMS folder in Settings, or use Open ▾ › Campaign —</option>';tsel.innerHTML='<option value="">— select a tactical engagement —</option>';return}
  const all=(await listDir(d)).filter(e=>!e.isDirectory),srt=(a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}),opt=(n,rx)=>`<option value="${n.replace(/"/g,'&quot;')}">${n.replace(rx,'')}</option>`;
  const names=all.filter(e=>/\.cam$/i.test(e.name)&&!/^instant/i.test(e.name)&&!/^save\d+\.cam$/i.test(e.name)).map(e=>e.name).sort(srt),tacs=all.filter(e=>/\.tac$/i.test(e.name)).map(e=>e.name).sort(srt);
  sel.innerHTML='<option value="">— select a campaign —</option>'+names.map(n=>opt(n,/\.cam$/i)).join('');

@@ -882,3 +882,10 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `perfpage.js` `runwayChart()`: take-off lanes (ground roll, to 50 ft, abort at rotation) and landing lanes from a touchdown at 1 000 ft (`TD_FT`), one scale, red beyond the runway length.
 - Datacard editor: `ST.hlDraw()` (editor.js) draws `#cvhl i` boxes over `#cv` for the cells in `CYC`, pri / sec, or with a non-empty `ST.AUTO` value; an overlay on purpose: the kneeboard copies the canvas (`gapless()`).
 - Versions: `0.9.9-beta.1` in version.js, package.json, tauri.conf.json, Cargo.toml.
+
+## v109 - Patch 0.9.9-beta.2
+- Top bar: `#openm` + `#openmenu` (dtcfile.js) click the hidden `#open`, `#msfopen`, `#cam` (their handlers are unchanged); `#cam` is hidden only inside `#mainbar`, it stays visible on the map page.
+- Datacard: BVR cells re-laid in `dctemplate.js` (Class 114, five columns of 42), FD boxes aligned with `CELLS`; RNG / ELV of Delivery carry ' ft'; `Automatic rules` tooltip; editor `#ed` blue.
+- Kneeboard `kbInsert`: nearest free slot of the column takes the shift; the insert bar is 7 px, outside the card.
+- Squadron: `shrinkImage(file, size, fit)` returns a square (`FITS`: whole picture with transparent margins, or fill with centre / top / bottom / left / right kept); `DB.fit` is saved and shared by the `.sqfit` selects; logo 192 px, avatar 128 px, shown at 112 px.
+- Versions: `0.9.9-beta.2`.

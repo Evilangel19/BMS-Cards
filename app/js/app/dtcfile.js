@@ -71,5 +71,6 @@ export async function dtcOverwrite(){
 
 // run 2: statements that run when the program starts (in the order of the original file)
 export async function init2() {
+  {const m=$('openmenu'),b=$('openm'),close=()=>{m.hidden=true};b.onclick=e=>{e.stopPropagation();m.hidden=!m.hidden};m.onclick=e=>{const x=e.target.closest('[data-o]');if(!x)return;close();$(x.dataset.o).click()};document.addEventListener('click',e=>{if(!m.contains(e.target))close()});document.addEventListener('keydown',e=>{if(e.key=='Escape')close()})}
   $('open').onclick=async()=>{const f=await pickFile({exts:['ini'],startDir:dtcDir(),title:'Open DTC'});if(f)openDtc(f)};
 }
