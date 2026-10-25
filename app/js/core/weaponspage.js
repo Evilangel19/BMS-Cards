@@ -350,7 +350,7 @@ export function createWeaponsPage(deps) {
     const nz = v => String(v).replace(/\s+/g, '');
     return w.some(([sec, k, v]) => !exists(sec, k) || nz(deps.G(sec, k, '')) !== nz(v));
   }
-  const btn = () => { if (deps.applyBtn) deps.applyBtn.classList.toggle('nil', !pending()); };
+  const btn = () => { if (deps.applyBtn) deps.applyBtn.classList.toggle('nil', !pending()); if (deps.clearBtn) { let n = false; try { n = !!deps.lines().some(l => l.s == 'NAV OFFSETS') && toClear([]).length > 0; } catch (e) { /* none */ } deps.clearBtn.classList.toggle('nil', !n); } };
 
   // ---------- page ----------
   const seg = (f, opts, cur) => `<span class="seg">${opts.map(([v, l]) => `<button type="button" class="${String(cur) === String(v) ? 'on' : ''}" data-set="${f}" data-v="${v}">${l}</button>`).join('')}</span>`;
@@ -471,7 +471,6 @@ export function createWeaponsPage(deps) {
           ${md == 'popup' ? `<div class="wrow"><label>Profile</label>${seg('profileType', [[1, 'Type 1'], [2, 'Type 2']], i.profileType)}</div>` : ''}
           <div class="wrow"><label>Target STPT <small>${st.src == 'man' ? '1-99' : '1-24'}</small></label><select data-pick="tgt">${tOpts || '<option>none set</option>'}</select></div>
           ${st.src == 'dtc' && !routeOk() ? `<p class="wwarn">The game loads offsets only on the route steerpoints 1-24 (25 is the bullseye). This point is not one, so Apply writes no offsets: add a route steerpoint, or use Manual.</p>` : st.src == 'dtc' ? '' : `<p class="hint">Any steerpoint 1-99, offsets typed in the DED in flight.</p>`}
-          <div class="wrow"><label></label><button class="btn g" type="button" data-clearoff title="Zero every offset row (VIP, VRP, PUP, OA1, OA2) of the DTC: for a mission that needs none">Clear all offsets</button></div>
           <div class="wrow wvip"${st.ref == 'vip' ? '' : ' hidden'}><label>VIP point</label><select data-pick="refpt">${refOpts}</select></div>
           ${md == 'popup' ? `<div class="wvrp"${st.ref == 'vrp' ? '' : ' hidden'}>${slider('vrpToPup', 'VRP to PUP', ' nm', 1)}</div>` : ''}
           <div class="wrow"><label>Range model</label>${seg('rangeModel', [['low_drag', 'Low drag'], ['high_drag', 'High drag']], i.rangeModel)}</div></div>`;
@@ -486,12 +485,12 @@ export function createWeaponsPage(deps) {
           <div class="wrow"><label>Pulses</label><input data-num="ripplePulses" type="number" min="1" max="12" value="${i.ripplePulses}"></div>
           ${slider('stickSpacing', 'Spacing', ' ft', 0)}
           <div class="wrow"><label>Release</label>${seg('releaseMode', [['single', 'Single'], ['pair', 'Pair']], i.releaseMode)}</div>
-          <div class="wrow"><label>Aiming point</label>${seg('stickMode', [['mid', 'Stick centre'], ['start', 'First bomb']], i.stickMode)}</div>
+          <div class="wrow"><label>Aiming point</label>${seg('stickMode', [['mid', 'Ripple centre'], ['start', 'First bomb']], i.stickMode)}</div>
           <div class="wrow"><label>Bomb profile</label>${seg('fzprof', [[1, '1'], [2, '2']], st.fz.prof)}<span class="hint">Apply writes into it</span></div>
           <div class="wrow"><label>Fuze</label>${seg('fzmode', [['c1', 'C1 · GP / GBU'], ['c2', 'C2 · CBU']], st.fz.mode)}</div>
           <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div><p class="hint wguide"${guided() ? '' : ' hidden'}>${GUIDED_NOTE}</p><div class="wads"${guided() ? ' hidden' : ''}>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div></div>
           <div class="wfz" data-m="c2"${st.fz.mode == 'c2' ? '' : ' hidden'}><div class="wrow"><label>Weapon</label><select data-pick="cbu">${Object.keys(BD).map(k => `<option${k === st.fz.cbu ? ' selected' : ''}>${esc(k)}</option>`).join('')}</select></div>${fzSlider('c2ad', 'AD1')}${fzSlider('c2ba', 'Burst alt.')}</div>
-          <p class="hint wnote">Arming delay: seconds after release. Burst altitude: ft above the target.</p></div>`;
+          <p class="hint wnote">Arming delay: seconds after release. AD1 is used with the NOSE fuze, AD2 with TAIL or NSTL (TO 4.2.7.6.10). Burst altitude: ft above the target.</p></div>`;
       const PL = ctx.TA.filter(x => x.v.startsWith('ppt:')), pDef = PL.find(x => x.ringFt > 0);
       const matCard = `<div class="wcard"><h3>MAT · SAM standoff</h3><div class="wrow"><label>MAT</label><span class="seg">${[[0, 'Off'], [1, 'On']].map(([v, l]) => `<button type="button" class="${st.mat.on == v ? 'on' : ''}" data-mat="on" data-v="${v}">${l}</button>`).join('')}</span></div>
         ${st.mat.on ? `<div class="wrow"><label>SAM (PPT)</label><select data-mat="ppt">${PL.map(x => `<option value="${x.v}"${(st.mat.ppt ? st.mat.ppt === x.v : x === pDef) ? ' selected' : ''}>${esc(x.label)}${x.ringFt ? ' · ' + (x.ringFt / FT_NM).toFixed(0) + ' nm' : ' · no ring'}</option>`).join('') || '<option>no PPT in the DTC</option>'}</select></div>
@@ -563,7 +562,6 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (st.mode == b.dataset.mode) return; st.mode = b.dataset.mode; st.applied = st.cleared = null; save(); draw(false); });
     const eb = root.querySelector('[data-edit]'); if (eb) { const lab = () => { const o = deps.isEdit && deps.isEdit(); eb.textContent = 'Edit points: ' + (o ? 'On' : 'Off'); eb.classList.toggle('on', !!o); }; eb.onclick = () => { if (deps.toggleEdit) deps.toggleEdit(); lab(); }; lab(); }
     const po = root.querySelector('[data-planonly]'); if (po) { const LAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; po.onclick = () => { const m = deps.cyclePlan ? deps.cyclePlan() : 0; po.textContent = LAB[m]; }; po.textContent = LAB[deps.planMode ? deps.planMode() : 0]; }
-    const co = root.querySelector('[data-clearoff]'); if (co) co.onclick = clearAll;
     const fb = root.querySelector('[data-fit]'); if (fb) fb.onclick = () => { fit = true; if (res && !res.error && M) drawMap(res); };
     root.querySelectorAll('input[data-num]').forEach(inp => inp.onchange = () => { const f = inp.dataset.num, n = Math.round(+inp.value); if (!(n >= 1 && n <= 24)) { inp.value = cur()[f]; return; } cur()[f] = n; inp.value = n; st.applied = st.cleared = null; upd(); });
     root.querySelectorAll('select[data-pick]').forEach(s => s.onchange = () => { if (s.dataset.pick == 'bomb') { st.bomb = s.value; save(); draw(true); return; } if (s.dataset.pick == 'cbu') { st.fz.cbu = s.value; save(); draw(true); return; } if (s.dataset.pick == 'refpt') st.refPt = s.value; else st.tgt = s.value; fit = true; st.applied = st.cleared = null; upd(); });
@@ -580,5 +578,5 @@ export function createWeaponsPage(deps) {
   // for the tests: what the lethality analysis found and how many lethal circles the map holds
   if (deps.offs) deps.offs.onChange(() => { st.applied = st.cleared = null; if (!deps.root.closest('.hide') && ctx) { try { draw(true); } catch (e) { /* none */ } } });
   const lethal = () => res && res.an ? {env: res.an.env, mra: res.an.mra, below: res.an.below, viol: res.an.viol, flags: res.an.flags, circles: lethN} : null;
-  return {lethal, refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
+  return {lethal, refresh, render: () => { if (deps.root.closest('.hide')) return; draw(false); }, leave: () => { detachMap(); if (deps.harm) deps.harm.leave(); document.body.classList.remove('onharm'); }, setElev: f => { deps.elev = f; elKey = ''; draw(true); }, state: () => st, btn, clearAll, setState: o => { if (o && typeof o == 'object') { st = {...st, ...o}; save(); refresh(); } }, spec, apply, card: () => st.card};
 }

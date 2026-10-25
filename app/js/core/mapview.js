@@ -811,9 +811,10 @@ export function createMap(host, deps) {
       const rp = OFFR.find(x => x.n == +n); if (!rp) return; const at = neOf(rp.ll), p = deps.offs.get(+n, at);
       OFF_KEYS.forEach(([k, lab]) => {
         const q = p[k]; if (!q) return; const ll = posLL(q), c = OFF_COLORS[k];
-        L.polyline([rp.ll, ll], {renderer: PR, color: c, weight: 1.5, opacity: .8, dashArray: '4 4', interactive: false}).addTo(G.off);
+        const ln = L.polyline([rp.ll, ll], {renderer: PR, color: c, weight: 1.5, opacity: .8, dashArray: '4 4', interactive: false}).addTo(G.off);
         const mk = L.marker(ll, {icon: L.divIcon({className: 'offp', html: `<i style="background:${c}"></i><b>${lab} · ${n}</b>`, iconSize: [0, 0]}), draggable: true, zIndexOffset: 900, keyboard: false}).addTo(G.off);
-        mk.on('dragend', () => { const g = mk.getLatLng(), np = neOf([g.lat, g.lng]); deps.offs.set(+n, at, k, {...np, alt: undefined}); offElev(+n, at, k, np); });
+        mk.on('drag', () => ln.setLatLngs([rp.ll, mk.getLatLng()]));   // the leader follows the point while it is dragged
+        mk.on('dragend', () => { const g = mk.getLatLng(), np = neOf([g.lat, g.lng]); deps.offs.set(+n, at, k, {...np, alt: undefined}); offDraw(); offElev(+n, at, k, np).then(offDraw); });
         mk.bindTooltip(`${lab} of STPT ${n}: drag to move`, {direction: 'top', offset: [0, -6]});
       });
     });
@@ -831,8 +832,9 @@ export function createMap(host, deps) {
   // a handler that redraws the popup runs after the click has finished (the clicked button is gone by then, and the click must not reach the map and close the popup)
   const later = f => ev => { ev.stopPropagation(); setTimeout(f, 0); };
   function stpPopup(html, p, mk) {
-    const d = document.createElement('div'); d.innerHTML = html + (deps.offs && p.n >= 1 && p.n <= 24 ? '<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map">Offsets</button></div>' : '');
+    const d = document.createElement('div'); d.innerHTML = html + (deps.offs && p.n >= 1 && p.n <= 24 ? `<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map">Offsets</button><button class="btn g rd${Object.keys(deps.offs.get(p.n, neOf(p.ll))).length ? '' : ' nil'}" type="button" data-a="offdel" title="Delete every offset of this steerpoint">Delete offsets</button></div>` : '');
     const b = d.querySelector('[data-a=offs]'); if (b) b.onclick = later(() => offPanel(d, p, mk));
+    const dl = d.querySelector('[data-a=offdel]'); if (dl) dl.onclick = later(() => { if (dl.classList.contains('nil')) return; deps.offs.clear(p.n); offDraw(); map.closePopup(); mk.openPopup(); });
     if (OFFRE === p.n) { OFFRE = 0; offPanel(d, p, mk); }
     return d;
   }
@@ -841,7 +843,7 @@ export function createMap(host, deps) {
     const paint = () => {
       const rows = OFF_KEYS.map(([k, lab]) => { const q = line(k), r = q ? offsetRow(at, q) : null;
         return `<tr><td style="color:${OFF_COLORS[k]};font-weight:600">${lab}</td><td>${r ? String(r.brg.toFixed(1)).padStart(5, '0') + '° · ' + r.rng.toLocaleString('en-US') + ' ft' : '<span class="hint">not placed</span>'}</td><td>${q && k != 'vip' ? `<input type="number" data-el="${k}" value="${q.alt !== undefined ? q.alt : ''}" placeholder="elev" style="width:62px" title="Elevation (ft MSL) written with the offset: from the terrain, editable"> ft` : ''}</td><td><button class="btn g" type="button" data-pl="${k}">${q ? 'Move' : 'Place'}</button>${q ? `<button class="btn g" type="button" data-rm="${k}" title="Remove">×</button>` : ''}</td></tr>`; }).join('');
-      d.innerHTML = `<div><b>Steerpoint ${p.n} · offsets</b></div><table class="dt moff">${rows}</table><div class="hint" style="min-height:0">Bearing and range from the steerpoint. Press Place, then click the map; drag a point to move it. The Weapons page shows them and Apply writes them into the DTC.</div><div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-bk>Back</button></div>`;
+      d.innerHTML = `<div><b>Steerpoint ${p.n} · offsets</b></div><table class="dt moff">${rows}</table><div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-bk>Back</button></div>`;
       d.querySelectorAll('[data-pl]').forEach(b => b.onclick = later(() => { OFFP = {n: p.n, at, key: b.dataset.pl, mk}; map.closePopup(); map.getContainer().style.cursor = 'crosshair'; toast('Click the map to place ' + OFF_KEYS.find(z => z[0] == b.dataset.pl)[1] + ' of STPT ' + p.n + ' (Esc cancels).'); }));
       d.querySelectorAll('[data-rm]').forEach(b => b.onclick = later(() => { deps.offs.remove(p.n, at, b.dataset.rm); offDraw(); paint(); }));
       d.querySelectorAll('[data-el]').forEach(i => i.onchange = () => { const q = line(i.dataset.el); if (q) deps.offs.set(p.n, at, i.dataset.el, {n: q.n, e: q.e, alt: i.value === '' ? undefined : +i.value}); });

@@ -140,6 +140,7 @@ export async function init3() {
   onCloseGuard(async()=>!unsaved()||await confirm('There are changes not saved in a mission (and not written to the DTC). Close the program anyway?'),unsaved);
   $('msfopen').onclick=async()=>{const f=await pickFile({exts:['bcrd'],startDir:MSFDIR||ST.CFG.paths.missions||'',title:'Open a mission'});if(f)msfLoad(await f.text(),f)};
   $('wpapply').onclick=()=>{if($('wpapply').classList.contains('nil'))return;ST.wpPage.apply()};
+  $('wpclear').onclick=()=>{if($('wpclear').classList.contains('nil'))return;ST.wpPage.clearAll()};
   $('saveow').onclick=dtcOverwrite;
   $('dtcrev').onclick=dtcRevert;
 }
