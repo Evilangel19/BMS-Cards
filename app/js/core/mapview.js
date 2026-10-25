@@ -174,7 +174,7 @@ export function createMap(host, deps) {
     const se = bar.querySelector('[data-row=se]'), sx = bar.querySelector('[data-row=sx]'), ff = bar.querySelector('[data-row=ff]'), fs = bar.querySelector('[data-row=fs]');
     if (se && sx) { ltxt(se.querySelector('.lt'), SAMTXT.se[st.on.sx ? 1 : 0]); se.classList.toggle('fl', !!st.on.sx); ltxt(sx.querySelector('.lt'), SAMTXT.sx + (st.on.sx && !deps.getSel() ? ' (select a flight)' : '')); }
     const uf = bar.querySelector('[data-row=uf]'), sj = bar.querySelector('[data-row=sj]');
-    if (uf && sj) { ltxt(uf.querySelector('.lt'), SAMTXT.uf[st.on.sj ? 1 : 0]); uf.classList.toggle('fl', !!st.on.sj); ltxt(sj.querySelector('.lt'), SAMTXT.sj + (st.on.sj && !jtacOf() ? ' (select a CAS flight)' : '')); }
+    if (uf && sj) { ltxt(uf.querySelector('.lt'), SAMTXT.uf[st.on.sj ? 1 : 0]); uf.classList.toggle('fl', !!st.on.sj); ltxt(sj.querySelector('.lt'), SAMTXT.sj + (st.on.sj && !jtacOf() ? (deps.getSel() ? ' (no JTAC for this flight)' : ' (select a CAS flight)') : '')); }
     if (ff && fs) { ltxt(ff.querySelector('.lt'), SAMTXT.ff[st.on.fs ? 1 : 0]); ff.classList.toggle('fl', !!st.on.fs); ltxt(fs.querySelector('.lt'), SAMTXT.fs); }
   }
   function toggleSec(h) {
@@ -703,10 +703,10 @@ export function createMap(host, deps) {
   // the JTAC unit of the selected flight (CAS missions): the same rule as the datacard
   function jtacOf() { const C = deps.getC(), f = deps.getSel(); if (!C || !f) return null; try { const b = jtacPick(C, f); return b ? b.u : null; } catch (e) { return null; } }
   function unitVis() {
-    const jt = st.on.sj ? jtacOf() : null;
-    UL.filter(m => !m.sam && m.ally && m.mk).forEach(m => { if (!jt || m.u === jt) G.uf.addLayer(m.mk); else G.uf.removeLayer(m.mk); });   // "JTAC only": that unit alone
+    const sj = !!st.on.sj, jt = sj ? jtacOf() : null;
+    UL.filter(m => !m.sam && m.ally && m.mk).forEach(m => { if (!sj || m.u === jt) G.uf.addLayer(m.mk); else G.uf.removeLayer(m.mk); });   // "JTAC only": that unit alone - and none when the flight has no JTAC
     UL.filter(m => m.sam && m.mk).forEach(m => {
-      const on = m.ally ? (st.on.uf || st.on.sf) : (st.on.ue || (st.on.se && (!SX || m.hit)));
+      const on = m.ally ? ((st.on.uf && !sj) || st.on.sf) : (st.on.ue || (st.on.se && (!SX || m.hit)));   // allied air defense: not part of "JTAC only" (its own range switch still shows it)
       if (on) G.su.addLayer(m.mk); else G.su.removeLayer(m.mk);
     });
   }
@@ -751,7 +751,7 @@ export function createMap(host, deps) {
       for (let k = 1; k <= 9; k++) { const q = flightState(f, C.now - k * 10000); if (!q) break; back.push(q.ll); }
       if (back.length > 1 && pal === PAL.game) L.polyline(back, {color: '#000', weight: 6.2, opacity: 1, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
       if (back.length > 1) L.polyline(back, {color: col, weight: 3, opacity: .85, lineCap: 'round', dashArray: '0.1 7', interactive: false}).addTo(g);
-      const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x=".35" y=".35" width="13.3" height="13.3" class="ol"/><rect x="3.65" y="3.65" width="6.7" height="6.7" class="ol"/><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
+      const html = `<svg width="14" height="14" viewBox="0 0 14 14"><rect x=".25" y=".25" width="13.5" height="13.5" class="ol"/><rect x="2.75" y="2.75" width="8.5" height="8.5" class="ol"/><rect x="2" y="2" width="10" height="10" class="${f === sel ? 'sel' : ''}${deps.canSelect && !deps.canSelect(f) ? ' ns' : ''}" style="--c:${col}"/></svg><span class="trl" style="color:${col};--c:${col}">${deps.esc(info.cs)}<br>${String(fl).padStart(3, '0')} ${s.gsKt}</span>`;
       L.marker(s.ll, {icon: L.divIcon({className: ally ? 'trk al' : 'trk', html, iconSize: [14, 14]}), zIndexOffset: 500, keyboard: false})
         .on('click', () => { if (ally && deps.selectFlight) deps.selectFlight(f); })   // an enemy flight cannot be selected: no flight plan, no datacard
         .bindTooltip(deps.esc(info.text) + '<br>FL' + String(fl).padStart(3, '0') + ' · ' + s.gsKt + ' kt · ' + Math.round(s.hdg) + '°', {direction: 'right', offset: [10, 0]}).addTo(g);

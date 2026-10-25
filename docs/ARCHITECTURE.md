@@ -933,3 +933,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Map: `mapUnits` adds `carrier` {name, tcn, uhf}; the unit symbol is the `carrier` glyph (flat deck and island) and the tooltip carries name, TACAN and UHF.
 - Mission file: `snapshotCampaign` takes the squadrons based on the ships it contains (without them a restored campaign could not tell the ship is a base) and `objFeat` (damage of the objectives, campaign ids); `restoreCampaign` rebuilds both. Test: `tests/run-carriers.mjs` and the new checks of `tests/run-mission.mjs`.
 
+## v116 - Patch 0.9.9-beta.9
+
+- `unitVis`: with the JTAC switch (`sj`) on, allied non-SAM units are shown only when they are the JTAC unit of the selected flight (`jtacPick`, rule unchanged), so none when there is no JTAC; allied SAM / SHORAD units follow `sf` only while `sj` is on. The row label says `(select a CAS flight)` without a selected flight and `(no JTAC for this flight)` with one.
+- BMS colours: the old `drop-shadow` filter of `.trk.al` is gone; the coloured square is 11 x 11 (CSS geometry on `#mpbody.game`), the two black rects (`ol`) are 0.9 px wide, outside and inside it.
+
