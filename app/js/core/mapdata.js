@@ -26,15 +26,17 @@ export function fmtLL(lat, lon) {
 const NAV = /\b(VOR|VORTAC|TACAN|NDB|DME)\b/, SHIP = /^(USS|TAKR|CV-|CVN|LHD|LHA|HMS|JS )/;
 export function mapAirbases(D) {
   const nb = D.navOcd || [];   // objective classes named like a navigation beacon in the OCD file ("Air Nav Beacon")
-  return D.ob.filter(o => D.ab[o[0]]).map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : nb.includes(o[4]) ? 'vordme' : ''}));
+  // airfields without a row in the Stations table (no frequencies, e.g. a Japanese airport of the Korea theater) are still airfields when the name carries an ICAO code: one marker for each code not already there
+  const icao = o => (String(o[1]).match(/\(([A-Z]{4})\)/) || [])[1], have = new Set(D.ob.filter(o => D.ab[o[0]]).map(icao).filter(Boolean));
+  const list = D.ob.filter(o => { if (D.ab[o[0]]) return true; const c = icao(o); if (!c || have.has(c) || NAV.test(o[1])) return false; have.add(c); return true; });
+  return list.map(o => ({id: o[0], name: clean(o[1]), ll: toLL(o[2], o[3]), kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab', sub: /VORTAC/.test(o[1]) ? 'vortac' : /TACAN/.test(o[1]) ? 'tacan' : /VOR/.test(o[1]) ? (/DME/.test(o[1]) ? 'vordme' : 'vor') : /DME/.test(o[1]) ? 'dme' : /NDB/.test(o[1]) ? 'ndb' : nb.includes(o[4]) ? 'vordme' : ''}));
 }
 
-// Team that owns an airbase (objective id), or null when the campaign file does not say: the owner recorded in the objective deltas,
-// else the owner of a squadron based there. (Initial owners of untouched objectives are in the theater files, not in the campaign.)
+// Team that owns an objective (campaign id of the theater files), or null when not known: the owners are read from the scenario file of the campaign (cam-core initialOwners)
+// under the changes of the campaign file; without that file nothing is known (the numbering of the campaign file is another one, so squadrons cannot stand in).
 export function airbaseOwner(C, id) {
-  if (!C) return null;
-  if (C.objOwn && C.objOwn.has(id)) return C.objOwn.get(id);
-  const q = C.units.find(u => u.kind == 'sqd' && u.airbase && u.airbase.n == id); return q ? q.owner : null;
+  if (!C || !C.objOwn) return null;
+  return C.objOwn.has(id) ? C.objOwn.get(id) : null;
 }
 // 'own' = the viewed team, 'ally', 'enemy', or 'unknown'
 export const airbaseSide = (C, id, view) => { const o = airbaseOwner(C, id); return o == null || o == 0 ? 'unknown' : o == view ? 'own' : allyOf(C, o, view) ? 'ally' : hostileOf(C, o, view) ? 'enemy' : 'neutral'; };

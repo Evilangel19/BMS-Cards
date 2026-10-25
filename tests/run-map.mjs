@@ -114,9 +114,10 @@ ck('SAM crossing: range circle touching a leg', crossesRoute(rt, 50, 40, 41) && 
   const subs = new Set(mapAirbases(CAM.D).map(a => a.sub)); ck('navaid sub types incl. TACAN (own icon, not VORTAC)', subs.has('tacan') && subs.has('vortac') && subs.has('vor'));
   ck('NDB icon: dotted rings; TACAN icon: three-lobed outline', placeIcon('nav', 'ndb').html.includes('class="dr"') && placeIcon('nav', 'tacan').html.includes('M1.5 8.6') && placeIcon('ab', '', '#3ddc84').html.includes('--c:#3ddc84'));
   const C0 = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))), CAM.D, 'x.cam');
+  { const sv = new URL('./fixtures/saves/Save1.cam', import.meta.url); if (fs.existsSync(sv)) CAM.initialOwners(C0, new Uint8Array(fs.readFileSync(sv))); }   // EvilKorea starts from Save1: the changes of the campaign are keyed by another id and need that file
   const sides = new Set(mapAirbases(CAM.D).filter(a => a.kind == 'ab').map(a => airbaseSide(C0, a.id, C0.playerTeam)));
-  { const st = [...C0.objFeat.values()].map(f => objState(f)); ck('objective states from the feature statuses: intact, damaged and destroyed all occur', C0.objFeat.size == C0.objOwn.size && [0, 1, 2].every(v => st.includes(v)) && objState(new Uint8Array([0, 3, 3])) == 1 && objState(new Uint8Array([3, 3])) == 2 && objState(new Uint8Array([0, 6])) == 0 && objState(undefined) == 0); }
-  ck('airbase owners from the objective deltas / squadrons: some known, some not', C0.objOwn.size > 300 && sides.has('unknown') && sides.size >= 2);
+  { const st = [...C0.objFeat.values()].map(f => objState(f)); ck('objective states from the feature statuses: intact, damaged and destroyed all occur', C0.objFeat.size > 100 && [0, 1, 2].every(v => st.includes(v)) && objState(new Uint8Array([0, 3, 3])) == 1 && objState(new Uint8Array([3, 3])) == 2 && objState(new Uint8Array([0, 6])) == 0 && objState(undefined) == 0); }
+  ck('airbase owners from the scenario file under the changes: own, allied and enemy bases occur, all known', C0.objOwn.size === 5999 && !sides.has('unknown') && sides.has('enemy') && sides.size >= 3);
 }
 {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/beartrap/PSI_BEAR_TRAP_26.cam', import.meta.url))), CAM.D, 'x');

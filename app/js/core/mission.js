@@ -37,7 +37,7 @@ export function snapshotCampaign(C, f, {radiusNm = 60} = {}) {
   add(C.units.find(u => u.kind === 'sqd' && u.id.n === C.playerSq));
   const units = [...take.values()];
   return {name: C.name, bull: C.bull, now: C.now, playerSq: C.playerSq, playerTeam: C.playerTeam, stance: C.stance, squads: C.squads,
-    objOwn: C.objOwn instanceof Map ? [...C.objOwn] : C.objOwn, radiusNm, flight: key(f.id), units: JSON.parse(JSON.stringify(units))};
+    objOwn: C.objOwn instanceof Map ? [...C.objOwn] : C.objOwn, objKey: 'camp', radiusNm, flight: key(f.id), units: JSON.parse(JSON.stringify(units))};
 }
 
 // a campaign object the datacard code can use (D: the static game tables of the program)
@@ -45,7 +45,7 @@ export function restoreCampaign(snap, D) {
   const units = snap.units.map(u => JSON.parse(JSON.stringify(u))), byId = {};
   units.forEach(u => { byId[key(u.id)] = u; });
   return {units, byId, D, bull: snap.bull, now: snap.now, playerSq: snap.playerSq, playerTeam: snap.playerTeam, stance: snap.stance, squads: snap.squads,
-    objOwn: new Map(Array.isArray(snap.objOwn) ? snap.objOwn : Object.entries(snap.objOwn || {})), parse: {count: units.length, standalone: true}, name: snap.name || ''};
+    objOwn: snap.objKey === 'camp' ? new Map(Array.isArray(snap.objOwn) ? snap.objOwn : Object.entries(snap.objOwn || {})) : new Map(), /* an older mission keyed the owners by entity id: not usable */ parse: {count: units.length, standalone: true}, name: snap.name || ''};
 }
 export const snapshotFlight = (C, snap) => C.byId[snap.flight];
 
