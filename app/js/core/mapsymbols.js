@@ -51,5 +51,5 @@ export function placeIcon(kind, sub, color) {
   else if (sub == 'ndb') g = '<circle cx="9" cy="9" r="8" class="dr" stroke-dasharray="0.01 1.5"/><circle cx="9" cy="9" r="6.2" class="dr" stroke-dasharray="0.01 1.35"/><circle cx="9" cy="9" r="4.4" class="dr" stroke-dasharray="0.01 1.2"/><circle cx="9" cy="9" r="2.4" class="fr" style="fill:#0d1b2a"/><circle cx="9" cy="9" r=".8" class="f"/>';
   else if (sub == 'tacan') g = '<path d="M1.5 8.6L4.4 3.2L7.3 5.1H10.7L13.6 3.2L16.5 8.6L12.9 12.2V16.3H5.1V12.2Z" class="fr"/><circle cx="9" cy="9.4" r="1.4" class="f"/>';
   else g = '<path d="M5 3.5H13L16.5 9L13 14.5H5L1.5 9Z" class="fr"/><circle cx="9" cy="9" r="1.4" class="f"/>';
-  return {w: 18, h: 18, html: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"${kind == 'ab' ? ' class="ab"' : ''} style="--c:${color || (kind == 'ab' ? '#e6edf3' : '#6cb6ff')}">${g}</svg>`};
+  return {w: 18, h: 18, html: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"${kind == 'ab' ? ' class="ab"' : ''} style="--c:${color || (kind == 'ab' ? '#e6edf3' : '#6cb6ff')}"><g class="ol">${g}</g>${g}</svg>`};
 }

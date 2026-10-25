@@ -921,3 +921,9 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Steerpoint vs airfield (investigation, no change): flight waypoints are campaign positions in whole km; the first waypoint of a flight leaving an airfield equals floor() of the exact coordinates of the objective in the theater file (`D.ob`), so the plan can be up to 1.4 km away from the airfield symbol, which is drawn at the exact position.
 - `medals.js`: `eagleH` (heraldic eagle, 100 x 60 box, optional branch + arrows or lightning bolts), `leafP` (faceted oak leaf) are shared by the ranks and the medals.
 
+## v114 - Patch 0.9.9-beta.7
+
+- Object filters are `o<type>` again (section `Objects`, macro switch); `migrate` merges the `oa/oe/ox<type>` keys of beta 5-6 into them. The owner only decides the tooltip text. An objective with an airfield symbol (types 1 and 2, `ABM`) uses that symbol as the click target (`ABACT`) while the Airbases layer is shown. `names` is a section of its own (`Names`) drawn as the last row without a header.
+- BMS colours (`#mpbody.game`): `placeIcon` emits the glyph twice, the first copy in `<g class="ol">` (hidden except on those maps, painted solid black with a 4.4 px black stroke); aircraft squares have an `ol` rect and the vector and dotted trail get a black polyline under them. Airfield colours: `AB_COL` (light maps), `AB_DARK` (white allies), `AB_GAME` (unit cyan / red).
+- Package mates: `.wps.dim b` text is edged with `-webkit-text-stroke` + `paint-order: stroke fill`.
+
