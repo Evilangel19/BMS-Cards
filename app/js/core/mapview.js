@@ -7,7 +7,7 @@ import {objState, featState} from '../parsers/cam.js';
 import {offsetRow} from './popup.js';
 import {OFF_KEYS, OFF_COLORS} from './mapoffs.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
-import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, hostileOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
+import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, airbaseSide, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, hostileOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
 import {getGeo} from '../rules/geo.js';
 import {warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame} from './mapwarp.js';
 import {unitSymbol, placeIcon} from './mapsymbols.js';
@@ -46,7 +46,8 @@ export const MAP_LAYERS = [
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
 const ALLY = '#4f8cff', ENEMY = '#ff5d5d';
 // airbase colours by faction: the viewed team, its allies, enemies, owner not known
-const AB_COL = {own: '#4f8cff', ally: '#3ddc84', enemy: '#ff5d5d', unknown: '#e6edf3', neutral: '#9aa4b2'};
+/* airbases: blue = ours or an ally's (same blue as the friendly unit symbols), red = enemy, grey = neutral, white (black on the BMS pictures) = owner not known */
+const AB_COL = {own: '#4f8cff', ally: '#4f8cff', enemy: '#ff5d5d', unknown: '#e6edf3', neutral: '#9aa4b2'};
 // colours of the flight plan follow the base map: bright on dark maps, dark on light ones (the halo goes round the line)
 const SAMS = {foe: {c: '#ff9f1a', d: '7 5', f: .08, w: 1.5}, ally: {c: '#4f8cff', d: null, f: .08, w: 1.5}};
 const PAL = {dark: {sam: SAMS, plan: '#ffd23f', mate: '#ffffff', halo: 'rgba(0,0,0,.65)', casing: 'rgba(0,0,0,.65)', bull: '#c9a7ff', trk: '#3ddc84', foe: '#ff5d5d', dtc: {prec: '#4dd0e1', ppt: '#ff5d5d', pptO: '#3ddc84', line: '#d0a3ff'}},
@@ -598,7 +599,7 @@ export function createMap(host, deps) {
   const dotSize = () => { const z = Math.min(13, map ? map.getZoom() : 8); return Math.round((3 + (z - 5) * 1.25) * 10) / 10; };   // 3 px zoomed out, about 13 px at the maximum zoom
   const dotIcon = (state, sub) => window.L.divIcon({className: 'nobj' + (sub ? ' sub' : ''), html: '<i class="s' + state + '"></i>', iconSize: [22, 22], iconAnchor: [11, 11]});
   const NAMEZ = 13;   // the names are written from this zoom (the maximum of the base maps); above it the sub-objectives get theirs too
-  let OSL = [];
+  let ABV = null, OSL = [], ABM = new Map(), ABACT = new Map();
   function objLabels() {
     if (!OLBL || !map) return; OLBL.clearLayers();
     const z = map.getZoom(); if (z < NAMEZ - 0.01) return;
@@ -615,13 +616,15 @@ export function createMap(host, deps) {
     const C = deps.getC(), view = deps.getView(), key = (C && C.name) + '|' + (C && C.now) + '|' + view, L = window.L;
     if (!OSUB) { OSUB = L.layerGroup().addTo(map); OLBL = L.layerGroup().addTo(map); }
     if (!OHOOK) { OHOOK = true; map.on('moveend zoomend', objLabels); map.on('zoom zoomend', objSize); map.on('click', () => { if (OSEL) objClear(); }); }
-    objSize();
-    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => { G['oa' + t].clearLayers(); G['oe' + t].clearLayers(); G['ox' + t].clearLayers(); if (GU[t]) GU[t].clearLayers(); }); OBK = key; OBJB = new Set(); OJ = []; objClear(); }
+    objSize(); const abv = map.hasLayer(G.ab); if (abv !== ABV) { ABV = abv; OBK = ''; }   // the airport symbols stand in for the dots only while the Airbases layer is shown
+    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => { G['oa' + t].clearLayers(); G['oe' + t].clearLayers(); G['ox' + t].clearLayers(); if (GU[t]) GU[t].clearLayers(); }); OBK = key; OBJB = new Set(); OJ = []; ABACT.clear(); objClear(); }
     on.forEach(([t, lab]) => {
       if (OBJB.has(t)) return; OBJB.add(t);
       OBL.filter(o => o.type == t).forEach(o => {
         const fs = C && C.objFeat ? C.objFeat.get(o.id) : null, state = objState(fs), ll = toLL(o.e / FT_KM, o.n / FT_KM);
         const ow = C ? airbaseOwner(C, o.id) : null, side = ow == null || ow == 0 ? 'u' : (ow == view || allyOf(C, ow, view)) ? 'a' : hostileOf(C, ow, view) ? 'e' : 'x', g = side == 'a' ? G['oa' + t] : side == 'e' ? G['oe' + t] : side == 'x' ? G['ox' + t] : (GU[t] = GU[t] || L.layerGroup()), own = ow ? ' · ' + teamName(C.D, ow) + (side == 'x' ? ' (neutral)' : '') : '';
+        const am = t == 1 && abv ? ABM.get(o.id) : null, tip = deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), act = () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); };
+        if (am) { ABACT.set(o.id, {g, run: act}); am.setTooltipContent(tip); return; }   // an airfield: its own symbol is the clickable one, no dot over it
         OJ.push({t, o, ll, g});
         L.marker(ll, {icon: dotIcon(state), keyboard: false, zIndexOffset: 100})
           .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), {direction: 'top', offset: [0, -6]})
@@ -661,7 +664,7 @@ export function createMap(host, deps) {
     };
     return ro(d);
   }
-  function sync() { unitVis(); objDraw(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); radarCov(); }
+  function sync() { unitVis(); host.classList.toggle('names', !!st.on.names); host.classList.toggle('nofd', !st.on.fd); MAP_LAYERS.forEach(([k]) => { if (st.on[k]) G[k].addTo(map); else map.removeLayer(G[k]); }); objDraw(); radarCov(); }
 
   const side = (ally, owner) => ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile';
   // units and SAM rings (campaign / faction change)
@@ -1236,9 +1239,11 @@ export function createMap(host, deps) {
         const td = deps.objects && deps.objects.radars ? await deps.objects.radars() : [];
         td.forEach(({o, feats}) => {
           const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : hostileOf(C, ow, view) ? 'f' : 'x', seen = new Set();
-          if (side == 'a' || side == 'x') return; /* the radars of the allies and of the neutral teams are not drawn */ feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
+          if (side == 'a' || side == 'x') return; /* the radars of the allies and of the neutral teams are not drawn */ feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, rngAir: f.detAir || f.det, side, name: o.name}); });
         });
       } catch (e) { /* no BMS folder: only the radars of the units */ }
+      /* the campaign knows two detection ranges of a radar: low (up to 5,000 ft) and high (above it); the altitude asked for picks one */
+      const hiAlt = rcAlt() > 5000; radars.forEach(r => { if (hiAlt && r.rngAir) r.rng = r.rngAir; });
       if (deps.elev && radars.length) {
         const cells = neededCells(radars), pts = cells.map(([i, j]) => ({e: i * CELL_KM * 3280.84, n: j * CELL_KM * 3280.84}));
         note('Radar coverage: reading the terrain heights…', -1);
@@ -1257,14 +1262,15 @@ export function createMap(host, deps) {
   function refresh() {
     if (!map) return;
     const C = deps.getC(), f = deps.getSel(), L = window.L, view = deps.getView();
-    ['ab', 'nav'].forEach(k => G[k].clearLayers());
+    ['ab', 'nav'].forEach(k => G[k].clearLayers()); ABM = new Map(); if (st.on.oa1 || st.on.oe1 || st.on.ox1) OBK = '';
     const D = C ? C.D : deps.D;
     // airbases are white; only the one the selected flight takes off from (same rule as the ATO "Airport" filter: nearest base to the first
     // steerpoint) is coloured, by the faction of the flight: the viewed team, its allies or an enemy
     const w0 = C && f && f.wps && f.wps[0], home = w0 ? nearAb(C, w0.x, w0.y) : null, hs = !f ? 'unknown' : f.owner == view ? 'own' : allyOf(C, f.owner, view) ? 'ally' : 'enemy';
     mapAirbases(D).filter(a => a.kind != 'ship').forEach(a => {
-      const nav = a.kind == 'nav', ic = placeIcon(a.kind, a.sub, nav ? null : pal === PAL.game ? '#000000' : AB_COL[home && home[0] == a.id ? hs : 'unknown']);
-      L.marker(a.ll, {icon: L.divIcon({className: 'ico', html: ic.html + '<i class="nm">' + deps.esc(a.name) + '</i>', iconSize: [ic.w, ic.h]}), keyboard: false, zIndexOffset: nav ? -200 : -100}).bindTooltip(deps.esc(a.name), {direction: 'top', offset: [0, -8]}).addTo(nav ? G.nav : G.ab);
+      const nav = a.kind == 'nav', sd = nav || !C ? 'unknown' : airbaseSide(C, a.id, view), k = sd != 'unknown' ? sd : home && home[0] == a.id ? hs : 'unknown', ic = placeIcon(a.kind, a.sub, nav ? null : k == 'unknown' && pal === PAL.game ? '#000000' : AB_COL[k]);
+      const mk = L.marker(a.ll, {icon: L.divIcon({className: 'ico', html: ic.html + '<i class="nm">' + deps.esc(a.name) + '</i>', iconSize: [ic.w, ic.h]}), keyboard: false, zIndexOffset: nav ? -200 : -100}).bindTooltip(deps.esc(a.name), {direction: 'top', offset: [0, -8]}).addTo(nav ? G.nav : G.ab);
+      if (a.kind == 'ab') { ABM.set(a.id, mk); mk.on('click', () => { const r = ABACT.get(a.id); if (r && map.hasLayer(r.g)) r.run(); }); }
     });
     if (curC !== C || curView !== view) { curC = C; curView = view; units(C, view); bull(C); OBK = ''; }
     radarCov();

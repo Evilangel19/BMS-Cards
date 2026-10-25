@@ -19,8 +19,9 @@ try:
         # one objective of each kind: ours, an ally's, an enemy's, one nobody knows
         own = pg.evaluate("()=>{const C=__app.ST.C,v=C.playerTeam,m=C.objOwn,al=[],en=[],ne=[],S=C.stance;m.forEach((o,k)=>{if(o==v)al.push(k);else if(o&&S&&(S[v][o]==1||S[o][v]==1||S[v][o]==2||S[o][v]==2))al.push(k);else if(o&&S&&[S[v][o],S[o][v]].some(x=>x==0||x==4||x==5))en.push(k);else if(o)ne.push(k)});return {a:al[0],e:en[0],n:ne[0],team:v}}")
         check('there are allied, enemy and neutral objectives in the scenario (neutral: relation 3, the teams of China and Russia)', own['a'] is not None and own['e'] is not None and own['n'] is not None)
+        ab = pg.evaluate("()=>{const C=__app.ST.C,v=C.playerTeam,S=C.stance,r={a:null,e:null};for(const o of C.D.ob){if(!C.D.ab[o[0]]||!C.objOwn.has(o[0]))continue;const w=C.objOwn.get(o[0]);if(!w)continue;const al=w==v||S[v][w]==1||S[w][v]==1||S[v][w]==2||S[w][v]==2,en=[S[v][w],S[w][v]].some(x=>x==0||x==4||x==5);if(al&&!r.a)r.a=o;if(!al&&en&&!r.e)r.e=o}return r}")
         pg.click('[data-t=mp]'); pg.wait_for_selector('#mpmap .leaflet-pane', state='attached', timeout=8000); pg.wait_for_timeout(700)
-        pg.evaluate("o=>{window.__targetData={objectives:async()=>[{id:o.a,name:'Ally Plant',type:20,n:2875827,e:2293401,ocd:985},{id:o.e,name:'Enemy Plant',type:20,n:2800000,e:2200000,ocd:986},{id:o.n,name:'Neutral Plant',type:20,n:2750000,e:2230000,ocd:986},{id:999999,name:'Unknown Plant',type:20,n:2700000,e:2250000,ocd:986}],features:async x=>[]}}", own)
+        pg.evaluate("o=>{window.__targetData={objectives:async()=>[{id:o.a,name:'Ally Plant',type:20,n:2875827,e:2293401,ocd:985},{id:o.e,name:'Enemy Plant',type:20,n:2800000,e:2200000,ocd:986},{id:o.n,name:'Neutral Plant',type:20,n:2750000,e:2230000,ocd:986},{id:999999,name:'Unknown Plant',type:20,n:2700000,e:2250000,ocd:986},...[o.ab_a,o.ab_e].map(x=>({id:x[0],name:x[1],type:1,n:x[3]*3280.84,e:x[2]*3280.84,ocd:1}))],features:async x=>[]}}", {**own, 'ab_a': ab['a'], 'ab_e': ab['e']})
         secs = pg.evaluate("()=>[...document.querySelectorAll('#mpbar .mps')].map(e=>e.dataset.sec)")
         check('three sections: Allied, Enemy and Neutral objects, above Display', all(x in secs for x in ('Allied objects', 'Enemy objects', 'Neutral objects')) and secs.index('Neutral objects') < secs.index('Display'))
         tog = lambda k, v: pg.evaluate("([k,v])=>{const c=document.querySelector('#mpbar input[data-k='+k+']');if(c.checked!=v){c.checked=v;c.dispatchEvent(new Event('change',{bubbles:true}))}}", [k, v])
@@ -37,6 +38,17 @@ try:
         check('the tooltip names the team that owns the objective', 'Enemy Plant' in tip and tip.count(' · ') >= 2)
         tog('oa20', False); tog('oe20', False); tog('ox20', False); pg.wait_for_timeout(600)
         check('both off: nothing is drawn', names() == [])
+        # airfields: the symbol is blue (ours or an ally's) or red (enemy) and stands in for the dot of the Airbases switch: a click on it opens the objective
+        check('the scenario has an allied and an enemy airfield', ab['a'] and ab['e'])
+        abcol = lambda i: pg.evaluate("i=>{let c=null;__app.mapV.leaflet.eachLayer(l=>{if(l.options&&l.options.icon&&/ico/.test(l.options.icon.options.className||'')&&l._tooltip&&l._tooltip._content.indexOf(i)==0){const m=(l.options.icon.options.html||'').match(/--c:([^\";]+)/);if(m)c=m[1]}});return c}", i)
+        pre = lambda o: o[1][:6]
+        check('allied airfield blue, enemy airfield red', abcol(pre(ab['a'])) == '#4f8cff' and abcol(pre(ab['e'])) == '#ff5d5d')
+        tog('oa1', True); tog('oe1', True); pg.wait_for_timeout(900)
+        check('with the Airbases switches on no dot is drawn over an airfield symbol', names() == [])
+        z0 = pg.evaluate("__app.mapV.leaflet.getZoom()")
+        pg.evaluate("n=>{__app.mapV.leaflet.eachLayer(l=>{if(l.options&&l.options.icon&&/ico/.test(l.options.icon.options.className||'')&&l._tooltip&&l._tooltip._content.indexOf(n)==0)l.fire('click')})}", pre(ab['e'])); pg.wait_for_timeout(1200)
+        check('a click on the airfield symbol opens the objective (the map zooms in on it)', pg.evaluate("__app.mapV.leaflet.getZoom()") >= 13 and pg.evaluate("__app.mapV.leaflet.getZoom()") > z0)
+        tog('oa1', False); tog('oe1', False); pg.wait_for_timeout(500)
         # fixed radar stations: the owner decides (allies and neutral teams are not drawn, enemies red, unknown grey)
         pg.evaluate("o=>{window.__targetData={objectives:async()=>[],features:async x=>[],radars:async()=>[{o:{id:o.a,name:'Ally Radar',n:2800000,e:2300000,type:21},feats:[{k:0,n:2800000,e:2300000,det:75}]},{o:{id:o.e,name:'Enemy Radar',n:2900000,e:2200000,type:21},feats:[{k:0,n:2900000,e:2200000,det:75}]},{o:{id:o.n,name:'Neutral Radar',n:2600000,e:2450000,type:21},feats:[{k:0,n:2600000,e:2450000,det:75}]},{o:{id:999999,name:'Unknown Radar',n:2700000,e:2400000,type:21},feats:[{k:0,n:2700000,e:2400000,det:75}]}]}}", own)
         pg.evaluate("document.querySelector('#mpbar input[data-k=rc]').click()"); pg.wait_for_timeout(3500)

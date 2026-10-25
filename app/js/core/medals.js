@@ -53,10 +53,29 @@ export function medalSvg(i, uid = '') {
 }
 export const medalNames = () => NAMES.slice();
 
-// Officer rank insignia of the US Air Force (second lieutenant ... general): gold bar, silver bar, two silver bars, gold oak leaf, silver oak leaf, silver eagle, one to four silver stars
-export function rankSvg(r) {
-  const bar = (x, c) => `<rect x="${x}" y="8" width="7" height="24" rx="1" fill="${c}" stroke="#0007" stroke-width=".8"/><rect x="${x + 1}" y="9" width="2" height="22" fill="#fff5"/>`;
-  const stars = n => Array.from({length: n}, (_, k) => `<polygon points="${star(20 + (k - (n - 1) / 2) * (n == 4 ? 9 : n == 3 ? 11 : 13), 20, n == 4 ? 4.8 : n == 3 ? 6.2 : 8, n == 4 ? 2 : n == 3 ? 2.6 : 3.2)}" fill="${SILVER[0]}" stroke="#0007" stroke-width=".7" stroke-linejoin="round"/>`).join('');
-  const art = [bar(16.5, GOLD[1]), bar(16.5, SILVER[1]), bar(10, SILVER[1]) + bar(23, SILVER[1]), oak(20, 19, 0.95, GOLD[1], 0), oak(20, 19, 0.95, SILVER[1], 0), eagleP(20, 21, 34, SILVER[1], '#0008'), stars(1), stars(2), stars(3), stars(4)][r];
-  return art ? `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">${art}</svg>` : '';
+// Officer rank insignia of the US Air Force (second lieutenant ... general): gold bar, silver bar, two silver bars, gold oak leaf, silver oak leaf, silver eagle, one to four silver stars.
+// Drawn from scratch after the insignia table of the DoD pay grades: lit metal (gradient), dark edge
+let RK = 0;
+function rankSvg(r) {
+  const id = 'rk' + (RK++), met = (c, k) => `<linearGradient id="${id}${k}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c[0]}"/><stop offset=".5" stop-color="${c[1]}"/><stop offset="1" stop-color="${c[2]}"/></linearGradient>`;
+  const defs = `<defs>${met(GOLD, 'g')}${met(SILVER, 's')}</defs>`, G = `url(#${id}g)`, S = `url(#${id}s)`, E = '#0009';
+  const bar = (x, f) => `<rect x="${x}" y="7" width="8" height="26" rx="1" fill="${f}" stroke="${E}" stroke-width=".9"/><rect x="${x + 1.2}" y="8.2" width="2" height="23.6" fill="#fff6"/>`;
+  // oak leaf: three rounded lobes on each side, two acorns on the stem; the outline is the union of the shapes (dark pass below the fill pass)
+  const leaf = f => {
+    const sh = [['ellipse', 0, -1, 4.4, 13], ['circle', 0, -12.6, 3.3], ...[-1, 1].flatMap(m => [['circle', m * 5.2, -8.6, 3.5], ['circle', m * 6.4, -2.2, 4], ['circle', m * 5.4, 4.6, 3.4]])];
+    const el = (a, k) => a[0] == 'circle' ? `<circle cx="${a[1]}" cy="${a[2]}" r="${a[3] + k}"/>` : `<ellipse cx="${a[1]}" cy="${a[2]}" rx="${a[3] + k}" ry="${a[4] + k}"/>`;
+    const ac = [-1, 1].map(m => `<ellipse cx="${m * 3.6}" cy="15.2" rx="2.2" ry="2.8"/>`).join('');
+    return `<g transform="translate(20 18) scale(.98)"><g fill="${E}" stroke="${E}" stroke-width="1.6">${sh.map(a => el(a, .5)).join('')}${ac}<path d="M0 8V15" /></g><g fill="${f}">${sh.map(a => el(a, 0)).join('')}${ac}</g><path d="M0 9.5V17" stroke="${E}" stroke-width="1.2"/><g stroke="${E}" stroke-width=".8" fill="none" opacity=".75"><path d="M0 -14V10"/><path d="M0 6L-5 3M0 6L5 3M0 -1L-5.5 -4M0 -1L5.5 -4M0 -7L-4 -9M0 -7L4 -9"/></g><g fill="#0006">${[-1, 1].map(m => `<path d="M${m * 3.6 - 2.2} 14.6a2.2 1.6 0 0 1 4.4 0z"/>`).join('')}</g></g>`;
+  };
+  // eagle with spread wings, head turned to its left, shield on the chest, tail fan
+  const eagle = f => {
+    const wing = m => `<path transform="scale(${m} 1)" d="M3 -8C8 -13 15 -13 19.5 -8.5L18.2 -5.3L19.6 -3L16.6 -1.6L17.2 1.2L13.6 1L13.4 3.8L9.6 2.4L5 3.4Z"/>`;
+    const vein = m => `<path transform="scale(${m} 1)" d="M6 -5L17 -6.5M6 -2.5L15.5 -2.4M6 0L13 0.4" stroke="${E}" stroke-width=".7" fill="none" opacity=".7"/>`;
+    const body = `<path d="M-2.6 -8.4C-4.6 -5 -4.4 0 -3.3 4L-4.8 8.6L-2.2 7.7L-1 11.2L0 8.6L1 11.2L2.2 7.7L4.8 8.6L3.3 4C4.4 0 4.6 -5 2.6 -8.4Z"/><circle cx="-0.4" cy="-11.4" r="2.9"/><path d="M-2.7 -12.4L-6.3 -10.9L-2.9 -10Z"/>`;
+    return `<g transform="translate(20 21.5) scale(.98)"><g fill="${E}" stroke="${E}" stroke-width="1.5" stroke-linejoin="round">${wing(1)}${wing(-1)}${body}</g><g fill="${f}">${wing(1)}${wing(-1)}${body}</g>${vein(1)}${vein(-1)}<path d="M-2.4 -3.4H2.4V1.4Q0 3.8 -2.4 1.4Z" fill="#0007"/><path d="M-0.1 -11.9L-1 -12.6" stroke="#0008" stroke-width=".8"/></g>`;
+  };
+  const stars = n => Array.from({length: n}, (_, k) => { const sz = n == 1 ? 9 : n == 2 ? 7.4 : n == 3 ? 6 : 4.5, dx = (k - (n - 1) / 2) * sz * 2.15; return `<polygon points="${star(20 + dx, 20.5, sz, sz * .4)}" fill="${S}" stroke="${E}" stroke-width=".8" stroke-linejoin="round"/>`; }).join('');
+  const art = [bar(16, G), bar(16, S), bar(8.5, S) + bar(23.5, S), leaf(G), leaf(S), eagle(S), stars(1), stars(2), stars(3), stars(4)][r];
+  return art ? `<svg viewBox="0 0 40 40" width="40" height="40" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">${defs}${art}</svg>` : '';
 }
+export {rankSvg};

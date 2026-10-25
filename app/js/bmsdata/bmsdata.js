@@ -17,7 +17,7 @@ export const OPTIONAL = new Set();
 // Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 (a newer BMS may have changed it)
 export const EXPECT = {
   ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
-  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir'],
+  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir', 'Det_Air'],
   vcd: ['Name', 'CtIdx'],
   wcd: ['Name', 'CtIdx', 'Weight', 'Drag', 'Strength', 'Flags'],
   ocd: ['CampName', 'OcdIndex', 'PositionX', 'PositionY'],
@@ -203,13 +203,13 @@ export function parseAircraftData(files) {
 }
 
 // Build every table that can be read. `readText(key)` returns the file text or null if the file is missing.
-// Unit class number -> [category (UCD Name), air range km, low-altitude air range km, slot of the radar vehicle (fire control radar, FCR) or -1, low-altitude detection range km]: air defense units draw their SAM rings from it
+// Unit class number -> [category (UCD Name), air range km, low-altitude air range km, slot of the radar vehicle (fire control radar, FCR) or -1, low-altitude detection range km, detection range km above 5,000 ft]: air defense units draw their SAM rings from it
 export function parseUnitInfo(ucdXml) {
   const un = {};
   for (const m of blocks(ucdXml, 'UCD')) {
     const n = tag(m[2], 'Name').trim();
     const rv = tag(m[2], 'RadarVehicle');
-    if (n) un[m[1]] = [n, +tag(m[2], 'Rng_Air') || 0, +tag(m[2], 'Rng_LowAir') || 0, rv !== '' && +rv >= 0 && +rv < 16 ? +rv : -1, +tag(m[2], 'Det_LowAir') || 0];
+    if (n) un[m[1]] = [n, +tag(m[2], 'Rng_Air') || 0, +tag(m[2], 'Rng_LowAir') || 0, rv !== '' && +rv >= 0 && +rv < 16 ? +rv : -1, +tag(m[2], 'Det_LowAir') || 0, +tag(m[2], 'Det_Air') || 0];
   }
   return un;
 }
