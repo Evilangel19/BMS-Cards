@@ -48,6 +48,10 @@ export const mdcBtn = ()=>{$('mdctog').classList.toggle('on',ST.MDCON);$('mdctog
 // run 15: statements that run when the program starts (in the order of the original file)
 export async function init15() {
   document.addEventListener('mousedown',e=>{const m=$('chm');if(m&&m.style.display!=='none'&&!m.contains(e.target)&&e.target.id!=='cv')closeMenu()});
+  // yellow marks, over the card in the editor only (never drawn into the canvas, so the kneeboard and the exports stay clean): the cells that are filled from automatic values or chosen from a list
+  ST.hlDraw=()=>{const h=$('cvhl'),c=$('cv');if(!h||!c)return;h.innerHTML='';if(!c.offsetWidth)return;(ST.MDCON?MFD:FD).forEach(d=>{const on=!!CYC[d.k]||((d.k=='pri'||d.k=='sec')&&!!ST.C)||(ST.AUTO&&ST.AUTO[d.k]!==undefined&&ST.AUTO[d.k]!=='');if(!on)return;const e=document.createElement('i');place(e,d,0,0);h.append(e)})};
+  window.addEventListener('resize',()=>{try{ST.hlDraw()}catch(e){}});
+  try{ST.hlDraw()}catch(e){}
   $('cv').addEventListener('mousemove',ev=>{const d=cellAt(ev),h=$('cellhov');if(!d||(EDK===d.k)){h.style.display='none';$('cv').style.cursor='';return}$('cv').style.cursor='pointer';place(h,d,0,0);h.style.display='block'});
   $('cv').addEventListener('mouseleave',()=>{$('cellhov').style.display='none'});
   $('cv').addEventListener('click',ev=>{const d=cellAt(ev);if(d&&(d.k=='pri'||d.k=='sec')&&ST.C){closeEd(true);openPtMenu(d)}else if(d&&CYC[d.k]){closeEd(true);if(CYC[d.k].length>6)openMenu(d);else cycle(d.k)}else if(d)openEd(d);else closeEd(true)});

@@ -31,7 +31,7 @@ export function createPerfPage(deps) {
   const rwMan = () => { const r = deps.runway && deps.runway.get(); return r ? r.man || 0 : st.rwy || 0; }, rwAuto = () => { const r = deps.runway && deps.runway.get(); return r && r.auto || 0; };
   const rwHint = () => { const r = deps.runway && deps.runway.get(); if (!r) return 'to compare'; return esc(r.name) + (r.man ? ' · typed by you (empty = the game files)' : r.auto ? ' · from the game files (' + fmt(r.auto) + ' × ' + fmt(r.wid) + ' ft), type a length to override' : ' · no size from the game files (' + (r.info || '?') + ')') + ' · for the refusal speed'; };
   const runwayFt = () => { const r = deps.runway && deps.runway.get(); return r ? r.ft || 0 : st.rwy || 0; };
-  const envNote = () => { const e = env(); if (!e) return ''; const w = e.wind ? ' · wind ' + String(Math.round(e.wind.hdg) % 360 || 360).padStart(3, '0') + '/' + Math.round(e.wind.spd) + ' kt on runway ' + esc(e.rwy || '?') : ' · no weather for this flight'; return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${w}${ov.size ? ' · <a href="#" data-envreset>use the flight values again</a>' : ''}</p>`; };
+  const envNote = () => { const e = env(); if (!e) return ''; const w = e.wind ? ' · wind ' + String(Math.round(e.wind.hdg) % 360 || 360).padStart(3, '0') + '/' + Math.round(e.wind.spd) + ' kt on runway ' + esc(e.rwy || '?') : ' · no weather for this flight'; return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${w}${ov.size ? ' · <a href="#" data-envreset style="color:#ff5d5d">use the flight values again</a>' : ''}</p>`; };
   const empty = () => ac ? ac.af.emptyLb : 0;
   const gw = () => empty() + st.fuel + st.stores;
   const base = () => ({W: gw(), dIsa: V('isa'), di: st.di});
