@@ -876,3 +876,9 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `weaponspage.js` `offsets()`: points placed on the map replace the computed ones (labels end with 'map'); OA1 / OA2 / VRP / VRP PUP / VIP / VIP PUP.
 - Guided bombs: `lethal.js` `isGuided()`; `guided()` hides the C1 arming delay sliders (`.wads`) and shows `GUIDED_NOTE` (SMS CNTL page, PROF 1-4, ballistic profile not accurate), the lethality analysis gets no arming delays.
 - `missilespage.js` `tl1()`: BVR timeline rows memoised by class, standard conditions, missile and missile database; `perfpage.js` default tab is Take-off & landing.
+
+## v108 - Patch 0.9.9-beta.1
+- Offsets on the map: the leader polyline follows `drag` (not only `dragend`), `Delete offsets` (`data-a=offdel`, class `rd`, `nil` when the steerpoint has none) next to `Offsets`. Weapons page: `#wpclear` in the top bar (`clearBtn` dep, `clearAll()` exported, dimmed by `btn()` when `toClear([])` is empty); the per-page clear button was removed.
+- `perfpage.js` `runwayChart()`: take-off lanes (ground roll, to 50 ft, abort at rotation) and landing lanes from a touchdown at 1 000 ft (`TD_FT`), one scale, red beyond the runway length.
+- Datacard editor: `ST.hlDraw()` (editor.js) draws `#cvhl i` boxes over `#cv` for the cells in `CYC`, pri / sec, or with a non-empty `ST.AUTO` value; an overlay on purpose: the kneeboard copies the canvas (`gapless()`).
+- Versions: `0.9.9-beta.1` in version.js, package.json, tauri.conf.json, Cargo.toml.
