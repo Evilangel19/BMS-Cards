@@ -35,7 +35,7 @@ export const myIdent=()=>{try{const d=sqPage&&sqPage.db&&sqPage.db(),m=sqPage&&s
 export async function msfSettings(){const c=jclone(ST.CFG)||{};delete c.paths;if(c.map){c.map.satUrl='';c.map.satKey=''}if(c.squadron)c.squadron.trackers='';const prefs={};for(const n of MSFPREFS){const o=await loadPrefs(n);if(o)prefs[n]=o}return {config:c,prefs}}
 export async function msfBuild(){
  const i=+$('fsel').value||0,x=ST.CL[i];if(!ST.C||!x)throw new Error('Select a flight first (a campaign or a mission must be open).');
- const dtc=lines.length?{name: ST.name,path:ST.DTCF&&ST.DTCF.path||null,enc:ST.DTCF&&ST.DTCF.enc||'utf-8',bom:!!(ST.DTCF&&ST.DTCF.bom),original:DTCTEXT,edits:PJ.dtcEditsAgainst(parseDtc(DTCTEXT),lines),share:{groups:PJ.dtcShare(lines).map(g=>({...g,on:g.mission}))},author:myIdent()}:null;
+ const dtc=lines.length?{name: ST.name,enc:ST.DTCF&&ST.DTCF.enc||'utf-8',bom:!!(ST.DTCF&&ST.DTCF.bom),original:DTCTEXT,edits:PJ.dtcEditsAgainst(parseDtc(DTCTEXT),lines),share:{groups:PJ.dtcShare(lines).map(g=>({...g,on:g.mission}))},author:myIdent()}:null;
  const final={},auto={};msfCardKeys().forEach(k=>{final[k]=F[k]});FD.forEach(d=>{auto[d.k]=(ST.AUTO&&ST.AUTO[d.k])||''});
  const manual=PJ.diffFields(ST.AUTO||{},F,FD.map(d=>d.k));
  let aircraft=null;try{const an=ST.C.D.ac[x.f.c.i],d=an&&await perfAcGet(an);if(d)aircraft={name:an,perf:d}}catch(e){}
@@ -118,7 +118,8 @@ export async function msfLoad(text,file){
   try{mapV.setTanks(Array.isArray(p.tanks)?p.tanks:[])}catch(e){}
   let i=ST.CL.findIndex(x=>x.f.id.n+':'+x.f.id.c==p.datacard.flight);if(i<0)i=0;
   $('fsel').innerHTML=ST.CL.map((x,k)=>`<option value="${k}">${x.label}</option>`).join('');$('fsel').value=i;$('cinfo').textContent='Mission: '+p.name;ST.MSFLOCK={C:C2,key:p.datacard.flight};[...$('fsel').options].forEach((o,k)=>{o.disabled=k!==i});
-  if(own){ST.name=p.dtc.name||'DTC.ini';let dpath=null;if(isDesktop()){const cs=[p.dtc.path,dtcDir()?joinPath(dtcDir(),ST.name):''].filter(Boolean);for(const c of cs){try{if(await IO.fileExists(c)){dpath=c;break}}catch(e){}}if(!dpath&&cs.length)dpath=cs[cs.length-1]}   // the DTC of the mission is written where this computer keeps its DTC
+  if(own){ST.name=PJ.dtcFileName(p.dtc.name);let dpath=null;if(isDesktop()){const cur=ST.DTCF&&ST.DTCF.path;   // where the DTC is written comes only from this computer: the DTC file open now (same name) or the DTC folder of the settings; the path stored in a mission file is never used
+    if(cur&&PJ.dtcFileName(cur)===ST.name)dpath=cur;else if(dtcDir())dpath=joinPath(dtcDir(),ST.name)}
    ST.DTCF={path:dpath,enc:p.dtc.enc||'utf-8',bom:!!p.dtc.bom,orig:enc8(p.dtc.original)};parse(p.dtc.original);p.dtc.edits.forEach(e=>S(e.s,e.k,e.v));$('fn').textContent=ST.name+' · from the mission';afterDtc('target_98',true);dtcBtns()}
   ST.MSFCARD={C:C2,key:p.datacard.flight,vals:Object.fromEntries(Object.entries(p.datacard.final||{}).filter(([k,v])=>typeof v=='string'&&v!==''&&!/^__/.test(k)))};   // the card of the mission stays as the sender made it
   atoSearch();apply(i,'fresh');

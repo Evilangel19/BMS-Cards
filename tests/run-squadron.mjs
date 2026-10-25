@@ -1,5 +1,6 @@
 // Squadron: the logbook (.lbk) cipher and the codes of the peer-to-peer link
-import { lbkChoices, decodeLbk, encodeLbk, parseLbk, zip, unzip, pack, unpack } from '../app/js/core/squadron.js';
+import { medalSvg, rankSvg, medalNames } from '../app/js/core/medals.js';
+import { MEDALS, lbkChoices, decodeLbk, encodeLbk, parseLbk, zip, unzip, pack, unpack } from '../app/js/core/squadron.js';
 let ok = true; const ck = (n, c) => { ok &&= !!c; console.log(c ? 'ok  ' : 'FAIL', n); };
 // a logbook as BMS writes it (field offsets of a 372 byte file), then encoded
 const put = (u8, o, s) => { for (let i = 0; i < s.length; i++) u8[o + i] = s.charCodeAt(i); };
@@ -54,4 +55,8 @@ ck('okImg accepts small webp/png/jpeg data URLs only', SQ.okImg('data:image/png;
 { const png = 'data:image/png;base64,iVBORw0KGgo=', m1 = SQ.mergeRoster({a: {uid: 'a', ts: 1}}, {a: {uid: 'a', ts: 2, av: png}, b: {uid: 'b', ts: 1, av: 'data:image/svg+xml;base64,AAAA'}});
   ck('mergeRoster: the avatar of a pilot arrives in the roster, a bad picture is dropped', m1.roster.a.av == png && m1.roster.b && !m1.roster.b.av);
   const m2 = SQ.mergeRoster(m1.roster, {a: {uid: 'a', ts: 3, role: 'x'}}); ck('mergeRoster: an entry without picture keeps the one already known', m2.roster.a.av == png && m2.roster.a.role == 'x'); }
+{ const svgs = MEDALS.map((_, i) => medalSvg(i, 'u'));
+  ck('medals: one picture for each of the six medals of the logbook, with the same names', svgs.length === 6 && medalNames().join('|') === MEDALS.join('|') && svgs.every((v, i) => v.startsWith('<svg') && v.endsWith('</svg>') && v.includes('aria-label="' + MEDALS[i] + '"')));
+  ck('medals: no unfinished tag or placeholder in a picture, gradient ids made unique', svgs.every((v, i) => !/undefined|NaN/.test(v) && v.includes('id="mg' + i + 'u"') && v.includes('url(#mg' + i + 'u)')) && medalSvg(6) === '' && medalSvg(-1) === '');
+  ck('ranks: an insignia for each of the ten ranks, none for an unknown one', Array.from({ length: 10 }, (_, r) => rankSvg(r)).every(v => v.startsWith('<svg') && !/undefined|NaN/.test(v)) && rankSvg(10) === '' && rankSvg(-1) === ''); }
 process.exit(ok ? 0 : 1);

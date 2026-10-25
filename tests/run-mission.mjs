@@ -66,6 +66,10 @@ ck('the manual changes are the fields that differ from the automatic values', JS
     ck('the preview counts changed, new, emptied lines and the sections the receiver does not have', d.change === 2 && d.add === 2 && d.clear === 1 && d.lost === 1 && d.missing[0] === 'ICP');
     ck('slots of the receiver that the mission does not fill are emptied with the empty pattern of the mission', w.includes('STPT|lineSTPT_9=0.000000, 0.000000, 0.000000') && !w.some(x => x.startsWith('NAV OFFSETS')));
     ck('lines of a section the receiver has not are skipped and counted, not written', r2.skipped === 1 && !w.some(x => x.startsWith('ICP'))); }
+  ck('DTC name from a mission file: a plain .ini name is kept', P.dtcFileName('Evil19.ini') === 'Evil19.ini' && P.dtcFileName('my dtc.INI') === 'my dtc.INI');
+  ck('DTC name from a mission file: folders, drives and ".." never get through', ['..\\..\\Windows\\evil.ini', 'C:\\Users\\x\\a.ini', '../../a.ini', '/etc/a.ini'].every(x => P.dtcFileName(x) === 'a.ini' || P.dtcFileName(x) === 'evil.ini') && P.dtcFileName('..') === 'DTC.ini' && P.dtcFileName('a/..') === 'DTC.ini');
+  ck('DTC name from a mission file: other types, hidden files, empty or odd values become DTC.ini', ['evil.exe', 'x.ini.bat', '.ini', '', null, undefined, 42, 'a'.repeat(90) + '.ini', 'a<b>.txt'].every(x => P.dtcFileName(x) === 'DTC.ini'));
+  ck('a mission written now carries no path of this computer', !/"path"\s*:/.test(fs.readFileSync(path.join(root, 'app/js/app/mission.js'), 'utf8').match(/const dtc=lines\.length\?\{[^\n]*/)[0]));
   const pk = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')), V = (await import(new URL('../app/js/core/version.js', import.meta.url))).APP_VERSION;
   ck('the version of the program is the same in version.js and package.json', V === pk.version);
 }

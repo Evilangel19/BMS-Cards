@@ -152,4 +152,6 @@ export function parseMission(text) {
 export const diffFields = (auto, final, keys) => { const o = {}; (keys || Object.keys(final)).forEach(k => { if ((final[k] || '') !== ((auto || {})[k] || '')) o[k] = final[k] || ''; }); return o; };
 // file and folder names of a mission
 export const missionFolder = {file: n => n + MISSION_EXT, settings: 'settings.json', cards: 'cards.json'};
+// The name of the DTC file kept in a mission is untrusted (the file may come from anybody): a plain file name ending in .ini, never a folder or a path.
+export const dtcFileName = n => { const b = String(n == null ? '' : n).split(/[\\/]/).pop().replace(/[<>:"|?*\u0000-\u001f]/g, '').trim(); return b.length <= 80 && /^[^.].*\.ini$/i.test(b) ? b : 'DTC.ini'; };
 export const safeName = s => String(s || 'mission').replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 80) || 'mission';

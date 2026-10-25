@@ -4,6 +4,8 @@
 // secret that only the squadron knows); everything else goes straight from pilot to pilot (WebRTC data channel). A direct connection by two codes swapped by hand stays
 // available when no tracker can be used.
 
+import {medalSvg, rankSvg} from './medals.js';
+
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
 const LBK_KEY = 'Falcon is your Master';
@@ -388,11 +390,18 @@ export function createSquadronPage(deps) {
   // ----- my pilot (logbook) -----
   const pilotBox = () => { const b = $('#sqpilot'); if (!b) return;
     if (!pilot) { b.innerHTML = `<div class="hint">${esc(lbkErr || 'No logbook read yet.')}</div>`; return; }
-    const t = pilot.stats, d = t && t.dog, m = me();
-    b.innerHTML = `<table class="sqt"><thead><tr><th>Pilot</th><th>Squadron</th>${t ? '<th>Rank</th><th>Hours</th><th>Missions</th><th>A-A</th><th>A-G</th><th>Static</th><th>Naval</th><th>Ace</th><th>Score</th><th>Dogfights W/L</th>' : ''}</tr></thead><tbody><tr>
-      <td class="sqpl">${okImg(m.av) ? `<img class="sqav" src="${m.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc(pilot.callsign || '—')}</b><div class="hint" style="min-height:0">${esc(pilot.name || '—')}</div></span></td>
-      <td>${esc(pilot.squadron || '—')}${pilot.motto ? `<div class="hint" style="min-height:0">${esc(pilot.motto)}</div>` : ''}</td>
-      ${t ? `<td>${esc(RANKS[t.rank] || '—')}</td><td>${t.hours.toFixed(1)}</td><td>${t.missions}</td><td>${t.aa}</td><td>${t.ag}</td><td>${t.st}</td><td>${t.nav}</td><td>${t.ace.toFixed(3)}</td><td>${t.score}</td><td>${d.won}/${d.lost}</td>` : ''}</tr>${t ? `<tr><td colspan="2" style="border:0"></td><td colspan="10" class="hint" style="border:0;padding-top:2px">Campaigns ${esc(t.campaigns.join('/'))} · killed ${t.camp.killed} (by a human ${t.camp.killedByHuman}, by self ${t.camp.killedBySelf}) · human kills ${t.camp.human} · friendly kills ${t.camp.frat} (${t.camp.sinceFrat} missions since the last) · dogfight kills/deaths ${d.kills}/${d.deaths}${t.commissioned ? ' · commissioned ' + esc(t.commissioned) : ''}. Medals: ${esc(MEDALS.map((n, i) => t.medals[i] ? n + ' ' + t.medals[i] : '').filter(Boolean).join(' · ') || 'none')}.</td></tr>` : ''}</tbody></table>`; };
+    const t = pilot.stats, d = t && t.dog, c = t && t.camp, rk = t ? t.rank : -1;
+    const tile = (v, l, tip) => `<div${tip ? ` title="${esc(tip)}"` : ''}><b>${v}</b><span>${l}</span></div>`, grp = (h, tiles) => `<div class="pilg"><h4>${h}</h4><div class="sqcards">${tiles}</div></div>`;
+    const sub = [RANKS[rk], pilot.squadron, t && t.commissioned ? 'commissioned ' + t.commissioned : ''].filter(Boolean).map(esc).join(' · ');
+    let h = `<div class="pilhead">${t ? rankSvg(rk) : ''}<div class="pilname"><b>${esc(pilot.callsign || '—')}</b><span>${esc(pilot.name || '—')}</span><div class="hint" style="min-height:0">${sub}${pilot.motto ? ` · <i>“${esc(pilot.motto)}”</i>` : ''}</div></div></div>`;
+    if (t) {
+      h += grp('Flying', tile(t.hours.toFixed(1), 'Hours') + tile(t.missions, 'Missions') + tile(t.score, 'Score') + tile(t.ace.toFixed(3), 'Ace factor'));
+      h += grp('Kills', tile(t.aa, 'Air-to-air') + tile(t.ag, 'Air-to-ground') + tile(t.st, 'Static') + tile(t.nav, 'Naval'));
+      h += grp('Dogfights', tile(d.won + ' / ' + d.lost, 'Won / lost') + tile(d.kills + ' / ' + d.deaths, 'Kills / deaths') + tile(d.onWon + ' / ' + d.onLost, 'Online won / lost', 'Dogfights flown online') + tile(d.onKills + ' / ' + d.onDeaths, 'Online kills / deaths', 'Dogfights flown online'));
+      h += grp('Campaigns', tile(t.campaigns.join(' / '), 'Campaigns', 'The three campaign counters of the logbook, in the order of the file') + tile(c.killed, 'Times killed') + tile(c.killedByHuman, '… by a human pilot') + tile(c.killedBySelf, '… by self') + tile(c.human, 'Human pilots killed') + tile(c.frat, 'Friendly kills') + tile(c.sinceFrat, 'Missions since the last friendly kill'));
+      h += `<div class="pilg"><h4>Medals</h4><div class="sqmed">${MEDALS.map((n, i) => `<div class="sqmd${t.medals[i] ? '' : ' no'}" title="${esc(n)}: ${t.medals[i]}">${medalSvg(i, 'p')}<b>${t.medals[i] ? '× ' + t.medals[i] : '—'}</b><span>${esc(n)}</span></div>`).join('')}</div></div>`;
+    }
+    b.innerHTML = h; };
   async function readLbk(name, u8) {
     try { pilot = parseLbk(u8 || await deps.lbk.read(name)); DB.lbk = name; if (!DB.cs) DB.cs = pilot.callsign; lbkErr = ''; if ($('#sqcs')) $('#sqcs').value = DB.cs; DB.squads.forEach(q => { mkMe(q); q.roster[DB.uid].ts = Date.now(); pushSync(q); }); save(); }
     catch (e) { pilot = null; lbkErr = String(e && e.message || e); }
@@ -581,7 +590,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
 </div><div class="sqpane" data-pane="me">
-<div class="sqc"><h3>My pilot</h3><div id="sqpilot"></div><div class="sqme"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
 <div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
 </div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
