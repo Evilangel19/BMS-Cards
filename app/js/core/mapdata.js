@@ -2,6 +2,7 @@
 // center) to latitude/longitude and builds the point/line sets the map layers draw. Pure functions, no DOM.
 import {tmInv, tmFwd, getGeo} from '../rules/geo.js';
 import {ord} from './flight.js';
+import {allyOf} from './coalitions.js';
 import {clean} from './flight.js';
 
 // campaign km -> [lat, lon]
@@ -53,13 +54,8 @@ export const theaterBounds = () => {
 };
 
 // ---- units, SAM rings, flights at a given time ---------------------------------------------
-// Same rule as the ATO: teams are friends when their stance (either direction) is 1 or 2.
-export const allyOf = (C, x, y) => {
-  if (x == y) return true;
-  const s = C && C.stance;
-  if (!s || !s[x] || !s[y]) return x > 0 && y > 0 && x < 4 && y < 4;
-  return [s[x][y], s[y][x]].some(v => v == 1 || v == 2);
-};
+// allyOf: the relations of the campaign, see coalitions.js (the map, the ATO and the datacard use the same rule)
+export {allyOf};
 // A unit is "spotted" when the low byte of its spotted field has the bit of one of the given teams (1 << team).
 // (Reading checked on the sample campaigns: ROK, the player's allies in the data, hold the bits of enemy units they spotted.)
 export const spottedBy = (u, teams) => teams.some(t => ((u.spA | 0) >> t) & 1);

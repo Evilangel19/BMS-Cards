@@ -4,7 +4,7 @@
   "private": true,
   "description": "BMS Cards - datacard and kneeboard planner for Falcon BMS 4.38.1",
   "scripts": {
-    "test": "node tests/run-golden.mjs && node tests/run-parsers.mjs && node tests/run-config.mjs && node tests/run-theaters.mjs && node tests/run-balkans.mjs && node tests/run-aip.mjs && node tests/run-ato.mjs && node tests/run-kneeboard.mjs && node tests/run-map.mjs && node tests/run-bmsdata.mjs && node tests/run-popup.mjs && node tests/run-lethal.mjs && node tests/run-mission.mjs && node tests/run-racks.mjs && node tests/run-squadron.mjs && node tests/run-airperf.mjs && node tests/run-heightmap.mjs && node tests/run-bombdata.mjs && node tests/run-strike.mjs && node tests/run-missiledata.mjs && node tests/run-airmissile.mjs && node tests/run-radarcov.mjs && node tests/run-layout.mjs && node tests/run-te.mjs && node tests/run-objinit.mjs",
+    "test": "node tests/run-golden.mjs && node tests/run-parsers.mjs && node tests/run-config.mjs && node tests/run-theaters.mjs && node tests/run-balkans.mjs && node tests/run-aip.mjs && node tests/run-ato.mjs && node tests/run-kneeboard.mjs && node tests/run-map.mjs && node tests/run-bmsdata.mjs && node tests/run-popup.mjs && node tests/run-lethal.mjs && node tests/run-mission.mjs && node tests/run-racks.mjs && node tests/run-squadron.mjs && node tests/run-airperf.mjs && node tests/run-heightmap.mjs && node tests/run-bombdata.mjs && node tests/run-strike.mjs && node tests/run-missiledata.mjs && node tests/run-airmissile.mjs && node tests/run-radarcov.mjs && node tests/run-layout.mjs && node tests/run-te.mjs && node tests/run-objinit.mjs && node tests/run-coalitions.mjs",
     "test:update": "node tests/run-golden.mjs --update",
     "tauri": "tauri",
     "build": "tauri build --no-bundle",

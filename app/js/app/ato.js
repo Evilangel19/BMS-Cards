@@ -1,3 +1,4 @@
+import {allyOf as allyOfC} from '../core/coalitions.js';
 import {groupPackages, buildAto, CATEGORIES, filterAto} from '../core/ato.js';
 import {ST} from './state.js';
 import {$, collapse, ddJustClosed, ddOpen, esc, expand, appToast} from './base.js';
@@ -18,7 +19,7 @@ export let ATOCAT;
 export let PLAYER = null;
 ST.VIEW = null;
 export let ATOFX;
-export const allyOf = (x,y)=>{if(x==y)return true;const s=ST.C&&ST.C.stance;if(!s||!s[x]||!s[y])return x>0&&y>0&&x<4&&y<4;return [s[x][y],s[y][x]].some(v=>v==1||v==2)};
+export const allyOf = (x,y)=>allyOfC(ST.C,x,y);
 // the ATO is drawn again after every click; the list keeps its scroll position (the nearest scrolling ancestor, or the page)
 export function scrollKeep(){let p=$('atolist')||$('ato'),sc=null;while(p&&p!==document.body&&p!==document.documentElement){const o=getComputedStyle(p).overflowY;if((o=='auto'||o=='scroll')&&p.scrollHeight>p.clientHeight){sc=p;break}p=p.parentElement}const se=document.scrollingElement,a=sc?sc.scrollTop:0,b=se?se.scrollTop:0;return()=>{if(sc)sc.scrollTop=a;if(se)se.scrollTop=b}}
 // "Close all": search cleared, everything folded except the package and mission of the selected flight, the others hidden

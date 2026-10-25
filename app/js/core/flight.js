@@ -1,8 +1,9 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
+import {allyOf} from './coalitions.js';
 const ord=n=>n+(['th','st','nd','rd'][(n%100>10&&n%100<14)?0:Math.min(n%10,4)%4]||'th');
 const locBE=(C,u,codes)=>{if(!C.bull||!u)return '';const w=u.wps.find(p=>codes?codes.includes(p.act):![0,1,2,3,4,7,8].includes(p.act));if(!w)return '';const n=w.y-C.bull.y,e=w.x-C.bull.x,b=Math.round((Math.atan2(e,n)*180/Math.PI+360)%360)%360;return String(b).padStart(3,'0')+'/'+Math.round(Math.hypot(n,e)/1.852)};
 function fac(C,f,u6){if(!u6||!C)return null;const el=els0(C,f),all=el.flatMap(e=>e.wps),ts=all.map(p=>p.arr).filter(Boolean),a=ts.length?Math.min(...ts):-1e15,b=all.length?Math.max(...all.map(p=>p.dep||p.arr)):1e15;
- const ally=(x,y)=>x==y||(x<4&&y<4),mem=u=>u===f||el.some(e=>e.id.n==u.id.n&&e.id.c==u.id.c);
+ const ally=(x,y)=>allyOf(C,x,y),mem=u=>u===f||el.some(e=>e.id.n==u.id.n&&e.id.c==u.id.c);
  const c=C.units.filter(u=>u.kind=='flight'&&u.wps.length&&!mem(u)&&/^FAC\(A\)$/i.test(C.D.S[300+u.omis]||'')&&ally(u.owner,f.owner)&&(w=>w[0]<=b&&w[1]>=a)((t=>t.length?[Math.min(...t),Math.max(...t)]:[0,0])(u.wps.flatMap(p=>[p.arr,p.dep]).filter(Boolean))));
  if(!c.length)return null;const u=c[0];return{ty:csOf(C,u).replace(' ','')+' - '+acOf(C,u),tm:opWin(u),loc:locBE(C,u,[...Array(40).keys()].filter(x=>![0,1,2,3,4,7,8].includes(x)))}}
 const ACT={1:'TakeOff',0:'Nav',8:'Holding',2:'Push',14:'GNDStrk',3:'Split',7:'Land',4:'Refuel',12:'CAP',10:'Escort',11:'Sweep',15:'Surf Attack',16:'S&D',17:'Strike',20:'ELINT',21:'Recon',24:'FUEL',26:'Jamming',6:'Pickup',25:'Airdrop',19:'SEAD'};
