@@ -5,7 +5,7 @@ export const DEFAULTS = {
     bmsInstall: '',     // Falcon BMS install folder (used to read game data, next step)
     campaigns: '',      // folder opened by "Open campaign" and the other import buttons
     dtc: '',            // folder opened by "Open DTC"
-    exportDir: '',      // folder proposed when saving DDS / PNG / DTC copies
+    exportDir: '',      // (not shown in the Settings any more; kept so old settings files still load)
     kneeboardDir: '',   // where the kneeboard DDS files go (empty = BMS Data\TerrData\Objects\KoreaObj)
     missions: '',       // folder where the mission folders are made (empty = "missions" next to the program)
   },
@@ -15,6 +15,9 @@ export const DEFAULTS = {
   ui: {
     animations: true,   // short transitions and animations (also off when the system asks for reduced motion)
     showMfd34: false,   // show MFD 3 and 4 in the Data Cartridge page (BMS does not use them yet)
+    autoLoad: false,    // true = at start the last DTC and the last campaign / tactical engagement are opened again
+    lastDtc: '',        // full path of the last DTC opened (kept by the program)
+    lastCamp: '',       // file name of the last campaign or tactical engagement opened (kept by the program)
   },
   mission: {
     radiusNm: 60,       // a mission file keeps the units and flights within this distance of the route (the support flights of the datacard are always kept)

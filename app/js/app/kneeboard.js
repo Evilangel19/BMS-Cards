@@ -184,12 +184,14 @@ export function kbRender(keepMenu){const el=$('kn');if(!el)return;kbMemLater();i
     const gr=ghost.getBoundingClientRect(),from={left:gr.left-2,top:gr.top-2},card=src.tray!==undefined?KBTR[src.tray]:KBS[src.r][src.s];
     const fly=(to,cb)=>{if(!animOn()){ghost.remove();cb();return}const a=ghost.animate([{transform:ghost.style.transform,opacity:.95},{transform:`translate(${to.left+to.width/2-gr.left-gr.width/2}px,${to.top+to.height/2-gr.top-gr.height/2}px) scale(.2)`,opacity:0}],{duration:170,easing:'ease-in'});a.onfinish=a.oncancel=()=>{ghost.remove();cb()}};
     const moved=q=>{const c=cell(q);if(c&&animOn()){const r=c.getBoundingClientRect();c.animate([{transform:`translate(${from.left-r.left}px,${from.top-r.top}px)`,zIndex:5},{transform:'none',zIndex:5}],{duration:200,easing:'ease-out'})}};
+    const snap=()=>{const m=new Map();KBS.forEach((row,r)=>['left','right'].forEach(s=>{const c=row[s],e=c&&c.kind!='empty'?cell({s,r}):null;if(e)m.set(c.kind+'|'+c.item,e.getBoundingClientRect())}));return m};   // where every card is now, to slide the cards to their new places after an insert
+    const flip=(m,card,gfrom)=>{if(!animOn())return;KBS.forEach((row,r)=>['left','right'].forEach(s=>{const c=row[s],e=c&&c.kind!='empty'?cell({s,r}):null;if(!e)return;const n=e.getBoundingClientRect(),o=m.get(c.kind+'|'+c.item)||(c.kind==card.kind&&c.item===card.item?gfrom:null);if(!o||Math.abs(o.left-n.left)+Math.abs(o.top-n.top)<2)return;e.animate([{transform:`translate(${o.left-n.left}px,${o.top-n.top}px)`,zIndex:5},{transform:'none',zIndex:5}],{duration:220,easing:'ease-out'})}))};
     const after=()=>{const i=KBTR.findIndex(x=>x.kind==card.kind&&x.item===card.item);return i>=0?{tray:i}:null};
     if(!over){ghost.remove();return}
     if(over.id=='kbtrash'){const to=over.getBoundingClientRect();fly(to,()=>{if(card.kind=='pic'&&kbKept(card.item)){appToast('This card is used by another theater or by the default: kept in the library.');if(src.tray===undefined)KBS[src.r][src.s]={kind:'empty',mode:'fill'}}else if(card.kind=='pic')kbDelete(card.item);else if(src.tray===undefined)KBS[src.r][src.s]={kind:'empty',mode:'fill'};kbRender()});return}
     ghost.remove();
     if(over.dataset.s!==undefined){const dst={s:over.dataset.s,r:+over.dataset.r};
-     if(zone&&kbInsert(src,dst,zone,card)){KBSEL=dst.r;kbRender();return}
+     if(zone){const m=snap();if(kbInsert(src,dst,zone,card)){KBSEL=dst.r;kbRender();flip(m,card,from);return}}
      if(src.tray!==undefined){KBS[dst.r][dst.s]={kind:card.kind,item:card.item,mode:'fill'};KBSEL=dst.r;kbRender();moved(dst)}
      else{const rb=over.getBoundingClientRect(),ra=t.getBoundingClientRect(),a=KBS[src.r],b=KBS[dst.r],x=a[src.s];a[src.s]=b[dst.s];b[dst.s]=x;KBSEL=dst.r;kbRender();
       if(animOn()){const mv=(q,f,to)=>cell(q).animate([{transform:`translate(${f.left-to.left}px,${f.top-to.top}px)`,zIndex:5},{transform:'none',zIndex:5}],{duration:200,easing:'ease-out'});mv(dst,from,rb);mv(src,rb,ra)}}}

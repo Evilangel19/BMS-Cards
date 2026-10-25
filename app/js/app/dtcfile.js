@@ -2,7 +2,7 @@ import {parseDtc} from '../parsers/dtc.js';
 import {pickFile, join as joinPath, readBytes} from '../platform/desktop.js';
 import * as PJ from '../core/mission.js';
 import {ST} from './state.js';
-import {$, IO, appToast} from './base.js';
+import {$, IO, appToast, rememberLast} from './base.js';
 import {afterDtc, applyDTC, dtcBtns} from './dtcapply.js';
 import {mapV} from './pages.js';
 import {apply} from './selection.js';
@@ -31,7 +31,7 @@ export function stpts(){const o=[];lines.filter(l=>l.s=='STPT'&&/^target_\d+$/.t
  o.push({l,n:+l.k.slice(7),x:p[0],y:p[1],alt:String(Math.round(-p[2])),t:p[3]})});return o.sort((a,b)=>a.n-b.n)}
 ST.DTCF = null; // the open DTC file: {path (desktop app only), enc, bom, orig (bytes as read)}
 export const encodeDtc = t=>{if(ST.DTCF&&ST.DTCF.enc=='latin1')return Uint8Array.from(t,c=>c.charCodeAt(0)>255?63:c.charCodeAt(0));const b=new TextEncoder().encode(t);if(ST.DTCF&&ST.DTCF.bom){const o=new Uint8Array(b.length+3);o.set([239,187,191]);o.set(b,3);return o}return b};
-export const openDtc = async f=>{ST.name=f.name;const bytes=new Uint8Array(await f.arrayBuffer());ST.DTCF={path:f.path||null,enc:'utf-8',bom:bytes[0]==239&&bytes[1]==187&&bytes[2]==191,orig:bytes};
+export const openDtc = async f=>{ST.name=f.name;if(f.path)rememberLast('lastDtc',f.path);const bytes=new Uint8Array(await f.arrayBuffer());ST.DTCF={path:f.path||null,enc:'utf-8',bom:bytes[0]==239&&bytes[1]==187&&bytes[2]==191,orig:bytes};
  let t;try{t=new TextDecoder('utf-8',{fatal:true}).decode(bytes)}catch(e){t=new TextDecoder('latin1').decode(bytes);ST.DTCF.enc='latin1'}parse(t);$('fn').textContent=ST.name;if(ST.C&&ST.CL.length)apply(+$('fsel').value||0);else{applyDTC();buildForm();draw()}};
 export const dtcOut = ()=>lines.map(l=>l.dirty?l.k+'='+l.v:l.raw).join('\r\n')+'\r\n';
 // Undo every change since the file was opened or last saved: edited lines get their original value back, lines added by an edit are dropped

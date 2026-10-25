@@ -1,17 +1,24 @@
-import {loadConfig, isDesktop, pickFolder, saveConfig} from '../platform/desktop.js';
+import {loadConfig, isDesktop, pickFolder, saveConfig, fileExists, readBytes} from '../platform/desktop.js';
 import {DEFAULTS} from '../config/config.js';
 import {ST} from './state.js';
 import {$, applyAnim} from './base.js';
-import {campDir, dtcDir, fillCampaigns} from './campaign.js';
+import {campDir, dtcDir, fillCampaigns, selectCampaign} from './campaign.js';
 import {kbDir, kbMemLoad, kbRender} from './kneeboard.js';
 import {GAMEDATA, loadGameData} from './gamedata.js';
 import {applyFormToggle, closeEd} from './editor.js';
 import {mapV, sqPage} from './pages.js';
-import {view} from './dtcfile.js';
+import {view, openDtc} from './dtcfile.js';
+import {initAppear} from './appear.js';
 
 /* ---------- Settings ---------- */
-export const CFG_PATHS = [['bmsInstall','BMS install folder'],['campaigns','Campaigns folder'],['dtc','DTC folder'],['exportDir','Export folder'],['kneeboardDir','Kneeboard DDS folder'],['missions','Missions folder']];
+export const CFG_PATHS = [['bmsInstall','BMS install folder'],['campaigns','Campaigns folder'],['dtc','DTC folder'],['kneeboardDir','Kneeboard DDS folder'],['missions','Missions folder']];
 export const AUTO_HINT = {campaigns:()=>campDir(),dtc:()=>dtcDir(),kneeboardDir:()=>kbDir()};
+// start-up option: the last DTC and the last campaign / tactical engagement are opened again (desktop app)
+export async function autoLoadLast(){
+ const u=ST.CFG.ui||{};if(!isDesktop()||!u.autoLoad)return;
+ const c=u.lastCamp;if(c&&[...$('csel').options,...$('tesel').options].some(o=>o.value==c))await selectCampaign(c);
+ const d=u.lastDtc;if(d&&await fileExists(d)){const b=await readBytes(d);await openDtc({name:d.split(/[\\/]/).pop(),path:d,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)})}
+}
 export async function openSettings(){
  const dlg=$('cfg'),loc=(await loadConfig()).location;dlg.innerHTML='<h3 style="margin:0 0 6px">Settings</h3><p class="hint" style="margin:0 0 10px">Saved in: '+loc+'</p>';
  const inputs={};
@@ -27,6 +34,8 @@ export async function openSettings(){
  const tf=document.createElement('span');tf.className='hint';tf.textContent='Show the form with all the fields on the Datacard page';rf.append(lf,cbf,tf);rf.style.gridTemplateColumns='150px auto 1fr';dlg.append(rf);
  const r4=document.createElement('div');r4.className='cf';const l4=document.createElement('label');l4.textContent='Animations';const cb4=document.createElement('input');cb4.type='checkbox';cb4.checked=!ST.CFG.ui||ST.CFG.ui.animations!==false;cb4.style.width='auto';
  const t4=document.createElement('span');t4.className='hint';t4.textContent='Short transitions (ignored when the system asks for reduced motion)';r4.append(l4,cb4,t4);r4.style.gridTemplateColumns='150px auto 1fr';dlg.append(r4);
+ const r3=document.createElement('div');r3.className='cf';const l3=document.createElement('label');l3.textContent='Open last at start';const cb3=document.createElement('input');cb3.type='checkbox';cb3.checked=!!(ST.CFG.ui&&ST.CFG.ui.autoLoad);cb3.style.width='auto';
+ const t3=document.createElement('span');t3.className='hint';t3.textContent='At start the last DTC and the last campaign / tactical engagement are opened again';r3.append(l3,cb3,t3);r3.style.gridTemplateColumns='150px auto 1fr';dlg.append(r3);
  const r5=document.createElement('div');r5.className='cf';const l5=document.createElement('label');l5.textContent='MFD 3 and 4';const cb5=document.createElement('input');cb5.type='checkbox';cb5.checked=!!(ST.CFG.ui&&ST.CFG.ui.showMfd34);cb5.style.width='auto';
  const t5=document.createElement('span');t5.className='hint';t5.textContent='Show them in the Data Cartridge MFD page (BMS does not use them yet)';r5.append(l5,cb5,t5);r5.style.gridTemplateColumns='150px auto 1fr';dlg.append(r5);
  const r6=document.createElement('div');r6.className='cf';const l6=document.createElement('label');l6.textContent='Mission radius';const rn=document.createElement('input');rn.type='number';rn.min=0;rn.max=300;rn.step=5;rn.value=(ST.CFG.mission&&ST.CFG.mission.radiusNm!=null)?ST.CFG.mission.radiusNm:60;
@@ -40,7 +49,7 @@ export async function openSettings(){
  const t9=document.createElement('div');t9.className='hint';t9.textContent='Address with {z}, {x} and {y} (XYZ tiles); the provider must allow CORS. Use only a service whose terms let you do so, with your own account or key.';t9.style.margin='-2px 0 8px 158px';satBox.append(t9);dlg.append(satBox);const satShow=()=>{satBox.style.display=cb8.checked?'':'none'};cb8.addEventListener('change',satShow);satShow();
  const bar=document.createElement('div');bar.className='bar';bar.style.justifyContent='flex-end';
  const ok=document.createElement('button');ok.className='btn';ok.textContent='Save';const no=document.createElement('button');no.className='btn g';no.textContent='Cancel';
- ok.onclick=async()=>{const n=JSON.parse(JSON.stringify(ST.CFG));CFG_PATHS.forEach(([k])=>n.paths[k]=inputs[k].value.trim());n.export.fileName=fn.value.trim()||DEFAULTS.export.fileName;n.ui={...(n.ui||{}),animations:cb4.checked,showMfd34:cb5.checked};n.squadron={...(n.squadron||{}),trackers:tk.value.trim()};n.mission={...(n.mission||{}),radiusNm:Math.max(0,Math.min(300,+rn.value||0))};n.map={...(n.map||{}),satOn:cb8.checked,satUrl:su.value.trim(),satKey:sk.value.trim(),satAttr:sa.value.trim(),satMaxZoom:Math.max(5,Math.min(22,Math.round(+sz.value||18)))};
+ ok.onclick=async()=>{const n=JSON.parse(JSON.stringify(ST.CFG));CFG_PATHS.forEach(([k])=>n.paths[k]=inputs[k].value.trim());n.export.fileName=fn.value.trim()||DEFAULTS.export.fileName;n.ui={...(n.ui||{}),animations:cb4.checked,showMfd34:cb5.checked,autoLoad:cb3.checked};n.squadron={...(n.squadron||{}),trackers:tk.value.trim()};n.mission={...(n.mission||{}),radiusNm:Math.max(0,Math.min(300,+rn.value||0))};n.map={...(n.map||{}),satOn:cb8.checked,satUrl:su.value.trim(),satKey:sk.value.trim(),satAttr:sa.value.trim(),satMaxZoom:Math.max(5,Math.min(22,Math.round(+sz.value||18)))};
   try{await saveConfig(n);const changed=n.paths.bmsInstall!==ST.CFG.paths.bmsInstall;const trk=n.squadron.trackers!==((ST.CFG.squadron&&ST.CFG.squadron.trackers)||'');ST.CFG=n;applyAnim();if(trk)sqPage.restart();try{mapV.rebase()}catch(e){}dlg.close();view();if(!$('kn').classList.contains('hide'))kbRender();if(changed)await loadGameData();fillCampaigns()}catch(e){alert('Could not save settings: '+(e&&e.message||e))}};
  no.onclick=()=>dlg.close();bar.append(no,ok);dlg.append(bar);dlg.showModal()}
 // our own number steppers (the browser's spin buttons are hidden by the CSS): a pair of small buttons after every number box, also for boxes drawn later
@@ -53,5 +62,7 @@ export async function init18() {
   const boot=loadConfig().then(async r=>{ST.CFG=r.config;applyAnim();if(r.warnings.length)alert('Settings: '+r.warnings.join('\n'));kbMemLoad();await loadGameData();await fillCampaigns()}).catch(()=>{});
   await Promise.race([boot,new Promise(r=>setTimeout(r,30000))]);   // the start-up bar waits for the game data and the campaign list (30 s at most)
   document.querySelectorAll('input[type=number]').forEach(stepper);
+  autoLoadLast().catch(()=>{});
+  initAppear();
   new MutationObserver(ms=>ms.forEach(r=>r.addedNodes.forEach(n=>{if(n.nodeType!=1)return;if(n.matches('input[type=number]'))stepper(n);n.querySelectorAll('input[type=number]').forEach(stepper)}))).observe(document.body,{childList:true,subtree:true});
 }

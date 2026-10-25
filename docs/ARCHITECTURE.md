@@ -947,3 +947,9 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `objFly(el)` (mapview.js) builds `#mpobj`, a panel inside `#mpfilw` (right: 100%) with the 18 object switches (`layerRow('o' + t)`), all / none and the `#mpocol` switch; the Objects row of the menu (`.mps.mpo`) keeps the master `input.mst` and the count badge (`masters()`), it only opens / closes the panel (not `toggleSec`). Tests look for the switches in `#mpfilw`.
 - Owner colouring is `st.on.ocol` (host class `ocol`, set in `sync`): `dotIcon(state, sub, side)` adds the class `oa` / `oe` only for allied / enemy objectives (`side` of `objDraw`); the CSS draws a ring with `box-shadow` and leaves `background` and `border` (the intact / damaged / destroyed state) alone. Neutral and unknown objectives, sub-objectives and airfield symbols are not touched.
 
+## v119 - Patch 0.9.9-beta.12
+
+- Settings `ui.autoLoad`, `ui.lastDtc` (full path), `ui.lastCamp` (file name): `rememberLast()` (base.js) is called by `openDtc` and `selectCampaign` and writes the settings only when the value changes; `autoLoadLast()` (settings.js, desktop only) runs at the end of `init18` and opens the campaign first, then the DTC. `paths.exportDir` stays in the defaults (old settings files) but has no row.
+- `app/js/app/appear.js`: one MutationObserver fades in (opacity only) what is shown again (style display, `hidden`, class `hide`) and what is added to `body`; elements that bring their own animation, Leaflet parts, canvases and dialogs are skipped. Closing is not animated by it (only where the code does it: the Objects panel, the old collapse / menus).
+- Kneeboard: `snap()` / `flip()` slide the cards that move on after `kbInsert`, the inserted card starts from the drop point.
+

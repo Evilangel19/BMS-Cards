@@ -6,7 +6,7 @@ import {parseLink16} from '../parsers/link16.js';
 import {parseIff} from '../parsers/iff.js';
 import {parseTwx} from '../parsers/twx.js';
 import {ST} from './state.js';
-import {$, esc, jp} from './base.js';
+import {$, esc, jp, rememberLast} from './base.js';
 import {F, FD, MIR, pushOne} from './datacard.js';
 import {perfFill} from './perf.js';
 import {lines} from './dtcfile.js';
@@ -65,7 +65,7 @@ export async function fillCampaigns(){
  if(!tacs.length)tsel.innerHTML='<option value="">— no tactical engagements found —</option>'}
 export async function selectCampaign(name){
  if(ST.C&&!await discardOk()){setSel(ST.CAMSEL);return}
- ST.CAMSEL=name;setSel(name);
+ ST.CAMSEL=name;setSel(name);rememberLast('lastCamp',name);
  if(!name){manClear();ST.C=null;ST.CL=[];ST.WX=null;ST.L16=null;ST.IFFP=null;atoSearch();$('fsel').innerHTML='<option>— select a flight —</option>';$('cinfo').textContent='';return}
  const dir=campDir(),es=await listDir(dir),stem=name.replace(/\.(cam|tac)$/i,'');
  const find=(...sfx)=>{const e=es.find(e=>!e.isDirectory&&sfx.some(s=>e.name.toLowerCase()===(stem+s).toLowerCase()))||(sfx.some(s=>/txtpb/.test(s))?es.find(e=>!e.isDirectory&&e.name.toLowerCase().startsWith(stem.toLowerCase())&&/l16.*\.(txtpb|txt)$|\.txtpb$/i.test(e.name)):null);return e&&e.name};

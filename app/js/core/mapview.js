@@ -217,10 +217,11 @@ export function createMap(host, deps) {
     f = document.createElement('div'); f.id = 'mpobj'; f.style.display = 'none';
     f.innerHTML = `<div class="mph"><b>Objects</b><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><label class="mpr mpoc" title="Allied objects get a ring in the allied colour, enemy objects in red; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed."><input type="checkbox" id="mpocol"${st.on.ocol ? ' checked' : ''}> <span class="lt">Colour objects by owner</span></label>`;
     w.appendChild(f);
-    const shut = () => { const g = $('mpobj'); if (g) g.style.display = 'none'; const r = document.querySelector('#mpbar .mpo'); if (r) { r.classList.remove('act'); r.querySelector('i').textContent = '◂'; } };
+    const an = () => !(deps.anim && !deps.anim()), hide = g => { if (g.style.display == 'none') return; if (an()) g.animate([{opacity: 1, transform: 'none'}, {opacity: 0, transform: 'translateX(8px)'}], {duration: 110, easing: 'ease-in'}).onfinish = () => { if (g.dataset.o != '1') g.style.display = 'none'; }; else g.style.display = 'none'; };
+    const shut = () => { const g = $('mpobj'); if (g) { g.dataset.o = ''; hide(g); } const r = document.querySelector('#mpbar .mpo'); if (r) { r.classList.remove('act'); r.querySelector('i').textContent = '◂'; } };
     const place = () => { const wt = w.getBoundingClientRect().top, mb = el.getBoundingClientRect().bottom - wt; f.style.maxHeight = Math.max(120, mb) + 'px'; f.style.top = Math.max(0, mb - f.offsetHeight) + 'px'; };   // the bottom edge lines up with the bottom of the filter menu
-    const open = o => { f.style.display = o ? '' : 'none'; row.classList.toggle('act', o); row.querySelector('i').textContent = o ? '▸' : '◂'; if (o) place(); };
-    row.onclick = e => { e.stopPropagation(); open(f.style.display == 'none'); };
+    const open = o => { f.dataset.o = o ? '1' : ''; if (o) { f.style.display = ''; place(); if (an()) f.animate([{opacity: 0, transform: 'translateX(8px)'}, {opacity: 1, transform: 'none'}], {duration: 150, easing: 'ease-out'}); } else hide(f); row.classList.toggle('act', o); row.querySelector('i').textContent = o ? '▸' : '◂'; };
+    row.onclick = e => { e.stopPropagation(); open(f.dataset.o != '1'); };
     f.onclick = e => e.stopPropagation();
     f.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { st.on[i.dataset.k] = i.checked; save(); masters(); sync(); });
     f.querySelectorAll('a[data-a]').forEach(a => a.onclick = () => setLayers(secKeys('Objects'), a.dataset.a == 'all'));

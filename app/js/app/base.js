@@ -12,6 +12,9 @@ import {dcPage, kbRender} from './kneeboard.js';
 
 export const saveBlob = (b,n,dir)=>saveFile(b,n,dir||ST.CFG.paths.exportDir);
 export const $ = id=>document.getElementById(id);
+import {saveConfig} from '../platform/desktop.js';
+// the program keeps the last DTC and campaign (for the "load the last ones at start" option); written to the settings only when it changes
+export function rememberLast(k,v){try{const u=ST.CFG.ui=ST.CFG.ui||{};if(!v||u[k]===v)return;u[k]=v;saveConfig(ST.CFG).catch(()=>{})}catch(e){/* none */}}
 export const animOn = ()=>(!ST.CFG.ui||ST.CFG.ui.animations!==false)&&!(window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches);
 export const applyAnim = ()=>document.documentElement.classList.toggle('noanim',!animOn());
 // Expand animation: grow and fade in the given elements (same 150 ms as collapse).

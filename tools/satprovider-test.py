@@ -24,6 +24,7 @@ try:
             pg.set_checked(row('Own satellite layer'), True); pg.fill(row('Tile address'), url); pg.fill(row('Key'), key); pg.fill(row('Credit'), credit); pg.fill(row('Deepest zoom'), z); pg.set_checked(row('Own satellite layer'), on)
             pg.click('#cfg .btn:not(.g)'); pg.wait_for_timeout(600)
         check('the Settings have the own satellite layer rows', (pg.click('#cfgbtn'), pg.wait_for_timeout(400), pg.locator(row('Own satellite layer')).count() == 1 and pg.locator(row('Tile address')).count() == 1 and pg.locator(row('Deepest zoom')).count() == 1)[2])
+        check('the Settings no longer have an Export folder row, and have the start-up option', pg.locator('#cfg .cf > label:text-is("Export folder")').count() == 0 and pg.locator('#cfg .cf > label:text-is("Open last at start")').count() == 1)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         pg.click('[data-t=mp]'); pg.wait_for_timeout(1200)
         pg.click('#mpbaseb'); pg.wait_for_timeout(250)
