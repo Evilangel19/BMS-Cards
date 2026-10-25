@@ -2,7 +2,7 @@
 // center) to latitude/longitude and builds the point/line sets the map layers draw. Pure functions, no DOM.
 import {tmInv, tmFwd, getGeo} from '../rules/geo.js';
 import {ord} from './flight.js';
-import {allyOf} from './coalitions.js';
+import {allyOf, hostileOf} from './coalitions.js';
 import {clean} from './flight.js';
 
 // campaign km -> [lat, lon]
@@ -37,7 +37,7 @@ export function airbaseOwner(C, id) {
   const q = C.units.find(u => u.kind == 'sqd' && u.airbase && u.airbase.n == id); return q ? q.owner : null;
 }
 // 'own' = the viewed team, 'ally', 'enemy', or 'unknown'
-export const airbaseSide = (C, id, view) => { const o = airbaseOwner(C, id); return o == null || o == 0 ? 'unknown' : o == view ? 'own' : allyOf(C, o, view) ? 'ally' : 'enemy'; };
+export const airbaseSide = (C, id, view) => { const o = airbaseOwner(C, id); return o == null || o == 0 ? 'unknown' : o == view ? 'own' : allyOf(C, o, view) ? 'ally' : hostileOf(C, o, view) ? 'enemy' : 'neutral'; };
 
 // Route of a flight: [{n, act, ll}] with the waypoint number (1 = first waypoint) and its action
 export function flightRoute(C, f) {
@@ -55,7 +55,7 @@ export const theaterBounds = () => {
 
 // ---- units, SAM rings, flights at a given time ---------------------------------------------
 // allyOf: the relations of the campaign, see coalitions.js (the map, the ATO and the datacard use the same rule)
-export {allyOf};
+export {allyOf, hostileOf};
 // A unit is "spotted" when the low byte of its spotted field has the bit of one of the given teams (1 << team).
 // (Reading checked on the sample campaigns: ROK, the player's allies in the data, hold the bits of enemy units they spotted.)
 export const spottedBy = (u, teams) => teams.some(t => ((u.spA | 0) >> t) & 1);
@@ -66,8 +66,8 @@ const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 export function mapUnits(C, view) {
   const D = C.D, mates = [0, 1, 2, 3, 4, 5, 6, 7].filter(t => allyOf(C, t, view));
   return C.units.filter(u => (u.kind == 'gnd' || u.kind == 'sea') && u.c).map(u => {
-    const i = (D.un || {})[u.c.i] || ['?', 0, 0, -1, 0], ally = allyOf(C, u.owner, view);
-    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], det: i[4] || 0, slot: i[3] == null ? -1 : i[3], sam: SAMCAT.has(i[0]) && i[1] > 0, noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0, ally, spotted: ally || spottedBy(u, mates)};
+    const i = (D.un || {})[u.c.i] || ['?', 0, 0, -1, 0], ally = allyOf(C, u.owner, view), hostile = hostileOf(C, u.owner, view);
+    return {u, ll: toLL(u.x, u.y), owner: u.owner, name: D.ac[u.c.i] || i[0], bn: u.kind == 'gnd' ? ord(u.nameId) + ' ' + ((D.gu || {})[u.c.i] || i[0]) + ' Battalion' : D.ac[u.c.i] || i[0], cat: i[0], rng: i[1], low: i[2], det: i[4] || 0, slot: i[3] == null ? -1 : i[3], sam: SAMCAT.has(i[0]) && i[1] > 0, noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0, ally, hostile, spotted: ally || spottedBy(u, mates)};
   });
 }
 

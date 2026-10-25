@@ -7,7 +7,7 @@ import {objState, featState} from '../parsers/cam.js';
 import {offsetRow} from './popup.js';
 import {OFF_KEYS, OFF_COLORS} from './mapoffs.js';
 import {GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL} from './mapdtc.js';
-import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
+import {toLL, fromLL, fmtLL, mapAirbases, airbaseOwner, flightRoute, mapUnits, flightState, isActivity, legs, bullseye, allyOf, hostileOf, frontLine, spottedBy, crossesRoute, theaterBounds} from './mapdata.js';
 import {getGeo} from '../rules/geo.js';
 import {warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame} from './mapwarp.js';
 import {unitSymbol, placeIcon} from './mapsymbols.js';
@@ -41,12 +41,12 @@ export const MAP_LAYERS = [
   ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
-  ...OBJ_LAYERS.map(([t, l]) => ['oa' + t, l, false, 'Allied objects']), ...OBJ_LAYERS.map(([t, l]) => ['oe' + t, l, false, 'Enemy objects'])];
+  ...OBJ_LAYERS.map(([t, l]) => ['oa' + t, l, false, 'Allied objects']), ...OBJ_LAYERS.map(([t, l]) => ['oe' + t, l, false, 'Enemy objects']), ...OBJ_LAYERS.map(([t, l]) => ['ox' + t, l, false, 'Neutral objects'])];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'], ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'], ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'], ['names', 'Names', 'Display']];
 const ALLY = '#4f8cff', ENEMY = '#ff5d5d';
 // airbase colours by faction: the viewed team, its allies, enemies, owner not known
-const AB_COL = {own: '#4f8cff', ally: '#3ddc84', enemy: '#ff5d5d', unknown: '#e6edf3'};
+const AB_COL = {own: '#4f8cff', ally: '#3ddc84', enemy: '#ff5d5d', unknown: '#e6edf3', neutral: '#9aa4b2'};
 // colours of the flight plan follow the base map: bright on dark maps, dark on light ones (the halo goes round the line)
 const SAMS = {foe: {c: '#ff9f1a', d: '7 5', f: .08, w: 1.5}, ally: {c: '#4f8cff', d: null, f: .08, w: 1.5}};
 const PAL = {dark: {sam: SAMS, plan: '#ffd23f', mate: '#ffffff', halo: 'rgba(0,0,0,.65)', casing: 'rgba(0,0,0,.65)', bull: '#c9a7ff', trk: '#3ddc84', foe: '#ff5d5d', dtc: {prec: '#4dd0e1', ppt: '#ff5d5d', pptO: '#3ddc84', line: '#d0a3ff'}},
@@ -95,7 +95,7 @@ export function createMap(host, deps) {
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
   const migrate = o => { const r = Object.assign({}, o); OBJ_LAYERS.forEach(([t]) => { if (r['o' + t] && r['oa' + t] === undefined) r['oa' + t] = r['oe' + t] = true; delete r['o' + t]; }); return r; };   // the old single 'objects' switch of a type becomes the allied and the enemy one
-  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), migrate(PREF.on || {})), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Allied objects', 'Enemy objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
+  const mkSt = () => ({base: BASES[PREF.base] ? PREF.base : 'coast', cl: !!PREF.coastLight || PREF.base == 'coastl', on: Object.assign(Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))), migrate(PREF.on || {})), closed: Array.isArray(PREF.closed) ? PREF.closed : ['Allied objects', 'Enemy objects', 'Neutral objects'], dtcOpen: !!PREF.dtcOpen, dtcFilOpen: PREF.dtcFilOpen !== false, dtcFilMem: PREF.dtcFilMem || null, baseOpen: !!PREF.baseOpen, filOpen: !!PREF.filOpen});
   st = mkSt();
   const persist = () => { store.set(PREF); if (deps.savePrefs) deps.savePrefs(PREF); };
   // the satellite layer: the built-in one (Sentinel-2 by EOX) or, when it is switched on in the Settings, the user's own tile provider
@@ -184,7 +184,7 @@ export function createMap(host, deps) {
     else if (fast) body.style.display = 'none';
     else { const an = body.animate([{height: body.offsetHeight + 'px', opacity: 1}, {height: '0px', opacity: 0}], {duration: 150, easing: 'ease-out'}); an.onfinish = () => { body.style.display = 'none'; }; }
   }
-  const MACRO = ['Navigation', 'Selected flight', 'Ground and naval units', 'SAM range', 'In flight', 'Allied objects', 'Enemy objects', 'Display'];   // sections with a switch for all their layers
+  const MACRO = ['Navigation', 'Selected flight', 'Ground and naval units', 'SAM range', 'In flight', 'Allied objects', 'Enemy objects', 'Neutral objects', 'Display'];   // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]).concat(n == 'Display' ? ['names'] : []);   // the "only ..." switches are not part of a section's master switch
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
@@ -388,7 +388,7 @@ export function createMap(host, deps) {
     if (auUsed('ppt')) return toast('The automatic threats are already in the DTC.', true);
     const C = deps.getC(), f = deps.getSel(), r = C && f ? flightRoute(C, f) : [];
     if (!r.length) return toast('Select a flight with a flight plan first: the SAMs crossing it are added.', true);
-    const cand = UL.filter(m => m.sam && !m.noFcr && !m.ally && crossesRoute(r, m.u.x, m.u.y, m.rng)).sort((a, b) => b.rng - a.rng);
+    const cand = UL.filter(m => m.sam && !m.noFcr && m.hostile && crossesRoute(r, m.u.x, m.u.y, m.rng)).sort((a, b) => b.rng - a.rng);
     const old = P.ppt.filter(p => !p.empty && isSamPpt(p.name)); old.forEach(p => deps.dtc.clear('ppt', p.slot));   // the SAM threats of the DTC are replaced
     if (!cand.length) { dtc(); return toast((old.length ? old.length + ' SAM threats removed. ' : '') + 'No enemy SAM crosses the flight plan of the selected flight, so no threat was added.', !!old.length ? false : true); }
     let added = 0, dup = 0, full = 0; AU.ppt = [];
@@ -609,26 +609,26 @@ export function createMap(host, deps) {
   }
   const objSize = () => { host.style.setProperty('--os', dotSize() + 'px'); host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px'); };
   function objDraw() {
-    const on = OBJ_LAYERS.filter(([t]) => st.on['oa' + t] || st.on['oe' + t]); if (!map) return;
+    const on = OBJ_LAYERS.filter(([t]) => st.on['oa' + t] || st.on['oe' + t] || st.on['ox' + t]); if (!map) return;
     if (!on.length) { objClear(); Object.values(GU).forEach(g => map.removeLayer(g)); return; }
-    if (!OBL) { if (!OBLP && deps.objects) OBLP = deps.objects.list().then(l => { OBL = l; objDraw(); }).catch(e => { OBLP = null; toast('Objects: ' + (e && e.message || e), true); OBJ_LAYERS.forEach(([t]) => { st.on['oa' + t] = st.on['oe' + t] = false; }); save(); panel(); sync(); }); return; }
+    if (!OBL) { if (!OBLP && deps.objects) OBLP = deps.objects.list().then(l => { OBL = l; objDraw(); }).catch(e => { OBLP = null; toast('Objects: ' + (e && e.message || e), true); OBJ_LAYERS.forEach(([t]) => { st.on['oa' + t] = st.on['oe' + t] = st.on['ox' + t] = false; }); save(); panel(); sync(); }); return; }
     const C = deps.getC(), view = deps.getView(), key = (C && C.name) + '|' + (C && C.now) + '|' + view, L = window.L;
     if (!OSUB) { OSUB = L.layerGroup().addTo(map); OLBL = L.layerGroup().addTo(map); }
     if (!OHOOK) { OHOOK = true; map.on('moveend zoomend', objLabels); map.on('zoom zoomend', objSize); map.on('click', () => { if (OSEL) objClear(); }); }
     objSize();
-    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => { G['oa' + t].clearLayers(); G['oe' + t].clearLayers(); if (GU[t]) GU[t].clearLayers(); }); OBK = key; OBJB = new Set(); OJ = []; objClear(); }
+    if (key != OBK) { OBJ_LAYERS.forEach(([t]) => { G['oa' + t].clearLayers(); G['oe' + t].clearLayers(); G['ox' + t].clearLayers(); if (GU[t]) GU[t].clearLayers(); }); OBK = key; OBJB = new Set(); OJ = []; objClear(); }
     on.forEach(([t, lab]) => {
       if (OBJB.has(t)) return; OBJB.add(t);
       OBL.filter(o => o.type == t).forEach(o => {
         const fs = C && C.objFeat ? C.objFeat.get(o.id) : null, state = objState(fs), ll = toLL(o.e / FT_KM, o.n / FT_KM);
-        const ow = C ? airbaseOwner(C, o.id) : null, side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'e', g = side == 'a' ? G['oa' + t] : side == 'e' ? G['oe' + t] : (GU[t] = GU[t] || L.layerGroup()), own = ow ? ' · ' + teamName(C.D, ow) : '';
+        const ow = C ? airbaseOwner(C, o.id) : null, side = ow == null || ow == 0 ? 'u' : (ow == view || allyOf(C, ow, view)) ? 'a' : hostileOf(C, ow, view) ? 'e' : 'x', g = side == 'a' ? G['oa' + t] : side == 'e' ? G['oe' + t] : side == 'x' ? G['ox' + t] : (GU[t] = GU[t] || L.layerGroup()), own = ow ? ' · ' + teamName(C.D, ow) + (side == 'x' ? ' (neutral)' : '') : '';
         OJ.push({t, o, ll, g});
         L.marker(ll, {icon: dotIcon(state), keyboard: false, zIndexOffset: 100})
           .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), {direction: 'top', offset: [0, -6]})
           .on('click', () => { if (OSEL === o.id) window.L.popup({className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6]}).setLatLng(ll).setContent(objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)).openOn(map); else objOpen(o, ll, lab); }).addTo(g);   // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
     });
-    OBJ_LAYERS.forEach(([t]) => { const g = GU[t]; if (!g) return; if (st.on['oa' + t] || st.on['oe' + t]) g.addTo(map); else map.removeLayer(g); });
+    OBJ_LAYERS.forEach(([t]) => { const g = GU[t]; if (!g) return; if (st.on['oa' + t] || st.on['oe' + t] || st.on['ox' + t]) g.addTo(map); else map.removeLayer(g); });
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
@@ -689,6 +689,7 @@ export function createMap(host, deps) {
     const r = f ? flightRoute(C, f) : [], only = !!st.on.sx && r.length > 0; SX = only; UL.forEach(m => { m.hit = false; });
     UL.filter(m => m.sam && !m.noFcr).forEach(m => {   // no FCR: no ring
       const hit = !m.ally && only && crossesRoute(r, m.u.x, m.u.y, m.rng); m.hit = hit; if (!m.ally && only && !hit) return;
+      if (!m.ally && !m.hostile) return;   // a neutral unit is no threat: no ring
       if (!m.ally && pptCovers(m)) return;   // its red PPT ring is drawn instead
       const sty = pal.sam[m.ally ? 'ally' : 'foe'], fo = (st.on.ringfill == null ? 8 : st.on.ringfill) / 100;
       L.circle(m.ll, {radius: m.rng * 1000, color: sty.c, weight: hit ? 2.8 : sty.w, dashArray: sty.d, fillColor: sty.c, fillOpacity: hit && fo > 0 ? Math.max(.2, fo + .1) : fo, interactive: false}).addTo(G[m.ally ? 'sf' : 'se']);
@@ -1222,7 +1223,7 @@ export function createMap(host, deps) {
   let RCK = '', RCBUSY = false, RCNOTE = false;
   async function radarCov() {
     if (!map || !G.rc) return;
-    const C = deps.getC(), alive = C ? radarUnits(UL).filter(r => !r.ally) : [];
+    const C = deps.getC(), alive = C ? radarUnits(UL).filter(r => r.hostile) : [];
     // the key: the campaign file (each opening is a new one), the team seen, the radars still alive (position and range), the altitude, the colours
     const key = !st.on.rc || !C ? '' : rcId(C) + '|' + (curView == null ? '' : curView) + '|' + rcAlt() + '|' + (pal === PAL.dark ? 'd' : 'l') + '|' + alive.map(r => Math.round(r.x) + ',' + Math.round(r.y) + ',' + r.rng).join(';');
     if (key === RCK && key !== '' || (key === '' && !RCK)) return;
@@ -1234,8 +1235,8 @@ export function createMap(host, deps) {
       try {
         const td = deps.objects && deps.objects.radars ? await deps.objects.radars() : [];
         td.forEach(({o, feats}) => {
-          const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : 'f', seen = new Set();
-          if (side == 'a') return; feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
+          const fs = C.objFeat ? C.objFeat.get(o.id) : null, ow = airbaseOwner(C, o.id), side = ow == null || ow == 0 ? 'n' : (ow == view || allyOf(C, ow, view)) ? 'a' : hostileOf(C, ow, view) ? 'f' : 'x', seen = new Set();
+          if (side == 'a' || side == 'x') return; /* the radars of the allies and of the neutral teams are not drawn */ feats.forEach(f => { if (fs && fs[f.k] !== undefined && featState(fs[f.k]) == 2) return; const x = f.e / FT_KM, y = f.n / FT_KM, kk = Math.round(x) + ',' + Math.round(y); if (seen.has(kk)) return; seen.add(kk); radars.push({x, y, rng: f.det, side, name: o.name}); });
         });
       } catch (e) { /* no BMS folder: only the radars of the units */ }
       if (deps.elev && radars.length) {

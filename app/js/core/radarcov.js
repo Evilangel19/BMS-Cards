@@ -7,7 +7,7 @@ const key = (i, j) => i + ',' + j;
 
 // the radars of a unit list (mapUnits): ground / naval units with a detection range of at least minKm at low altitude and a radar vehicle that is still alive
 export function radarUnits(UL, minKm = 30) {
-  return UL.filter(m => m.det >= minKm && !m.noFcr && m.slot >= 0).map(m => ({x: m.u.x, y: m.u.y, rng: m.det, ally: m.ally, name: m.name, bn: m.bn, ll: m.ll}));
+  return UL.filter(m => m.det >= minKm && !m.noFcr && m.slot >= 0).map(m => ({x: m.u.x, y: m.u.y, rng: m.det, ally: m.ally, hostile: m.hostile, name: m.name, bn: m.bn, ll: m.ll}));
 }
 const steps = (r, stepKm) => { const o = []; for (let d = stepKm; d <= r.rng + 1e-6; d += stepKm) o.push(d); return o; };
 // the terrain cells that the rays of the given radars cross: [[i, j], ...] without duplicates (the radar position too)

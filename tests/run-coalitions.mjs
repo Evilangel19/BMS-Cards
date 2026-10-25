@@ -1,5 +1,5 @@
 // Friend and foe come from the relations of the campaign (.tea), the same everywhere: map, ATO, tankers, JTAC, FAC(A), hostile battalion near a target
-import { allyOf, hostileOf } from '../app/js/core/coalitions.js';
+import { allyOf, hostileOf, neutralOf } from '../app/js/core/coalitions.js';
 import { allyOf as allyMap } from '../app/js/core/mapdata.js';
 import { jtacPick, pickTankers } from '../app/js/rules/support.js';
 import { fac } from '../app/js/core/flight.js';
@@ -11,6 +11,11 @@ ck('same team: friend', allyOf(C, 2, 2));
 ck('allied by the campaign although 5 is not below 4', allyOf(C, 2, 5) && allyOf(C, 5, 2));
 ck('teams 2 and 3 are NOT friends here (the old "both below 4" rule said so)', !allyOf(C, 2, 3) && hostileOf(C, 2, 3));
 ck('neutral is not a friend', !allyOf(C, 2, 6));
+st[2][7] = st[7][2] = 5; st[3][5] = st[5][3] = 4;
+ck('neutral (3) is neither a friend nor hostile: a third class', neutralOf(C, 2, 6) && !hostileOf(C, 2, 6) && !allyOf(C, 2, 6));
+ck('hostile (0), unfriendly (4) and at war (5) are hostile, in either direction', hostileOf(C, 2, 3) && hostileOf(C, 2, 7) && hostileOf(C, 7, 2) && hostileOf(C, 3, 5) && !neutralOf(C, 2, 7));
+ck('every team falls in exactly one class (ally, hostile, neutral) for a real team', [1, 2, 3, 4, 5, 6, 7].every(a => [1, 2, 3, 4, 5, 6, 7].every(b => [allyOf(C, a, b), hostileOf(C, a, b), neutralOf(C, a, b)].filter(Boolean).length === 1)));
+ck('without relations nothing is neutral', !neutralOf({}, 1, 4) && !neutralOf({}, 1, 2));
 ck('team 0 (unknown) is never hostile', !hostileOf(C, 0, 2) && !hostileOf(C, 2, 0));
 ck('without relations: teams 1-3 stand together, 4 and above against them', allyOf({}, 1, 3) && !allyOf({}, 1, 4) && hostileOf({}, 1, 4) && !hostileOf({}, 1, 3));
 ck('the map uses the same function', allyMap === allyOf);
@@ -26,8 +31,8 @@ const C2 = { stance: st, D, units: [f, tk5, tk3, jt5, en3], byId: {}, bull: null
 const reg = C => { C.units.forEach(u => { C.byId[u.id.n + ':' + u.id.c] = u; }); C.byId['99:1'] = { els: [{ n: 1, c: 1 }] }; }; reg(C2);
 let jp = null; try { jp = jtacPick(C2, f); } catch (e) { console.log('jtacPick:', e.message); }
 ck('JTAC: an allied battalion of team 5 serves, the hostile one of team 3 is the enemy', jp && jp.u === jt5);
-const C3 = { ...C2, units: [f, jt5, gnd(12, 5, 1, 112, 112)] };
-ck('JTAC: no hostile unit, no JTAC', jtacPick(C3, f) === null);
+const C3 = { ...C2, units: [f, jt5, gnd(12, 5, 1, 112, 112), gnd(13, 6, 1, 112.5, 112.5)] };
+ck('JTAC: no hostile unit (a neutral one is not an enemy), no JTAC', jtacPick(C3, f) === null);
 let tk = []; try { tk = pickTankers(C2, f, null); } catch (e) { console.log('pickTankers:', e.message); }
 ck('tankers: the allied tanker (team 5) is offered, the hostile one (team 3) is not', tk.length === 1 && tk[0] === tk5);
 const fa5 = flight(20, 5, 2, [wp(105, 105, 17, 1500)], 6), fa3 = flight(21, 3, 2, [wp(105, 105, 17, 1500)], 6);
