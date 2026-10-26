@@ -586,7 +586,7 @@ export function createWeaponsPage(deps) {
       v = r.v,
       vip = st.ref == 'vip' ? ctx.vipPos : null,
       ll = p => deps.ll(p.n, p.e),
-      D0 = oa1Plan(r.draw || popupDraw(r, vip), r),
+      D0 = vrpMark(oa1Plan(r.draw || popupDraw(r, vip), r), r),
       D =
         vip && dist(vip, r.target) > 50 && !D0.marks.some(m => m[0] === vip)
           ? {
@@ -1067,6 +1067,14 @@ export function createWeaponsPage(deps) {
     return o;
   }
 
+  // HADB / TOSS drawing with the VRP selected: the VRP is shown (on the point that is already drawn there, or on its own)
+  function vrpMark(d, r) {
+    if (st.ref != 'vrp' || !r.draw || !r.vrp) return d;
+    const i = d.marks.findIndex(m => dist(m[0], r.vrp) < 50);
+    if (i < 0) return { ...d, marks: [...d.marks, [r.vrp, 'VRP', '#f0b040', 'big']] };
+    if (/VRP/.test(d.marks[i][1])) return d;
+    return { ...d, marks: d.marks.map((m, j) => (j === i ? [m[0], m[1] + ' · VRP', ...m.slice(2)] : m)) };
+  }
   // the drawing for the Map page's DTC filter: phases with their colours, in the page's own north / east feet (the caller converts)
   function spec() {
     try {
@@ -1660,7 +1668,7 @@ export function createWeaponsPage(deps) {
       );
       const egressCard =
         md == 'toss'
-          ? `<div class="wcard"><h3>Egress</h3><div class="wrow"><label>OA2</label>${oa2Seg}</div><div class="wegalt"${i.oa2Mode == 'egress' ? '' : ' hidden'}>${slider('egressAltitude', 'OA2 alt.', ' ft', 0)}</div>${egrBody}<p class="hint wnote">The heading flown after the release, drawn from the target. OA2 serves the egress only when there is no turn (angle off 0); with a turn it is the line-up before the turn.</p></div>`
+          ? `<div class="wcard"><h3>Egress</h3><div class="woa2"${+i.angleOff > 0 ? ' hidden' : ''}><div class="wrow"><label>OA2</label>${oa2Seg}</div><div class="wegalt"${i.oa2Mode == 'egress' ? '' : ' hidden'}>${slider('egressAltitude', 'OA2 alt.', ' ft', 0)}</div></div>${egrBody}<p class="hint wnote">The heading flown after the release, drawn from the target. Without a turn (angle off 0) OA2 can serve the egress.</p></div>`
           : `<div class="wcard"><h3>Egress</h3><div class="wrow"><label>OA2</label>${seg(
               'oa2Mode',
               [
@@ -1955,12 +1963,18 @@ export function createWeaponsPage(deps) {
           draw(true);
         })
     );
+    // TOSS: with an angle off OA2 is the line-up before the turn, so the egress choice is hidden
+    const oa2Vis = () => {
+      const e = root.querySelector('.woa2');
+      if (e) e.hidden = st.mode == 'toss' && +cur().angleOff > 0;
+    };
     root.querySelectorAll('input[data-sl]').forEach(inp => {
       inp.oninput = () => {
         const f = inp.dataset.sl,
           x = sliderOf(f);
         cur()[f] = NM[f] ? Math.round(+inp.value * FT_NM) : +inp.value;
         if (f == 'egressHeading') cur().egressTurn = 'set';
+        oa2Vis();
         const em = root.querySelector(`[data-em="${f}"]`);
         if (em) em.textContent = fmt(inp.value, x[3]) + x[2];
         const nb = root.querySelector(`[data-slnum="${f}"]`);
@@ -1979,6 +1993,7 @@ export function createWeaponsPage(deps) {
           n = Math.min(b, Math.max(a, n));
           nb.value = n;
           cur()[f] = n;
+          oa2Vis();
           if (f == 'egressHeading') cur().egressTurn = 'set';
           const sl = root.querySelector(`input[data-sl="${f}"]`);
           if (sl) sl.value = n;

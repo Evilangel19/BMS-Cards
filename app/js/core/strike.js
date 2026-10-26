@@ -183,7 +183,7 @@ export function computeHadb(target, ref, inp) {
       ['fall', fall.track.map(q => [-relRange + q.x, q.alt])],
     ],
     marks: [
-      [[along(pup), ingressAlt], 'VIP', '#ffe680'],
+      [[along(pup), ingressAlt], 'PUP', '#ffe680'],
       [[along(endTurn), v.releaseAltitude + trackV], 'Roll out', '#ffe680'],
       [[-relRange, v.releaseAltitude], 'Release · ' + Math.round(v.releaseAltitude) + ' ft', '#4aa3ff'],
     ],
@@ -210,9 +210,9 @@ export function computeHadb(target, ref, inp) {
       ],
       marks: [
         [oa, 'OA1', '#a78bfa', 'dia'],
-        [pup, 'VIP', '#ffe680'],
+        [pup, 'PUP', '#ffe680'],
         [endTurn, 'Roll out', '#ffe680'],
-        [release, 'VRP · release', '#4aa3ff'],
+        [release, 'Release', '#4aa3ff'],
       ],
       arrows: [
         [oa, pup, 'ingress'],
@@ -350,7 +350,7 @@ export function computeToss(target, ref, inp) {
       ['fall', fall.track.map(q => [xRel + q.x, q.alt])],
     ],
     marks: [
-      [[along(pup), v.ingressAltitude], 'VIP', '#ffe680'],
+      [[along(pup), v.ingressAltitude], 'PUP', '#ffe680'],
       [[xRel, relAlt], 'Release · ' + Math.round(relAlt) + ' ft', '#4aa3ff'],
     ],
   };
@@ -390,7 +390,7 @@ export function computeToss(target, ref, inp) {
             ]
           : []),
         [oa, 'OA1', '#a78bfa', 'dia'],
-        [pup, 'VIP · pull-up', '#ffe680'],
+        [pup, 'PUP · pull-up', '#ffe680'],
         [release, 'Release', '#4aa3ff'],
       ],
       arrows: [

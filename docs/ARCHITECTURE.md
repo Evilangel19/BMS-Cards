@@ -3,6 +3,7 @@
 The diary of every patch (what changed, why, how it was checked) is in `archive/ARCHITECTURE-history.md`; what to do next is in `ROADMAP.md`. This file only says how things are today.
 
 ## Principles
+
 - Portable: one folder (exe + `config.json` + optional `data/`), easy to move or delete. No installer, no automatic updater.
 - Everything about the game is read from the user's own Falcon BMS installation. The repository contains **no BMS data** (test fixtures and golden results are gitignored: `tests/fixtures/`, `tests/golden/`, `app/js/data/local/`).
 - Parsers are independent: file in, data out. Rules and calculations are pure functions without DOM. The UI is a separate layer.
@@ -10,9 +11,11 @@ The diary of every patch (what changed, why, how it was checked) is in `archive/
 - UI text is English. BMS file formats are followed byte for byte when a file is written (DTC `.ini`: CRLF, no BOM).
 
 ## Stack
+
 Tauri v2 shell (`src-tauri/`, Rust: file access, folders, config) + a vanilla ES-module web app in `app/` (no bundler, no framework). Leaflet (map), pdf.js, html2canvas are in `app/vendor/` with their licences. The same page also runs in a plain browser, with fallbacks (`platform/desktop.js`).
 
 ## Layout
+
 ```
 app/index.html     the page (HTML only); style sheets app/css/style-01..09.css (loaded in this order, the order matters)
 app/js/app/        the page's code: main.js (entry), state.js (ST: state shared by modules), pages.js, settings.js,
@@ -31,6 +34,7 @@ docs/              this file, ROADMAP.md, archive/
 ```
 
 ## Data flow
+
 1. At start `app/js/app/gamedata.js` / `gamefiles.js` find the BMS folder (desktop app) and read the tables into `data/index.js` and `bmsdata/*`.
 2. A campaign (`.cam`, `.uni`, `.tea`, `.iff`, `.l16`, weather `.fmap`, `.twx`) or a Tactical Engagement is opened in `app/js/app/campaign.js` and parsed by `parsers/`; `core/cam-core.js` ties the pieces together (flights, ATO, bullseye ...).
 3. A flight is selected (`app/js/app/selection.js`): the Datacard (`core/fillcard.js`, `cardlayout.js`) and the other pages are filled from it.
@@ -38,15 +42,18 @@ docs/              this file, ROADMAP.md, archive/
 5. A mission file (`core/mission.js`) carries one package to a pilot without the campaign.
 
 ## State and settings
+
 - `ST` (`app/js/app/state.js`) holds what several modules assign. Settings: `config.json` next to the exe (desktop) or the browser storage; remembered choices (last DTC / campaign) live under `ui` in the config.
 - The map keeps its own choices (layers, filters, menus) in `store` (`core/mapconst.js`).
 
 ## Conventions
+
 - Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
 - Animations use the Web Animations API through small helpers; `.noanim` (reduced motion) switches them off; tests run with reduced motion unless they test an animation.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
 
 ## Tests
+
 - `npm run check` = lint + format check + types + `npm test` (what the CI runs on every push, on a clean clone).
 - Types: `// @ts-check` at the top of a file puts it under `tsc` (`npm run typecheck`, files listed in `tsconfig.json`); the pure modules (parsers, rules, mapdtc, mapdata, popup, lethal, strike, coalitions) are in. Add a file to `tsconfig.json` when it is typed.
 - `npm test`: `tests/run-all.mjs` runs every `tests/run-*.mjs`; a test whose BMS files are missing is skipped with a note (list `NEEDS` in the runner). Chain (parsers, golden flights, ATO, map data, popup / strike / lethality maths, DTC campaign `.ini` format ...). Tests that need BMS data are skipped when `BMS_DATA` is not set.
@@ -55,4 +62,5 @@ docs/              this file, ROADMAP.md, archive/
 - After editing code: `npm run format`, `npm run lint`, `npm test`, then the browser tests of the page touched.
 
 ## Not done / open
+
 See `ROADMAP.md`: field tests with a squadron, DLZ / take-off calibration, NAV OFFSETS DED checks, CSP (to be set in the last beta before the official release), Tauri allow-list check on a real PC.

@@ -1,6 +1,6 @@
 {
   "name": "bms-cards",
-  "version": "0.9.9-beta.28",
+  "version": "0.9.9-beta.29",
   "private": true,
   "description": "BMS Cards - datacard and kneeboard planner for Falcon BMS 4.38.1",
   "scripts": {
