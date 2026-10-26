@@ -1,3 +1,4 @@
+// @ts-check
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 import { ord, acOf, actName, els0, hms, nearObj, csOf } from '../core/flight.js';
 import { geoLL, hmN, locXY } from './geo.js';
@@ -36,6 +37,7 @@ function svc(C, f) {
 }
 // the hostile ground unit (battalion) closest to a point, within km; null when there is none
 function hostileGnd(C, f, x, y, km = 1) {
+  /** @type {any} */
   let b = null,
     bd = km;
   C.units.forEach(u => {
@@ -77,7 +79,7 @@ function pickTankers(C, f, P) {
   );
   return c
     .filter(u => u !== f && !el.some(e => e.id.n == u.id.n && e.id.c == u.id.c))
-    .sort((x, y) => pref(y) - pref(x) || (y === asg) - (x === asg) || win(x)[0] - win(y)[0])
+    .sort((x, y) => Number(pref(y)) - Number(pref(x)) || Number(y === asg) - Number(x === asg) || win(x)[0] - win(y)[0])
     .slice(0, 2);
 }
 // the friendly ground unit that acts as JTAC of a CAS flight: {u, cat, name, d, loc} or null

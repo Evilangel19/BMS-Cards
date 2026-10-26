@@ -1,3 +1,4 @@
+// @ts-check
 // Falcon BMS campaign (.cam) reader: table of contents, unit file (.uni), campaign-type table, bullseye.
 import { lzExpand } from './lzss.js';
 
@@ -486,6 +487,7 @@ export function objInitial(E) {
       num = h.getInt16(0, true),
       u = lzExpand(b.subarray(10), h.getInt32(2, true)),
       d = new DataView(u.buffer, u.byteOffset, u.byteLength),
+      /** @type {Map<any, any> & { vu?: Map<any, any> }} */
       out = new Map();
     let p = 0;
     const vu = new Map();

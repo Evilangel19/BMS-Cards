@@ -1,3 +1,4 @@
+// @ts-check
 // LZSS expander used by Falcon BMS campaign files.
 export function lzExpand(s, size) {
   const w = new Uint8Array(4096);

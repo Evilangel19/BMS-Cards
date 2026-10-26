@@ -1,3 +1,4 @@
+// @ts-check
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 const hmN = ms => {
   const s = Math.floor(ms / 1000) % 86400,

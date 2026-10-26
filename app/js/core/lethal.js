@@ -1,3 +1,4 @@
+// @ts-check
 // Fragmentation area (lethality), minimum acceptable release altitude (MRA) and safe escape of a bomb drop. Pure functions, no DOM.
 // Source: TO 1F-16CMAM-34-1-1 BMS, 4.2.15 (the three minimum release altitudes), 4.2.16 (safe escape manoeuvres) and the lethality graphs of the
 // general-purpose bombs. The numbers are READ FROM THE GRAPHS (a general estimate, not BMS code): 500 lb class (MK-82) about 3 600 ft out, 2 450 ft up,
@@ -182,7 +183,7 @@ export function analyse(r, env, ads) {
     flags.diveAngle = flags.diveAngle || m;
     flags.releaseSpeed = m;
   } else if (res.below)
-    flags.releaseAltitude = `Release altitude ${Math.round(ralt)} ft is below the minimum acceptable release altitude ${Math.round(top[1])} ft (${top[0]}).`;
+    flags.releaseAltitude = `Release altitude ${Math.round(ralt)} ft is below the minimum acceptable release altitude ${Math.round(Number(top[1]))} ft (${top[0]}).`;
   if (env) {
     const q = inside(v, ralt, env);
     if (!q.error) {

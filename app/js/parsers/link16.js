@@ -1,3 +1,4 @@
+// @ts-check
 // Link 16 STN table (.l16.txtpb / F-16*.txtpb): flight number -> STN (octal), F2F and mission channels.
 export function parseLink16(text) {
   const m = {};

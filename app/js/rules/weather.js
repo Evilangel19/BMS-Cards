@@ -1,3 +1,4 @@
+// @ts-check
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 const p2w = n => String(n).padStart(2, '0'),
   mt = t => (t < 0 ? 'M' : '') + p2w(Math.abs(t));

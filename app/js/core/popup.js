@@ -1,3 +1,4 @@
+// @ts-check
 // Pop-up attack calculator (CCRP / CCIP dive delivery): pure functions, no DOM.
 // Plane geometry in BMS coordinates {n, e} = north / east feet. Written from scratch for BMS Cards; the numbers were
 // cross-checked against the UOAF bms_html_briefing pop-up computer (see docs/archive/ARCHITECTURE-history.md, "Pop-up engine").

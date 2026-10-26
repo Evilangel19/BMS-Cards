@@ -1,22 +1,26 @@
 {
   "name": "bms-cards",
-  "version": "0.9.9-beta.20",
+  "version": "0.9.9-beta.21",
   "private": true,
   "description": "BMS Cards - datacard and kneeboard planner for Falcon BMS 4.38.1",
   "scripts": {
-    "test": "node tests/run-golden.mjs && node tests/run-parsers.mjs && node tests/run-config.mjs && node tests/run-theaters.mjs && node tests/run-balkans.mjs && node tests/run-aip.mjs && node tests/run-ato.mjs && node tests/run-kneeboard.mjs && node tests/run-map.mjs && node tests/run-bmsdata.mjs && node tests/run-popup.mjs && node tests/run-lethal.mjs && node tests/run-mission.mjs && node tests/run-racks.mjs && node tests/run-squadron.mjs && node tests/run-airperf.mjs && node tests/run-heightmap.mjs && node tests/run-bombdata.mjs && node tests/run-strike.mjs && node tests/run-missiledata.mjs && node tests/run-airmissile.mjs && node tests/run-radarcov.mjs && node tests/run-carriers.mjs && node tests/run-campaignini.mjs && node tests/run-layout.mjs && node tests/run-te.mjs && node tests/run-objinit.mjs && node tests/run-coalitions.mjs",
+    "test": "node tests/run-all.mjs",
     "test:update": "node tests/run-golden.mjs --update",
     "tauri": "tauri",
     "build": "tauri build --no-bundle",
     "test:bmsdata": "node tests/run-theaters.mjs && node tests/run-balkans.mjs && node tests/run-aip.mjs && node tests/run-ato.mjs && node tests/run-kneeboard.mjs && node tests/run-map.mjs && node tests/run-bmsdata.mjs",
     "lint": "eslint .",
-    "format": "prettier --write \"app/**/*.{js,css,html}\" \"tests/**/*.mjs\""
+    "format": "prettier --write \"app/**/*.{js,css,html}\" \"tests/**/*.mjs\"",
+    "format:check": "prettier --check \"app/**/*.{js,css,html}\" \"tests/**/*.mjs\"",
+    "typecheck": "tsc -p tsconfig.json",
+    "check": "npm run lint && npm run format:check && npm run typecheck && npm test"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2",
     "eslint": "^9.39.5",
     "globals": "^17.13.0",
-    "prettier": "^3.9.10"
+    "prettier": "^3.9.10",
+    "typescript": "^5.9.3"
   },
   "type": "module"
 }

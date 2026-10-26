@@ -1,3 +1,4 @@
+// @ts-check
 // HADB (high altitude dive bombing) and LAT (low altitude toss) planners, after the Weapon Delivery Planner manual. Pure functions, no DOM.
 // A general physics estimate, not the BMS fire control computer: the pull-up / dive turn is a constant-load-factor arc at a mean speed, the bomb
 // falls with the same drag models as the pop-up (popup.js bombFall). Coordinates are BMS {n, e} feet; altitudes are feet above the target.

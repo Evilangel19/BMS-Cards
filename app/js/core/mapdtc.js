@@ -1,3 +1,4 @@
+// @ts-check
 // DTC steerpoints on the map: reads and writes the [STPT] section of the DTC .ini (a list of lines, see parsers/dtc.js).
 // Positions in the ini are feet: north, east (origin = south-west corner of the theater, 1 campaign km = 3280.84 ft).
 // Groups handled (the other steerpoints are not in the ini or are not editable here):
@@ -20,6 +21,7 @@ export const LINE_LEN = 6,
   LINES = 4;
 // What BMS keeps of a campaign / Tactical Engagement DTC (<name>.ini; the same for both, checked on files BMS wrote: a Korea campaign of an add-on theater and two TEs): [MISSION] title= and the [STPT] data only, in this order (checked on a file written by BMS):
 // target_0-23, target_80-98, ppt_0-14, lineSTPT_0-23, wpntarget_0-99. A DTC has more (MFD pages, COMMS...), none of it goes into these files.
+/** @type {[string, number[][], string][]} */
 const BMS_STPT = [
   [
     'target_',

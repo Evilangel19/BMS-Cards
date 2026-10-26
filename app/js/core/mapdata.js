@@ -1,3 +1,4 @@
+// @ts-check
 // Map page data: converts campaign grid coordinates (km, x = east, y = north, origin 512/512 at the theater
 // center) to latitude/longitude and builds the point/line sets the map layers draw. Pure functions, no DOM.
 import { carriers, carrierRadio } from './carriers.js';

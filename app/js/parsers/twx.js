@@ -1,3 +1,4 @@
+// @ts-check
 // Weather/time file (.twx): int32 version, year, month, day, then campaign time (ms).
 // The date is the campaign start date (day 1).
 export function parseTwx(buffer) {

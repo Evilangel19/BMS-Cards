@@ -1,3 +1,4 @@
+// @ts-check
 // Who is friend and who is foe, from the team relations of the campaign (.tea). One rule for the whole program (map, ATO, datacard support data).
 // Relations (.tea): 0 hostile, 1 allied, 2 friendly, 3 neutral, 4 unfriendly, 5 at war.
 // Same rule as the ATO: teams are friends when their stance (either direction) is 1 or 2.

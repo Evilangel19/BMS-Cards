@@ -1,3 +1,4 @@
+// @ts-check
 // IFF policy (.iff): per team, rotation settings and ProfileMissionN codes (4-digit strings).
 export function parseIff(text) {
   const m = {};

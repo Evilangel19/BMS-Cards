@@ -47,7 +47,9 @@ docs/              this file, ROADMAP.md, archive/
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
 
 ## Tests
-- `npm test`: Node chain (parsers, golden flights, ATO, map data, popup / strike / lethality maths, DTC campaign `.ini` format ...). Tests that need BMS data are skipped when `BMS_DATA` is not set.
+- `npm run check` = lint + format check + types + `npm test` (what the CI runs on every push, on a clean clone).
+- Types: `// @ts-check` at the top of a file puts it under `tsc` (`npm run typecheck`, files listed in `tsconfig.json`); the pure modules (parsers, rules, mapdtc, mapdata, popup, lethal, strike, coalitions) are in. Add a file to `tsconfig.json` when it is typed.
+- `npm test`: `tests/run-all.mjs` runs every `tests/run-*.mjs`; a test whose BMS files are missing is skipped with a note (list `NEEDS` in the runner). Chain (parsers, golden flights, ATO, map data, popup / strike / lethality maths, DTC campaign `.ini` format ...). Tests that need BMS data are skipped when `BMS_DATA` is not set.
 - `python3 tools/run-all.py [-j N] [name ...]`: all browser tests, two at a time, a failed one is repeated alone. Each test has its own port. About 30 minutes sequentially.
 - After editing code: `npm run format`, `npm run lint`, `npm test`, then the browser tests of the page touched.
 

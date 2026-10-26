@@ -1,3 +1,4 @@
+// @ts-check
 // Data cartridge (.ini): list of lines; key/value lines carry section (s), key (k) and value (v).
 export function parseDtc(text) {
   let s = '';

@@ -1,3 +1,4 @@
+// @ts-check
 // Falcon BMS weather map (.fmap) reader.
 // Layout (checked on real files; the BMS wiki page "fmap" lists the same fields): header of 44 bytes, then ONE ARRAY PER FIELD of X*Y cells (not interleaved):
 // condition (int), pressure (mbar), temperature (C), wind speed (kt, 10 layers), wind heading (deg, 10 layers; where the wind comes FROM), cumulus altitude (ft),

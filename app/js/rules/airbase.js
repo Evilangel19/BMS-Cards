@@ -1,3 +1,4 @@
+// @ts-check
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 import D0 from '../data/index.js';
 function pickRwy(W, o) {
