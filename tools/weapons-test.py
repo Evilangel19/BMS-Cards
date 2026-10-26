@@ -238,8 +238,13 @@ try:
         check('TOSS has release angle, extra climb, no OA2 without a turn', pg.is_visible('input[data-sl=releaseAngle]') and pg.is_visible('input[data-sl=releaseExtra]') and 'OA2' not in pg.inner_text('#wpr .dt') and 'LOWEST RALT' in pg.inner_text('#wpr'))
         pg.click('#wpapply'); pg.wait_for_timeout(500)
         n_ = pg.evaluate("()=>__app.wpPage.card().stpt") or 0; lo = ln('OA1-%d' % n_)
-        check('loft (TOSS without a turn): the DTC holds OA1 and no VRP row', bool(lo) and lo != '0,0,0' and (ln('VRP') or '0,0,0,0').replace('0', '').replace(',', '') == '')
-        check('loft: the datacard gets the OA1 too (it needs no VRP row)', pg.evaluate("__app.F.oa0") != '' and pg.evaluate("__app.F.oa1") != '' and 'TOSS' in pg.evaluate("__app.F.dlab"))
+        check('loft (TOSS without a turn): the DTC holds OA1 and also a VRP row (a reference for the pilot)', bool(lo) and lo != '0,0,0' and (ln('VRP') or '0,0,0,0').replace('0', '').replace(',', '') != '')
+        pg.click('[data-set=oa2Mode][data-v=egress]'); pg.wait_for_timeout(300)
+        check('loft without a turn: OA2 can serve the egress (row in NAV OFFSETS, drawn from the target outwards)', 'OA2' in pg.inner_text('#wpr .dt') and pg.is_visible('input[data-sl=egressAltitude]'))
+        pg.click('#wpapply'); pg.wait_for_timeout(400)
+        check('...and Apply writes OA2 with the egress altitude as elevation', ln('OA2-%d' % n_) not in (None, '0,0,0') and ln('OA2-%d' % n_).split(',')[2].strip() == '2000')
+        pg.click('[data-set=oa2Mode][data-v=off]'); pg.wait_for_timeout(300)
+        check('loft: the datacard gets the OA1 too', pg.evaluate("__app.F.oa0") != '' and pg.evaluate("__app.F.oa1") != '' and 'TOSS' in pg.evaluate("__app.F.dlab"))
         pg.evaluate("()=>{const e=document.querySelector('input[data-sl=angleOff]');e.value=45;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(300)
         check('TOSS with an angle off has OA2 and the VRP row', 'OA2' in pg.inner_text('#wpr .dt') and 'VRP' in pg.inner_text('#wpr .dt'))
         check('TOSS: OA1 button and the triangle in the side view', pg.locator('[data-oa1]').count() == 2 and pg.locator('.wpv path[fill="#a78bfa"]').count() == 1)
@@ -367,6 +372,19 @@ try:
         check('map: Delete offsets also zeroes the row in the DTC', (ln('OA1-4') or '0').replace('0', '').replace(',', '') == '')
         pg.click('#wpclear'); pg.wait_for_timeout(400)
         check('Clear offsets zeroes the DTC offsets and goes dark', ln('OA1-4').replace('0', '').replace(',', '') == '' and 'nil' in (pg.get_attribute('#wpclear', 'class') or '').split())
+        # Clear offsets also removes the points placed on the map
+        for _ in range(3):
+            pg.locator('#wph .wps').nth(3).evaluate('e=>e.click()'); pg.wait_for_timeout(400)
+            if pg.locator('.leaflet-popup [data-a=offs]').count() == 1: break
+        pg.click('.leaflet-popup [data-a=offs]'); pg.wait_for_timeout(300)
+        pg.locator('.leaflet-popup [data-pl=oa1]').click(); pg.wait_for_timeout(200)
+        for fx, fy in ((.35, .3), (.6, .25), (.25, .6), (.7, .6)):
+            pg.mouse.click(bx['x'] + bx['width'] * fx, bx['y'] + bx['height'] * fy); pg.wait_for_timeout(700)
+            if pg.locator('.leaflet-popup [data-rm=oa1]').count() == 1: break
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        check('map: a new point is placed again (written into the DTC at once)', pg.evaluate("()=>Object.keys(JSON.parse(sessionStorage.getItem('mapoffs1')||'{}')).length") == 1 and (ln('OA1-4') or '0').replace('0', '').replace(',', '') != '')
+        pg.click('#wpclear'); pg.wait_for_timeout(500)
+        check('Clear offsets removes the points placed on the map too, and zeroes the DTC', pg.evaluate("()=>Object.keys(JSON.parse(sessionStorage.getItem('mapoffs1')||'{}')).length") == 0 and pg.locator('#wph .offp').count() == 0 and (ln('OA1-4') or '0').replace('0', '').replace(',', '') == '')
         pg.evaluate("()=>sessionStorage.removeItem('mapoffs1')")
         check('no page errors', not errs); print(errs)
 finally:

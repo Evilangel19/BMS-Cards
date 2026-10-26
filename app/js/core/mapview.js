@@ -2503,6 +2503,15 @@ export function createMap(host, deps) {
     return { n: y * FT_KM, e: x * FT_KM };
   };
   const posLL = q => toLL(q.e / FT_KM, q.n / FT_KM);
+  // the points follow the store whoever changes it (the Weapons page: Clear offsets)
+  if (deps.offs)
+    deps.offs.onChange(() => {
+      try {
+        offDraw();
+      } catch (e) {
+        /* the map is not ready */
+      }
+    });
   function offDraw() {
     if (!G.off) return;
     G.off.clearLayers();

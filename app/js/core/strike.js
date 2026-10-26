@@ -367,8 +367,9 @@ export function computeToss(target, ref, inp) {
     pup,
     vrp: vrp || oa,
     oa,
-    oa2: oa2L,
-    oa2Alt: undefined,
+    // OA2: the line-up before the turn; without a turn (angle off 0) it can serve the egress like in a pop-up (off / target / egress)
+    oa2: oa2L || tl.oa2,
+    oa2Alt: oa2L ? undefined : tl.oa2Alt,
     fuze: tl.fuze,
     impacts: tl.impacts,
     kind: 'toss',

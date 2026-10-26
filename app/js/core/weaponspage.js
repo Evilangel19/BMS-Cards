@@ -729,7 +729,7 @@ export function createWeaponsPage(deps) {
     });
     dia(r.target, '#fff', ctx.t.name || 'Target');
     lab(r.target, ctx.t.name || 'Target', 'right', [14, -10]);
-    if (r.kind != 'toss' && r.oa2) {
+    if ((r.kind != 'toss' || !r.hasTurn) && r.oa2) {
       dia(r.oa2, '#a78bfa', 'OA2');
       lab(r.oa2, 'OA2');
     }
@@ -1008,11 +1008,10 @@ export function createWeaponsPage(deps) {
       stpt: n,
       alt: elv('pup'),
     };
-    const noVrp = r.kind == 'toss' && !r.hasTurn && !vip;
-    if (!noVrp)
-      o.ref = vip
-        ? { key: 'VIP', label: 'VIP → TGT', row: offsetRow(ctx.vipPos, ctx.tPos), stpt: n, alt: elv('tgt') }
-        : { key: 'VRP', label: 'TGT → VRP', row: offsetRow(ctx.tPos, r.vrp), stpt: n, alt: elv('vrp') };
+    // a loft without a turn also gets its VRP (the line-up point): a reference the pilot can use
+    o.ref = vip
+      ? { key: 'VIP', label: 'VIP → TGT', row: offsetRow(ctx.vipPos, ctx.tPos), stpt: n, alt: elv('tgt') }
+      : { key: 'VRP', label: 'TGT → VRP', row: offsetRow(ctx.tPos, r.vrp), stpt: n, alt: elv('vrp') };
     const MP = ' · map';
     if (mp(vip ? 'vipPup' : 'vrpPup'))
       o.pup = {
@@ -1140,13 +1139,17 @@ export function createWeaponsPage(deps) {
     return c;
   }
   // zero every offset row of the DTC (a mission that needs none)
+  const mapHas = () => !!deps.offs && Object.keys(deps.offs.all()).length > 0;
   async function clearAll() {
     if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) {
+      if (mapHas()) deps.offs.clearAll();
       await deps.alert('This DTC has no NAV OFFSETS section.');
       return;
     }
     const clr = toClear([]);
     clr.forEach(k => wr('NAV OFFSETS', k, zeroRow(k)));
+    // the points placed on the Map page go too
+    if (mapHas()) deps.offs.clearAll();
     st.applied = null;
     st.cleared = clr;
     st.card = null;
@@ -1260,7 +1263,7 @@ export function createWeaponsPage(deps) {
     if (deps.clearBtn) {
       let n = false;
       try {
-        n = !!deps.lines().some(l => l.s == 'NAV OFFSETS') && toClear([]).length > 0;
+        n = (!!deps.lines().some(l => l.s == 'NAV OFFSETS') && toClear([]).length > 0) || mapHas();
       } catch (e) {
         /* none */
       }
@@ -1646,9 +1649,18 @@ export function createWeaponsPage(deps) {
           .join('');
       // Egress: OA2 (off / target / egress) and where the egress goes
       const egrBody = `${slider('egressHeading', 'Egress heading', '°', 0)}${slider('egressRange', 'Egress range', ' nm', 1)}${i.egressAltitude !== undefined && md != 'toss' ? slider('egressAltitude', 'Egress alt.', ' ft', 0) : ''}`;
+      const oa2Seg = seg(
+        'oa2Mode',
+        [
+          ['off', 'Off'],
+          ['target', 'TGT'],
+          ['egress', 'Egress'],
+        ],
+        i.oa2Mode
+      );
       const egressCard =
         md == 'toss'
-          ? `<div class="wcard"><h3>Egress</h3>${egrBody}<p class="hint wnote">The heading flown after the release, drawn from the target.</p></div>`
+          ? `<div class="wcard"><h3>Egress</h3><div class="wrow"><label>OA2</label>${oa2Seg}</div><div class="wegalt"${i.oa2Mode == 'egress' ? '' : ' hidden'}>${slider('egressAltitude', 'OA2 alt.', ' ft', 0)}</div>${egrBody}<p class="hint wnote">The heading flown after the release, drawn from the target. OA2 serves the egress only when there is no turn (angle off 0); with a turn it is the line-up before the turn.</p></div>`
           : `<div class="wcard"><h3>Egress</h3><div class="wrow"><label>OA2</label>${seg(
               'oa2Mode',
               [
@@ -1917,7 +1929,12 @@ export function createWeaponsPage(deps) {
           } else if (f == 'ref') st.ref = v;
           else cur()[f] = f == 'turnG' || f == 'profileType' ? +v : v;
           b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
-          if (f == 'oa2Mode') root.querySelector('.wegr').hidden = v != 'egress';
+          if (f == 'oa2Mode') {
+            const eg = root.querySelector('.wegr'),
+              ea = root.querySelector('.wegalt');
+            if (eg) eg.hidden = v != 'egress';
+            if (ea) ea.hidden = v != 'egress';
+          }
           if (f == 'ref' || f == 'profileType') fit = true;
           if (f == 'ref') {
             root.querySelector('.wvip').hidden = v != 'vip';
