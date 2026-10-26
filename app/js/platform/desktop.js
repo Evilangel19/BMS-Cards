@@ -14,6 +14,11 @@ export async function detectBms() {
     return '';
   }
 }
+// a piece of an .exe (the file plugin does not open executables, see src-tauri/capabilities): through a small command of the program
+export async function readExeRange(path, offset, len) {
+  const a = await T().core.invoke('read_exe_range', { path, offset, len });
+  return new Uint8Array(a);
+}
 export async function appDir() {
   return T().core.invoke('app_dir');
 }

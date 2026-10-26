@@ -2,7 +2,7 @@ import { BMS_TESTED } from '../core/version.js';
 import {
   isDesktop,
   readBytes,
-  readRange,
+  readExeRange,
   fileExists,
   findFiles,
   detectBms,
@@ -280,7 +280,7 @@ export async function loadGameData(reloadTheaters = true) {
         bmsVerNote = 'Falcon BMS.exe not found in Bin\\x64, the game version is not checked.';
       else {
         const why = [],
-          v = await exeVersion((o, l) => readRange(exe, o, l), why);
+          v = await exeVersion((o, l) => readExeRange(exe, o, l), why);
         if (!v)
           bmsVerNote =
             'The version of Falcon BMS.exe could not be read (' +
