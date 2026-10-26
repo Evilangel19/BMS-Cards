@@ -1064,6 +1064,21 @@ export function createWeaponsPage(deps) {
           alt: mal('oa2', o.oa2 ? o.oa2.alt : r.oa2Alt),
         };
     }
+    // elevations (the manual: enter 0 to put an offset at ground level): an OA that sits on another point of the attack gets 0 ft, and no row has a negative elevation
+    const P = {
+        oa1: mp('oa1') || (sp ? oa1Pos(r) : null),
+        oa2: mp('oa2') || r.oa2,
+        ref: vip ? mp('vip') || ctx.vipPos : mp('vrp') || r.vrp,
+        pup: mp(vip ? 'vipPup' : 'vrpPup') || r.pup,
+        tgt: ctx.tPos,
+      },
+      same = (a, b) => !!a && !!b && dist(a, b) < 100;
+    ['oa1', 'oa2'].forEach(k => {
+      if (o[k] && Object.keys(P).some(x => x != k && same(P[k], P[x]))) o[k].alt = 0;
+    });
+    Object.values(o).forEach(x => {
+      if (x.alt !== undefined && x.alt < 0) x.alt = 0;
+    });
     return o;
   }
 
@@ -2176,11 +2191,17 @@ export function createWeaponsPage(deps) {
       if (!at || n < 1 || n > 24) return;
       const el = (k, key) => {
           const q = navRow(deps.G('NAV OFFSETS', key, ''), !key.startsWith('OA'));
-          return p[k].alt !== undefined
-            ? String(Math.round(p[k].alt))
-            : q.elev === undefined || q.elev === ''
-              ? '0'
-              : q.elev;
+          // 0 ft when the point sits on another one, never a negative elevation
+          const hit =
+              ['oa1', 'oa2'].includes(k) &&
+              [
+                at,
+                ...Object.entries(p)
+                  .filter(([x]) => x != k)
+                  .map(([, v]) => v),
+              ].some(v => dist(v, p[k]) < 100),
+            e = hit ? 0 : p[k].alt !== undefined ? p[k].alt : +q.elev || 0;
+          return String(Math.max(0, Math.round(e)));
         },
         rw = (a, b) => offsetRow(a, b);
       ['oa1', 'oa2'].forEach(k => {

@@ -240,6 +240,12 @@ try:
         n_ = pg.evaluate("()=>__app.wpPage.card().stpt") or 0; lo = ln('OA1-%d' % n_)
         check('loft (TOSS without a turn): the DTC holds OA1 and also a VRP row (a reference for the pilot)', bool(lo) and lo != '0,0,0' and (ln('VRP') or '0,0,0,0').replace('0', '').replace(',', '') != '')
         check('TOSS: the VRP is shown in the horizontal envelope when VRP is the reference (OA1 · VRP), and the pull-up point says PUP', pg.locator('#wph .wplab', has_text='VRP').count() >= 1 and pg.locator('#wph .wplab', has_text='PUP').count() >= 1 and pg.locator('#wph .wplab', has_text='VIP').count() == 0)
+        check('loft: OA1 sits on the PUP, so its elevation is 0 ft', lo.split(',')[2].strip() == '0')
+        pg.evaluate("()=>__app.wpPage.setElev(async pts=>pts.map(()=>-80))"); pg.wait_for_timeout(500)
+        if 'nil' not in (pg.get_attribute('#wpapply', 'class') or '').split():
+            pg.click('#wpapply'); pg.wait_for_timeout(400)
+        check('a negative terrain elevation is written as 0 ft (no minus sign in any NAV OFFSETS row)', all('-' not in (ln(k) or '') for k in ['VRP', 'VRPPUP', 'OA1-%d' % n_]) and ln('VRP').split(',')[3].strip() == '0')
+        pg.evaluate("()=>__app.wpPage.setElev(async pts=>pts.map(p=>Math.round(1000+p.n/1000)))"); pg.wait_for_timeout(400)
         pg.click('[data-set=oa2Mode][data-v=egress]'); pg.wait_for_timeout(300)
         check('loft without a turn: OA2 can serve the egress (row in NAV OFFSETS, drawn from the target outwards)', 'OA2' in pg.inner_text('#wpr .dt') and pg.is_visible('input[data-sl=egressAltitude]'))
         pg.click('#wpapply'); pg.wait_for_timeout(400)
