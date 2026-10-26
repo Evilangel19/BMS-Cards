@@ -967,3 +967,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 ## v122 - Patch 0.9.9-beta.15
 - ESLint 9 (`eslint.config.js`, `npm run lint`): no errors; 44 warnings = unused variables / imports, kept until reviewed. `npm run format` runs Prettier.
 - `app/js/app/expose.js` (test helper): the 6 duplicate keys removed (the later one always won, so nothing changes).
+
+## v123 - Patch 0.9.9-beta.16
+- `app/js/core/mapconst.js` (new): BASES, OBJ_LAYERS, MAP_LAYERS, MAP_OPTS, PAL, SHOTS, store, loadLeaflet, clock, tgtName ... moved as they were from `mapview.js`, which imports them.
+- `createMap()` (about 3900 lines) is still one closure on purpose: its ~160 inner functions share `map`, `st`, `G` ... Cutting it means passing a context to each of them; to be done only with a reason (a new feature), not as a clean-up.
+- The same holds for squadron.js and weaponspage.js.
