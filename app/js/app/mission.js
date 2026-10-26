@@ -415,7 +415,7 @@ export async function msfLoad(text, file) {
     } catch (e) {}
     let i = ST.CL.findIndex(x => x.f.id.n + ':' + x.f.id.c == p.datacard.flight);
     if (i < 0) i = 0;
-    $('fsel').innerHTML = ST.CL.map((x, k) => `<option value="${k}">${x.label}</option>`).join('');
+    $('fsel').innerHTML = ST.CL.map((x, k) => `<option value="${k}">${esc(x.label)}</option>`).join('');
     $('fsel').value = i;
     $('cinfo').textContent = 'Mission: ' + p.name;
     ST.MSFLOCK = { C: C2, key: p.datacard.flight };

@@ -1,6 +1,6 @@
 import { createTargetData } from '../core/targetdata.js';
 import { createDtcPage } from '../core/dtcpage.js';
-import { FT_KM, dtcPoints, removePoint } from '../core/mapdtc.js';
+import { FT_KM, WT_N, dtcPoints, removePoint } from '../core/mapdtc.js';
 import { loadPrefs, savePrefs, readRange, isDesktop, readBytes } from '../platform/desktop.js';
 import { readTarget, targetLine } from '../core/targets.js';
 import { heightsAt } from '../bmsdata/heightmap.js';
@@ -62,7 +62,7 @@ ST.OBJCAMP = '';
 export const wtHas = n => lines.some(l => l.s == 'STPT' && l.k === 'wpntarget_' + n);
 export const wtList = () => {
   const o = [];
-  for (let n = 0; n < 100; n++) {
+  for (let n = 0; n < WT_N; n++) {
     if (!wtHas(n)) continue;
     const t = readTarget(G('STPT', 'wpntarget_' + n, ''));
     if (t) o.push({ n, name: t.name, x: t.e / FT_KM, y: t.n / FT_KM, altFt: t.elv });
@@ -70,7 +70,7 @@ export const wtList = () => {
   return o;
 };
 export const wtFree = () => {
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < WT_N; i++) {
     if (wtHas(i) && !readTarget(G('STPT', 'wpntarget_' + i, ''))) return i;
   }
   return -1;
@@ -92,7 +92,7 @@ export async function wtAdd() {
   const data = targetData();
   if (!data) return 'noinst';
   let n = -1;
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < WT_N; i++) {
     if (wtHas(i) && !readTarget(G('STPT', 'wpntarget_' + i, ''))) {
       n = i;
       break;

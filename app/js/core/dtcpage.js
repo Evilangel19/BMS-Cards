@@ -1,6 +1,6 @@
 // Data Cartridge page: vertical list of sections, each one a page of cards. A card is read-only until its "Edit" button is pressed.
 // Everything here edits the lines of the open DTC (deps.S) and tells the rest of the program (deps.changed) so the map and the datacard follow.
-import { STPT_RANGE } from './mapdtc.js';
+import { STPT_RANGE, WT_N } from './mapdtc.js';
 export const SECTIONS = [
   ['stpt', 'Steerpoints'],
   ['tgt', 'Targets'],
@@ -326,7 +326,7 @@ export function createDtcPage(deps) {
       );
       const rows = [],
         free = [];
-      for (let n = 0; n < 100; n++) {
+      for (let n = 0; n < WT_N; n++) {
         if (!exists('STPT', 'wpntarget_' + n)) continue;
         const t = readTarget(val('STPT', 'wpntarget_' + n));
         if (!t) {
@@ -1085,7 +1085,7 @@ export function createDtcPage(deps) {
         (b.onclick = async () => {
           if (b.closest('.dcard.ro')) return;
           if (!(await deps.confirm('Clear all weapon targets?'))) return;
-          for (let n = 0; n < 100; n++)
+          for (let n = 0; n < WT_N; n++)
             if (exists('STPT', 'wpntarget_' + n) && readTarget(val('STPT', 'wpntarget_' + n)))
               commit('STPT', 'wpntarget_' + n, targetLine(null));
           render();

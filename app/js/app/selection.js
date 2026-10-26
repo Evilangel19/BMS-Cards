@@ -1,8 +1,9 @@
+import { BMS_TESTED } from '../core/version.js';
 import { CAM } from '../core/cam-core.js';
 import { groupPackages } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, FD, CYC, buildForm } from './datacard.js';
-import { $ } from './base.js';
+import { $, esc } from './base.js';
 import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch } from './ato.js';
 import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
@@ -175,10 +176,12 @@ export async function loadCam(file) {
         ST.C.ver +
         ') than the versions this program was checked with (up to ' +
         CAM.CAM_VER_MAX +
-        ', Falcon BMS 4.38.1): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.'
+        ', Falcon BMS ' +
+        BMS_TESTED +
+        '): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.'
     );
   if (!ST.CL.length) return alert('No flight with a datacard found in this campaign.');
-  $('fsel').innerHTML = ST.CL.map((x, i) => `<option value="${i}">${x.label}</option>`).join('');
+  $('fsel').innerHTML = ST.CL.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('');
   const pk = () => {
     const m = pick();
     return m[Math.floor(Math.random() * m.length)];

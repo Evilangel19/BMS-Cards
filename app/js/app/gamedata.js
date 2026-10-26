@@ -1,3 +1,4 @@
+import { BMS_TESTED } from '../core/version.js';
 import { isDesktop, readBytes, findFiles, detectBms, saveConfig, listDir } from '../platform/desktop.js';
 import {
   parseTheaterList,
@@ -19,7 +20,7 @@ import { parseAtc, buildAirbases } from '../bmsdata/airbases.js';
 import { parseAip } from '../bmsdata/aip.js';
 import { pdfTextItems } from '../platform/pdf.js';
 import { ST } from './state.js';
-import { $, jp } from './base.js';
+import { $, jp, esc } from './base.js';
 import { kbSyncTheater } from './kneeboard.js';
 import { TDATA } from './dtctargets.js';
 import { mapV } from './pages.js';
@@ -56,9 +57,7 @@ export async function loadTheaters() {
   ST.TH = ST.THEATERS.find(t => t.name === ST.CFG.theater) || ST.THEATERS[0] || null;
   const sel = $('tsel');
   sel.style.display = ST.THEATERS.length ? '' : 'none';
-  sel.innerHTML = ST.THEATERS.map(
-    t => `<option value="${t.name.replace(/"/g, '&quot;')}">${t.name.replace(/</g, '&lt;')}</option>`
-  ).join('');
+  sel.innerHTML = ST.THEATERS.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
   if (ST.TH) sel.value = ST.TH.name;
 }
 export async function loadGameData(reloadTheaters = true) {
@@ -265,7 +264,9 @@ export async function loadGameData(reloadTheaters = true) {
     const used = Object.keys(r.tables).join(', ') || 'none';
     if (r.changed && r.changed.length)
       warn.push(
-        'These files do not have the layout this program was checked with (Falcon BMS 4.38.1), fields not found: ' +
+        'These files do not have the layout this program was checked with (Falcon BMS ' +
+          BMS_TESTED +
+          '), fields not found: ' +
           r.changed.join('; ') +
           '. A newer BMS may have changed them: some data may be missing or wrong.'
       );

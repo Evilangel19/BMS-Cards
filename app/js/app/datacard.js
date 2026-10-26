@@ -3,7 +3,7 @@ import { CLASSES as BVR_CLASSES } from '../core/bvrtimeline.js';
 import { savePrefs } from '../platform/desktop.js';
 import { readTarget } from '../core/targets.js';
 import { CAM } from '../core/cam-core.js';
-import { FT_KM, dtcPoints } from '../core/mapdtc.js';
+import { FT_KM, WT_N, dtcPoints } from '../core/mapdtc.js';
 import { nearObj } from '../core/flight.js';
 import { ST } from './state.js';
 import { perfFill, perfLater } from './perf.js';
@@ -140,7 +140,7 @@ export function ptChoices(w) {
         })
     );
   }
-  for (let n = 0; n < 100; n++) {
+  for (let n = 0; n < WT_N; n++) {
     if (!lines.some(l => l.s == 'STPT' && l.k === 'wpntarget_' + n)) continue;
     const t = readTarget(G('STPT', 'wpntarget_' + n, ''));
     if (!t || !(t.n || t.e)) continue;

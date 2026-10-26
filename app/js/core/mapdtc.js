@@ -17,6 +17,8 @@ export const GROUPS = {
 export const STPT_RANGE = Object.fromEntries(
   Object.entries(GROUPS).map(([g, G]) => [g, G.first + '-' + (G.first + G.n - 1)])
 );
+// weapon targets of the DTC (wpntarget_0 ... wpntarget_99)
+export const WT_N = 100;
 export const LINE_LEN = 6,
   LINES = 4;
 // What BMS keeps of a campaign / Tactical Engagement DTC (<name>.ini; the same for both, checked on files BMS wrote: a Korea campaign of an add-on theater and two TEs): [MISSION] title= and the [STPT] data only, in this order (checked on a file written by BMS):
@@ -33,7 +35,7 @@ const BMS_STPT = [
   ],
   ['ppt_', [[0, GROUPS.ppt.n - 1]], '0.000000, 0.000000, 0.000000, 0.000000,'],
   ['lineSTPT_', [[0, 23]], '0.000000, 0.000000, 0.000000'],
-  ['wpntarget_', [[0, 99]], '0.000000, 0.000000, 0.000000, -1, Not set'],
+  ['wpntarget_', [[0, WT_N - 1]], '0.000000, 0.000000, 0.000000, -1, Not set'],
 ];
 export const bmsStptKeys = () =>
   BMS_STPT.flatMap(([p, rs, e]) =>
