@@ -3,7 +3,6 @@ import {
   bvrShot,
   harmShot,
   footprintFactor,
-  harmFootprint,
   HARM_SUB,
   soundSpeed,
   NM,

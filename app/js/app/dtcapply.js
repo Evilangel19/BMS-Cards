@@ -116,8 +116,7 @@ function applyDTC0(fl) {
   if (fl && ST.C && g('IFF', 'Mode2 Code') !== '') {
     const P = ST.IFFP && ST.IFFP[fl.owner],
       B = [0, 1, 2, 3, 4, 7, 8],
-      tot = CAM.totMs(ST.C, fl),
-      tm = Math.floor(tot / 60000) % 1440;
+      tot = CAM.totMs(ST.C, fl);
     let a2 = 1,
       a4 = 1;
     if (P && P.pm[fl.omis]) {

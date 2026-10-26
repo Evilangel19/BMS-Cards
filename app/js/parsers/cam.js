@@ -323,7 +323,6 @@ export function parseUni(blk, ver, ct) {
 
 export function ctFromXml(x) {
   const ct = [];
-  const P = t => x.split('</CT>');
   x.split('</CT>').forEach(b => {
     const m = b.match(/<CT Num="(\d+)">/);
     if (!m) return;

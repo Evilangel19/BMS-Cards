@@ -6,10 +6,6 @@
 .btn.g.gn:hover {
   background: #27935a;
 }
-.hm {
-  display: flex;
-  align-items: flex-start;
-}
 .mped {
   gap: 8px;
 }
@@ -17,12 +13,6 @@
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.02em;
-}
-.mpv > .hm > .btn {
-  min-width: 128px;
-  text-align: left;
-  padding: 3px 8px;
-  font-size: 12px;
 }
 :is(#mpbody, .mpx).game .dts.line b {
   text-shadow:
@@ -58,11 +48,6 @@
 .flb.clk div:hover {
   filter: brightness(1.15);
   box-shadow: 0 0 0 2px var(--plan, #ffd23f);
-}
-.mpsub .btn {
-  padding: 3px 8px;
-  font-size: 12px;
-  margin: 0;
 }
 .mpcol {
   display: flex;

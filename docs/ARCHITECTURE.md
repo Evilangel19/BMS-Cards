@@ -42,7 +42,7 @@ docs/              this file, ROADMAP.md, archive/
 - The map keeps its own choices (layers, filters, menus) in `store` (`core/mapconst.js`).
 
 ## Conventions
-- Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`, no errors; unused-variable warnings are reviewed by hand).
+- Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
 - Animations use the Web Animations API through small helpers; `.noanim` (reduced motion) switches them off; tests run with reduced motion unless they test an animation.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
 

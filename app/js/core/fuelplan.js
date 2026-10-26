@@ -50,7 +50,6 @@ export function fuelPlan(ac, wps0, o) {
     dist = i => Math.hypot(wps[i].x - wps[i - 1].x, wps[i].y - wps[i - 1].y) * NM_KM;
   const leg = [],
     dwell = [];
-  let lastMach = 0.7;
   // times: from the departure of the previous point (or its arrival) to the arrival; the dwell is arrival -> departure
   for (let i = 0; i < n; i++) {
     const p = wps[i],
@@ -122,23 +121,21 @@ export function fuelPlan(ac, wps0, o) {
     bingo = rows[bi].min,
     joker = up100(bingo + (o.jokerMargin == null ? 1000 : o.jokerMargin));
   const toFuel = rows[0].min;
-  wps0
-    .slice(n)
-    .forEach((p, k) =>
-      rows.push({
-        i: n + k,
-        act: p.act,
-        alt: p.z * 10,
-        nm: 0,
-        t: 0,
-        mach: 0,
-        burn: 0,
-        dwell: 0,
-        min: null,
-        minExact: null,
-        tanker: false,
-      })
-    );
+  wps0.slice(n).forEach((p, k) =>
+    rows.push({
+      i: n + k,
+      act: p.act,
+      alt: p.z * 10,
+      nm: 0,
+      t: 0,
+      mach: 0,
+      burn: 0,
+      dwell: 0,
+      min: null,
+      minExact: null,
+      tanker: false,
+    })
+  );
   return {
     rows,
     toFuel,

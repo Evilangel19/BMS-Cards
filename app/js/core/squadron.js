@@ -999,8 +999,7 @@ export function createSquadronPage(deps) {
     log = [],
     saveT = null,
     PB = null,
-    pbErr = '',
-    cSel = null;
+    pbErr = '';
   let DB = { uid: randHex(8), squads: [], cur: '', cs: '', stun: false, turn: '', lbk: '', av: '', tab: 'members' };
   const swarms = new Map(); // squadron id -> swarm
   const say = t => {
@@ -1560,7 +1559,6 @@ export function createSquadronPage(deps) {
     $('#sqsel').onchange = e => {
       DB.cur = e.target.value;
       save();
-      cSel = null;
       drawAll();
     };
     const st = (id, f) => {
@@ -1720,7 +1718,6 @@ export function createSquadronPage(deps) {
       el.querySelector('[data-open]').onclick = () => {
         DB.cur = q.id;
         save();
-        cSel = null;
         drawAll();
         $('#sqhead').scrollIntoView({ block: 'start' });
       };
@@ -2056,10 +2053,6 @@ export function createSquadronPage(deps) {
       );
     } else result(true, 'Mission delivered', 'Mission "' + name + '" was received by ' + ok.join(', ') + '.');
     drawSession();
-  };
-  const sentMsg = (m, n) => {
-    say('Mission "' + m.name + '" sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.');
-    deps.toast && deps.toast('Mission sent to ' + n + ' pilot' + (n == 1 ? '' : 's') + '.');
   };
   function build() {
     root.innerHTML = `<div class="sqw">

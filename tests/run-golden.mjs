@@ -34,10 +34,6 @@ if (process.env.BMS_DATA) {
     CAM.D.fi = a.fi;
   }
 }
-const { parseLink16 } = await import(new URL('../app/js/parsers/link16.js', import.meta.url));
-const { parseIff } = await import(new URL('../app/js/parsers/iff.js', import.meta.url));
-const { parseTwx } = await import(new URL('../app/js/parsers/twx.js', import.meta.url));
-const { parseDtc } = await import(new URL('../app/js/parsers/dtc.js', import.meta.url));
 CAM.setBase('2026-09-30'); // fixed date: ephemerides must be deterministic
 
 const sets = [

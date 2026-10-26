@@ -75,7 +75,6 @@ export function createMap(host, deps) {
     OVC = {},
     baseTok = 0,
     curC = null,
-    curSel,
     curView = null,
     imgName = '',
     shotK = 'dc',
@@ -891,10 +890,6 @@ export function createMap(host, deps) {
     foldAll = () => {},
     dtcSet = null,
     dtcWant = false;
-  // hamburger: a button that is replaced, in place, by its sub-buttons (which may be hamburgers themselves)
-  const HB = (id, label, cls, title, inner) =>
-    `<div class="hm"><button class="btn g ${cls}" id="${id}" data-hb="${id}" title="${title}">${label}</button><div class="mpsub hs" style="display:none"><span class="mpv">${inner}</span></div></div>`;
-  const BACK = () => ''; // no back buttons: a click on an empty spot of the map (or on another hamburger) closes the open ones
   const ICON = {
     prec: '<svg width="14" height="14" viewBox="0 0 18 18" class="mpic" style="--c:#4dd0e1"><circle cx="9" cy="9" r="5" class="dti"/><path d="M9 .5V4.5M9 13.5V17.5M.5 9H4.5M13.5 9H17.5" class="dti"/></svg>',
     ppt: '<svg width="14" height="14" viewBox="0 0 18 18" class="mpic" style="--c:#ff5d5d"><path d="M9 1.5L16.5 9L9 16.5L1.5 9Z" class="dti"/></svg>',
@@ -1129,46 +1124,6 @@ export function createMap(host, deps) {
       }
     };
     dtcInfo();
-  }
-  // replace a button by its row (or the row by the button), 150 ms fade
-  function swap(btn, row, open, after) {
-    const fast = deps.anim && !deps.anim(),
-      ease = 'cubic-bezier(.22,.9,.3,1)';
-    if (open) {
-      btn.style.display = 'none';
-      row.style.display = '';
-      if (!fast)
-        row.animate(
-          [
-            { opacity: 0, transform: 'translateY(-6px) scale(.96)' },
-            { opacity: 1, transform: 'none' },
-          ],
-          { duration: 200, easing: ease }
-        );
-      return;
-    }
-    if (row.style.display == 'none') return;
-    const done = () => {
-      row.style.display = 'none';
-      btn.style.display = '';
-      if (after) after();
-      if (!fast)
-        btn.animate(
-          [
-            { opacity: 0, transform: 'scale(.94)' },
-            { opacity: 1, transform: 'none' },
-          ],
-          { duration: 190, easing: ease }
-        );
-    };
-    if (fast) return done();
-    row.animate(
-      [
-        { opacity: 1, transform: 'none' },
-        { opacity: 0, transform: 'translateY(-6px) scale(.96)' },
-      ],
-      { duration: 130, easing: 'ease-in' }
-    ).onfinish = done;
   }
   const showLayer = k => {
     if (!st.on[k]) {
@@ -2517,8 +2472,7 @@ export function createMap(host, deps) {
   }
   function placeLabels() {
     if (!map || (!LBL.length && !TLB.length)) return;
-    const L = window.L,
-      sz = map.getSize(),
+    const sz = map.getSize(),
       c = { x: sz.x / 2, y: sz.y / 2 };
     LBL.concat(TLB).forEach(o => {
       let best = null,
@@ -4012,7 +3966,6 @@ export function createMap(host, deps) {
     plan(C, f);
     flights(C, view, f);
     dtc();
-    curSel = f;
     sync();
     shotBtn();
     samRows();

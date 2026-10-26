@@ -108,14 +108,6 @@ const laurel = (cx, cy, r, col, n = 8, ls = 1) =>
       }).join('')
     )
     .join('');
-// a flat eagle with spread wings (centre x, y; width w)
-const eagleP = (cx, cy, w, fill, line) =>
-  `<path transform="translate(${cx} ${cy}) scale(${w / 32})" d="M0 -13C1 -13 2 -12 2 -10.5L1.5 -9C6 -11 11 -11 16 -8C14 -6 13 -5 11 -4.5C13 -4 13 -2.5 11.5 -1.5C9 -1 7 -1.5 5 -2C7 -0.5 6 1 4 1L2.5 1.5L3 7L6 11L0 9.5L-6 11L-3 7L-2.5 1.5L-4 1C-6 1 -7 -0.5 -5 -2C-7 -1.5 -9 -1 -11.5 -1.5C-13 -2.5 -13 -4 -11 -4.5C-13 -5 -14 -6 -16 -8C-11 -11 -6 -11 -1.5 -9L-2 -10.5C-2 -12 -1 -13 0 -13Z" fill="${fill}" stroke="${line}" stroke-width="${((1 * 32) / w).toFixed(2)}" stroke-linejoin="round"/>`;
-// a lobed oak leaf with a stem, pointing up, centred on (cx, cy), about 36 units high at scale 1
-const OAK =
-  'M0 -18C4 -16 5 -12 3 -10C8 -10 9 -5 5 -3C10 -2 10 4 5 5C7 8 4 13 0 17C-4 13 -7 8 -5 5C-10 4 -10 -2 -5 -3C-9 -5 -8 -10 -3 -10C-5 -12 -4 -16 0 -18Z';
-const oak = (cx, cy, s, fill, rot = 0) =>
-  `<g transform="translate(${cx} ${cy}) rotate(${rot}) scale(${s})"><path d="${OAK}" fill="${fill}" stroke="#0008" stroke-width="${(1 / s).toFixed(2)}" stroke-linejoin="round"/><path d="M0 -14V17M0 6L-4 1M0 6L4 1M0 -1L-3.5 -5M0 -1L3.5 -5" stroke="#0007" stroke-width="${(0.8 / s).toFixed(2)}" fill="none"/><path d="M0 17V21" stroke="#0008" stroke-width="${(1.6 / s).toFixed(2)}" stroke-linecap="round"/></g>`;
 
 // Heraldic eagle of the US insignia (spread wings made of feathers, head turned to its left, striped shield on the chest, tail), drawn in a 100 x 60 box and
 // centred on (cx, cy) with width w. claws: 'arrows' = olive branch and arrows (colonel's eagle), 'bolts' = lightning bolts (Air Medal), '' = none.
@@ -176,8 +168,7 @@ const leafP = (cx, cy, sc, lit, dark, edge, rot = 0) => {
   const R = 16,
     r = 11.4,
     P = (a, rr) => [rr * Math.sin((a * Math.PI) / 180), -rr * Math.cos((a * Math.PI) / 180)],
-    tips = Array.from({ length: 7 }, (_, k) => (360 / 7) * (k - 3)).map(a => a),
-    pts = [];
+    tips = Array.from({ length: 7 }, (_, k) => (360 / 7) * (k - 3)).map(a => a);
   const step = 360 / 7;
   const sil = [],
     fac = [];

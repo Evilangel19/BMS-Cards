@@ -97,7 +97,6 @@ export function createPerfPage(deps) {
     f == 'mach' ? (+v).toFixed(2) : f == 'g' ? (+v).toFixed(1) : f == 'slope' ? (+v).toFixed(1) : fmt(v);
   const seg = (f, opts, c) =>
     `<span class="seg">${opts.map(([v, l]) => `<button type="button" class="${String(c) === String(v) ? 'on' : ''}" data-set="${f}" data-v="${v}">${l}</button>`).join('')}</span>`;
-  const kv = (a, b, bad) => `<span>${a}</span><b${bad ? ' class="wbad"' : ''}>${b}</b>`;
   const tile = (a, b, s) =>
     `<div class="tile"><span>${a}</span><b>${b}</b>${s ? `<small class="hint">${s}</small>` : ''}</div>`;
   const rwMan = () => {
@@ -263,8 +262,7 @@ export function createPerfPage(deps) {
       gmax = Math.ceil(ymax(['gI', 'gM', 'gA']));
     const best = k => rows.reduce((b, r) => ((r[k] || 0) > (b[k] || 0) ? r : b), rows[0]),
       sa = best('wA'),
-      sm = best('wM'),
-      nz = r => (r.gM == null ? '—' : fmt(r.gM, 1));
+      sm = best('wM');
     const tiles = `<div class="wpt">${tile('Corner speed', fmt(c.cas) + ' KCAS', fmt(c.gI, 1) + ' g · ' + fmt(c.wI, 1) + '°/s')}${tile('Best sustained, MIL', sm.wM == null ? 'none' : fmt(sm.wM, 1) + '°/s', sm.wM == null ? 'no level turn' : fmt(sm.cas) + ' KCAS · ' + fmt(sm.gM, 1) + ' g')}${tile('Best sustained, AB', sa.wA == null ? 'none' : fmt(sa.wA, 1) + '°/s', sa.wA == null ? 'no level turn' : fmt(sa.cas) + ' KCAS · ' + fmt(sa.gA, 1) + ' g')}</div>`;
     const ser = k => [
       { c: '#fbbf24', pts: S('w' + k[0]) },

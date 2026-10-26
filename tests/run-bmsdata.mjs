@@ -13,7 +13,7 @@ if (!dir || !fs.existsSync(dir)) {
 }
 
 const dec = (k, buf) => new TextDecoder(ENCODING[k]).decode(buf);
-const { tables, found, missing, errors } = await buildTables(async k => {
+const { tables, missing, errors } = await buildTables(async k => {
   const p = [FILES[k], ...(ALIASES[k] || [])].map(n => path.join(dir, n)).find(q => fs.existsSync(q));
   return p ? dec(k, fs.readFileSync(p)) : null;
 });

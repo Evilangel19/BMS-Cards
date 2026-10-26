@@ -144,8 +144,7 @@ export function createWeaponsPage(deps) {
   // so the target IS a steerpoint: the route (1-24), geo-line points (31-54), pre-planned threats (56-70) or precision targets (81-99).
   function gather() {
     const R = (deps.route() || []).filter(x => x.n >= 0 && x.n <= 23),
-      P = deps.points && deps.points(),
-      names = { line: 'Geo line points', ppt: 'PPT', prec: 'Precision targets' };
+      P = deps.points && deps.points();
     const isSam = q => {
       const k = PPTL.findIndex(e => e[0].toLowerCase() == String(q.name || '').toLowerCase());
       return k >= 0 && k < 26;

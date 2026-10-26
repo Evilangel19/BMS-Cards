@@ -1,6 +1,6 @@
 // HADB and LAT (toss) planners: geometry and sanity checks.
 import { computeHadb, computeToss } from '../app/js/core/strike.js';
-import { dist, bearing, norm, FT_KT } from '../app/js/core/popup.js';
+import { dist, bearing, FT_KT } from '../app/js/core/popup.js';
 let n = 0,
   bad = 0;
 const ck = (name, ok) => {

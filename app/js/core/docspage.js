@@ -81,8 +81,7 @@ export function createDocsPage(deps) {
     err: '',
   };
   let seq = 0,
-    built = false,
-    bytesKey = '';
+    built = false;
   const $ = s => root.querySelector(s);
 
   async function loadTrees() {

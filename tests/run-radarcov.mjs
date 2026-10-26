@@ -1,4 +1,4 @@
-import { CELL_KM, coverage, radarUnits, neededCells, cellOf } from '../app/js/core/radarcov.js';
+import { CELL_KM, coverage, radarUnits, neededCells } from '../app/js/core/radarcov.js';
 let bad = 0;
 const ok = (c, m) => {
   console.log((c ? 'OK   ' : 'FAIL ') + m);

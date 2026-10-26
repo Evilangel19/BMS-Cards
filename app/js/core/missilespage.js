@@ -2,8 +2,8 @@
 // from the BMS Misdata tables (missiledata.js; three missiles are built in). deps: {root, esc, points(), ll(n, e), attach(el), detach(), missiles() -> {name: data}}
 import D0 from '../data/index.js';
 import { timeline, CLASSES, STD } from './bvrtimeline.js';
-import { bvrShot, harmShot, marShot, harmFootprint, HARM_SUB, NM } from './airmissile.js';
-import { dist, bearing, project } from './popup.js';
+import { bvrShot, harmShot, marShot, HARM_SUB, NM } from './airmissile.js';
+import { bearing, project } from './popup.js';
 
 const FT_KM = 3280.84;
 const MODES = [
@@ -438,8 +438,7 @@ export function createMissilesPage(deps) {
     }
     const tp = [-trip, arc.reduce((b, q) => (Math.abs(q[0] + trip) < Math.abs(b[0] + trip) ? q : b), arc[0])[1]];
     let g = '',
-      t = '',
-      k = 0;
+      t = '';
     const txt = (x, y, c, s, a) => `<text x="${x}" y="${y}" fill="${c}"${a ? ` text-anchor="${a}"` : ''}>${s}</text>`;
     if (glide) {
       g = `<path d="${P([tp, [0, tg + (tp[1] - tg) * 0.5], [ext, tg + 200]])}" fill="none" stroke="#22d3ee" stroke-width="2.2" stroke-dasharray="6 4"/>`;

@@ -1,5 +1,4 @@
 import { loadConfig, isDesktop, pickFolder, saveConfig, fileExists, readBytes } from '../platform/desktop.js';
-import { DEFAULTS } from '../config/config.js';
 import { ST } from './state.js';
 import { $, applyAnim } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';

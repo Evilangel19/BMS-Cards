@@ -393,22 +393,6 @@
   font-size: 12px;
   margin: 0;
 }
-.mpsub {
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-  align-items: center;
-}
-.mpv .btn {
-  text-align: left;
-  white-space: nowrap;
-}
-.mpv {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: stretch;
-}
 .mpic {
   flex: none;
   vertical-align: -2px;
@@ -441,14 +425,6 @@
   display: grid;
   grid-template-columns: repeat(2, 34px);
   gap: 4px;
-}
-.mpsub .mpg .btn {
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  text-align: center;
-  font-size: 13px;
-  min-width: 0;
 }
 .nobj {
   --c: #fff;

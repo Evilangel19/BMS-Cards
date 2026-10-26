@@ -34,6 +34,7 @@ const SEC_OF = {
   MAP_POP: 'nav',
 };
 // keys that a page shows itself; the others of the same section are listed in "Other"
+// eslint-disable-next-line no-unused-vars -- kept on purpose: the rules for the "Other" list of an ini section (not built yet)
 const COV = {
   STPT: /./,
   EWS: /./,
@@ -56,28 +57,6 @@ import { ewsEvents, ewsSummary, createEwsFx } from './ewsfx.js';
 import { readTarget, targetLine } from './targets.js';
 import { openTargetPicker } from './targetpicker.js';
 export const pageOf = s => SEC_OF[s] || 'raw';
-const L16 = [
-  ['MISSION_CHANNEL', 'Mission channel'],
-  ['FIGHTER_CHANNEL', 'Fighter channel'],
-  ['SPECIAL_CHANNEL', 'Special channel'],
-  ['VOICE_GROUP_A_CHANNEL', 'Voice group A'],
-  ['VOICE_GROUP_B_CHANNEL', 'Voice group B'],
-  ['CALLSIGN', 'Callsign'],
-  ['CALLSIGN_NUMBER', 'Callsign number'],
-  ['FLIGHT_LEAD', 'Flight lead'],
-  ['EXT_TIME_REFERENCE', 'External time reference'],
-  ['TACAN_CHANNEL', 'TACAN channel'],
-  ['TACAN_BAND', 'TACAN band'],
-  ['FLIGHT_1_STN', 'Flight 1 STN'],
-  ['FLIGHT_2_STN', 'Flight 2 STN'],
-  ['FLIGHT_3_STN', 'Flight 3 STN'],
-  ['FLIGHT_4_STN', 'Flight 4 STN'],
-  ['TEAM_1_STN', 'Team 1 STN'],
-  ['TEAM_2_STN', 'Team 2 STN'],
-  ['TEAM_3_STN', 'Team 3 STN'],
-  ['TEAM_4_STN', 'Team 4 STN'],
-  ...[1, 2, 3, 4, 5, 6, 7, 8].map(n => ['DONOR_' + n + '_STN', 'Donor ' + n + ' STN']),
-];
 const STPT_TYPES = {
   0: 'Nav',
   1: 'TakeOff',
@@ -161,7 +140,6 @@ export function createDtcPage(deps) {
   let cur = 'stpt',
     OPEN = new Set(),
     SYNC = {},
-    q = '',
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,
@@ -1464,7 +1442,6 @@ export function createDtcPage(deps) {
   }
 
   // ---- drawing ---------------------------------------------------------------------------------
-  let ST = { scroll: 0 };
   function drawNav() {
     nav.innerHTML = SECTIONS.map(
       ([k, t]) => `<button type="button" data-k="${k}" class="${k == cur ? 'on' : ''}">${t}<i></i></button>`
@@ -1479,7 +1456,6 @@ export function createDtcPage(deps) {
           } catch (e) {
             /* no storage */
           }
-          q = '';
           render({ fade: true });
         })
     );

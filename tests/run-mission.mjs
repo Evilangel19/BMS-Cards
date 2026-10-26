@@ -5,7 +5,6 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { CAM } = await import(new URL('../app/js/core/cam-core.js', import.meta.url));
 const P = await import(new URL('../app/js/core/mission.js', import.meta.url));
-const { parseLink16 } = await import(new URL('../app/js/parsers/link16.js', import.meta.url));
 CAM.setBase('2026-09-30');
 let n = 0,
   bad = 0;
@@ -258,7 +257,9 @@ ck(
   ck(
     'a mission written now carries no path of this computer',
     !/"path"\s*:/.test(
-      fs.readFileSync(path.join(root, 'app/js/app/mission.js'), 'utf8').match(/const dtc =\s*lines\.length\s*\?\s*\{[\s\S]*?\n\s*\}\s*:\s*null/)[0]
+      fs
+        .readFileSync(path.join(root, 'app/js/app/mission.js'), 'utf8')
+        .match(/const dtc =\s*lines\.length\s*\?\s*\{[\s\S]*?\n\s*\}\s*:\s*null/)[0]
     )
   );
   const pk = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')),

@@ -271,7 +271,7 @@ ck('no flight -> empty route', flightRoute({}, null).length === 0);
   const F = warpFrame(BMS_EXTENT, 3840, 3840, 4096),
     c = toLL(512, 512);
   ck('warp: frame covers the whole theater square', F.bounds[0][0] < 35 && F.bounds[1][0] > 42 && F.outH > 3000);
-  const [px, py] = F.dst(
+  const [px] = F.dst(
     (3840 * (512 - BMS_EXTENT.x0)) / (BMS_EXTENT.x1 - BMS_EXTENT.x0),
     (3840 * (BMS_EXTENT.y1 - 512)) / (BMS_EXTENT.y1 - BMS_EXTENT.y0)
   );

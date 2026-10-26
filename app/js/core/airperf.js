@@ -5,8 +5,7 @@ export const G = 32.174,
   KT = 1.68781,
   RHO0 = 0.0023769,
   A0 = 661.48; // g (ft/s²), ft/s per kt, sea level density (slug/ft³), sea level speed of sound (kt)
-const RAD = Math.PI / 180,
-  clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const RAD = Math.PI / 180;
 
 // ISA with a temperature offset (°C): density ratio, speed of sound (kt), pressure ratio at the geometric altitude (ft)
 export function atmos(altFt, dIsa = 0) {
@@ -462,8 +461,7 @@ export function climb(ac, o, casKt, machMax) {
   let W = W0,
     t = 0,
     fuel = 0,
-    nm = 0,
-    prev = null;
+    nm = 0;
   const spd = h => {
     const A = atmos(h, dIsa),
       M = Math.min(machMax, machFromCas(casKt, A));

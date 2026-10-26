@@ -7,8 +7,6 @@ import {
   pickFile,
   readBytes,
   listDir,
-  fileExists,
-  appDir,
 } from '../platform/desktop.js';
 import { getGeo } from '../rules/geo.js';
 import { APP_VERSION } from '../core/version.js';

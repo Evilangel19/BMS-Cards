@@ -79,8 +79,7 @@ export function initWidgets(animOn) {
       d = document.createElement('div');
     d.className = 'ddp';
     [...sel.options].forEach((o, i) => {
-      const b = document.createElement('div'),
-        cs = getComputedStyle(o);
+      const b = document.createElement('div');
       b.className = 'ddi' + (o.selected ? ' on hl' : '') + (o.disabled ? ' off' : '');
       b.textContent = o.textContent;
       b.dataset.i = i;
