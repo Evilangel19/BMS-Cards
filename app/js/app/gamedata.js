@@ -279,8 +279,13 @@ export async function loadGameData(reloadTheaters = true) {
       if (!(await fileExists(exe)))
         bmsVerNote = 'Falcon BMS.exe not found in Bin\\x64, the game version is not checked.';
       else {
-        const v = await exeVersion((o, l) => readRange(exe, o, l));
-        if (!v) bmsVerNote = 'The version of Falcon BMS.exe could not be read, the game version is not checked.';
+        const why = [],
+          v = await exeVersion((o, l) => readRange(exe, o, l), why);
+        if (!v)
+          bmsVerNote =
+            'The version of Falcon BMS.exe could not be read (' +
+            why.join('; ') +
+            '), the game version is not checked.';
         else if (v.every(x => !x))
           bmsVerNote = 'Falcon BMS.exe has no version number (0.0.0.0), the game version is not checked.';
         const cv = compareVersion(v, BMS_TESTED);

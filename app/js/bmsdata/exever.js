@@ -10,22 +10,23 @@ const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 
 
 /**
  * @param {(offset: number, length: number) => Promise<Uint8Array>} read
+ * @param {string[]} [why] filled with the reason when nothing is found (shown in the Settings so a problem can be told)
  * @returns {Promise<number[] | null>} [major, minor, build, revision], or null when the file has no version resource
  */
-export async function exeVersion(read) {
+export async function exeVersion(read, why = []) {
   try {
     const dos = await read(0, 64);
-    if (dos[0] !== 0x4d || dos[1] !== 0x5a) return null; // "MZ"
+    if (!dos || dos[0] !== 0x4d || dos[1] !== 0x5a) return (why.push('not an exe (no MZ)'), null); // "MZ"
     const pe = u32(dos, 0x3c);
     const h = await read(pe, 24);
-    if (u32(h, 0) !== 0x00004550) return null; // "PE\0\0"
+    if (!h || u32(h, 0) !== 0x00004550) return (why.push('no PE header at ' + pe), null); // "PE\0\0"
     const nSec = u16(h, 6),
       optSize = u16(h, 20);
     const opt = await read(pe + 24, optSize + nSec * 40);
     const magic = u16(opt, 0);
     const dd = magic === 0x20b ? 112 : 96; // data directories: PE32+ or PE32
     const rsrcRva = u32(opt, dd + 2 * 8);
-    if (!rsrcRva) return null;
+    if (!rsrcRva) return (why.push('no resource table (sections ' + nSec + ', optional header ' + optSize + ')'), null);
     const secs = [];
     for (let i = 0; i < nSec; i++) {
       const o = optSize + i * 40;
@@ -37,7 +38,7 @@ export async function exeVersion(read) {
       return s ? rva - s.va + s.raw : -1;
     };
     const base = off(rsrcRva);
-    if (base < 0) return null;
+    if (base < 0) return (why.push('resource table RVA ' + rsrcRva + ' is in no section'), null);
     /** one level of the resource tree: the entries as [id-or-name field, offset field] */
     const level = async (/** @type {number} */ rel) => {
       const d = await read(base + rel, 16);
@@ -48,15 +49,16 @@ export async function exeVersion(read) {
     };
     const root = await level(0);
     const ver = root.find(([id]) => id === 16); // RT_VERSION
-    if (!ver || !(ver[1] & 0x80000000)) return null;
+    if (!ver || !(ver[1] & 0x80000000))
+      return (why.push('no version resource; resource types: ' + root.map(r => r[0]).join(',')), null);
     const langs = await level(ver[1] & 0x7fffffff);
-    if (!langs.length || !(langs[0][1] & 0x80000000)) return null;
+    if (!langs.length || !(langs[0][1] & 0x80000000)) return (why.push('version resource: no language level'), null);
     const leaf = await level(langs[0][1] & 0x7fffffff);
-    if (!leaf.length || leaf[0][1] & 0x80000000) return null;
+    if (!leaf.length || leaf[0][1] & 0x80000000) return (why.push('version resource: no data entry'), null);
     const de = await read(base + leaf[0][1], 8); // data entry: RVA and size of the resource
     const dOff = off(u32(de, 0)),
       dSize = Math.min(u32(de, 4), 16384);
-    if (dOff < 0 || dSize < 52) return null;
+    if (dOff < 0 || dSize < 52) return (why.push('version data at ' + dOff + ', size ' + dSize), null);
     const v = await read(dOff, dSize);
     for (let p = 0; p + 52 <= v.length; p += 4) {
       if (u32(v, p) === 0xfeef04bd) {
@@ -73,9 +75,9 @@ export async function exeVersion(read) {
       const m = new RegExp(key + '\\0+(\\d+)[.,\\s]+(\\d+)(?:[.,\\s]+(\\d+))?(?:[.,\\s]+(\\d+))?').exec(txt);
       if (m) return [+m[1], +m[2], +(m[3] || 0), +(m[4] || 0)];
     }
-    return null;
+    return (why.push('version data without numbers (' + v.length + ' bytes)'), null);
   } catch (e) {
-    return null;
+    return (why.push('read error: ' + ((e && e.message) || e)), null);
   }
 }
 

@@ -77,6 +77,17 @@ ok(
   JSON.stringify(await exeVersion(reader(makePe({ version: [0, 0, 0, 0], text: '4, 38, 2, 0' })))) === '[4,38,2,0]'
 );
 ok('no version resource: nothing', (await exeVersion(reader(makePe({ noVersion: true })))) === null);
+{
+  const why = [];
+  await exeVersion(reader(makePe({ noVersion: true })), why);
+  ok(
+    'the reason is given: the resource types found',
+    why.join().includes('no version resource') && why.join().includes('3')
+  );
+  const why2 = [];
+  await exeVersion(async () => Promise.reject(new Error('denied')), why2);
+  ok('a read error is given as the reason', why2.join().includes('denied'));
+}
 ok('not a PE file: nothing', (await exeVersion(reader(new Uint8Array(500)))) === null);
 ok('a read that fails: nothing, no error', (await exeVersion(async () => Promise.reject(new Error('x')))) === null);
 ok('same version: ok', compareVersion([4, 38, 1, 99], '4.38.1').level === 'ok');
