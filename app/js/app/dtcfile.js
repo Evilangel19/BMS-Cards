@@ -9,7 +9,7 @@ import {apply} from './selection.js';
 import {buildForm} from './datacard.js';
 import {draw} from './cardview.js';
 import {campDir, dtcDir} from './campaign.js';
-import {campaignIni} from '../core/mapdtc.js';
+import {campaignIni, campaignFullIni} from '../core/mapdtc.js';
 
 /* ---------- DTC ---------- */
 export let lines = [];
@@ -42,7 +42,7 @@ export async function dtcRevert(){
  for(let i=lines.length-1;i>=0;i--){const l=lines[i];if(!l.dirty)continue;if(!l.raw){lines.splice(i,1);continue}l.v=l.raw.slice(l.raw.indexOf('=')+1).trim();l.dirty=0}
  afterDtc('target_98',true);if($('fn'))$('fn').textContent=ST.name}
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.
-// BMS reads the DTC of a campaign from <campaign name>.ini (Autosave.ini is written only when the campaign itself is the Autosave one, never otherwise): those files are written the way BMS writes them (campaignIni: [MISSION] title and the [STPT] data only)
+// BMS reads the DTC of a campaign from <campaign name>.ini (Autosave.ini is written only when the campaign itself is the Autosave one, never otherwise): those files are written the way BMS writes them (a campaign: the whole DTC with [MISSION] title last; a Tactical Engagement: campaignIni, [MISSION] title and the [STPT] data only)
 export async function dtcCampaignFiles(){
  const dirOf=p=>p.replace(/[\\/][^\\/]*$/,''),dirs=[...new Set([dirOf(ST.DTCF.path),dtcDir(),(()=>{try{return campDir()}catch(e){return''}})()].filter(Boolean))],stem=ST.C&&ST.C.name?PJ.safeName(ST.C.name):'',names=[stem&&stem+'.ini'].filter(Boolean),found=[];
  for(const n of names)for(const d of dirs){const f=joinPath(d,n);if(f===ST.DTCF.path)continue;try{if(await IO.fileExists(f))found.push(f)}catch(e){}}
@@ -62,10 +62,10 @@ export async function dtcOverwrite(){
  if(!ST.DTCF||!ST.DTCF.path)return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
  if(!lines.some(l=>l.dirty))return;
  let extra=[];try{extra=await dtcCampaignFiles()}catch(e){}
- if(!await confirm('Overwrite this file with your changes?\n\n'+ST.DTCF.path+(extra.length?'\n\nThe steerpoints, PPT, lines and weapon targets are also written, as BMS keeps them, to the campaign files BMS loads in the game:\n'+extra.join('\n'):'')+'\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'))return;
+ if(!await confirm('Overwrite this file with your changes?\n\n'+ST.DTCF.path+(extra.length?'\n\nThe DTC is also written, as BMS keeps it, to the campaign files BMS loads in the game (a Tactical Engagement: only the title and the steerpoint data):\n'+extra.join('\n'):'')+'\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'))return;
  try{await dtcBackupOnce(ST.DTCF.path,ST.DTCF.orig);
   const out=encodeDtc(dtcOut());await IO.writeBytes(ST.DTCF.path,out);ST.DTCF.orig=out;
-  for(const f of extra){try{let old=null;try{if(await IO.fileExists(f))old=await readBytes(f)}catch(e){}if(old)await dtcBackupOnce(f,old);await IO.writeBytes(f,new TextEncoder().encode(campaignIni(f.split(/[\\/]/).pop().replace(/\.ini$/i,''),lines)))}catch(e){}}
+  for(const f of extra){try{let old=null;try{if(await IO.fileExists(f))old=await readBytes(f)}catch(e){}if(old)await dtcBackupOnce(f,old);await IO.writeBytes(f,(ti=>ST.C&&ST.C.isTe?new TextEncoder().encode(campaignIni(ti,lines)):encodeDtc(campaignFullIni(dtcOut(),ti)))(f.split(/[\\/]/).pop().replace(/\.ini$/i,'')))}catch(e){}}
   lines.forEach(l=>{if(l.dirty){l.raw=l.k+'='+l.v;l.dirty=0}});
   dtcBtns();$('fn').textContent=ST.name+' · saved';appToast('DTC saved: '+ST.DTCF.path+(extra.length?' (+ '+extra.length+' campaign file'+(extra.length>1?'s':'')+')':''));try{if(mapV.isReady())mapV.refreshDtc()}catch(e){}
  }catch(e){alert('Could not write the file: '+(e&&e.message||e))}}
