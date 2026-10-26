@@ -465,7 +465,7 @@ try:
         pg.click('#mpdtcb'); pg.wait_for_timeout(300); check('DTC menu closes again, the functions with it', not pg.is_visible('#mpdtc') and not pg.is_visible('#mpdsave') and not pg.is_visible('#mpdopen')); pg.click('#mpdtcb'); pg.wait_for_timeout(300)
         pg.click('[data-t=dtc]'); pg.wait_for_timeout(300); pg.click('#dnav [data-k=stpt]'); pg.wait_for_timeout(300)
         vt = pg.inner_text('#view'); vals = pg.evaluate("[...document.querySelectorAll('#view input')].map(i=>i.value)")
-        check('Data Cartridge page lists the points edited on the map (precision, PPT, lines)', 'STPT 81-99' in vt and any('Yangyang' in v for v in vals) and 'STPT 56-80' in vt and 'WWO' in vals and 'STPT 31-54' in vt and 'LINE 1' in vt.upper() and pg.locator('.lnp b').first.inner_text() == '31')
+        check('Data Cartridge page lists the points edited on the map (precision, PPT, lines)', 'STPT 81-99' in vt and any('Yangyang' in v for v in vals) and 'STPT 56-70' in vt and 'WWO' in vals and 'STPT 31-54' in vt and 'LINE 1' in vt.upper() and pg.locator('.lnp b').first.inner_text() == '31')
         nmi = pg.locator('#view input').nth(next(i for i, v in enumerate(vals) if 'Yangyang' in v)); nmi.fill('Edited on page'); nmi.press('Tab'); pg.wait_for_timeout(300)
         check('every line of the Steerpoints page starts with its STPT number', pg.evaluate("[...document.querySelectorAll('#view .dt tr')].filter(r=>r.querySelector('td')).every(r=>/^\\d+$/.test(r.querySelector('td').textContent.trim()))"))
         check('editing on the page changes the same ini line', 'Edited on page' in ln('target_95'))

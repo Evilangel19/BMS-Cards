@@ -38,7 +38,7 @@ export const MAP_LAYERS = [
   ['fp', 'Flight plan (line, steerpoints)', true, 'Selected flight'], ['pk', 'Package', true, 'Selected flight'], ['fd', 'Label and distances', true, 'Selected flight'],
   ['uf', 'Friendly units', true, 'Ground and naval units'], ['ue', 'Enemy units (spotted)', true, 'Ground and naval units'],
   ['sf', 'Friendly SAM range', false, 'SAM range'], ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
-  ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-80)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
+  ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'], ['dq', 'Pre-planned (STPT 56-70)', true, 'DTC steerpoints'], ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'], ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'], ['fe', 'Enemy flights (spotted)', true, 'In flight'],
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects'])];
@@ -324,7 +324,7 @@ export function createMap(host, deps) {
         <button class="btn g am" id="mpdtgt" title="Add a weapon target of the DTC (the same as Add target in the Data Cartridge page, Targets): pick it from the campaign objectives. It is drawn on the map as a red blinking ring; click the ring to keep it as a TGT steerpoint.">${ICON.tgt}<small>TARGET</small></button></div>
         <div class="fly" id="padd" style="display:none"><div class="fh">Points</div><div class="tg">
           <button class="btn g gb tl" data-add="prec" disabled title="Click on the map to place a precision target (STPT 81-99). Click a point to edit it, drag it to move it.">${ICON.prec}<span>TGT Stpt</span></button>
-          <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT 56-80); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
+          <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT 56-70); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
           <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
@@ -1037,7 +1037,7 @@ export function createMap(host, deps) {
     };
     const cv = w.querySelector('[data-a=conv]'); if (cv) cv.onclick = () => {   // PPT <-> TGT: the point moves to a free slot of the other group (the DTC, the lists and the pages follow)
       const P = deps.dtc.points(), to = it.group == 'ppt' ? 'prec' : 'ppt', slot = P ? freeSlot(P, to) : -1;
-      if (slot < 0) return err(it.group == 'ppt' ? 'There is no free TGT Steerpoint (STPT 81-99).' : 'There is no free pre-planned slot (STPT 56-80).');
+      if (slot < 0) return err(it.group == 'ppt' ? 'There is no free TGT Steerpoint (STPT 81-99).' : 'There is no free pre-planned slot (STPT 56-70).');
       const nm = it.group == 'ppt' ? (tgtName(pptLabel(it.name) || '') || 'Map STPT ' + (GROUPS.prec.first + slot)) : '';
       deps.dtc.set(to, slot, to == 'prec' ? {x: it.x, y: it.y, altFt: it.altFt, name: nm} : {x: it.x, y: it.y, altFt: 0, name: '', rngNm: 0});
       removePoint(deps.dtc.points(), it.group, it.slot, deps.dtc.set, deps.dtc.clear); map.closePopup(); dtc();

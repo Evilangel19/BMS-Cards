@@ -2,15 +2,24 @@
 // Positions in the ini are feet: north, east (origin = south-west corner of the theater, 1 campaign km = 3280.84 ft).
 // Groups handled (the other steerpoints are not in the ini or are not editable here):
 //   prec  STPT 81-99  target_80 .. target_98     "north, east, -altitude, type, name"
-//   ppt   STPT 56-80  ppt_0 ...                  "north, east, 0, range (ft), name"   (pre-planned threats: name = threat, range = ring)
+//   ppt   STPT 56-70  ppt_0 ...                  "north, east, 0, range (ft), name"   (pre-planned threats: name = threat, range = ring)
 //   line  STPT 31-54  lineSTPT_0 .. lineSTPT_23  "north, east, 0"   F-16: 4 lines (LINE1-4) of up to 6 consecutive steerpoints each:
 //         LINE n uses rows 6(n-1) .. 6(n-1)+5
 export const FT_KM = 3280.84, FT_NM = 6076.12;
 export const GROUPS = {
   prec: {label: 'Precision target', first: 81, key: 'target_', base: 80, n: 19, layer: 'dp'},
-  ppt: {label: 'Pre-planned', first: 56, key: 'ppt_', base: 0, n: 25, layer: 'dq'},
+  ppt: {label: 'Pre-planned', first: 56, key: 'ppt_', base: 0, n: 15, layer: 'dq'},
   line: {label: 'Geo line point', first: 31, key: 'lineSTPT_', base: 0, n: 24, layer: 'dl'}};
 export const LINE_LEN = 6, LINES = 4;
+// What BMS keeps of a campaign / Tactical Engagement DTC (<name>.ini): [MISSION] title= and the [STPT] data only, in this order (checked on a file written by BMS):
+// target_0-23, target_80-98, ppt_0-14, lineSTPT_0-23, wpntarget_0-99. A DTC has more (MFD pages, COMMS...), none of it goes into these files.
+const BMS_STPT = [['target_', [[0, 23], [80, 98]], '0.000000, 0.000000, 0.000000, -1, Not set'], ['ppt_', [[0, GROUPS.ppt.n - 1]], '0.000000, 0.000000, 0.000000, 0.000000,'], ['lineSTPT_', [[0, 23]], '0.000000, 0.000000, 0.000000'], ['wpntarget_', [[0, 99]], '0.000000, 0.000000, 0.000000, -1, Not set']];
+export const bmsStptKeys = () => BMS_STPT.flatMap(([p, rs, e]) => rs.flatMap(([a, b]) => Array.from({length: b - a + 1}, (_, i) => [p + (a + i), e])));
+export const bmsStptKey = k => { const m = /^(target_|ppt_|lineSTPT_|wpntarget_)(\d+)$/.exec(k || ''); return !!m && BMS_STPT.some(([p, rs]) => p == m[1] && rs.some(([a, b]) => +m[2] >= a && +m[2] <= b)); };
+export function campaignIni(title, lines) {
+  const by = new Map(); (lines || []).forEach(l => { if (l.s == 'STPT' && l.k !== undefined) by.set(l.k, l.dirty || l.v !== undefined ? String(l.v) : ''); });
+  return ['[MISSION]', 'title=' + title, '[STPT]', ...bmsStptKeys().map(([k, e]) => k + '=' + (by.has(k) ? by.get(k) : e))].join('\r\n') + '\r\n';
+}
 export const lineOf = slot => Math.floor(slot / LINE_LEN) + 1;
 export const dtcKey = (g, slot) => GROUPS[g].key + (GROUPS[g].base + slot);
 const f6 = v => (+v).toFixed(6);

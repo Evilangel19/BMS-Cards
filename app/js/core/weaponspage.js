@@ -40,7 +40,7 @@ export function createWeaponsPage(deps) {
   const SAMALT = {sa2: [300, 73000], sa3: [150, 45000], sa4: [300, 60000], sa5: [1000, 123000], sa6: [550, 36000], sa8: [80, 16000], sa9: [50, 14500], '10': [60, 123000], '11': [180, 54000], '12': [100, 100000], '13': [30, 12000], '15': [35, 20000], '17': [140, 81000], '19': [50, 10200], '20': [125, 150000], hwk: [200, 44000], mnp: [50, 10000], zsu: [0, 10000], aaa: [0, 10000], sky: [0, 10000]};
   const samAlt = p => { const q = p && SAMALT[String(p.pname || '').toLowerCase()]; return q ? {min: q[0], max: q[1]} : null; };
   // everything the page needs from the DTC. On board the pull-up point and the OA rows hang on steerpoints 1-99 (not on the weapon targets),
-  // so the target IS a steerpoint: the route (1-24), geo-line points (31-54), pre-planned threats (56-80) or precision targets (81-99).
+  // so the target IS a steerpoint: the route (1-24), geo-line points (31-54), pre-planned threats (56-70) or precision targets (81-99).
   function gather() {
     const R = (deps.route() || []).filter(x => x.n >= 0 && x.n <= 23), P = deps.points && deps.points(), names = {line: 'Geo line points', ppt: 'PPT', prec: 'Precision targets'};
     const isSam = q => { const k = PPTL.findIndex(e => e[0].toLowerCase() == String(q.name || '').toLowerCase()); return k >= 0 && k < 26; };

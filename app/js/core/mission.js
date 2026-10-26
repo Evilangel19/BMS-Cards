@@ -2,6 +2,7 @@
 // with its automatic and manual values. Pure functions (no DOM, no files): the app reads and writes the files.
 //   {format, version, created, app, name, package: {campaign snapshot}, dtc: {name, enc, bom, original, edits}, datacard: {flight, auto, manual}, settings}
 import {parseDtc} from '../parsers/dtc.js';
+import {bmsStptKey} from './mapdtc.js';
 export const MISSION_FORMAT = 'bms-cards-mission', OLD_FORMAT = 'bms-cards-project', MISSION_VERSION = 1, MISSION_EXT = '.bcrd';   // files saved as projects (.bmsproj) are still read
 const KM_NM = 1.852;
 const key = id => id.n + ':' + id.c;
@@ -86,8 +87,10 @@ export function applyDtcEdits(original, edits) {
 export const DTC_BLOCK_SECS = ['STPT', 'NAV OFFSETS', 'FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser', 'ICP'];
 export const DTC_GROUPS = [{id: 'mission', label: 'Steerpoints, targets, lines, nav offsets, weapons and Bingo/Alow', secs: DTC_BLOCK_SECS, mission: true}];
 // the groups of the lines [{s, k, v}] of a DTC: [{id, label, mission, items: [[s, k, v], ...]}], only the groups that have lines
+// the steerpoint keys BMS does not use (ppt_15 and up, target_24-79 ...) are not carried
+const stptOk = l => l.s !== 'STPT' || !/^(target_|ppt_|lineSTPT_|wpntarget_)\d+$/.test(l.k) || bmsStptKey(l.k);
 export function dtcShare(lines) {
-  return DTC_GROUPS.map(g => ({id: g.id, label: g.label, mission: g.mission, items: (lines || []).filter(l => l.k !== undefined && g.secs.includes(l.s)).map(l => [l.s, l.k, String(l.v)])})).filter(g => g.items.length);
+  return DTC_GROUPS.map(g => ({id: g.id, label: g.label, mission: g.mission, items: (lines || []).filter(l => l.k !== undefined && g.secs.includes(l.s) && stptOk(l)).map(l => [l.s, l.k, String(l.v)])})).filter(g => g.items.length);
 }
 // the block of a DTC saved inside a mission (the original with its edits, or the block of a mission that travelled): [] or one group
 export function shareFromSaved(dtc) {
@@ -95,7 +98,7 @@ export function shareFromSaved(dtc) {
   let items = [];
   if (dtc.share && Array.isArray(dtc.share.groups)) dtc.share.groups.forEach(g => items.push(...(g.items || [])));
   else if (typeof dtc.original == 'string') items = dtcShare(parseDtc(applyDtcEdits(dtc.original, dtc.edits || []))).flatMap(g => g.items);
-  items = items.filter(i => DTC_BLOCK_SECS.includes(i[0]));
+  items = items.filter(i => DTC_BLOCK_SECS.includes(i[0]) && stptOk({s: i[0], k: i[1]}));
   return items.length ? [{...DTC_GROUPS[0], items}] : [];
 }
 // the part of a mission that travels to other pilots: the DTC is reduced to the block, nothing of the program settings goes along
