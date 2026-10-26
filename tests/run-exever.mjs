@@ -14,7 +14,7 @@ const w32 = (b, o, v) => {
   for (let i = 0; i < 4; i++) b[o + i] = (v >>> (8 * i)) & 255;
 };
 // a PE: DOS header, "PE", one section .rsrc (RVA 0x2000 -> file 0x400) with the tree root > RT_VERSION > id 1 > language 0x409 > data
-function makePe({ plus = false, version = [4, 38, 1, 1234], noVersion = false } = {}) {
+function makePe({ plus = false, version = [4, 38, 1, 1234], noVersion = false, text = '' } = {}) {
   const b = new Uint8Array(0x1000);
   b[0] = 0x4d;
   b[1] = 0x5a;
@@ -45,7 +45,7 @@ function makePe({ plus = false, version = [4, 38, 1, 1234], noVersion = false } 
   dir(0x20, 1, 0x40, true); // type: id 1
   dir(0x40, 0x409, 0x60, false); // language: data entry
   w32(b, r + 0x60, 0x2000 + 0x100); // data entry: RVA
-  w32(b, r + 0x64, 0x60); // data entry: size
+  w32(b, r + 0x64, 0x200); // data entry: size
   const v = r + 0x100; // VS_VERSIONINFO: header, "VS_VERSION_INFO", padding, VS_FIXEDFILEINFO
   w16(b, v, 0x5c);
   w16(b, v + 2, 52);
@@ -55,6 +55,11 @@ function makePe({ plus = false, version = [4, 38, 1, 1234], noVersion = false } 
   w32(b, f, 0xfeef04bd);
   w32(b, f + 8, ((version[0] << 16) | version[1]) >>> 0);
   w32(b, f + 12, ((version[2] << 16) | version[3]) >>> 0);
+  if (text) {
+    // string table after the fixed block: "FileVersion", a zero, the text (UTF-16)
+    const t = 'FileVersion\0' + text + '\0';
+    for (let i = 0; i < t.length; i++) w16(b, f + 60 + i * 2, t.charCodeAt(i));
+  }
   return b;
 }
 const reader = b => async (o, l) => b.slice(o, o + l);
@@ -62,6 +67,14 @@ ok('PE32 with a version: 4.38.1.1234', JSON.stringify(await exeVersion(reader(ma
 ok(
   'PE32+ (64 bit): the same',
   JSON.stringify(await exeVersion(reader(makePe({ plus: true, version: [4, 37, 5, 0] })))) === '[4,37,5,0]'
+);
+ok(
+  'numbers 0 in the fixed block, the text has it: 4.38.1.7',
+  JSON.stringify(await exeVersion(reader(makePe({ version: [0, 0, 0, 0], text: '4.38.1.7' })))) === '[4,38,1,7]'
+);
+ok(
+  'numbers 0 and text with commas: 4, 38, 2, 0',
+  JSON.stringify(await exeVersion(reader(makePe({ version: [0, 0, 0, 0], text: '4, 38, 2, 0' })))) === '[4,38,2,0]'
 );
 ok('no version resource: nothing', (await exeVersion(reader(makePe({ noVersion: true })))) === null);
 ok('not a PE file: nothing', (await exeVersion(reader(new Uint8Array(500)))) === null);

@@ -55,15 +55,23 @@ export async function exeVersion(read) {
     if (!leaf.length || leaf[0][1] & 0x80000000) return null;
     const de = await read(base + leaf[0][1], 8); // data entry: RVA and size of the resource
     const dOff = off(u32(de, 0)),
-      dSize = Math.min(u32(de, 4), 2048);
+      dSize = Math.min(u32(de, 4), 16384);
     if (dOff < 0 || dSize < 52) return null;
     const v = await read(dOff, dSize);
     for (let p = 0; p + 52 <= v.length; p += 4) {
       if (u32(v, p) === 0xfeef04bd) {
         const ms = u32(v, p + 8),
           ls = u32(v, p + 12);
-        return [ms >>> 16, ms & 0xffff, ls >>> 16, ls & 0xffff];
+        const fixed = [ms >>> 16, ms & 0xffff, ls >>> 16, ls & 0xffff];
+        if (fixed.some(x => x)) return fixed;
+        break;
       }
+    }
+    // the numbers of the fixed block are 0: the text of the Details tab ("FileVersion" / "ProductVersion", UTF-16) may have it
+    const txt = new TextDecoder('utf-16le').decode(v.subarray(0, v.length & ~1));
+    for (const key of ['FileVersion', 'ProductVersion']) {
+      const m = new RegExp(key + '\\0+(\\d+)[.,\\s]+(\\d+)(?:[.,\\s]+(\\d+))?(?:[.,\\s]+(\\d+))?').exec(txt);
+      if (m) return [+m[1], +m[2], +(m[3] || 0), +(m[4] || 0)];
     }
     return null;
   } catch (e) {

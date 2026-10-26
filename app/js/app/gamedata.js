@@ -272,11 +272,18 @@ export async function loadGameData(reloadTheaters = true) {
       warn.push('Aircraft data could not be read.');
     }
     // the version of the game (Details of Bin\x64\Falcon BMS.exe): a warning when it is not the one the readers were checked with
-    let bmsVer = '';
+    let bmsVer = '',
+      bmsVerNote = '';
     try {
       const exe = jp(inst, 'Bin', 'x64', 'Falcon BMS.exe');
-      if (await fileExists(exe)) {
-        const cv = compareVersion(await exeVersion((o, l) => readRange(exe, o, l)), BMS_TESTED);
+      if (!(await fileExists(exe)))
+        bmsVerNote = 'Falcon BMS.exe not found in Bin\\x64, the game version is not checked.';
+      else {
+        const v = await exeVersion((o, l) => readRange(exe, o, l));
+        if (!v) bmsVerNote = 'The version of Falcon BMS.exe could not be read, the game version is not checked.';
+        else if (v.every(x => !x))
+          bmsVerNote = 'Falcon BMS.exe has no version number (0.0.0.0), the game version is not checked.';
+        const cv = compareVersion(v, BMS_TESTED);
         bmsVer = cv.text;
         if (cv.level == 'newer' || cv.level == 'other')
           warn.push(
@@ -289,7 +296,9 @@ export async function loadGameData(reloadTheaters = true) {
                 : ': some data may be missing or wrong.')
           );
       }
-    } catch (e) {}
+    } catch (e) {
+      bmsVerNote = 'The game version could not be read (' + ((e && e.message) || e) + ').';
+    }
     const used = Object.keys(r.tables).join(', ') || 'none';
     if (r.changed && r.changed.length)
       warn.push(
@@ -308,7 +317,7 @@ export async function loadGameData(reloadTheaters = true) {
       warn,
       status:
         (ST.TH ? 'Theater: ' + ST.TH.name + '. ' : '') +
-        (bmsVer ? 'Falcon BMS ' + bmsVer + '. ' : '') +
+        (bmsVer ? 'Falcon BMS ' + bmsVer + '. ' : bmsVerNote ? bmsVerNote + ' ' : '') +
         'Game data: ' +
         r.found.length +
         '/' +
