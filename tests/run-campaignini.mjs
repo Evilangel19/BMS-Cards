@@ -1,7 +1,15 @@
 // The campaign / Tactical Engagement .ini that BMS reads: [MISSION] title and the [STPT] data only, as BMS writes it (fixture: tests/fixtures/TE_BMS_06_F-18C_QRA.ini, a file written by BMS; ignored by git).
 import fs from 'node:fs';
 import { parseDtc } from '../app/js/parsers/dtc.js';
-import { GROUPS, freeSlot, campaignIni, bmsStptKey, bmsStptKeys, dtcPoints } from '../app/js/core/mapdtc.js';
+import {
+  GROUPS,
+  STPT_RANGE,
+  freeSlot,
+  campaignIni,
+  bmsStptKey,
+  bmsStptKeys,
+  dtcPoints,
+} from '../app/js/core/mapdtc.js';
 import { dtcShare } from '../app/js/core/mission.js';
 let bad = 0,
   n = 0;
@@ -25,6 +33,10 @@ ok(
     !bmsStptKey('target_24') &&
     bmsStptKey('wpntarget_99') &&
     !bmsStptKey('wpntarget_100')
+);
+ok(
+  'the ranges shown on the screen come from GROUPS: 81-99, 56-70, 31-54',
+  STPT_RANGE.prec === '81-99' && STPT_RANGE.ppt === '56-70' && STPT_RANGE.line === '31-54'
 );
 ok('182 STPT keys', bmsStptKeys().length === 24 + 19 + 15 + 24 + 100);
 const p = new URL('./fixtures/TE_BMS_06_F-18C_QRA.ini', import.meta.url);

@@ -6,7 +6,18 @@ const PPT = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt
 import { objState, featState } from '../parsers/cam.js';
 import { offsetRow } from './popup.js';
 import { OFF_KEYS, OFF_COLORS } from './mapoffs.js';
-import { GROUPS, FT_KM, FT_NM, LINE_LEN, lineOf, dtcLines, freeSlot, removePoint, parseLL } from './mapdtc.js';
+import {
+  STPT_RANGE,
+  GROUPS,
+  FT_KM,
+  FT_NM,
+  LINE_LEN,
+  lineOf,
+  dtcLines,
+  freeSlot,
+  removePoint,
+  parseLL,
+} from './mapdtc.js';
 import {
   toLL,
   fromLL,
@@ -917,8 +928,8 @@ export function createMap(host, deps) {
         <button class="btn g bl" id="mpdauto" data-fly="pauto" title="Automatic points: pre-planned threats, bullseye line, front line, tanker tracks">${ICON.bolt}<small>AUTO</small></button>
         <button class="btn g am" id="mpdtgt" title="Add a weapon target of the DTC (the same as Add target in the Data Cartridge page, Targets): pick it from the campaign objectives. It is drawn on the map as a red blinking ring; click the ring to keep it as a TGT steerpoint.">${ICON.tgt}<small>TARGET</small></button></div>
         <div class="fly" id="padd" style="display:none"><div class="fh">Points</div><div class="tg">
-          <button class="btn g gb tl" data-add="prec" disabled title="Click on the map to place a precision target (STPT 81-99). Click a point to edit it, drag it to move it.">${ICON.prec}<span>TGT Stpt</span></button>
-          <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT 56-70); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
+          <button class="btn g gb tl" data-add="prec" disabled title="Click on the map to place a precision target (STPT ${STPT_RANGE.prec}). Click a point to edit it, drag it to move it.">${ICON.prec}<span>TGT Stpt</span></button>
+          <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT ${STPT_RANGE.ppt}); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
           <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
@@ -2083,7 +2094,7 @@ export function createMap(host, deps) {
     const d = document.createElement('div');
     d.className = 'dtp';
     const nm = (short && String(short) !== name ? String(short) + WT_SEP + name : name).slice(0, NAME_MAX);
-    d.innerHTML = `<div><b>${deps.esc(nm)}</b></div><div class="hint" style="min-height:0">${deps.esc(sub)} · ${fmtLL(...toLL(e / FT_KM, n / FT_KM))}</div><div class="bar" style="margin:6px 0 0"><button type="button" class="btn g" data-a="wt">Add as weapon target</button><button type="button" class="btn g gn" data-a="st" title="Keep it as a TGT steerpoint (STPT 81-99)">＋ TGT STPT</button></div><div class="hint err" style="color:#ff6b6b;min-height:0"></div>`;
+    d.innerHTML = `<div><b>${deps.esc(nm)}</b></div><div class="hint" style="min-height:0">${deps.esc(sub)} · ${fmtLL(...toLL(e / FT_KM, n / FT_KM))}</div><div class="bar" style="margin:6px 0 0"><button type="button" class="btn g" data-a="wt">Add as weapon target</button><button type="button" class="btn g gn" data-a="st" title="Keep it as a TGT steerpoint (STPT ${STPT_RANGE.prec})">＋ TGT STPT</button></div><div class="hint err" style="color:#ff6b6b;min-height:0"></div>`;
     const err = t => {
       d.querySelector('.err').textContent = t;
     };
@@ -2101,7 +2112,7 @@ export function createMap(host, deps) {
       if (!EDIT) return;
       const P = deps.dtc.points(),
         slot = P ? freeSlot(P, 'prec') : -1;
-      if (slot < 0) return err('There is no free TGT Steerpoint (STPT 81-99).');
+      if (slot < 0) return err('There is no free TGT Steerpoint (STPT ' + STPT_RANGE.prec + ').');
       const alt = deps.dtc.elev ? await deps.dtc.elev({ n, e }) : 0,
         sn = tgtName(short || name) || 'Map STPT ' + (GROUPS.prec.first + slot);
       deps.dtc.set('prec', slot, { x: e / FT_KM, y: n / FT_KM, altFt: alt, name: sn });
@@ -2908,13 +2919,13 @@ export function createMap(host, deps) {
   function wtPopup(w) {
     const d = document.createElement('div');
     d.className = 'dtp';
-    d.innerHTML = `<div><b>Wpn TGT ${w.n + 1}</b> · ${deps.esc(w.name)}</div><div class="hint">${fmtLL(...toLL(w.x, w.y))} · ${w.altFt} ft</div><div class="bar" style="margin:6px 0 0"><button class="btn g gn" data-a="tgt"${EDIT ? '' : ' disabled'} title="Keep this target as a TGT steerpoint (STPT 81-99)">＋ Add to TGT STPTs</button><button class="btn g rd" data-a="wdel"${EDIT ? '' : ' disabled'} title="Remove this weapon target from the DTC">− Remove</button></div><div class="err"></div>`;
+    d.innerHTML = `<div><b>Wpn TGT ${w.n + 1}</b> · ${deps.esc(w.name)}</div><div class="hint">${fmtLL(...toLL(w.x, w.y))} · ${w.altFt} ft</div><div class="bar" style="margin:6px 0 0"><button class="btn g gn" data-a="tgt"${EDIT ? '' : ' disabled'} title="Keep this target as a TGT steerpoint (STPT ${STPT_RANGE.prec})">＋ Add to TGT STPTs</button><button class="btn g rd" data-a="wdel"${EDIT ? '' : ' disabled'} title="Remove this weapon target from the DTC">− Remove</button></div><div class="err"></div>`;
     d.querySelector('[data-a=tgt]').onclick = () => {
       const P = deps.dtc.points(),
         slot = P ? freeSlot(P, 'prec') : -1,
         err = d.querySelector('.err');
       if (slot < 0) {
-        err.textContent = 'There is no free TGT Steerpoint (STPT 81-99).';
+        err.textContent = 'There is no free TGT Steerpoint (STPT ' + STPT_RANGE.prec + ').';
         return;
       }
       const nm = tgtName(String(w.name).split(WT_SEP)[0]) || 'Map STPT ' + (GROUPS.prec.first + slot);
@@ -3195,8 +3206,8 @@ export function createMap(host, deps) {
         if (slot < 0)
           return err(
             it.group == 'ppt'
-              ? 'There is no free TGT Steerpoint (STPT 81-99).'
-              : 'There is no free pre-planned slot (STPT 56-70).'
+              ? 'There is no free TGT Steerpoint (STPT ' + STPT_RANGE.prec + ').'
+              : 'There is no free pre-planned slot (STPT ' + STPT_RANGE.ppt + ').'
           );
         const nm =
           it.group == 'ppt' ? tgtName(pptLabel(it.name) || '') || 'Map STPT ' + (GROUPS.prec.first + slot) : '';

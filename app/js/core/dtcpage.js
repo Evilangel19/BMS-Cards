@@ -1,5 +1,6 @@
 // Data Cartridge page: vertical list of sections, each one a page of cards. A card is read-only until its "Edit" button is pressed.
 // Everything here edits the lines of the open DTC (deps.S) and tells the rest of the program (deps.changed) so the map and the datacard follow.
+import { STPT_RANGE } from './mapdtc.js';
 export const SECTIONS = [
   ['stpt', 'Steerpoints'],
   ['tgt', 'Targets'],
@@ -321,7 +322,7 @@ export function createDtcPage(deps) {
           ['STPT', 'Name', 'Position', 'Alt (ft)'],
           p =>
             `<tr><td>${p.stpt}</td><td>${(n => pin('prec', p, 'name', p.name, 'txt', 150).replace('<input', '<input placeholder="' + (n ? 'near ' + esc(n) : '') + '"'))(deps.nearName && !p.name ? deps.nearName(p.x, p.y) : '')}</td><td>${pos('prec', p)}</td><td>${pin('prec', p, 'alt', p.altFt, 'int', 48)}</td>${del('prec', p)}</tr>`,
-          'Precision targets (TGT steerpoint) · STPT 81-99',
+          'Precision targets (TGT steerpoint) · STPT ' + STPT_RANGE.prec,
           'None yet. Add them on the Map (DTC menu, bottom left).'
         ) +
         tab(
@@ -329,7 +330,7 @@ export function createDtcPage(deps) {
           ['STPT', 'Threat', 'Position', 'Range (NM)', ''],
           p =>
             `<tr><td>${p.stpt}</td><td>${pin('ppt', p, 'name', p.name, 'txt', 100)}</td><td>${pos('ppt', p)}</td><td>${pin('ppt', p, 'rng', p.rngNm ? p.rngNm.toFixed(1) : '0', 'dec', 48)}</td><td>${au.has(p.slot) ? '<span class="dtag">AUTO</span>' : ''}</td>${del('ppt', p)}</tr>`,
-          'Pre-planned threats (PPT) · STPT 56-70',
+          'Pre-planned threats (PPT) · STPT ' + STPT_RANGE.ppt,
           'None yet. Add them on the Map (DTC menu, bottom left).'
         ) +
         '</div>';
@@ -353,7 +354,9 @@ export function createDtcPage(deps) {
         });
       };
       h +=
-        '<h3 class="dsubh">Geo lines · STPT 31-54</h3><div class="dgrid four">' +
+        '<h3 class="dsubh">Geo lines · STPT ' +
+        STPT_RANGE.line +
+        '</h3><div class="dgrid four">' +
         [1, 2, 3, 4].map(lcard).join('') +
         '</div>';
       return h;
@@ -373,7 +376,7 @@ export function createDtcPage(deps) {
           continue;
         }
         rows.push(
-          `<tr><td>${n + 1}</td><td>${esc(t.name)}</td><td>${deps.ll(t.n, t.e)}</td><td>${t.elv}</td><td class="tact"><button type="button" class="btn g sm" data-tpick="${n}" title="Choose another target for this number">Change</button><button type="button" class="btn g bl sm" data-tstpt="${n}" title="Also keep this target as a TGT steerpoint (STPT 81-99): it is added to Steerpoints and to the Map">To STPT</button><button type="button" class="btn g rd sm" data-tdel="${n}" title="Clear this target">${ICO.trash}</button></td></tr>`
+          `<tr><td>${n + 1}</td><td>${esc(t.name)}</td><td>${deps.ll(t.n, t.e)}</td><td>${t.elv}</td><td class="tact"><button type="button" class="btn g sm" data-tpick="${n}" title="Choose another target for this number">Change</button><button type="button" class="btn g bl sm" data-tstpt="${n}" title="Also keep this target as a TGT steerpoint (STPT ${STPT_RANGE.prec}): it is added to Steerpoints and to the Map">To STPT</button><button type="button" class="btn g rd sm" data-tdel="${n}" title="Clear this target">${ICO.trash}</button></td></tr>`
         );
       }
       const can = !!deps.targetData(),

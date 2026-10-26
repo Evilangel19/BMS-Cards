@@ -12,6 +12,10 @@ export const GROUPS = {
   ppt: { label: 'Pre-planned', first: 56, key: 'ppt_', base: 0, n: 15, layer: 'dq' },
   line: { label: 'Geo line point', first: 31, key: 'lineSTPT_', base: 0, n: 24, layer: 'dl' },
 };
+// the ranges as written on the screen ("81-99"), always taken from GROUPS
+export const STPT_RANGE = Object.fromEntries(
+  Object.entries(GROUPS).map(([g, G]) => [g, G.first + '-' + (G.first + G.n - 1)])
+);
 export const LINE_LEN = 6,
   LINES = 4;
 // What BMS keeps of a campaign / Tactical Engagement DTC (<name>.ini; the same for both, checked on files BMS wrote: a Korea campaign of an add-on theater and two TEs): [MISSION] title= and the [STPT] data only, in this order (checked on a file written by BMS):

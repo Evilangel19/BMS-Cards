@@ -1,5 +1,6 @@
 // Map page: constants, base maps, layers, palettes, the preference store, the Leaflet loader (moved out of mapview.js).
 import { getGeo } from '../rules/geo.js';
+import { STPT_RANGE } from './mapdtc.js';
 
 export const BMS_MAP_URL = 'https://cdn.falcon-bms.com/maps/04_KTO/maps/KTO_UI_Map_6k.jpeg';
 export const COAST = {
@@ -66,9 +67,9 @@ export const MAP_LAYERS = [
   ['ue', 'Enemy units (spotted)', true, 'Ground and naval units'],
   ['sf', 'Friendly SAM range', false, 'SAM range'],
   ['se', 'Enemy SAM range (spotted)', true, 'SAM range'],
-  ['dp', 'Precision targets (STPT 81-99)', true, 'DTC steerpoints'],
-  ['dq', 'Pre-planned (STPT 56-70)', true, 'DTC steerpoints'],
-  ['dl', 'Geo lines (LINE1-4, STPT 31-54)', true, 'DTC steerpoints'],
+  ['dp', 'Precision targets (STPT ' + STPT_RANGE.prec + ')', true, 'DTC steerpoints'],
+  ['dq', 'Pre-planned (STPT ' + STPT_RANGE.ppt + ')', true, 'DTC steerpoints'],
+  ['dl', 'Geo lines (LINE1-4, STPT ' + STPT_RANGE.line + ')', true, 'DTC steerpoints'],
   ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['ff', 'Friendly flights', true, 'In flight'],
   ['fe', 'Enemy flights (spotted)', true, 'In flight'],
