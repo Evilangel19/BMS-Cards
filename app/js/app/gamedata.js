@@ -1,5 +1,15 @@
 import { BMS_TESTED } from '../core/version.js';
-import { isDesktop, readBytes, findFiles, detectBms, saveConfig, listDir } from '../platform/desktop.js';
+import {
+  isDesktop,
+  readBytes,
+  readRange,
+  fileExists,
+  findFiles,
+  detectBms,
+  saveConfig,
+  listDir,
+} from '../platform/desktop.js';
+import { exeVersion, compareVersion } from '../bmsdata/exever.js';
 import {
   parseTheaterList,
   theaterDirs,
@@ -261,6 +271,25 @@ export async function loadGameData(reloadTheaters = true) {
       acInfo += ' Aircraft data could not be read.';
       warn.push('Aircraft data could not be read.');
     }
+    // the version of the game (Details of Bin\x64\Falcon BMS.exe): a warning when it is not the one the readers were checked with
+    let bmsVer = '';
+    try {
+      const exe = jp(inst, 'Bin', 'x64', 'Falcon BMS.exe');
+      if (await fileExists(exe)) {
+        const cv = compareVersion(await exeVersion((o, l) => readRange(exe, o, l)), BMS_TESTED);
+        bmsVer = cv.text;
+        if (cv.level == 'newer' || cv.level == 'other')
+          warn.push(
+            'This is Falcon BMS ' +
+              cv.text +
+              ', the program was checked with ' +
+              BMS_TESTED +
+              (cv.level == 'newer'
+                ? ': a newer game may have changed some files, and some data may be missing or wrong.'
+                : ': some data may be missing or wrong.')
+          );
+      }
+    } catch (e) {}
     const used = Object.keys(r.tables).join(', ') || 'none';
     if (r.changed && r.changed.length)
       warn.push(
@@ -279,6 +308,7 @@ export async function loadGameData(reloadTheaters = true) {
       warn,
       status:
         (ST.TH ? 'Theater: ' + ST.TH.name + '. ' : '') +
+        (bmsVer ? 'Falcon BMS ' + bmsVer + '. ' : '') +
         'Game data: ' +
         r.found.length +
         '/' +

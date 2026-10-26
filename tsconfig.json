@@ -19,6 +19,7 @@
     "app/js/core/popup.js",
     "app/js/core/lethal.js",
     "app/js/core/strike.js",
-    "app/js/core/coalitions.js"
+    "app/js/core/coalitions.js",
+    "app/js/bmsdata/exever.js"
   ]
 }
