@@ -14,7 +14,7 @@ export const SECTIONS = [
   ['wpn', 'Weapons'],
   ['nav', 'Nav offsets'],
 ];
-// which page shows each section of the ini (everything else goes to "Other")
+// which page shows each section of the ini (a section that is not here has no page of its own: it is called 'raw')
 const SEC_OF = {
   STPT: 'stpt',
   EWS: 'ews',
@@ -32,26 +32,6 @@ const SEC_OF = {
   FCC_AIM: 'wpn',
   FCC_AGM: 'wpn',
   MAP_POP: 'nav',
-};
-// keys that a page shows itself; the others of the same section are listed in "Other"
-// eslint-disable-next-line no-unused-vars -- kept on purpose: the rules for the "Other" list of an ini section (not built yet)
-const COV = {
-  STPT: /./,
-  EWS: /./,
-  LINK16: /./,
-  Laser: /./,
-  MFD: /./,
-  Bullseye: /./,
-  HARM: /./,
-  FCC_AGB: /./,
-  FCC_AIM: /./,
-  FCC_AGM: /./,
-  MAP_POP: /./,
-  Radio: /^((UHF|VHF)(_COMMENT)?_\d+|ILS(_COMMENT)?_\d+)$/,
-  COMMS: /^(Comm[12](_Comment)?|TACAN (Channel|Band|Domain)|ILS (Frequency|CRS))$/,
-  IFF: /^(Mode\w+ (On|Code|Key)|AutoChange|TIME \d+ \w+( \w+)?|POS \d+ \w+)$/,
-  ICP: /^(MasterMode|Alow AGL|Alow MSL|Alow TFAdv|Manual Wingspan|Bingo_Fuel)$/,
-  'NAV OFFSETS': /^(Modesel|VIP|VIPPUP|VRP|VRPPUP|OA\d-\d+)$/,
 };
 import { ewsEvents, ewsSummary, createEwsFx } from './ewsfx.js';
 import { readTarget, targetLine } from './targets.js';
