@@ -2,7 +2,7 @@
 import subprocess, sys, time, os, tempfile, asyncio, threading, json, zlib, struct
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8771', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8731', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def tracker():
     import websockets
@@ -23,7 +23,7 @@ def tracker():
         finally:
             for ih, pid in mine: sw.get(ih, {}).pop(pid, None)
     async def main():
-        async with websockets.serve(h, 'localhost', 8772): await asyncio.Future()
+        async with websockets.serve(h, 'localhost', 8735): await asyncio.Future()
     threading.Thread(target=lambda: asyncio.run(main()), daemon=True).start()
 tracker()
 def check(n, c):
@@ -42,8 +42,8 @@ def lbk(name, cs, motto, sq):
 def start(br):
     ctx = br.new_context(viewport={'width': 1400, 'height': 1000}); pg = ctx.new_page(); errs = []
     import dialogs; dialogs.install(pg)
-    pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept()); pg.add_init_script('window.showOpenFilePicker=undefined;window.__swarmTest={trackers:["ws://localhost:8772"],interval:3000}')
-    pg.goto('http://localhost:8771/app/index.html'); pg.wait_for_timeout(800); pg.click('[data-t=sq]'); pg.wait_for_timeout(300); return pg, errs
+    pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept()); pg.add_init_script('window.showOpenFilePicker=undefined;window.__swarmTest={trackers:["ws://localhost:8735"],interval:3000}')
+    pg.goto('http://localhost:8731/app/index.html'); pg.wait_for_timeout(800); pg.click('[data-t=sq]'); pg.wait_for_timeout(300); return pg, errs
 try:
     tmp = tempfile.mkdtemp()
     open(tmp + '/a.lbk', 'wb').write(lbk('Alpha Lead', 'Leader1', 'Semper fi', 'Red Devils'))
@@ -102,7 +102,7 @@ try:
         A.select_option('#sqsel', label='Red Devils (yours)'); A.wait_for_timeout(300)
         code = A.locator('#sqinvs .sqi', has_text='Red Devils').locator('[data-code]').input_value()
         check('the invite code of each squadron is in Settings (BCS)', code.startswith('BCS.') and A.locator('#sqinvs .sqi').count() == 2)
-        check('Settings shows the trackers in use', 'ws://localhost:8772' in A.inner_text('#sqconn'))
+        check('Settings shows the trackers in use', 'ws://localhost:8735' in A.inner_text('#sqconn'))
         B.fill('#sqinvin', code); B.click('#sqjoinsq'); B.wait_for_timeout(300)
         check('the squadron joined by invite is listed, not owned', B.locator('#sqmine .sqsqr').count() == 1 and 'member' in B.inner_text('#sqmine') and B.locator('#sqrename').count() == 0 and B.locator('#sqdelete').count() == 0)
         for _ in range(30):

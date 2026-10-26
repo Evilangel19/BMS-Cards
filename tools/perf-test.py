@@ -1,7 +1,7 @@
 import subprocess, sys, time, json, os
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8798', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8732', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok
@@ -11,7 +11,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1500, 'height': 1000}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto('http://localhost:8798/app/index.html'); pg.wait_for_timeout(800)
+        pg.goto('http://localhost:8732/app/index.html'); pg.wait_for_timeout(800)
         check('the Performance tab exists', pg.locator('[data-t=pf]').count() == 1)
         pg.click('[data-t=pf]'); pg.wait_for_timeout(1200)
         check('the page shows the aircraft (built-in F-16CM-50)', 'F-16CM-50' in pg.inner_text('#pf'))

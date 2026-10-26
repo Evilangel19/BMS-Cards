@@ -2,7 +2,7 @@ import subprocess, sys, time, json, os, base64
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = sys.argv[1] if len(sys.argv) > 1 else '/tmp'
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8799', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8734', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok
@@ -14,7 +14,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1600, 'height': 1100}, reduced_motion='reduce'); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('framenavigated', lambda f: print('NAV', f.url))
-        pg.goto('http://localhost:8799/app/index.html'); pg.wait_for_timeout(800)
+        pg.goto('http://localhost:8734/app/index.html'); pg.wait_for_timeout(800)
         check('a Weather tab sits right after Performance', pg.evaluate("()=>{const t=[...document.querySelectorAll('header .tab')].map(x=>x.dataset.t);return t.indexOf('wx')==t.indexOf('pf')+1}"))
         pg.click('[data-t=wx]'); pg.wait_for_timeout(300)
         check('without a map the page says so', 'No weather map yet' in pg.inner_text('#wx'))

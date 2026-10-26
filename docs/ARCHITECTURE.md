@@ -972,3 +972,6 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `app/js/core/mapconst.js` (new): BASES, OBJ_LAYERS, MAP_LAYERS, MAP_OPTS, PAL, SHOTS, store, loadLeaflet, clock, tgtName ... moved as they were from `mapview.js`, which imports them.
 - `createMap()` (about 3900 lines) is still one closure on purpose: its ~160 inner functions share `map`, `st`, `G` ... Cutting it means passing a context to each of them; to be done only with a reason (a new feature), not as a clean-up.
 - The same holds for squadron.js and weaponspage.js.
+
+## v124 - Patch 0.9.9-beta.17
+- `tools/run-all.py [-j N] [name ...]`: all browser tests, N at a time (default 2), slowest first; a failed test is run once more alone (timing-sensitive checks). Each test has its own port (4 clashes fixed: squadron, perf, docs, weather, and the squadron WebSocket).

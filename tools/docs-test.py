@@ -3,7 +3,7 @@ import subprocess, sys, time, os, io, base64, json
 from playwright.sync_api import sync_playwright
 from reportlab.pdfgen import canvas
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8799', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8733', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 def pdf(pages):
     b = io.BytesIO(); c = canvas.Canvas(b, pagesize=(595, 842))
     for t in pages:
@@ -32,7 +32,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1700, 'height': 1000}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept()); pg.add_init_script(INIT)
-        pg.goto('http://localhost:8799/app/index.html'); pg.wait_for_timeout(1000)
+        pg.goto('http://localhost:8733/app/index.html'); pg.wait_for_timeout(1000)
         pg.evaluate("()=>{__app.CFG.paths.bmsInstall='C:\\\\bms'; __app.F.__dep=['RKJK',0,0,0]; __app.F.__ab=[null,[1,'Osan AB (RKSO)']]}")
         check('the Docs tab exists', pg.locator('.tab[data-t=dc]').inner_text() == 'Docs')
         pg.click('[data-t=dc]'); pg.wait_for_timeout(1200)
