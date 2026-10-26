@@ -954,3 +954,8 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - Kneeboard: `snap()` / `flip()` slide the cards that move on after `kbInsert`, the inserted card starts from the drop point.
 - `campaignIni(title, lines)` (mapdtc.js) writes the `.ini` of a campaign or a Tactical Engagement: `[MISSION] title=` then the `[STPT]` keys of `bmsStptKeys()` in BMS order (missing ones empty); `dtcCampaignFiles` / `dtcOverwrite` use it. PPT are 15 (`GROUPS.ppt.n`, STPT 56-70); `dtcShare` (missions) drops the keys BMS does not use.
 
+
+## v120 - Patch 0.9.9-beta.13
+- `app/index.html` no longer holds the 71 KB `<style>`: it is `app/css/style-01.css` ... `style-09.css`, linked in the same place and the same order (cut in contiguous pieces, so the cascade is unchanged; a topic split was rejected: 129 possible order inversions). Leaflet's CSS is still added later by mapview.js.
+- The inline message-box script is `app/js/app/dialogs.js` (classic script, runs at the same point as before).
+- Checked: computed style of 1601 elements identical before / after; Node chain, objects-test, satprovider-test OK.
