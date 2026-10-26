@@ -3,7 +3,7 @@ import { CAM } from '../core/cam-core.js';
 import { dtcKey, dtcValue, dtcEmpty } from '../core/mapdtc.js';
 import { ST } from './state.js';
 import { G, S, lines, view } from './dtcfile.js';
-import { F } from './datacard.js';
+import { F, mirrorAll } from './datacard.js';
 import { $ } from './base.js';
 import { mapV } from './pages.js';
 import { draw } from './cardview.js';
@@ -292,6 +292,13 @@ export function dtcBtns() {
     const b = $(i);
     if (b) b.classList.toggle('nil', n);
   });
+}
+// the whole DTC changed at once (undo of the changes, mission applied): the datacard shows the DTC again
+export function dtcReloaded() {
+  afterDtc('target_98', true);
+  mirrorAll();
+  applyDTC();
+  draw();
 }
 export function afterDtc(k, fromPage) {
   dtcBtns();

@@ -22,7 +22,7 @@ import {
 import { ST } from './state.js';
 import { $, animOn, esc, jp } from './base.js';
 import { G, S, lines, stpts, view } from './dtcfile.js';
-import { dcSync, dtcChanged, freqOwners } from './datacard.js';
+import { DCS0, dcSync, dtcChanged, freqOwners } from './datacard.js';
 import { dtcBtns, dtcClear, dtcSet } from './dtcapply.js';
 import { terrain } from './gamefiles.js';
 import { mapV } from './pages.js';
@@ -261,7 +261,7 @@ export async function init8() {
   loadPrefs('dtcprefs.json')
     .then(o => {
       if (o && o.sync) {
-        ST.DCS = Object.assign({}, o.sync);
+        ST.DCS = Object.assign({}, DCS0, o.sync);
         ST.dtcPage.setSync(ST.DCS);
         view();
       }

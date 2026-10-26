@@ -3,7 +3,7 @@ import { pickFile, join as joinPath, readBytes } from '../platform/desktop.js';
 import * as PJ from '../core/mission.js';
 import { ST } from './state.js';
 import { $, IO, appToast, rememberLast } from './base.js';
-import { afterDtc, applyDTC, dtcBtns } from './dtcapply.js';
+import { applyDTC, dtcBtns, dtcReloaded } from './dtcapply.js';
 import { mapV } from './pages.js';
 import { apply } from './selection.js';
 import { buildForm } from './datacard.js';
@@ -140,7 +140,7 @@ export async function dtcRevert() {
     l.v = l.raw.slice(l.raw.indexOf('=') + 1).trim();
     l.dirty = 0;
   }
-  afterDtc('target_98', true);
+  dtcReloaded();
   if ($('fn')) $('fn').textContent = ST.name;
 }
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.

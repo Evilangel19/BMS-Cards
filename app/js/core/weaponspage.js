@@ -73,7 +73,18 @@ export function createWeaponsPage(deps) {
     toss: { ...TOSS_DEFAULTS },
     mat: { on: 0, ppt: '', samMax: 30000, samMin: 500 },
     map: { on: true, op: 80 },
-    fz: { mode: 'c1', prof: 1, c1ad1: 4, c1ad2: 6, c2ad: 1.5, c2ba: 500, cbu: 'CBU-87', loaded: false },
+    fz: {
+      mode: 'c1',
+      prof: 1,
+      ftype: 'NSTL',
+      sub: 'CCRP',
+      c1ad1: 4,
+      c1ad2: 6,
+      c2ad: 1.5,
+      c2ba: 500,
+      cbu: 'CBU-87',
+      loaded: false,
+    },
   };
   try {
     const o = JSON.parse(sessionStorage.getItem(KEY) || 'null');
@@ -237,6 +248,11 @@ export function createWeaponsPage(deps) {
       const v = deps.G('FCC_AGB', fzKey(k), '');
       if (v !== '' && !isNaN(+v)) st.fz[k] = k == 'c2ba' ? +v : Math.round(+v) / 100;
     });
+    // fuze type (0 NSTL, 1 NOSE, 2 TAIL) and sub mode (7 CCIP, 8 CCRP) of the profile
+    const ft = { 0: 'NSTL', 1: 'NOSE', 2: 'TAIL' }[+deps.G('FCC_AGB', 'Profile' + st.fz.prof + '_Fuze', '')],
+      sb = { 7: 'CCIP', 8: 'CCRP' }[+deps.G('FCC_AGB', 'Profile' + st.fz.prof + '_Submode', '')];
+    if (ft) st.fz.ftype = ft;
+    if (sb) st.fz.sub = sb;
     st.fz.loaded = true;
   }
   // writes a value in the style already there (1/100 s delays and decimals are kept)
@@ -262,6 +278,9 @@ export function createWeaponsPage(deps) {
       tell.push(fzKey(k));
     });
     const pk = x => 'Profile' + st.fz.prof + '_' + x;
+    wr('FCC_AGB', pk('Fuze'), { NSTL: '0', NOSE: '1', TAIL: '2' }[st.fz.ftype] || '0');
+    wr('FCC_AGB', pk('Submode'), st.fz.sub == 'CCIP' ? '7' : '8');
+    tell.push(pk('Fuze'), pk('Submode'));
     putAgb(pk('Release_Pulse'), i.ripplePulses - 1);
     putAgb(pk('Release_Spacing'), i.stickSpacing);
     tell.push(pk('Release_Pulse'), pk('Release_Spacing'));
@@ -1289,18 +1308,18 @@ export function createWeaponsPage(deps) {
     let h = k(
       'BOMB',
       esc(sel.label) +
-        (sel.loadout ? ' · from the loadout' : sel.manual ? ' · chosen' : '') +
-        (sel.skipped && sel.skipped.length ? ' · not covered: ' + esc(sel.skipped.join(', ')) : '')
+        (sel.loadout ? '<br>from the loadout' : sel.manual ? '<br>chosen' : '') +
+        (sel.skipped && sel.skipped.length ? '<br>not covered: ' + esc(sel.skipped.join(', ')) : '')
     );
     if (env)
       h += k(
         'LETHALITY',
-        `radius ${fmt(env.out)} ft, up to ${fmt(env.up)} ft; the fragments fall for ${Math.round(env.t)} s after the last impact${env.approx ? ' (interpolated between the 500 and 2000 lb classes: approximate)' : ''}`
+        `radius ${fmt(env.out)} ft, up to ${fmt(env.up)} ft high<br>the fragments fall for ${Math.round(env.t)} s after the last impact${env.approx ? '<br>interpolated between the 500 and 2000 lb classes: approximate' : ''}`
       );
     if (m && m.value != null)
       h += k(
         'MRA',
-        `${fmt(m.value)} ft AGL, the highest of: fragmentation area ${m.frag == null ? 'not calculated' : fmt(m.frag)} · dive recovery ${fmt(m.recovery)} · arming delay ${fmt(m.arming)}${an.below ? ' · the release altitude is BELOW it' : ''}`,
+        `${fmt(m.value)} ft AGL, the highest of:<br>fragmentation area ${m.frag == null ? 'not calculated' : fmt(m.frag) + ' ft AGL'}<br>dive recovery ${fmt(m.recovery)} ft AGL<br>arming delay ${fmt(m.arming)} ft AGL${an.below ? '<br>the release altitude is BELOW it' : ''}`,
         an.below
       );
     if (an.far)
@@ -1308,7 +1327,7 @@ export function createWeaponsPage(deps) {
         h +
         k(
           'ESCAPE',
-          `Release ${nm2(an.far.range)} from the target: ${an.far.ok ? 'outside' : 'INSIDE'} the ${fmt(env.out)} ft radius. Turn away after the release; no dive recovery is needed.`,
+          `Release ${nm2(an.far.range)} from the target: ${an.far.ok ? 'outside' : 'INSIDE'} the ${fmt(env.out)} ft radius<br>Turn away after the release; no dive recovery is needed`,
           !an.far.ok
         )
       );
@@ -1317,7 +1336,7 @@ export function createWeaponsPage(deps) {
     if (!man.length) return h + k('ESCAPE', `No planned safe escape above a 60° dive.`, true);
     h += k(
       'ESCAPE',
-      `Straight on for ${PULL_DELAY} s after the last release, then pull ${PULL_G} G in 2 s toward the horizon, MIL power. CLM: keep ${PULL_G} G to a 20° climb, relax to 30°.${man.includes('Turning') ? ' Turning (dives to 20°): roll to 60–85° bank, pull ' + PULL_G + ' G until 60° off the release heading.' : ''}${man.includes('Level turning') ? ' Level turning (to 25°): wings-level pull, then a level pull until 60° off the release heading.' : ''}`
+      `Straight on for ${PULL_DELAY} s after the last release<br>then pull ${PULL_G} G in 2 s toward the horizon, MIL power<br>CLM: keep ${PULL_G} G to a 20° climb, relax to 30°${man.includes('Turning') ? '<br>Turning (dives to 20°): roll to 60–85° bank, pull ' + PULL_G + ' G until 60° off the release heading' : ''}${man.includes('Level turning') ? '<br>Level turning (to 25°): wings-level pull, then a level pull until 60° off the release heading' : ''}`
     );
     if (env)
       h += an.viol
@@ -1325,7 +1344,7 @@ export function createWeaponsPage(deps) {
             'CHECK',
             an.viol.ground
               ? 'The climb-out path reaches the ground.'
-              : `CLM path: INSIDE the lethal zone ${an.viol.t.toFixed(1)} s after the release (${fmt(Math.abs(an.viol.x))} ft ${an.viol.x < 0 ? 'before' : 'past'} the target, ${fmt(an.viol.alt)} ft AGL). Release higher${m && m.value ? ' (at least ' + fmt(m.value) + ' ft)' : ''}.`,
+              : `CLM path: INSIDE the lethal zone ${an.viol.t.toFixed(1)} s after the release<br>${fmt(Math.abs(an.viol.x))} ft ${an.viol.x < 0 ? 'before' : 'past'} the target, ${fmt(an.viol.alt)} ft AGL<br>Release higher${m && m.value ? ' (at least ' + fmt(m.value) + ' ft AGL)' : ''}`,
             true
           )
         : k('CHECK', 'CLM path: clear of the lethal zone.');
@@ -1334,16 +1353,16 @@ export function createWeaponsPage(deps) {
   // what the fuze delays mean for this drop: has the bomb fallen long enough to be armed, and where / how high is it then
   function fuzeCard(v, f, turn) {
     const row = (lab, a) =>
-      `<span>${lab}</span><b class="${a.armed ? '' : 'wbad'}">${a.armed ? 'armed after ' + a.delay.toFixed(2) + ' s · ' + fmt(a.alt) + ' ft AGL · ' + nm2(a.x) + ' from release' : 'NOT ARMED: ' + a.delay.toFixed(2) + ' s is more than the ' + f.tof.toFixed(1) + ' s fall'}</b>`;
+      `<span>${lab}</span><b class="${a.armed ? '' : 'wbad'}">${a.armed ? 'armed after ' + a.delay.toFixed(2) + ' s<br>' + fmt(a.alt) + ' ft AGL<br>' + nm2(a.x) + ' from release' : 'NOT ARMED: ' + a.delay.toFixed(2) + ' s is more than the ' + f.tof.toFixed(1) + ' s fall'}</b>`;
     const gd = f.mode != 'c2' && res && res.an && res.an.sel && res.an.sel.guided;
     let h =
       `<span>FALL TIME</span><b>${f.tof.toFixed(1)} s</b>` +
       (gd ? `<span>GUIDED</span><b>${GUIDED_NOTE}</b>` : row('AD1', f.ad1) + (f.ad2 ? row('AD2', f.ad2) : ''));
     const cb = f.burst && ctx && res ? cbuInfo(res) : null;
     if (f.burst)
-      h += `<span>BURST</span><b class="${f.burst.armedFirst ? '' : 'wbad'}">${fmt(f.burst.alt)} ft AGL · ${f.burst.t.toFixed(1)} s after release · ${fmt(f.burst.shortBy)} ft short of the impact point${f.burst.armedFirst ? '' : ' · opens before it is armed'}</b>`;
+      h += `<span>BURST</span><b class="${f.burst.armedFirst ? '' : 'wbad'}">${fmt(f.burst.alt)} ft AGL<br>${f.burst.t.toFixed(1)} s after release<br>${fmt(f.burst.shortBy)} ft short of the impact point${f.burst.armedFirst ? '' : '<br>opens before it is armed'}</b>`;
     if (cb)
-      h += `<span>FOOTPRINT</span><b>${fmt(cb.diameter)} ft across (${nm2(cb.diameter)}) · ${Math.round(cb.effect * 100)}% effect · ${st.fz.cbu}: full effect up to ${fmt(cb.d.lethalHeight)} ft, none above ${fmt(cb.d.ineffectiveHeight)} ft</b>`;
+      h += `<span>FOOTPRINT</span><b>${fmt(cb.diameter)} ft across (${nm2(cb.diameter)})<br>${Math.round(cb.effect * 100)}% effect<br>${st.fz.cbu}: full effect up to ${fmt(cb.d.lethalHeight)} ft AGL, none above ${fmt(cb.d.ineffectiveHeight)} ft AGL</b>`;
     h += safetyRows(v);
     return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and fuze ${f.mode == 'c2' ? 'C2 (CBU)' : 'C1'}</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
   }
@@ -1667,6 +1686,23 @@ export function createWeaponsPage(deps) {
             ],
             st.fz.prof
           )}<span class="hint">Apply writes into it</span></div>
+          <div class="wrow"><label>Fuze type</label>${seg(
+            'fzftype',
+            [
+              ['NSTL', 'NSTL'],
+              ['NOSE', 'Nose'],
+              ['TAIL', 'Tail'],
+            ],
+            st.fz.ftype
+          )}</div>
+          <div class="wrow"><label>Sub mode</label>${seg(
+            'fzsub',
+            [
+              ['CCRP', 'CCRP'],
+              ['CCIP', 'CCIP'],
+            ],
+            st.fz.sub
+          )}</div>
           <div class="wrow"><label>Fuze</label>${seg(
             'fzmode',
             [
@@ -1943,10 +1979,12 @@ export function createWeaponsPage(deps) {
           upd();
         })
     );
-    root.querySelectorAll('[data-set=fzmode],[data-set=fzprof]').forEach(
+    root.querySelectorAll('[data-set=fzmode],[data-set=fzprof],[data-set=fzftype],[data-set=fzsub]').forEach(
       b =>
         (b.onclick = () => {
           if (b.dataset.set == 'fzmode') st.fz.mode = b.dataset.v;
+          else if (b.dataset.set == 'fzftype') st.fz.ftype = b.dataset.v;
+          else if (b.dataset.set == 'fzsub') st.fz.sub = b.dataset.v;
           else {
             st.fz.prof = +b.dataset.v;
             fzLoad();
@@ -2069,8 +2107,89 @@ export function createWeaponsPage(deps) {
     }
   }
   // for the tests: what the lethality analysis found and how many lethal circles the map holds
+  // Points placed on the Map page go straight into the NAV OFFSETS of the DTC (route steerpoints 1-24, DTC entry): a removed point gives its row back as zeros. The rows are the ones Apply writes for the same points.
+  const MROW = {
+    oa1: n => 'OA1-' + n,
+    oa2: n => 'OA2-' + n,
+    vrp: () => 'VRP',
+    vrpPup: () => 'VRPPUP',
+    vip: () => 'VIP',
+    vipPup: () => 'VIPPUP',
+  };
+  const mapKeys = () => {
+    const out = new Set();
+    Object.entries(deps.offs.all()).forEach(([n, o]) => Object.keys(o.p || {}).forEach(k => out.add(n + '|' + k)));
+    return out;
+  };
+  let mapPrev = deps.offs ? mapKeys() : new Set();
+  function mapWrite() {
+    const now = mapKeys(),
+      all = deps.offs.all();
+    const prev = mapPrev;
+    mapPrev = now;
+    if (st.src != 'dtc' || !deps.lines().some(l => l.s == 'NAV OFFSETS')) return false;
+    let n0 = 0;
+    const put = (key, vals) => {
+      const o = navRow(deps.G('NAV OFFSETS', key, ''), !key.startsWith('OA')),
+        v = vals.join(',');
+      if (String(deps.G('NAV OFFSETS', key, '')).replace(/\s+/g, '') === v && exists('NAV OFFSETS', key)) return;
+      wr('NAV OFFSETS', key, v);
+      n0++;
+      return o;
+    };
+    Object.entries(all).forEach(([ns, o]) => {
+      const n = +ns,
+        at = o.at,
+        p = o.p || {};
+      if (!at || n < 1 || n > 24) return;
+      const el = (k, key) => {
+          const q = navRow(deps.G('NAV OFFSETS', key, ''), !key.startsWith('OA'));
+          return p[k].alt !== undefined
+            ? String(Math.round(p[k].alt))
+            : q.elev === undefined || q.elev === ''
+              ? '0'
+              : q.elev;
+        },
+        rw = (a, b) => offsetRow(a, b);
+      ['oa1', 'oa2'].forEach(k => {
+        if (!p[k]) return;
+        const r = rw(at, p[k]);
+        put(MROW[k](n), [String(r.brg), String(r.rng), el(k, MROW[k](n))]);
+      });
+      [
+        ['vrp', at, 'vrp', p.vrp, true],
+        ['vrpPup', at, 'vrpPup', p.vrpPup, true],
+        ['vip', null, 'vip', p.vip, false],
+        ['vipPup', p.vip || at, 'vipPup', p.vipPup, true],
+      ].forEach(([k, from, , pos, fromTo]) => {
+        if (!pos) return;
+        const key = MROW[k](n),
+          r = fromTo ? rw(from, pos) : rw(pos, at);
+        put(key, [String(n), String(r.brg), String(r.rng), el(k, key)]);
+      });
+      if (p.vip || p.vipPup) {
+        if (deps.G('NAV OFFSETS', 'Modesel', '') !== 'vip') (wr('NAV OFFSETS', 'Modesel', 'vip'), n0++);
+      } else if (p.vrp || p.vrpPup) {
+        if (deps.G('NAV OFFSETS', 'Modesel', '') !== 'vrp') (wr('NAV OFFSETS', 'Modesel', 'vrp'), n0++);
+      }
+    });
+    prev.forEach(pk => {
+      if (now.has(pk)) return;
+      const [ns, k] = pk.split('|'),
+        key = MROW[k](ns);
+      if (exists('NAV OFFSETS', key) && held(key)) (wr('NAV OFFSETS', key, zeroRow(key)), n0++);
+    });
+    return n0 > 0;
+  }
   if (deps.offs)
     deps.offs.onChange(() => {
+      let w = false;
+      try {
+        w = mapWrite();
+      } catch (e) {
+        /* none */
+      }
+      if (w && deps.applied) deps.applied();
       st.applied = st.cleared = null;
       if (!deps.root.closest('.hide') && ctx) {
         try {

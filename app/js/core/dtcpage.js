@@ -119,7 +119,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
-    SYNC = {},
+    SYNC = { ews: true, icp: true, wpn: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,

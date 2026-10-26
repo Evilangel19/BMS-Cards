@@ -23,7 +23,7 @@ import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
 import { atoCloseState, atoSearch } from './ato.js';
-import { afterDtc, dtcBtns } from './dtcapply.js';
+import { dtcBtns, dtcReloaded } from './dtcapply.js';
 
 /* Mission (core/mission.js): one folder per package = the mission file (package taken out of the campaign, the DTC as opened with its changes kept apart, the datacard with its
    automatic and manual values), the program settings, the cards and a copy of the original kneeboards. The mission works without the campaign. */
@@ -320,7 +320,7 @@ async function msfShared(d) {
     );
   if (!(await askBlock(g, diff, warns, ST.name, d.author))) return false;
   const r = PJ.applyShare((a, b, c) => S(a, b, c), groups, [g.id], cur);
-  afterDtc('target_98', true);
+  dtcReloaded();
   dtcBtns();
   $('fn').textContent = ST.name + ' · mission applied (' + r.n + ' lines)';
   if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.');
@@ -434,7 +434,7 @@ export async function msfLoad(text, file) {
       parse(p.dtc.original);
       p.dtc.edits.forEach(e => S(e.s, e.k, e.v));
       $('fn').textContent = ST.name + ' · from the mission';
-      afterDtc('target_98', true);
+      dtcReloaded();
       dtcBtns();
     }
     ST.MSFCARD = {

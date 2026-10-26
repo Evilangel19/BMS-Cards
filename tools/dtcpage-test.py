@@ -68,7 +68,8 @@ try:
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", cam); pg.wait_for_timeout(800)
         card = lambda lab: "[...document.querySelectorAll('#form label')].find(l=>l.textContent=='%s').nextSibling" % lab
         setcard = lambda lab, v: pg.evaluate("v=>{const e=%s;e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}" % card(lab), v)
-        go('sys'); check('the "from Datacard" switch is off by default', not pg.evaluate("document.querySelector('[data-sync=icp]').classList.contains('on')"))
+        go('sys'); check('the "from Datacard" switch is on by default (ICP, EWS and Weapons)', pg.evaluate("document.querySelector('[data-sync=icp]').classList.contains('on')") and pg.evaluate("()=>{const d=__app.ST.DCS;return d.icp&&d.ews&&d.wpn}"))
+        pg.click('[data-card=icp] [data-sync]'); pg.wait_for_timeout(300)
         b0 = ln('Bingo_Fuel'); setcard('Bingo', '4100'); pg.wait_for_timeout(200)
         check('switch off: the Datacard does not touch the DTC', ln('Bingo_Fuel') == b0)
         pg.click('[data-card=icp] [data-sync]'); pg.wait_for_timeout(1200)
@@ -82,6 +83,11 @@ try:
         check('...and the Datacard field is not a "manual change" any more', not pg.evaluate("(()=>{const e=%s;return e.classList.contains('man')})()" % card('Bingo')))
         go('wpn'); unlock('p1'); pg.locator('[data-card=p1] button[data-k=Profile1_Fuze][data-v="2"]').click(); pg.wait_for_timeout(250)
         check('a bomb profile changed on the page shows on the Datacard (fuze TAIL)', pg.evaluate("()=>__app.F.wp1_fuze") == 'TAIL')
+        # Reset of the DTC: the datacard shows the restored values again (bingo / fuze), with the switches on
+        pg.once('dialog', lambda d: d.accept()); pg.click('#dtcrev'); pg.wait_for_timeout(600)
+        check('Reset of the DTC puts the Datacard back in step (bingo, fuze)', pg.evaluate("()=>__app.F.bingo") == str(round(float(ln('Bingo_Fuel')))) and pg.evaluate("()=>__app.F.wp1_fuze") != 'TAIL')
+        setcard('Bingo', '4300'); pg.wait_for_timeout(200)
+        check('after the Reset the Datacard still writes the DTC (switch stays on)', ln('Bingo_Fuel') == '4300.000000')
         # frequency owners
         go('com'); pk = pg.evaluate("()=>{for(let i=0;i<5;i++){const f=__app.F['pk'+i+'_2'],c=__app.F['pk'+i+'_0'];if(f&&c)return [f,c]}return null}")
         if pk:

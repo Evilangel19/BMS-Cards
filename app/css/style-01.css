@@ -337,15 +337,17 @@ textarea {
 }
 .wpt {
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 8px 26px;
 }
+/* the parameters of the Performance page: plain text, no dark cell; a value never wraps (Rotate / lift-off with 2 numbers) */
 .wpt .tile,
 .wpg .tile {
-  background: #0f1419;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  flex: 1;
+  padding: 2px 0;
+  flex: 0 1 auto;
+}
+.wpg .tile b {
+  white-space: nowrap;
 }
 .wpg .tile span {
   font-size: 10.5px;

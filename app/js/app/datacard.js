@@ -46,7 +46,9 @@ export const cycle = k => {
   setField(k, o[(i + 1) % o.length]);
 };
 export const MIR = {};
-ST.DCS = {};
+// the groups kept equal to the datacard ("from Datacard" on the Data Cartridge page): on at the first start, then the choice of the pilot (dtcprefs.json)
+export const DCS0 = { ews: true, icp: true, wpn: true };
+ST.DCS = { ...DCS0 };
 export const mir = (k, grp, sec, key, to, from) => {
   MIR[k] = { grp, sec, key, to, from };
 };
@@ -84,7 +86,7 @@ export function dcSync(g, on) {
       .forEach(pushOne);
 }
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
-export function mirrorToCard(sec, key) {
+export function mirrorToCard(sec, key, quiet) {
   (MIRK[sec + '|' + key] || []).forEach(k => {
     const m = MIR[k],
       v = m.to(G(sec, key, ''));
@@ -100,6 +102,17 @@ export function mirrorToCard(sec, key) {
       const j = FD.find(z => z.k == 'joker');
       if (j && j.el) j.el.value = F.joker;
     }
+  });
+  if (!quiet) {
+    markMan();
+    draw();
+  }
+}
+// the whole DTC was changed at once (undo, mission applied): every mirrored value is shown on the datacard again
+export function mirrorAll() {
+  Object.keys(MIRK).forEach(sk => {
+    const [sec, key] = sk.split('|');
+    if (lines.some(l => l.s == sec && l.k === key)) mirrorToCard(sec, key, true);
   });
   markMan();
   draw();
