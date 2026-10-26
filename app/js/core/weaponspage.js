@@ -1111,6 +1111,7 @@ export function createWeaponsPage(deps) {
         th: 'TGT not visible',
       });
     c.src = st.src;
+    c.stpt = ctx.sp ? ctx.sp.n : 0; // the steerpoint of the attack: the OA1 / OA2 rows are read from the DTC with it
     if (st.src == 'man' && ctx.sp) {
       const O = offsets(),
         f = x =>
@@ -1137,7 +1138,9 @@ export function createWeaponsPage(deps) {
 
   async function apply() {
     if (!res || res.error || !ctx.sp) return;
-    if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) {
+    // the Manual entry writes no offsets to the DTC, so it does not need the section: Apply then gives the datacard its values
+    const nav = deps.lines().some(l => l.s == 'NAV OFFSETS');
+    if (!nav && st.src == 'dtc') {
       await deps.alert('This DTC has no NAV OFFSETS section.');
       return;
     }
@@ -1182,7 +1185,7 @@ export function createWeaponsPage(deps) {
       tell.push(x.key);
     });
     clr.forEach(k => wr('NAV OFFSETS', k, zeroRow(k)));
-    if (deps.G('NAV OFFSETS', 'Modesel', '') !== st.ref) {
+    if (nav && deps.G('NAV OFFSETS', 'Modesel', '') !== st.ref) {
       wr('NAV OFFSETS', 'Modesel', st.ref);
       tell.push('Modesel');
     }
@@ -1196,7 +1199,16 @@ export function createWeaponsPage(deps) {
   }
   // does Apply have anything to write? (the rows and settings it would write, compared with the DTC)
   function pending() {
-    if (!res || res.error || !ctx || !ctx.sp || !deps.lines().some(l => l.s == 'NAV OFFSETS')) return false;
+    if (!res || res.error || !ctx || !ctx.sp) return false;
+    const nav = deps.lines().some(l => l.s == 'NAV OFFSETS');
+    if (!nav && st.src == 'dtc') return false;
+    // the datacard is out of date (another attack, another setting, the offsets were cleared): Apply has something to write even when the DTC already holds the rows
+    try {
+      if (JSON.stringify(cardInfo()) !== JSON.stringify(st.card)) return true;
+    } catch (e) {
+      return true;
+    }
+    if (!nav) return false;
     const w = [];
     dry = w;
     try {

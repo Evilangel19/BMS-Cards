@@ -270,6 +270,7 @@ export function createMap(host, deps) {
     });
     map.createPane('coastP').style.zIndex = 250;
     map.createPane('planP').style.zIndex = 450;
+    map.createPane('atkP').style.zIndex = 460; // the attack of the Weapons page (pop-up line ...): above the flight plan
     CR = L.canvas({ pane: 'coastP' });
     PR = L.canvas({ pane: 'planP' });
     // offline bases (dark and light): land, borders, rivers and lakes over the sea-coloured container
@@ -2904,11 +2905,14 @@ export function createMap(host, deps) {
     const L = window.L;
     A.segs.forEach(z => {
       const q = z.pts;
-      L.polyline(q, { color: '#000', weight: 6, opacity: 0.35, interactive: false }).addTo(G.da);
-      L.polyline(q, { color: z.color, weight: 3.5, dashArray: z.dash || null, interactive: false }).addTo(G.da);
+      L.polyline(q, { pane: 'atkP', color: '#000', weight: 6, opacity: 0.35, interactive: false }).addTo(G.da);
+      L.polyline(q, { pane: 'atkP', color: z.color, weight: 3.5, dashArray: z.dash || null, interactive: false }).addTo(
+        G.da
+      );
     });
     A.marks.forEach(m => {
       const c = L.circleMarker(m.ll, {
+        pane: 'atkP',
         radius: m.r || 5,
         fillColor: m.color,
         fillOpacity: 1,

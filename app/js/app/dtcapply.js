@@ -53,7 +53,28 @@ function applyDTC0(fl) {
     F[`wp${n}_spc`] = String(Math.round(+k('Release_Spacing')));
     if (bc) F[`wp${n}_bc`] = bc;
   });
-  const ms2 = (g('NAV OFFSETS', 'Modesel') || '').toUpperCase();
+  // the attack data of the card (Delivery section) are built again from the DTC and the Weapons page every time: what is no longer there (offsets cleared, another attack) must not stay on the card; values typed by hand (MANK) are kept
+  [
+    'dmode',
+    'dlab',
+    ...['dv', 'dp', 'oa', 'ob'].flatMap(p => [0, 1, 2].map(i => p + i)),
+    ...['ph', 'cl', 'pd', 'tn', 'ah', 'th', 'ia', 'is', 'rh', 'rs'].map(k => 'dl_' + k),
+  ].forEach(k => {
+    if (!ST.MANK || !ST.MANK.has(k)) F[k] = '';
+  });
+  const wc0 = ST.wpPage && ST.wpPage.card && ST.wpPage.card(),
+    held = key => {
+      const n = navRow(g('NAV OFFSETS', key));
+      return [n.brg, n.rng, n.elev].some(x => +x);
+    },
+    modesel = (g('NAV OFFSETS', 'Modesel') || '').toUpperCase(),
+    // the mode of the Delivery section: the DTC's (when it holds offsets of it) or the one of the attack applied on the Weapons page
+    ms2 =
+      (modesel === 'VRP' || modesel === 'VIP') && (held(modesel) || held(modesel + 'PUP'))
+        ? modesel
+        : wc0
+          ? String(wc0.ref).toUpperCase()
+          : '';
   if (ms2 === 'VRP' || ms2 === 'VIP') {
     F.dmode = ms2;
     const fill = (key, pre) => {
@@ -64,8 +85,8 @@ function applyDTC0(fl) {
     fill(ms2, 'dv');
     fill(ms2 + 'PUP', 'dp');
     // attack data of the Weapons page (written by its Apply): label, OA1 / OA2 rows of the steerpoint and the profile numbers
-    const wc = ST.wpPage && ST.wpPage.card && ST.wpPage.card(),
-      n4 = navRow(g('NAV OFFSETS', ms2)).stpt || 0;
+    const wc = wc0,
+      n4 = navRow(g('NAV OFFSETS', ms2)).stpt || (wc && wc.stpt) || 0; // a loft needs no VRP row: the steerpoint is the one of the attack
     if (wc && String(wc.ref).toUpperCase() === ms2) {
       F.dlab = wc.label;
       if (wc.man) {
