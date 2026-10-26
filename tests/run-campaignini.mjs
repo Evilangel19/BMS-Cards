@@ -1,7 +1,7 @@
 // The campaign / Tactical Engagement .ini that BMS reads: [MISSION] title and the [STPT] data only, as BMS writes it (fixture: tests/fixtures/TE_BMS_06_F-18C_QRA.ini, a file written by BMS; ignored by git).
 import fs from 'node:fs';
 import { parseDtc } from '../app/js/parsers/dtc.js';
-import { GROUPS, campaignIni, bmsStptKey, bmsStptKeys, dtcPoints } from '../app/js/core/mapdtc.js';
+import { GROUPS, freeSlot, campaignIni, bmsStptKey, bmsStptKeys, dtcPoints } from '../app/js/core/mapdtc.js';
 import { dtcShare } from '../app/js/core/mission.js';
 let bad = 0, n = 0; const ok = (m, c) => { n++; if (!c) { bad++; console.log('FAIL', m); } };
 ok('15 pre-planned threats (STPT 56-70), 19 precision targets, 24 line points', GROUPS.ppt.n === 15 && GROUPS.ppt.first === 56 && GROUPS.prec.n === 19 && GROUPS.line.n === 24);
@@ -22,4 +22,10 @@ const q = new URL('./fixtures/ROLLING_FIRE_HARD_campaign.ini', import.meta.url);
 if (fs.existsSync(q)) { const ct = fs.readFileSync(q, 'latin1'); ok('a campaign ini written by BMS (add-on theater) has the same short structure and comes back byte for byte', campaignIni('ROLLING FIRE HARD', parseDtc(ct)) === ct); }
 const r2 = new URL('./fixtures/te/TE_BMS_03_F-16_DEAD.ini', import.meta.url);
 if (fs.existsSync(r2)) { const tt = fs.readFileSync(r2, 'latin1'); ok('the second TE ini comes back byte for byte too', campaignIni('TE_BMS_03_F-16_DEAD', parseDtc(tt)) === tt); }
+// the automatic functions (AUTO PPT, free slots) work on GROUPS: 15 PPT at most, ppt_15 and up are not read
+const full = parseDtc('[STPT]\r\n' + Array.from({ length: 25 }, (_, i) => `ppt_${i}=1000.000000, 2000.000000, 0.000000, 60761.200000, SA-${i}`).join('\r\n') + '\r\n');
+const fp = dtcPoints(full);
+ok('only ppt_0-14 are read, even when the DTC has more', fp.ppt.length === 15 && fp.ppt[14].stpt === 70 && freeSlot(fp, 'ppt') === -1);
+const part = dtcPoints(parseDtc('[STPT]\r\n' + Array.from({ length: 14 }, (_, i) => `ppt_${i}=1.0, 2.0, 0.0, 60761.2, S${i}`).join('\r\n') + '\r\nppt_14=0.000000, 0.000000, 0.000000, 0.000000,\r\n'));
+ok('with 14 used the free PPT slot is the 15th (STPT 70)', freeSlot(part, 'ppt') === 14);
 console.log(bad ? `${bad} FAILED of ${n}` : `OK - ${n} campaign ini checks`); process.exit(bad ? 1 : 0);
