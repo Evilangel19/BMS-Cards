@@ -959,3 +959,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 - `app/index.html` no longer holds the 71 KB `<style>`: it is `app/css/style-01.css` ... `style-09.css`, linked in the same place and the same order (cut in contiguous pieces, so the cascade is unchanged; a topic split was rejected: 129 possible order inversions). Leaflet's CSS is still added later by mapview.js.
 - The inline message-box script is `app/js/app/dialogs.js` (classic script, runs at the same point as before).
 - Checked: computed style of 1601 elements identical before / after; Node chain, objects-test, satprovider-test OK.
+
+## v121 - Patch 0.9.9-beta.14
+- Automatic formatting with Prettier 3 (`.prettierrc`: width 120, single quotes; `.prettierignore`: vendor, basemap, local data, fixtures). Run `npx prettier --write "app/**/*.{js,css,html}" "tests/**/*.mjs"` after editing.
+- Tests that read source text (run-mission) no longer depend on the layout of the code.

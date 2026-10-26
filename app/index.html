@@ -1,25 +1,204 @@
-<!DOCTYPE html>
-<html lang="en"><head>
-<link rel="icon" href="logo.svg" type="image/svg+xml"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>BMS Cards</title>
-<link rel="stylesheet" href="css/style-01.css"><link rel="stylesheet" href="css/style-02.css"><link rel="stylesheet" href="css/style-03.css"><link rel="stylesheet" href="css/style-04.css"><link rel="stylesheet" href="css/style-05.css"><link rel="stylesheet" href="css/style-06.css"><link rel="stylesheet" href="css/style-07.css"><link rel="stylesheet" href="css/style-08.css"><link rel="stylesheet" href="css/style-09.css"></head><body>
-<div id="boot" role="status" aria-live="polite"><div style="font-size:18px;font-weight:600">BMS Cards <span id="bootver" style="opacity:.6;font-weight:400"></span></div><div class="bt"><i id="bootbar"></i></div><div id="bootmsg">Loading…</div></div>
-<header><h1><img src="logo.svg" alt="" width="28" height="28" style="vertical-align:middle;margin-right:8px;border-radius:6px">BMS Cards <small id="appver" style="opacity:.6;font-weight:400;font-size:12px;margin-left:6px"></small></h1>
-<button class="tab on" data-t="kb">Datacard</button><button class="tab" data-t="dtc">Data Cartridge</button><button class="tab" data-t="kn">Kneeboard</button><button class="tab" data-t="dc">Docs</button><button class="tab" data-t="mp">Map</button><button class="tab" data-t="wp">Weapons</button><button class="tab" data-t="ms">BVR Timeline</button><button class="tab" data-t="pf">Performance</button><button class="tab" data-t="wx">Weather</button><button class="tab" data-t="sq">Squadron</button><button class="tab" id="cfgbtn" style="margin-left:auto">⚙ Settings</button></header>
-<dialog id="cfg"></dialog>
-<main>
-<div class="bar topbar" id="mainbar"><span class="openw"><button class="btn" id="openm" title="Open a DTC, a mission or a campaign">📂 Open ▾</button><div id="openmenu" class="openmenu" hidden><button data-o="open">DTC…<small>a DTC file (.ini)</small></button><button data-o="msfopen">Mission…<small>package, DTC, datacard and weapons saved together</small></button><button data-o="cam">Campaign…<small>a .cam, .tac or mission file from any folder</small></button></div></span><button class="btn" id="open" hidden>Open DTC</button><button class="btn" id="msfopen" hidden title="Open a mission: the package, the DTC, the datacard and the weapons data saved together. It works without the campaign.">📦 Open Mission</button><span id="fn" class="hint">No file open (BMS User\Config folder)</span><button class="btn bl nil" id="wpapply" style="margin-left:auto" title="Write the attack (NAV OFFSETS, fuze and stick settings) into the DTC">Apply to the DTC</button><button class="btn g rd nil" id="wpclear" title="Zero every offset (VIP, VRP, PUP, OA1, OA2) of the DTC, on every steerpoint and profile: for a mission that needs none">Clear offsets</button><span id="wpnote" class="hint"></span><button class="btn g rd nil" id="dtcrev" style="margin-left:auto" title="Undo every change made to the DTC since it was opened or last saved">↺ Reset</button><button class="btn g bl nil" id="saveow" title="Write the changes into the open DTC file (the original is kept once in the program folder)"><svg width="14" height="14" viewBox="0 0 16 16" class="mpic" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2 2h9l3 3v9H2z"/><path d="M5 2v4h5V2M4.5 14V9h7v5"/></svg> DTC</button><button class="btn g bl" id="msfsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">📦 Save mission</button><span id="kbtop" style="display:flex;margin-left:0;flex-basis:100%;align-items:center;gap:10px;flex-wrap:wrap"><select id="csel" class="bigsel" style="width:auto;max-width:100%" title="Campaigns found in the BMS Campaign folder"><option value="">— select a campaign —</option></select><select id="tesel" class="bigsel" style="width:auto;max-width:100%" title="Tactical Engagements (.tac) found in the BMS Campaign folder"><option value="">— select a tactical engagement —</option></select><button class="btn g" id="cam" title="Open a .cam (campaign) or .tac (Tactical Engagement) file from another folder">📂 Browse</button><label class="hint" style="margin-left:auto" title="Date (UTC) of campaign day 1, used for sun and moon">📅 Day 1: <input type="date" id="d1" style="width:auto"></label><select id="tsel" class="bigsel sm" style="width:auto;display:none" title="Theater"></select></span></div>
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="icon" href="logo.svg" type="image/svg+xml" />
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>BMS Cards</title>
+    <link rel="stylesheet" href="css/style-01.css" />
+    <link rel="stylesheet" href="css/style-02.css" />
+    <link rel="stylesheet" href="css/style-03.css" />
+    <link rel="stylesheet" href="css/style-04.css" />
+    <link rel="stylesheet" href="css/style-05.css" />
+    <link rel="stylesheet" href="css/style-06.css" />
+    <link rel="stylesheet" href="css/style-07.css" />
+    <link rel="stylesheet" href="css/style-08.css" />
+    <link rel="stylesheet" href="css/style-09.css" />
+  </head>
+  <body>
+    <div id="boot" role="status" aria-live="polite">
+      <div style="font-size: 18px; font-weight: 600">
+        BMS Cards <span id="bootver" style="opacity: 0.6; font-weight: 400"></span>
+      </div>
+      <div class="bt"><i id="bootbar"></i></div>
+      <div id="bootmsg">Loading…</div>
+    </div>
+    <header>
+      <h1>
+        <img
+          src="logo.svg"
+          alt=""
+          width="28"
+          height="28"
+          style="vertical-align: middle; margin-right: 8px; border-radius: 6px"
+        />BMS Cards
+        <small id="appver" style="opacity: 0.6; font-weight: 400; font-size: 12px; margin-left: 6px"></small>
+      </h1>
+      <button class="tab on" data-t="kb">Datacard</button><button class="tab" data-t="dtc">Data Cartridge</button
+      ><button class="tab" data-t="kn">Kneeboard</button><button class="tab" data-t="dc">Docs</button
+      ><button class="tab" data-t="mp">Map</button><button class="tab" data-t="wp">Weapons</button
+      ><button class="tab" data-t="ms">BVR Timeline</button><button class="tab" data-t="pf">Performance</button
+      ><button class="tab" data-t="wx">Weather</button><button class="tab" data-t="sq">Squadron</button
+      ><button class="tab" id="cfgbtn" style="margin-left: auto">⚙ Settings</button>
+    </header>
+    <dialog id="cfg"></dialog>
+    <main>
+      <div class="bar topbar" id="mainbar">
+        <span class="openw"
+          ><button class="btn" id="openm" title="Open a DTC, a mission or a campaign">📂 Open ▾</button>
+          <div id="openmenu" class="openmenu" hidden>
+            <button data-o="open">DTC…<small>a DTC file (.ini)</small></button
+            ><button data-o="msfopen">Mission…<small>package, DTC, datacard and weapons saved together</small></button
+            ><button data-o="cam">Campaign…<small>a .cam, .tac or mission file from any folder</small></button>
+          </div></span
+        ><button class="btn" id="open" hidden>Open DTC</button
+        ><button
+          class="btn"
+          id="msfopen"
+          hidden
+          title="Open a mission: the package, the DTC, the datacard and the weapons data saved together. It works without the campaign."
+        >
+          📦 Open Mission</button
+        ><span id="fn" class="hint">No file open (BMS User\Config folder)</span
+        ><button
+          class="btn bl nil"
+          id="wpapply"
+          style="margin-left: auto"
+          title="Write the attack (NAV OFFSETS, fuze and stick settings) into the DTC"
+        >
+          Apply to the DTC</button
+        ><button
+          class="btn g rd nil"
+          id="wpclear"
+          title="Zero every offset (VIP, VRP, PUP, OA1, OA2) of the DTC, on every steerpoint and profile: for a mission that needs none"
+        >
+          Clear offsets</button
+        ><span id="wpnote" class="hint"></span
+        ><button
+          class="btn g rd nil"
+          id="dtcrev"
+          style="margin-left: auto"
+          title="Undo every change made to the DTC since it was opened or last saved"
+        >
+          ↺ Reset</button
+        ><button
+          class="btn g bl nil"
+          id="saveow"
+          title="Write the changes into the open DTC file (the original is kept once in the program folder)"
+        >
+          <svg
+            width="14"
+            height="14"
+            viewBox="0 0 16 16"
+            class="mpic"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.4"
+            stroke-linejoin="round"
+          >
+            <path d="M2 2h9l3 3v9H2z" />
+            <path d="M5 2v4h5V2M4.5 14V9h7v5" />
+          </svg>
+          DTC</button
+        ><button
+          class="btn g bl"
+          id="msfsave"
+          title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings"
+        >
+          📦 Save mission</button
+        ><span
+          id="kbtop"
+          style="display: flex; margin-left: 0; flex-basis: 100%; align-items: center; gap: 10px; flex-wrap: wrap"
+          ><select
+            id="csel"
+            class="bigsel"
+            style="width: auto; max-width: 100%"
+            title="Campaigns found in the BMS Campaign folder"
+          >
+            <option value="">— select a campaign —</option></select
+          ><select
+            id="tesel"
+            class="bigsel"
+            style="width: auto; max-width: 100%"
+            title="Tactical Engagements (.tac) found in the BMS Campaign folder"
+          >
+            <option value="">— select a tactical engagement —</option></select
+          ><button
+            class="btn g"
+            id="cam"
+            title="Open a .cam (campaign) or .tac (Tactical Engagement) file from another folder"
+          >
+            📂 Browse</button
+          ><label class="hint" style="margin-left: auto" title="Date (UTC) of campaign day 1, used for sun and moon"
+            >📅 Day 1: <input type="date" id="d1" style="width: auto" /></label
+          ><select id="tsel" class="bigsel sm" style="width: auto; display: none" title="Theater"></select
+        ></span>
+      </div>
 
-<section id="dtc" class="hide"><div class="dwrap"><nav id="dnav"></nav><div id="view"></div></div></section>
+      <section id="dtc" class="hide">
+        <div class="dwrap">
+          <nav id="dnav"></nav>
+          <div id="view"></div>
+        </div>
+      </section>
 
-<section id="kb"><div class="k"><aside class="ato" id="ato"></aside><div>
-<div id="selinfo" class="selinfo"></div>
-<div class="bar"><select id="fsel" style="display:none"><option>— select a flight —</option></select><button class="btn g" id="mdctog" title="Switch the card between the Datacard and the MDC format (Mission Data Card layout). Click a cell to edit it (Tab moves to the next)">MDC format</button><button class="btn g" id="rstf" style="display:none" title="Throw away the changes made by hand to this flight's datacard and fill it in again automatically">↺ Reset datacard</button><span id="cinfo" class="hint"></span><span class="wtip" style="margin-left:auto" title="AUTOMATIC RULES: what the program fills in, and from where. A value typed by hand is kept for that flight; Auto (the Reset button of the card) gives the rules back. Yellow cells are filled by a rule or chosen from a list.&#10;&#10;AIRBASE&#10;DEP: the airbase nearest to the take-off steerpoint. ARR: the nearest to the first landing steerpoint. ALTN: the last landing steerpoint, when it is another airbase. Name, TACAN, GND / APP frequencies, elevation and ILS come from the airbase data; RWY and ILS: the runway into the wind of the weather maps at the take-off or landing time.&#10;ATIS: wind, visibility, clouds, temperature and QNH of the weather at the departure time, with the TAF of the target added.&#10;&#10;FLIGHT AND PACKAGE&#10;Pilot names: the pilots of the flight in the squadron roster. IDM, TCN: by position in the element (TCN 12Y, 22Y, 75Y, 85Y plus the flight number). Link 16 and IFF: from the Link 16 and IFF files of the BMS folder, by position in the element (the IFF modes and their change times, when the IFF file has them; later changes go to the notes).&#10;Package: up to 5 flights, with callsign, number and type of aircraft, UHF / VHF of the radio plan, TCN (12Y, 13Y...) and task.&#10;&#10;FLIGHT PLAN&#10;One line per steerpoint (24 at most): action; TOS = arrival time, with the departure after a wait of a minute or more (not at take-off and landing); HDG, distance and Mach / TAS from the previous steerpoint (after landing, from the landing steerpoint); altitude; formation of the element (Trail below 5 000 ft, Echelon at landing); Min.Fuel from the fuel plan of the Performance page.&#10;&#10;LOADOUT AND PERFORMANCE&#10;A-A, A-G, ECM, tanks: the weapons of the first loadout. Gross weight, drag index and fuel: empty weight + fuel + stores, with the weight and drag of pylons and racks. TO Fuel: the fuel at the parking spot minus 10 minutes of start and taxi. Bingo and Joker: the fuel plan of the Performance page (the DTC Bingo, with Joker = Bingo + 1 000 lb, when the DTC holds one).&#10;TO Spec (AB or MIL, click to switch, with the pitch at lift-off), rotation speed, refusal speed (needs the runway length), Mil Power rpm, Mil Climb: the Performance page, with the elevation, wind and temperature of the departure.&#10;&#10;TARGET (PRIMARY / SECONDARY, TOT, POSITION)&#10;PRIMARY, automatic&#10;1. The first steerpoint of the flight that is not takeoff, route, tanker or landing; the steerpoints with the same action form the group.&#10;2. Name: against ground units (DEAD, SEAD, CAS, ON CALL / PRE-PLAN CAS, BAI, SCAR, AI, FAC(A)) the hostile battalion within 1 km of the attack point; otherwise the closest object (3 km); otherwise the action (Strike, Sweep, Recon...).&#10;3. ESCORT: Escort plus the callsigns of the package flights that attack ground targets.&#10;4. STPT 99 of the DTC, when it is used, replaces name and position.&#10;&#10;SECONDARY, automatic&#10;1. The first other flight of the package with an attack action (same rules as the primary); the other flights go to the free text.&#10;2. STPT 98 of the DTC, when it is used, replaces it.&#10;&#10;TOT, automatic&#10;CAS (all kinds): time on station, first to last attack point. Air missions (BARCAP, sweep...): the patrol time. Other missions: the TOT of the first action steerpoint.&#10;&#10;BY HAND&#10;The box shows the name, the position and the TOT of the point you pick. A point without a TOT of its own gets the one of this flight's action steerpoint. The choice is saved in the mission and is the same for every pilot of the flight.&#10;&#10;WEAPON AND DELIVERY&#10;Profile 1 / 2 (mode, fuze, SGL / PAIR, AD, BA, release angle, pulses, spacing) and the bomb code: from the bomb profiles and the laser code of the DTC; a change on the card is written back into the DTC while the weapon sync is on.&#10;Delivery: VRP or VIP (as the DTC chooses), TBRG / RNG / ELV of the reference and of the pull-up point, OA1 and OA2 of the steerpoint, in ft, from the NAV OFFSETS of the DTC; attack, headings, altitudes and speeds from the Weapons page (written by its Apply). With the Manual entry the values and the steerpoint come from the page.&#10;&#10;EWS AND DTC SETTINGS&#10;EWS programs: the comments of the DTC. ALOW, MSL and Bingo: the ICP of the DTC. The card and the DTC stay in step in both directions while the sync of the group is on.&#10;&#10;SUPPORT&#10;Tankers 1 and 2: the tankers of the package (the best ones when the package has none); AWACS and JSTAR of the package: callsign and aircraft, TACAN, UHF, position from the bullseye and operating window. FAC / JTAC: of the flight when it flies a mission with one (the UHF 6 of the DTC radio plan is the frequency).&#10;&#10;BVR TIMELINE&#10;Per enemy class: MTR, FR, MAR, DR, DOR from the BVR model of the Missiles page, at its standard conditions (kept in memory, worked out again only when something changes).&#10;&#10;EPHEMERIDES&#10;Sun rise and set, Moon rise and set with its illumination, for the first action steerpoint (target area) on the day of the mission.">ⓘ Automatic rules</span></div>
-<p class="hint">Select a campaign (its weather, Link16, IFF and date files load automatically), pick a flight and the datacard fills itself in. You can edit any field by hand; the preview updates instantly.</p>
-<div id="form"></div></div><div class="cvwrap" id="cvwrap"><canvas id="cv" width="2048" height="2048"></canvas><div id="cvhl"></div><div id="cellhov"></div><div id="ed"></div><div id="chm"></div></div></div></section>
-<section id="kn" class="hide"></section>
-<section id="mp" class="hide"><div id="mpside"></div><div id="mpbody"></div></section>
-<section id="wp" class="hide"></section><section id="ms" class="hide"></section><section id="pf" class="hide"></section><section id="wx" class="hide"></section><section id="sq" class="hide"></section><section id="dc" class="hide"></section>
-</main>
-<script src="js/app/dialogs.js"></script>
-<script type="module" src="js/app/main.js"></script></body></html>
+      <section id="kb">
+        <div class="k">
+          <aside class="ato" id="ato"></aside>
+          <div>
+            <div id="selinfo" class="selinfo"></div>
+            <div class="bar">
+              <select id="fsel" style="display: none">
+                <option>— select a flight —</option></select
+              ><button
+                class="btn g"
+                id="mdctog"
+                title="Switch the card between the Datacard and the MDC format (Mission Data Card layout). Click a cell to edit it (Tab moves to the next)"
+              >
+                MDC format</button
+              ><button
+                class="btn g"
+                id="rstf"
+                style="display: none"
+                title="Throw away the changes made by hand to this flight's datacard and fill it in again automatically"
+              >
+                ↺ Reset datacard</button
+              ><span id="cinfo" class="hint"></span
+              ><span
+                class="wtip"
+                style="margin-left: auto"
+                title="AUTOMATIC RULES: what the program fills in, and from where. A value typed by hand is kept for that flight; Auto (the Reset button of the card) gives the rules back. Yellow cells are filled by a rule or chosen from a list.&#10;&#10;AIRBASE&#10;DEP: the airbase nearest to the take-off steerpoint. ARR: the nearest to the first landing steerpoint. ALTN: the last landing steerpoint, when it is another airbase. Name, TACAN, GND / APP frequencies, elevation and ILS come from the airbase data; RWY and ILS: the runway into the wind of the weather maps at the take-off or landing time.&#10;ATIS: wind, visibility, clouds, temperature and QNH of the weather at the departure time, with the TAF of the target added.&#10;&#10;FLIGHT AND PACKAGE&#10;Pilot names: the pilots of the flight in the squadron roster. IDM, TCN: by position in the element (TCN 12Y, 22Y, 75Y, 85Y plus the flight number). Link 16 and IFF: from the Link 16 and IFF files of the BMS folder, by position in the element (the IFF modes and their change times, when the IFF file has them; later changes go to the notes).&#10;Package: up to 5 flights, with callsign, number and type of aircraft, UHF / VHF of the radio plan, TCN (12Y, 13Y...) and task.&#10;&#10;FLIGHT PLAN&#10;One line per steerpoint (24 at most): action; TOS = arrival time, with the departure after a wait of a minute or more (not at take-off and landing); HDG, distance and Mach / TAS from the previous steerpoint (after landing, from the landing steerpoint); altitude; formation of the element (Trail below 5 000 ft, Echelon at landing); Min.Fuel from the fuel plan of the Performance page.&#10;&#10;LOADOUT AND PERFORMANCE&#10;A-A, A-G, ECM, tanks: the weapons of the first loadout. Gross weight, drag index and fuel: empty weight + fuel + stores, with the weight and drag of pylons and racks. TO Fuel: the fuel at the parking spot minus 10 minutes of start and taxi. Bingo and Joker: the fuel plan of the Performance page (the DTC Bingo, with Joker = Bingo + 1 000 lb, when the DTC holds one).&#10;TO Spec (AB or MIL, click to switch, with the pitch at lift-off), rotation speed, refusal speed (needs the runway length), Mil Power rpm, Mil Climb: the Performance page, with the elevation, wind and temperature of the departure.&#10;&#10;TARGET (PRIMARY / SECONDARY, TOT, POSITION)&#10;PRIMARY, automatic&#10;1. The first steerpoint of the flight that is not takeoff, route, tanker or landing; the steerpoints with the same action form the group.&#10;2. Name: against ground units (DEAD, SEAD, CAS, ON CALL / PRE-PLAN CAS, BAI, SCAR, AI, FAC(A)) the hostile battalion within 1 km of the attack point; otherwise the closest object (3 km); otherwise the action (Strike, Sweep, Recon...).&#10;3. ESCORT: Escort plus the callsigns of the package flights that attack ground targets.&#10;4. STPT 99 of the DTC, when it is used, replaces name and position.&#10;&#10;SECONDARY, automatic&#10;1. The first other flight of the package with an attack action (same rules as the primary); the other flights go to the free text.&#10;2. STPT 98 of the DTC, when it is used, replaces it.&#10;&#10;TOT, automatic&#10;CAS (all kinds): time on station, first to last attack point. Air missions (BARCAP, sweep...): the patrol time. Other missions: the TOT of the first action steerpoint.&#10;&#10;BY HAND&#10;The box shows the name, the position and the TOT of the point you pick. A point without a TOT of its own gets the one of this flight's action steerpoint. The choice is saved in the mission and is the same for every pilot of the flight.&#10;&#10;WEAPON AND DELIVERY&#10;Profile 1 / 2 (mode, fuze, SGL / PAIR, AD, BA, release angle, pulses, spacing) and the bomb code: from the bomb profiles and the laser code of the DTC; a change on the card is written back into the DTC while the weapon sync is on.&#10;Delivery: VRP or VIP (as the DTC chooses), TBRG / RNG / ELV of the reference and of the pull-up point, OA1 and OA2 of the steerpoint, in ft, from the NAV OFFSETS of the DTC; attack, headings, altitudes and speeds from the Weapons page (written by its Apply). With the Manual entry the values and the steerpoint come from the page.&#10;&#10;EWS AND DTC SETTINGS&#10;EWS programs: the comments of the DTC. ALOW, MSL and Bingo: the ICP of the DTC. The card and the DTC stay in step in both directions while the sync of the group is on.&#10;&#10;SUPPORT&#10;Tankers 1 and 2: the tankers of the package (the best ones when the package has none); AWACS and JSTAR of the package: callsign and aircraft, TACAN, UHF, position from the bullseye and operating window. FAC / JTAC: of the flight when it flies a mission with one (the UHF 6 of the DTC radio plan is the frequency).&#10;&#10;BVR TIMELINE&#10;Per enemy class: MTR, FR, MAR, DR, DOR from the BVR model of the Missiles page, at its standard conditions (kept in memory, worked out again only when something changes).&#10;&#10;EPHEMERIDES&#10;Sun rise and set, Moon rise and set with its illumination, for the first action steerpoint (target area) on the day of the mission."
+                >ⓘ Automatic rules</span
+              >
+            </div>
+            <p class="hint">
+              Select a campaign (its weather, Link16, IFF and date files load automatically), pick a flight and the
+              datacard fills itself in. You can edit any field by hand; the preview updates instantly.
+            </p>
+            <div id="form"></div>
+          </div>
+          <div class="cvwrap" id="cvwrap">
+            <canvas id="cv" width="2048" height="2048"></canvas>
+            <div id="cvhl"></div>
+            <div id="cellhov"></div>
+            <div id="ed"></div>
+            <div id="chm"></div>
+          </div>
+        </div>
+      </section>
+      <section id="kn" class="hide"></section>
+      <section id="mp" class="hide">
+        <div id="mpside"></div>
+        <div id="mpbody"></div>
+      </section>
+      <section id="wp" class="hide"></section>
+      <section id="ms" class="hide"></section>
+      <section id="pf" class="hide"></section>
+      <section id="wx" class="hide"></section>
+      <section id="sq" class="hide"></section>
+      <section id="dc" class="hide"></section>
+    </main>
+    <script src="js/app/dialogs.js"></script>
+    <script type="module" src="js/app/main.js"></script>
+  </body>
+</html>

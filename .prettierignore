@@ -1,0 +1,9 @@
+node_modules
+src-tauri/target
+src-tauri/gen
+app/vendor
+app/js/data/basemap.js
+app/js/data/local
+tests/fixtures
+tests/golden
+legacy

@@ -1,3 +1,29 @@
-#boot{position:fixed;inset:0;z-index:5000;background:var(--bg,#12161c);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--tx,#dde3ea);font:14px system-ui,sans-serif}
-#boot .bt{width:min(420px,80vw);height:8px;border-radius:6px;background:var(--line,#2a3441);overflow:hidden}
-#boot .bt i{display:block;height:100%;width:0;background:var(--ac,#4aa3ff);transition:width .15s}
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: var(--bg, #12161c);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--tx, #dde3ea);
+  font:
+    14px system-ui,
+    sans-serif;
+}
+#boot .bt {
+  width: min(420px, 80vw);
+  height: 8px;
+  border-radius: 6px;
+  background: var(--line, #2a3441);
+  overflow: hidden;
+}
+#boot .bt i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ac, #4aa3ff);
+  transition: width 0.15s;
+}
