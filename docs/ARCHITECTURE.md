@@ -963,3 +963,7 @@ SAM without fire control radar (2026-10-20): `parseUnitInfo` keeps the UCD `Rada
 ## v121 - Patch 0.9.9-beta.14
 - Automatic formatting with Prettier 3 (`.prettierrc`: width 120, single quotes; `.prettierignore`: vendor, basemap, local data, fixtures). Run `npx prettier --write "app/**/*.{js,css,html}" "tests/**/*.mjs"` after editing.
 - Tests that read source text (run-mission) no longer depend on the layout of the code.
+
+## v122 - Patch 0.9.9-beta.15
+- ESLint 9 (`eslint.config.js`, `npm run lint`): no errors; 44 warnings = unused variables / imports, kept until reviewed. `npm run format` runs Prettier.
+- `app/js/app/expose.js` (test helper): the 6 duplicate keys removed (the later one always won, so nothing changes).

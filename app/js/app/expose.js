@@ -32,7 +32,6 @@ export async function init19() {
     get KBTH() {
       return KBTH;
     },
-    loadCam: f => loadCam(f),
     dcState: () => dcPage.state(),
     openEd: k => openEd(FD.find(z => z.k == k)),
     get KBS() {
@@ -53,8 +52,6 @@ export async function init19() {
     sq: sqPage,
     wxPage,
     unsaved: () => unsaved(),
-    wpPage: ST.wpPage,
-    msPage: ST.msPage,
     get MAPSHOT() {
       return ST.MAPSHOT;
     },
@@ -125,7 +122,6 @@ export async function init19() {
         return TDATA;
       },
     },
-    loadFmap,
     dtcSet,
     noJtacSel: () => {
       const f =
@@ -179,9 +175,6 @@ export async function init19() {
     get CAM_D() {
       return CAM.D;
     },
-    get FD() {
-      return FD;
-    },
     get CFG() {
       return ST.CFG;
     },
@@ -199,9 +192,6 @@ export async function init19() {
     gapless,
     toDDS,
     toDDS5,
-    get F() {
-      return F;
-    },
     get FD() {
       return FD;
     },
