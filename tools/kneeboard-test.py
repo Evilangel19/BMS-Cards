@@ -63,7 +63,7 @@ try:
         check('dropping on the left edge of a card shows the insert bar', 'ib' in (ov or '').split())
         L = lambda t: t.split('Left: ')[1].split(' ·')[0]
         check('with a free slot just above, the new card fills it and the others stay (nothing is pushed)', 'Empty' not in a0 and L(a1) == L(n1) and L(a2) == L(n2))
-        drag_edge(pg, '#kbtray div.kbtr >> nth=0', S('left', 1), 0.1); ia = pg.evaluate("()=>document.getAnimations().filter(a=>a.effect&&a.effect.target&&a.effect.target.classList&&a.effect.target.classList.contains('kbt')).length"); pg.click(S('left', 1)); b1 = cap(pg); pg.click(S('left', 2)); b2 = cap(pg); pg.click(S('left', 3)); b3 = cap(pg)
+        pg.evaluate("()=>{window.__kbAnim=0;const a=Element.prototype.animate;Element.prototype.animate=function(...x){if(this.classList&&this.classList.contains('kbt'))window.__kbAnim++;return a.apply(this,x)}}"); drag_edge(pg, '#kbtray div.kbtr >> nth=0', S('left', 1), 0.1); ia = pg.evaluate("()=>window.__kbAnim"); pg.click(S('left', 1)); b1 = cap(pg); pg.click(S('left', 2)); b2 = cap(pg); pg.click(S('left', 3)); b3 = cap(pg)
         check('inserting a card animates the cards that move on and the new one', ia > 0)
         check('with no free slot above, the cards below move on to the next free slot', L(b2) == L(n1) and L(b3) == L(n2) and L(b1) not in (L(n1), L(n2), L(a0)))
         drag(pg, S('left', 0), '#kbtray')
