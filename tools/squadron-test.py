@@ -51,7 +51,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br); B, eb = start(br)
-        check('the Squadron tab exists in the four sections Members, Organization, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 13)
+        check('the Squadron tab exists in the four sections Members, Organization, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 12)
         check('the tabs Members, Organization, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
         for n, vis in (('org', '#sqorg'), ('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
@@ -152,13 +152,13 @@ try:
         # ---- the Organization section, as the pilots see it
         for pg in (A, B): pg.click('#sqtabs [data-tab=org]'); pg.wait_for_timeout(300)
         check('the Organization section shows the packages and the flight', all(x in A.inner_text('#sqorg').lower() for x in ('unassigned', 'add package', 'add flight')) and A.locator('#sqorg .ogflight').count() == 1 and A.input_value('#sqorg [data-flname]') == 'Viper')
-        check('the other pilot sits in the flight and the commander is tagged', A.locator('#sqorg .ogflight .ogchip').count() == 1 and 'COMMANDER' in A.inner_text('#sqorg .ogroles'))
+        check('the other pilot sits in the flight and the commander is tagged', A.locator('#sqorg .ogflight .ogrow').count() == 1 and 'COMMANDER' in A.inner_text('#sqorg .ogroles'))
         check('the commander sees the Send button of the flight', A.locator('#sqorg [data-send]').count() == 1 and 'Send my mission to Viper' in A.inner_text('#sqorg [data-send]'))
         check('a pilot without a role cannot build, send or rename', B.locator('#sqorg [data-addpk]').count() == 0 and B.locator('#sqorg [data-send]').count() == 0 and B.locator('#sqorg [data-flname]').count() == 0 and B.locator('#sqorg [data-out]').count() == 1)
         A.drag_and_drop('#sqorg [data-pilot="%s"]' % uidB, '#sqorg .ogside'); A.wait_for_timeout(500)
-        check('dragging a pilot out of the flight sets him free', A.evaluate("u=>!__app.sq.org.view().seat[u]", uidB) and A.locator('#sqorg .ogside .ogchip').count() >= 1)
+        check('dragging a pilot out of the flight sets him free', A.evaluate("u=>!__app.sq.org.view().seat[u]", uidB) and A.locator('#sqorg .ogside .ogrow').count() >= 1)
         B.wait_for_timeout(1500)
-        check('the other pilot sees it', B.locator('#sqorg .ogflight .ogchip').count() == 0)
+        check('the other pilot sees it', B.locator('#sqorg .ogflight .ogrow').count() == 0)
         A.drag_and_drop('#sqorg .ogside [data-pilot="%s"]' % uidB, '#sqorg .ogflight'); A.wait_for_timeout(500)
         check('dragging him into the flight seats him', A.evaluate("u=>__app.sq.org.view().seat[u]&&__app.sq.org.view().seat[u].fl", uidB) == fid)
         A.click('#sqorg [data-addpk]'); A.wait_for_timeout(300)

@@ -21,37 +21,45 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
       view.packages.some(p => p.flights.some(f => f.lead === u)) ? tag('LEAD', 'fl', 'Flight lead') : '',
     ].join('');
   const dot = u => `<i class="sqd ${on(u) ? 'connected' : 'closed off'}" title="${on(u) ? 'Online' : 'Offline'}"></i>`;
-  const chip = (u, outBtn) =>
-    `<span class="ogchip${u === me ? ' me' : ''}" draggable="true" data-pilot="${esc(u)}">${dot(u)}<b>${esc(nameOf(u))}</b>${u === me ? ' <em>(you)</em>' : ''}${roleTags(u)}${outBtn ? `<button class="ogx" data-out="${esc(u)}" title="Take out of the flight" aria-label="Take ${esc(nameOf(u))} out of the flight">×</button>` : ''}</span>`;
+  // a pilot is one line: dot, callsign, roles, then (when allowed) the star that makes him lead and the × that takes him out
+  const row = (u, o = {}) =>
+    `<div class="ogrow${u === me ? ' me' : ''}${on(u) ? '' : ' off'}" draggable="true" data-pilot="${esc(u)}">${dot(u)}<b>${esc(nameOf(u))}</b>${roleTags(u)}${u === me ? '<span class="ogmu">you</span>' : ''}${on(u) ? '' : '<span class="ogmu">offline</span>'}<span class="ogact">${
+      o.star
+        ? `<button class="ogstar${o.star === 2 ? ' on' : ''}" data-lead="${esc(u)}" data-fl="${esc(o.fl)}" title="${o.star === 2 ? 'Not the flight lead any more' : 'Make flight lead'}" aria-label="${o.star === 2 ? 'Remove the flight lead' : 'Make ' + esc(nameOf(u)) + ' flight lead'}">${o.star === 2 ? '★' : '☆'}</button>`
+        : ''
+    }${o.out ? `<button class="ogx" data-out="${esc(u)}" title="Take out of the flight" aria-label="Take ${esc(nameOf(u))} out of the flight">×</button>` : ''}${o.sel || ''}</span></div>`;
   const pilotSel = (attr, val, uids, none) =>
     `<select ${attr} aria-label="${esc(none)}"><option value="">${esc(none)}</option>${uids.map(u => `<option value="${esc(u)}"${u === val ? ' selected' : ''}>${esc(nameOf(u))}</option>`).join('')}</select>`;
   const allUids = live.map(r => r.uid).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const myFlight = view.seat[me] ? view.seat[me].fl : '';
+  const nFlights = view.packages.reduce((n, p) => n + p.flights.length, 0);
 
-  // roles
+  // the commanders and the summary of the night
   const roles = `<div class="ogroles">
-<div class="ogrole"><div class="oglab">Commander</div><div class="ogval">${q.owner && q.roster[q.owner] ? esc(nameOf(q.owner)) : '—'}</div>${
+<div class="ogrole"><div class="oglab">Squadron commander · Planner</div><div class="ogval">${q.owner && q.roster[q.owner] ? esc(nameOf(q.owner)) : '—'}</div><div class="oghelp">Edits the whole structure</div>${
     q.owner === me
-      ? `<div class="bar">${pilotSel(
+      ? pilotSel(
           'data-cmd',
           '',
           allUids.filter(u => u !== me),
           'Hand over the command…'
-        )}</div>`
-      : '<div class="hint">Edits everything. Passes the command to another pilot.</div>'
+        )
+      : ''
   }</div>
-<div class="ogrole"><div class="oglab">Mission commander</div><div class="ogval">${q.mc && q.roster[q.mc] ? esc(nameOf(q.mc)) : '—'}</div>${
+<div class="ogrole"><div class="oglab">Mission commander</div><div class="ogval">${q.mc && q.roster[q.mc] ? esc(nameOf(q.mc)) : '—'}</div><div class="oghelp">Names the package leads, has the commander's powers and takes the command if he leaves</div>${
     adm
-      ? `<div class="bar">${pilotSel(
+      ? pilotSel(
           'data-mc',
           q.mc || '',
           allUids.filter(u => u !== q.owner),
           'Nobody'
-        )}</div>`
-      : '<div class="hint">Has the powers of the commander and takes the command if the commander leaves.</div>'
+        )
+      : ''
   }</div>
-<div class="ogrole"><div class="oglab">Tonight</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${view.packages.reduce((n, p) => n + p.flights.length, 0)} flights</div>${
-    adm ? '<div class="bar"><button class="btn g rd" data-clear>Clear all</button></div>' : ''
+<div class="ogrole"><div class="oglab">Tonight</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${
+    adm
+      ? '<div class="bar"><button class="btn g rd" data-clear>Clear all</button></div>'
+      : '<div class="oghelp">Set up by the commanders</div>'
   }</div></div>`;
 
   // pilots who fly nowhere
@@ -59,16 +67,19 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
   const flightOpts = view.packages.flatMap(p =>
     p.flights.filter(f => !f.full).map(f => `<option value="${esc(f.id)}">${esc(p.n)} · ${esc(f.n)}</option>`)
   );
-  const side = `<div class="ogside ogdrop" data-drop=""><h4>Unassigned</h4><div class="hint">Drag a pilot into a flight.</div>${
+  const side = `<div class="ogside ogdrop" data-drop=""><h4>Unassigned</h4><div class="oghelp">Drag a pilot into a flight</div>${
     free.length
       ? free
-          .map(
-            u =>
-              `<div class="ogfree">${chip(u, false)}${flightOpts.length ? `<select data-moveto="${esc(u)}" aria-label="Put ${esc(nameOf(u))} in a flight"><option value="">Put in…</option>${flightOpts.join('')}</select>` : ''}</div>`
+          .map(u =>
+            row(u, {
+              sel: flightOpts.length
+                ? `<select class="ogput" data-moveto="${esc(u)}" aria-label="Put ${esc(nameOf(u))} in a flight"><option value="">Put in…</option>${flightOpts.join('')}</select>`
+                : '',
+            })
           )
           .join('')
-      : '<div class="hint">Everybody has a flight.</div>'
-  }<div class="hint" style="margin-top:8px">Pilots left here do not receive any mission.</div></div>`;
+      : '<div class="oghelp">Everybody has a flight.</div>'
+  }<div class="oghelp ogfoot">Pilots left here do not receive any mission.</div></div>`;
 
   // packages
   const flightCard = (p, f) => {
@@ -78,31 +89,30 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
       n = f.members.filter(u => u !== me && online.has(u)).length,
       canEdit = adm || pkLeadOf(p.id) || f.lead === me;
     return `<div class="ogflight ogdrop${mine ? ' mine' : ''}" data-drop="${esc(f.id)}">
-<div class="oghead">${canEdit ? `<input class="ogname" data-flname="${esc(f.id)}" value="${esc(f.n)}" maxlength="24" aria-label="Flight name">` : `<b>${esc(f.n)}</b>`}<span class="hint ogcnt${f.full ? ' full' : ''}">${f.members.length} / ${MAX_PILOTS}</span>${mine ? '<span class="ogtag you">YOUR FLIGHT</span>' : ''}${canLead ? `<button class="ogx" data-delfl="${esc(f.id)}" title="Delete the flight" aria-label="Delete the flight ${esc(f.n)}">×</button>` : ''}</div>
-${f.members.length ? f.members.map(u => chip(u, adm || pkLeadOf(p.id) || f.lead === me || u === me)).join('') : '<div class="hint">Empty</div>'}
-${canLead ? `<div class="bar">${pilotSel(`data-fllead="${esc(f.id)}"`, f.lead, f.members, 'Flight lead…')}</div>` : f.lead ? `<div class="hint">Lead: ${esc(nameOf(f.lead))}</div>` : ''}
-${canSend ? `<button class="btn g gn ogsend" data-send="${esc(f.id)}"${n ? '' : ' disabled'} title="Send the mission to the pilots of this flight who are online">Send my mission to ${esc(f.n)} (${n} online)</button>` : ''}
+<div class="oghead">${canEdit ? `<input class="ogname" data-flname="${esc(f.id)}" value="${esc(f.n)}" maxlength="24" aria-label="Flight name">` : `<b class="ogtitle">${esc(f.n)}</b>`}<span class="ogmu${f.full ? ' full' : ''}">${f.members.length} / ${MAX_PILOTS}</span>${mine ? '<span class="ogtag you">YOUR FLIGHT</span>' : ''}${canLead ? `<button class="ogx ogdel" data-delfl="${esc(f.id)}" title="Delete the flight" aria-label="Delete the flight ${esc(f.n)}">×</button>` : ''}</div>
+${f.members.length ? f.members.map(u => row(u, { out: canEdit || u === me, star: canLead ? (f.lead === u ? 2 : 1) : 0, fl: f.id })).join('') : '<div class="oghelp">Empty: drag a pilot here</div>'}
+${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disabled'} title="Send the mission to the pilots of this flight who are online">Send my mission to ${esc(f.n)} (${n} online)</button>` : f.lead ? `<div class="oghelp">Only ${esc(nameOf(f.lead))} can send to this flight</div>` : ''}
 </div>`;
   };
   const packs = view.packages
     .map(p => {
-      const canEdit = adm || pkLeadOf(p.id);
-      return `<div class="ogpack"><div class="oghead">${adm || pkLeadOf(p.id) ? `<input class="ogname big" data-pkname="${esc(p.id)}" value="${esc(p.n)}" maxlength="24" aria-label="Package name">` : `<b class="big">${esc(p.n)}</b>`}<span class="hint">${p.flights.length} of ${MAX_FLIGHTS} flights</span>${adm ? `<button class="ogx" data-delpk="${esc(p.id)}" title="Delete the package" aria-label="Delete the package ${esc(p.n)}">×</button>` : ''}</div>
-<div class="bar" style="margin:4px 0 8px">${adm ? pilotSel(`data-pklead="${esc(p.id)}"`, p.lead, allUids, 'Package lead…') : `<span class="hint">Package lead: ${p.lead ? esc(nameOf(p.lead)) : '—'}</span>`}</div>
+      const canEdit = adm || pkLeadOf(p.id),
+        pilots = p.flights.reduce((n, f) => n + f.members.length, 0);
+      return `<div class="ogpack"><div class="oghead">${canEdit ? `<input class="ogname big" data-pkname="${esc(p.id)}" value="${esc(p.n)}" maxlength="24" aria-label="Package name">` : `<b class="ogtitle big">${esc(p.n)}</b>`}<span class="oglead">Package lead: ${adm ? pilotSel(`data-pklead="${esc(p.id)}"`, p.lead, allUids, '—') : `<b>${p.lead ? esc(nameOf(p.lead)) : '—'}</b>`}</span><span class="ogmu ogright">${p.flights.length} of ${MAX_FLIGHTS} flights · ${pilots} aircraft</span>${adm ? `<button class="ogx ogdel" data-delpk="${esc(p.id)}" title="Delete the package" aria-label="Delete the package ${esc(p.n)}">×</button>` : ''}</div>
 <div class="ogflights">${p.flights.map(f => flightCard(p, f)).join('')}${canEdit && !p.full ? `<button class="ogadd" data-addfl="${esc(p.id)}">+ Add flight</button>` : ''}</div></div>`;
     })
     .join('');
   const addPk =
     adm && view.packages.length < MAX_PACKAGES ? '<button class="ogadd wide" data-addpk>+ Add package</button>' : '';
   const empty = !view.packages.length
-    ? `<div class="hint ogempty">No packages yet.${adm ? ' Add a package, then its flights, and drag the pilots into them.' : ' The commander or the mission commander sets up the packages and flights.'}</div>`
+    ? `<div class="oghelp ogempty">No packages yet.${adm ? ' Add a package, then its flights, and drag the pilots into them.' : ' The commander or the mission commander sets up the packages and flights.'}</div>`
     : '';
 
   // a pilot who lost his file comes back as a new one
   const gone = live.filter(r => r.uid !== me && !online.has(r.uid) && r.uid !== q.owner);
   const fresh = live.filter(r => online.has(r.uid) && r.uid !== q.owner && r.uid !== q.mc && !view.seat[r.uid]);
   const lost = adm
-    ? `<details class="oglost"><summary>A pilot lost his program file?</summary><div class="hint" style="margin:6px 0">He comes back with the invite as a new pilot. Choose the old entry (offline) and the new one: the new pilot gets the flight, the lead and the role of the old one.</div><div class="bar">${pilotSel('data-seatold', '', [...(q.roster[q.owner] && !online.has(q.owner) ? [q.owner] : []), ...gone.map(r => r.uid)], 'Old pilot…')}${pilotSel(
+    ? `<details class="oglost"><summary>A pilot lost his program file?</summary><div class="oghelp" style="margin:6px 0">He comes back with the invite as a new pilot. Choose the old entry (offline) and the new one: the new pilot gets the flight, the lead and the role of the old one.</div><div class="bar">${pilotSel('data-seatold', '', [...(q.roster[q.owner] && !online.has(q.owner) ? [q.owner] : []), ...gone.map(r => r.uid)], 'Old pilot…')}${pilotSel(
         'data-seatnew',
         '',
         fresh.map(r => r.uid),
@@ -111,7 +121,7 @@ ${canSend ? `<button class="btn g gn ogsend" data-send="${esc(f.id)}"${n ? '' : 
     : '';
   const leave =
     q.owner === me && q.mc && q.roster[q.mc]
-      ? `<div class="bar" style="margin-top:10px"><button class="btn g rd" data-leave title="You leave the squadron and the mission commander becomes the commander">Leave the squadron and hand the command to ${esc(nameOf(q.mc))}</button></div>`
+      ? `<div class="bar" style="margin-top:6px"><button class="btn g rd" data-leave title="You leave the squadron and the mission commander becomes the commander">Leave the squadron and hand the command to ${esc(nameOf(q.mc))}</button></div>`
       : '';
   return `${roles}<div class="ogbody">${side}<div class="ogmain">${empty}${packs}${addPk}${lost}${leave}</div></div>`;
 }
@@ -145,6 +155,7 @@ export function wireOrg(box, h) {
     } else if (d.delfl) {
       if (await h.confirm('Delete this flight? Its pilots go back to Unassigned.')) run({ t: 'fl-', id: d.delfl });
     } else if (d.out) run({ t: 'as', uid: d.out, f: '' });
+    else if (d.lead) run({ t: 'fllead', id: d.fl, uid: b.classList.contains('on') ? '' : d.lead });
     else if (d.send) h.send(d.send);
     else if ('clear' in d) {
       if (await h.confirm('Delete all the packages and flights?'))

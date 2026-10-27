@@ -348,7 +348,7 @@ ok(
   );
   ok(
     'a wingman has no button to send, rename or move',
-    !/data-send=/.test(h3) && !/data-flname/.test(h3) && !/data-fllead/.test(h3) && !/data-pklead/.test(h3)
+    !/data-send=/.test(h3) && !/data-flname/.test(h3) && !/data-lead=/.test(h3) && !/data-pklead/.test(h3)
   );
   ok(
     'a wingman can take himself out of his flight, nobody else',

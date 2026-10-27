@@ -808,203 +808,334 @@
   }
 }
 
-/* Squadron: the Organization section (packages, flights, pilots to drag) */
+/* Squadron: the Organization section (packages, flights, pilots to drag). Its own colours: dark panels with an amber accent */
+.sqorg {
+  --og-panel: #181e26;
+  --og-card: #202833;
+  --og-line: #2c3644;
+  --og-edge: #3a4758;
+  --og-mu: #9fb0c2;
+  --og-amber: #f0b24a;
+  --og-blue: #7cc4ff;
+  --og-violet: #c9a6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.sqorg select {
+  background: var(--og-card);
+  color: var(--tx);
+  border: 1px solid var(--og-edge);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  max-width: 100%;
+}
 .ogroles {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 16px;
 }
 .ogrole {
-  flex: 1 1 220px;
-  background: #0b0f14;
-  border: 1px solid var(--line);
+  flex: 1 1 280px;
+  background: var(--og-panel);
+  border: 1px solid var(--og-line);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 .oglab {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--mu);
+  color: var(--og-mu);
 }
 .ogval {
   font-size: 16px;
   font-weight: 600;
-  margin: 2px 0 4px;
+}
+.oghelp {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--og-mu);
+}
+.ogrole select,
+.ogrole .bar {
+  margin-top: 4px;
 }
 .ogbody {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
-  align-items: flex-start;
+  gap: 16px;
+  align-items: stretch;
 }
 .ogside {
-  flex: 0 0 230px;
-  background: #0b0f14;
-  border: 1px solid var(--line);
+  flex: 0 0 240px;
+  background: var(--og-panel);
+  border: 1px solid var(--og-line);
   border-radius: 8px;
-  padding: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
-.ogside h4,
-.ogmain h4 {
-  margin: 0 0 4px;
+.ogside h4 {
+  margin: 0;
+  font-size: 14px;
+}
+.ogfoot {
+  margin-top: auto;
+  padding-top: 10px;
 }
 .ogmain {
-  flex: 1 1 420px;
+  flex: 1 1 520px;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .ogpack {
-  background: #0b0f14;
-  border: 1px solid var(--line);
+  background: var(--og-panel);
+  border: 1px solid var(--og-line);
   border-radius: 8px;
-  padding: 10px 12px;
-}
-.ogflights {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.ogflight {
-  flex: 1 1 200px;
-  min-width: 190px;
-  max-width: 320px;
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 8px 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-.ogflight.mine {
-  border-color: var(--ac);
+  padding: 14px 16px;
 }
 .oghead {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ogpack > .oghead {
+  margin-bottom: 12px;
+}
+.ogflight .oghead {
+  flex-wrap: nowrap;
   gap: 8px;
 }
-.oghead .ogx {
-  margin-left: auto;
+.ogtitle,
+.ogname {
+  font-size: 15px;
+  font-weight: 700;
+}
+.ogtitle.big,
+.ogname.big {
+  font-size: 16px;
 }
 .ogname {
   min-width: 0;
-  flex: 1;
+  flex: 0 1 auto;
+  width: 12ch;
   background: transparent;
   color: var(--tx);
   border: 1px solid transparent;
   border-radius: 6px;
-  font-weight: 700;
-  padding: 2px 4px;
+  padding: 1px 4px;
+  margin-left: -4px;
+}
+.ogname {
+  field-sizing: content;
+  min-width: 6ch;
+}
+.ogname.big {
+  width: auto;
 }
 .ogname:hover,
 .ogname:focus {
-  border-color: var(--line);
-  background: #0b0f14;
+  border-color: var(--og-edge);
+  background: var(--og-card);
 }
-.ogname.big {
-  font-size: 15px;
+.oglead {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--og-mu);
 }
-.big {
-  font-size: 15px;
+.oglead b {
+  color: var(--tx);
 }
-.ogcnt.full {
+.oglead select {
+  background: transparent;
+  border-color: transparent;
+  font-weight: 600;
+  padding: 1px 2px;
+}
+.oglead select:hover,
+.oglead select:focus {
+  background: var(--og-card);
+  border-color: var(--og-edge);
+}
+.ogmu {
+  font-size: 12px;
+  color: var(--og-mu);
+}
+.ogmu.full {
   color: #ff8a7a;
 }
-.ogchip {
+.ogright {
+  margin-left: auto;
+}
+.ogflights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+.ogflight {
+  background: var(--og-card);
+  border: 1px solid var(--og-line);
+  border-radius: 8px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ogflight.mine {
+  border-color: var(--og-amber);
+}
+.ogrow {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: #0b0f14;
+  gap: 4px 8px;
+  min-height: 28px;
   cursor: grab;
 }
-.ogchip.me {
-  border-color: var(--ac);
+.ogrow b {
+  font-weight: 400;
 }
-.ogchip em {
-  color: var(--mu);
-  font-style: normal;
-  font-size: 12px;
+.ogrow.me b {
+  font-weight: 600;
 }
-.ogtag {
-  border-radius: 4px;
-  padding: 0 5px;
-  font-size: 10px;
-  font-weight: 700;
-  color: #000;
-  background: var(--mu);
+.ogrow.off b {
+  color: var(--og-mu);
 }
-.ogtag.cmd {
-  background: #c9a227;
+.ogside .ogrow {
+  background: var(--og-card);
+  border-radius: 6px;
+  padding: 6px 10px;
 }
-.ogtag.pk {
-  background: #7cc4ff;
+.ogrow {
+  position: relative;
 }
-.ogtag.fl {
-  background: #f0b24a;
+.ogact {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 8px;
+  background: var(--og-card);
+  opacity: 0;
 }
-.ogtag.you {
-  background: var(--ac);
+.ogrow:hover .ogact,
+.ogrow:focus-within .ogact {
+  opacity: 1;
 }
+@media (hover: none) {
+  .ogact {
+    opacity: 1;
+  }
+}
+.ogput {
+  width: 78px;
+  padding: 2px 4px !important;
+  font-size: 12px !important;
+}
+.ogstar,
 .ogx {
   background: transparent;
   border: 0;
-  color: var(--mu);
+  color: var(--og-mu);
   font-size: 16px;
   line-height: 1;
   cursor: pointer;
-  padding: 0 4px;
+  padding: 2px 4px;
+}
+.ogstar:hover,
+.ogstar.on {
+  color: var(--og-amber);
 }
 .ogx:hover {
   color: #ff8a7a;
 }
-.ogadd {
-  flex: 1 1 160px;
-  min-height: 44px;
+.ogdel {
+  margin-left: auto;
+}
+.sqorg .sqd.closed.off {
+  background: #5b6877;
+}
+.ogtag {
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0 5px;
   background: transparent;
-  color: var(--mu);
-  border: 1px dashed var(--line);
+}
+.ogtag.fl {
+  color: var(--og-amber);
+}
+.ogtag.pk {
+  color: var(--og-blue);
+}
+.ogtag.cmd {
+  color: var(--og-violet);
+}
+.ogtag.you {
+  margin-left: auto;
+  background: var(--og-amber);
+  border-color: var(--og-amber);
+  color: #14181d;
+}
+.ogsend {
+  margin-top: 6px;
+  background: var(--og-amber);
+  color: #14181d;
+  border: 0;
+  border-radius: 6px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ogsend:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.ogadd {
+  min-height: 72px;
+  background: transparent;
+  color: var(--og-mu);
+  border: 1px dashed var(--og-edge);
   border-radius: 8px;
   cursor: pointer;
 }
 .ogadd.wide {
   width: 100%;
-  flex: none;
+  min-height: 48px;
 }
 .ogadd:hover {
   color: var(--tx);
-  border-color: var(--ac);
-}
-.ogfree {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  margin: 6px 0;
-}
-.ogfree select {
-  font-size: 12px;
-}
-.ogsend {
-  margin-top: 4px;
-}
-.oglost {
-  margin-top: 6px;
+  border-color: var(--og-amber);
 }
 .ogempty {
   padding: 14px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--og-edge);
   border-radius: 8px;
 }
+.oglost summary {
+  cursor: pointer;
+  color: var(--og-mu);
+}
 .ogdrop.okdrop {
-  outline: 2px dashed var(--ac);
+  outline: 2px dashed var(--og-amber);
   outline-offset: 2px;
 }
 .ogdrop.over {
