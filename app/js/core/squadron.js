@@ -6,7 +6,7 @@
 
 import { medalSvg, rankSvg } from './medals.js';
 import { newOrg, mergeOrg, pruneOrg, orgReduce, orgView, isAdmin, flightWarning } from './organization.js';
-import { orgHtml, wireOrg } from './orgpage.js';
+import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -2178,7 +2178,7 @@ export function createSquadronPage(deps) {
       ${own ? `<div class="sqedit" id="sqedit" hidden><input id="sqname" value="${esc(q.name)}" maxlength="40" placeholder="Name of the squadron"><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"><button class="btn g gn" id="sqeditok">Save</button><button class="btn g" id="sqeditx">Cancel</button></div>` : ''}
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
-      <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
+      <div class="bar" style="margin-top:10px"><button class="btn g gn" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
     memCtx = { q, list, onUid, m, row };
     drawTable();
     $('#sqsel').onchange = e => {
@@ -2230,24 +2230,6 @@ export function createSquadronPage(deps) {
   function drawMis() {
     const box = $('#sqrecv');
     if (!box) return;
-    const q = cur(),
-      sw = q && swarms.get(q.id),
-      n = sw ? sw.online().length : 0;
-    const lead = q && q.leader && q.roster[q.leader];
-    $('#sqleadinfo').textContent = !q
-      ? 'Create or join a squadron to send missions.'
-      : !q.leader
-        ? 'No mission leader chosen: the squadron leader can pick one with the ☆ button in the roster.'
-        : q.leader == DB.uid
-          ? 'You are the mission leader: you can send the mission.'
-          : 'Mission leader: ' + label(lead) + '. Only the leader sends the mission.';
-    if (q && orgHasFlights(q))
-      $('#sqleadinfo').textContent = canSendAll(q)
-        ? 'You can send a mission to everybody online, or to one flight from the Organization section.'
-        : 'This squadron works in flights: the lead of your flight sends you the mission (Organization section).';
-    const bc = $('#sqbcast');
-    bc.disabled = !n || !(q && canSendAll(q));
-    bc.textContent = 'Send my mission to everybody online' + (n ? ' (' + n + ')' : '');
     box.innerHTML = recv.length
       ? recv
           .map(
@@ -2309,13 +2291,13 @@ export function createSquadronPage(deps) {
           own = owns(q),
           mem = live(q).filter(r => r.uid != DB.uid);
         return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g" data-open>Open</button><button class="btn g rd" data-leave>${own ? 'Delete' : 'Leave'}</button></div>
-      ${own && mem.length ? `<div class="sqmod"><div class="hint">Moderation: remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</div>` : ''}</div>`;
+      ${own && mem.length ? `<details class="sqmod"><summary>Moderation</summary><div class="hint">Remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</details>` : ''}</div>`;
       })
       .join('');
     box.innerHTML =
       (rows || '<div class="hint">You are not in any squadron.</div>') +
-      `<h4>Create a squadron</h4><div class="bar"><input id="sqnew" placeholder="Name of the new squadron" maxlength="40" style="width:240px"><button class="btn g gn" id="sqcreate">Create</button></div>
-      <h4>Join a squadron</h4><textarea id="sqinvin" rows="2" placeholder="Squadron invite code (BCS.…)"></textarea><div class="bar"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
+      `<div class="sqone"><input id="sqnew" placeholder="Create: name of the new squadron" maxlength="40"><button class="btn g gn" id="sqcreate">Create</button></div>
+      <div class="sqone"><input id="sqinvin" placeholder="Join: squadron invite code (BCS.…)"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
     box.querySelectorAll('.sqsqr').forEach(el => {
       const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => {
@@ -2425,7 +2407,7 @@ export function createSquadronPage(deps) {
           DB.squads
             .map(
               q =>
-                `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g" data-cp>Copy the invite code</button></div></div>`
+                `<div class="sqi" data-sid="${esc(q.id)}"><b>${esc(q.name)}</b><textarea rows="2" readonly data-code placeholder="…"></textarea><div class="bar"><button class="btn g gn" data-cp>Copy the invite code</button></div></div>`
             )
             .join('')
         : '<div class="hint">No squadron yet.</div>';
@@ -2513,6 +2495,7 @@ export function createSquadronPage(deps) {
     avDraw();
     drawMembers();
     drawOrg();
+    drawLost();
     drawMis();
     drawCamp();
     drawMine();
@@ -2563,6 +2546,17 @@ export function createSquadronPage(deps) {
     orgPending = false;
     mkMe(q);
     box.innerHTML = orgHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q));
+  }
+  function drawLost() {
+    const box = $('#sqlost');
+    if (!box) return;
+    const q = cur(),
+      a = document.activeElement;
+    if (a && box.contains(a)) return;
+    box.hidden = !q;
+    const h = q ? lostHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q)) : '';
+    box.innerHTML = h;
+    box.hidden = !h;
   }
   const sendFlight = fid => {
     const q = cur(),
@@ -2741,17 +2735,20 @@ export function createSquadronPage(deps) {
 <div class="sqmain">
 <div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
 <div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
-<div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button><button class="btn g" id="sqdiag" title="Copies a technical report to paste when something does not work">Copy diagnostics</button></div><h4>Received</h4><div id="sqrecv"></div></div>
+<div class="sqc" id="sqlost" hidden></div>
+<div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
 </div><div class="sqpane" data-pane="me">
-<div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><div class="sqhd"><h3>My pilot</h3><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button></div></div><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqtwo">
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
-<div class="sqc"><h3>Servers <small>PhoneBkn.ini</small></h3><div id="sqpb"></div><div class="bar" style="margin-top:8px"><button class="btn g" id="sqpbopen">Open phone book…</button></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
+<div class="sqc"><div class="sqhd"><h3>Servers <small>PhoneBkn.ini</small></h3><div class="sqhr"><button class="btn g" id="sqpbopen">Open phone book…</button></div></div><div id="sqpb" class="sqpbbox"></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
+</div>
 </div><div class="sqpane" data-pane="settings"><div class="sqcols"><div class="sqcol">
 <div class="sqc"><h3>Invite codes</h3><div id="sqinvs"></div></div>
-<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button><button class="btn g" id="sqnettest">Test my network</button></div><pre class="sqlog" id="sqnet" style="display:none;white-space:pre-wrap"></pre><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun"> Use a public STUN server</label><span class="hint" style="min-height:0"> Default server: <code>stun.l.google.com:19302</code> (it only tells your public address, no data goes through it).</span></div></div>
+<div class="sqc"><h3>Connection</h3><div id="sqconn"></div><div class="hint" style="margin-top:8px">TURN server (optional, one per line: <code>turn:host:port user password</code>). It relays the connection when the routers block the direct one; free accounts exist (for example Metered or Cloudflare).</div><textarea id="sqturn" rows="2" placeholder="turn:example.com:3478 username password"></textarea><div class="bar"><button class="btn g" id="sqturnsave">Save the TURN server</button><button class="btn g" id="sqnettest">Test my network</button><button class="btn g" id="sqdiag" title="Copies a technical report to paste when something does not work">Copy diagnostics</button></div><pre class="sqlog" id="sqnet" style="display:none;white-space:pre-wrap"></pre><div class="bar" style="margin-top:8px"><label class="sqlb" title="Needed to reach pilots behind a router (the public address is asked to a public STUN server, Google's). Without it only pilots on the same network or VPN can connect."><input type="checkbox" id="sqstun"> Use a public STUN server</label><span class="hint" style="min-height:0"> Default server: <code>stun.l.google.com:19302</code> (it only tells your public address, no data goes through it).</span></div></div>
 </div><div class="sqcol">
 <div class="sqc"><details id="sqdirect"><summary>Direct connection with two codes (no trackers)</summary>
  <div class="hint" style="margin-top:8px">When the trackers cannot be used: the pilots connect straight to each other by swapping two codes. Whoever creates the session leads it.</div>
@@ -2763,6 +2760,11 @@ export function createSquadronPage(deps) {
   <textarea id="sqanscode" rows="3" readonly placeholder="Your answer code appears here" style="display:none"></textarea><div class="bar"><button class="btn g" id="sqcpa" style="display:none">Copy the answer code</button></div></div>
  <h4>Connected</h4><div id="sqmem"></div><div class="bar"><button class="btn g gn" id="sqsend" style="display:none">Send my mission to the session</button></div><div class="err" id="sqerr"></div></details></div>
 <div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div></div></div>`;
+    wireLost($('#sqlost'), {
+      act: a => orgAct(cur(), a),
+      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      confirm: t => Promise.resolve(confirm(t)),
+    });
     const og = $('#sqorg');
     wireOrg(og, {
       q: cur,
@@ -2771,6 +2773,12 @@ export function createSquadronPage(deps) {
       view: () => orgView(cur()),
       act: a => orgAct(cur(), a),
       send: sendFlight,
+      sendAll: () => {
+        const q = cur(),
+          sw = q && swarms.get(q.id);
+        if (sw) sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
+      },
+      canAll: () => canSendAll(cur()),
       leave: leaveHandover,
       toast: t => (deps.toast ? deps.toast(t) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
@@ -2880,12 +2888,6 @@ export function createSquadronPage(deps) {
       drawTable();
     };
     $('#sqdiag').onclick = () => copy(diag(S.err));
-    $('#sqbcast').onclick = () => {
-      const q = cur(),
-        sw = q && swarms.get(q.id);
-      if (!sw) return;
-      sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
-    };
     // direct connection
     $('#sqlead').onclick = guard(async () => {
       await S.lead();

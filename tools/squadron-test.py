@@ -51,7 +51,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br); B, eb = start(br)
-        check('the Squadron tab exists in the four sections Members, Organization, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 12)
+        check('the Squadron tab exists in the four sections Members, Organization, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 13)
         check('the tabs Members, Organization, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
         for n, vis in (('org', '#sqorg'), ('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
@@ -201,12 +201,12 @@ try:
         A.click('.sqpop [data-ok]'); A.wait_for_selector('.sqpop h3:has-text("Mission delivered")', timeout=20000); check('a success popup tells the mission was sent', True)
         A.click('.sqpop [data-ok]'); B.wait_for_selector('.sqpop:has-text("Load it now")'); check('the receiver is asked to load it now', True); B.click('.sqpop [data-x]'); B.wait_for_timeout(500)
         check('the mission goes to the online pilot', B.locator('#sqrecv [data-load]').count() >= 1)
-        A.click('#sqbcast'); A.wait_for_selector('.sqpop [data-ok]'); A.click('.sqpop [data-ok]'); A.wait_for_selector('.sqpop h3:has-text("Mission delivered")', timeout=20000); A.click('.sqpop [data-ok]'); B.wait_for_selector('.sqpop [data-x]'); B.click('.sqpop [data-x]'); B.wait_for_timeout(1500); check('send to everybody online', B.locator('#sqrecv [data-load]').count() >= 2)
+        A.click('#sqtabs [data-tab=org]'); A.click('#sqorg [data-sendall]'); A.wait_for_selector('.sqpop [data-ok]'); A.click('.sqpop [data-ok]'); A.wait_for_selector('.sqpop h3:has-text("Mission delivered")', timeout=20000); A.click('.sqpop [data-ok]'); A.click('#sqtabs [data-tab=members]'); B.wait_for_selector('.sqpop [data-x]'); B.click('.sqpop [data-x]'); B.wait_for_timeout(1500); check('send to everybody online', B.locator('#sqrecv [data-load]').count() >= 2)
         A.locator('#sqros tr[data-uid]:not(:first-child) [data-lead]').click(); A.wait_for_timeout(1500)
         check('the mission leader is chosen and seen by the other pilot', '★' in A.inner_text('#sqros') and '★' in B.inner_text('#sqros'))
-        check('only the leader can send: the owner no longer', not A.is_enabled('#sqbcast') and B.is_enabled('#sqbcast'))
+        B.click('#sqtabs [data-tab=org]'); A.click('#sqtabs [data-tab=org]'); A.wait_for_timeout(300); check('only the leader can send: the owner no longer', not A.is_enabled('#sqorg [data-sendall]') and B.is_enabled('#sqorg [data-sendall]')); A.click('#sqtabs [data-tab=members]'); B.click('#sqtabs [data-tab=members]')
         # moderation: the creator removes the pilot
-        A.once('dialog', lambda d: d.accept()); A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('[data-kick]').click(); B.wait_for_timeout(3000)
+        A.once('dialog', lambda d: d.accept()); A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('summary').click(); A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('[data-kick]').click(); B.wait_for_timeout(3000)
         check('the removed pilot is out of the squadron', B.locator('#sqmine .sqsqr').count() == 0 and A.locator('#sqros tr[data-uid]').count() == 1)
         B.fill('#sqinvin', code); B.click('#sqjoinsq'); B.wait_for_timeout(6000)
         check('a removed pilot cannot come back with the invite', A.locator('#sqros tr[data-uid]').count() == 1)

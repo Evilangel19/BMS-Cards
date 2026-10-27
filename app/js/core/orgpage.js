@@ -7,6 +7,7 @@ import { orgReduce, isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './org
  * @param {any} q the squadron, @param {any} view orgView(q), @param {string} me my pilot id, @param {Set<string>} online pilot ids linked now
  * @param {(s:any)=>string} esc, @param {(uid:string)=>string} nameOf callsign of a pilot
  */
+const nFlightsAny = view => view.packages.some(p => p.flights.length);
 export function orgHtml(q, view, me, online, esc, nameOf) {
   const adm = isAdmin(q, me),
     live = Object.values(q.roster || {}).filter(r => !r.removed),
@@ -32,6 +33,8 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
     `<select ${attr} aria-label="${esc(none)}"><option value="">${esc(none)}</option>${uids.map(u => `<option value="${esc(u)}"${u === val ? ' selected' : ''}>${esc(nameOf(u))}</option>`).join('')}</select>`;
   const allUids = live.map(r => r.uid).sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
   const myFlight = view.seat[me] ? view.seat[me].fl : '';
+  const nOn = [...online].filter(u => u !== me).length,
+    canAll = nFlightsAny(view) ? adm : !q.leader || q.leader === me;
   const nFlights = view.packages.reduce((n, p) => n + p.flights.length, 0);
 
   // the commanders and the summary of the night
@@ -60,7 +63,7 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
     adm
       ? '<div class="bar"><button class="btn g rd" data-clear>Clear all</button></div>'
       : '<div class="oghelp">Set up by the commanders</div>'
-  }</div></div>`;
+  }<div class="bar"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
 
   // pilots who fly nowhere
   const free = view.unassigned.slice().sort((a, b) => on(b) - on(a) || nameOf(a).localeCompare(nameOf(b)));
@@ -108,22 +111,42 @@ ${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disable
     ? `<div class="oghelp ogempty">No packages yet.${adm ? ' Add a package, then its flights, and drag the pilots into them.' : ' The commander or the mission commander sets up the packages and flights.'}</div>`
     : '';
 
-  // a pilot who lost his file comes back as a new one
-  const gone = live.filter(r => r.uid !== me && !online.has(r.uid) && r.uid !== q.owner);
-  const fresh = live.filter(r => online.has(r.uid) && r.uid !== q.owner && r.uid !== q.mc && !view.seat[r.uid]);
-  const lost = adm
-    ? `<details class="oglost"><summary>A pilot lost his program file?</summary><div class="oghelp" style="margin:6px 0">He comes back with the invite as a new pilot. Choose the old entry (offline) and the new one: the new pilot gets the flight, the lead and the role of the old one.</div><div class="bar">${pilotSel('data-seatold', '', [...(q.roster[q.owner] && !online.has(q.owner) ? [q.owner] : []), ...gone.map(r => r.uid)], 'Old pilot…')}${pilotSel(
-        'data-seatnew',
-        '',
-        fresh.map(r => r.uid),
-        'New pilot…'
-      )}<button class="btn g gn" data-seat>Give the seat back</button></div></details>`
-    : '';
   const leave =
     q.owner === me && q.mc && q.roster[q.mc]
       ? `<div class="bar" style="margin-top:6px"><button class="btn g rd" data-leave title="You leave the squadron and the mission commander becomes the commander">Leave the squadron and hand the command to ${esc(nameOf(q.mc))}</button></div>`
       : '';
-  return `${roles}<div class="ogbody">${side}<div class="ogmain">${empty}${packs}${addPk}${lost}${leave}</div></div>`;
+  return `${roles}<div class="ogbody">${side}<div class="ogmain">${empty}${packs}${addPk}${leave}</div></div>`;
+}
+
+/** The box for a pilot who lost his program file (Members page). Empty when the viewer is not a commander. */
+export function lostHtml(q, view, me, online, esc, nameOf) {
+  const adm = isAdmin(q, me),
+    live = Object.values(q.roster || {}).filter(r => !r.removed);
+  const pilotSel = (attr, uids, none) =>
+    `<select ${attr} aria-label="${esc(none)}"><option value="">${esc(none)}</option>${uids.map(u => `<option value="${esc(u)}">${esc(nameOf(u))}</option>`).join('')}</select>`;
+  const gone = live.filter(r => r.uid !== me && !online.has(r.uid) && r.uid !== q.owner);
+  const fresh = live.filter(r => online.has(r.uid) && r.uid !== q.owner && r.uid !== q.mc && !view.seat[r.uid]);
+  if (!adm) return '';
+  return `<h3>A pilot lost his program file?</h3><div class="hint">He comes back with the invite as a new pilot. Choose the old entry (offline) and the new one: the new pilot gets the flight, the lead and the role of the old one.</div><div class="bar">${pilotSel('data-seatold', [...(q.roster[q.owner] && !online.has(q.owner) ? [q.owner] : []), ...gone.map(r => r.uid)], 'Old pilot…')}${pilotSel(
+    'data-seatnew',
+    fresh.map(r => r.uid),
+    'New pilot…'
+  )}<button class="btn g gn" data-seat>Give the seat back</button></div>`;
+}
+
+/** Wires the box of lostHtml. h: {act(a): {ok, error}, toast(text), confirm(text): Promise<boolean>} */
+export function wireLost(box, h) {
+  box.onclick = async e => {
+    const b = e.target.closest('button');
+    if (!b || !('seat' in b.dataset)) return;
+    const o = box.querySelector('[data-seatold]').value,
+      n = box.querySelector('[data-seatnew]').value;
+    if (!o || !n) return h.toast('Choose the old pilot and the new one.');
+    if (await h.confirm('Give the seat of the old pilot to the new one? The old entry leaves the squadron.')) {
+      const r = h.act({ t: 'seat', old: o, nu: n });
+      if (!r.ok) h.toast(r.error);
+    }
+  };
 }
 
 /**
@@ -157,17 +180,11 @@ export function wireOrg(box, h) {
     } else if (d.out) run({ t: 'as', uid: d.out, f: '' });
     else if (d.lead) run({ t: 'fllead', id: d.fl, uid: b.classList.contains('on') ? '' : d.lead });
     else if (d.send) h.send(d.send);
+    else if ('sendall' in d) h.sendAll();
     else if ('clear' in d) {
       if (await h.confirm('Delete all the packages and flights?'))
         for (const p of view().packages) run({ t: 'pk-', id: p.id });
     } else if ('leave' in d) h.leave();
-    else if ('seat' in d) {
-      const o = box.querySelector('[data-seatold]').value,
-        n = box.querySelector('[data-seatnew]').value;
-      if (!o || !n) return h.toast('Choose the old pilot and the new one.');
-      if (await h.confirm('Give the seat of the old pilot to the new one? The old entry leaves the squadron.'))
-        run({ t: 'seat', old: o, nu: n });
-    }
   };
   box.onchange = async e => {
     const t = e.target,
