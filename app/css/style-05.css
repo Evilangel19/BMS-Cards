@@ -616,3 +616,11 @@ dialog[open]::backdrop {
 .drow2 .drow {
   margin: 0;
 }
+.btn.g.bl {
+  background: #1d5f99;
+  color: #fff;
+  border-color: #3a8fd6;
+}
+.btn.g.bl:hover {
+  background: #2574b8;
+}

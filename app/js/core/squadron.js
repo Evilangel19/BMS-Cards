@@ -6,6 +6,7 @@
 
 import { medalSvg, rankSvg } from './medals.js';
 import {
+  orgNewPackageWith,
   orgToTemplate,
   orgFromTemplate,
   newOrg,
@@ -2301,7 +2302,7 @@ export function createSquadronPage(deps) {
           on = sw ? sw.online().length : 0,
           own = owns(q),
           mem = live(q).filter(r => r.uid != DB.uid);
-        return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g" data-open>Open</button><button class="btn g rd" data-leave>${own ? 'Delete' : 'Leave'}</button></div>
+        return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g bl" data-inv title="Copy the invite code of this squadron">Invite</button><button class="btn g" data-open title="Show this squadron in Members and Organization">Open</button><button class="btn g rd" data-leave>${own ? 'Delete' : 'Leave'}</button></div>
       ${own && mem.length ? `<details class="sqmod"><summary>Moderation</summary><div class="hint">Remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</details>` : ''}</div>`;
       })
       .join('');
@@ -2313,10 +2314,11 @@ export function createSquadronPage(deps) {
       const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => {
         DB.cur = q.id;
+        DB.tab = 'members';
         save();
         drawAll();
-        $('#sqhead').scrollIntoView({ block: 'start' });
       };
+      el.querySelector('[data-inv]').onclick = async () => copy(await squadInvite(q));
       el.querySelector('[data-leave]').onclick = async () => {
         if (owns(q)) {
           deleteSquad(q);
@@ -2752,7 +2754,7 @@ export function createSquadronPage(deps) {
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
 </div><div class="sqpane" data-pane="me">
-<div class="sqc"><div class="sqhd"><h3>My pilot</h3><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button></div></div><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><div class="sqhd"><h3>My pilot</h3><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqtwo">
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
 <div class="sqc"><div class="sqhd"><h3>Servers <small>PhoneBkn.ini</small></h3><div class="sqhr"><button class="btn g" id="sqpbopen">Open phone book…</button></div></div><div id="sqpb" class="sqpbbox"></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
@@ -2790,6 +2792,7 @@ export function createSquadronPage(deps) {
         if (sw) sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
       },
       canAll: () => canSendAll(cur()),
+      newPack: uid => orgAct(cur(), (q, actor, ctx) => orgNewPackageWith(q, actor, uid, ctx)),
       handover: () => {
         const q = cur(),
           nm = nameOfIn(q),

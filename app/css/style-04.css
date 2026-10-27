@@ -760,3 +760,11 @@ details.sqmod summary {
   font-size: 12px;
   margin-top: 4px;
 }
+.sqhr {
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.sqone button {
+  width: 84px;
+}

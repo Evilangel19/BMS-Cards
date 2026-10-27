@@ -1115,8 +1115,9 @@
   color: #14181d;
 }
 .ogsend {
+  --send: var(--fc, var(--ac));
   margin-top: 6px;
-  background: var(--ac);
+  background: var(--send);
   color: #07140d;
   border: 0;
   border-radius: 6px;

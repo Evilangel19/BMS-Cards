@@ -13,6 +13,7 @@ import {
   flightWarning,
   orgToTemplate,
   orgFromTemplate,
+  orgNewPackageWith,
 } from '../app/js/core/organization.js';
 import { orgHtml } from '../app/js/core/orgpage.js';
 
@@ -414,6 +415,15 @@ ok(
     orgFromTemplate(w, 'mc1', { pk: [] }, ctx()).ok &&
       orgView(orgFromTemplate(w, 'mc1', { pk: [] }, ctx()).q).packages.length === 0
   );
+  const np = orgNewPackageWith(w, 'mc1', 'w2', ctx());
+  ok(
+    'a pilot dropped on Add package gets a package, a flight and his seat',
+    np.ok &&
+      orgView(np.q).packages.length === 2 &&
+      orgView(np.q).seat.w2 &&
+      orgView(np.q).packages[1].flights.length === 1
+  );
+  ok('a wingman cannot create a package this way', !orgNewPackageWith(w, 'w1', 'w2', ctx()).ok);
   ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
 }
 

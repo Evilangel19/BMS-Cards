@@ -412,3 +412,21 @@ export function orgFromTemplate(q, actor, tpl, ctx) {
   }
   return { ok: true, q: cur };
 }
+
+/**
+ * A pilot dropped on "Add package": a new package with a first flight and the pilot in it.
+ * ctx: as in orgReduce. @returns {{ok:true, q:any}|{ok:false, error:string}}
+ */
+export function orgNewPackageWith(q, actor, uid, ctx) {
+  let last = '';
+  const rid = () => (last = ctx.rid());
+  const step = (cur, a) => orgReduce(cur, actor, a, { ...ctx, rid });
+  const n = orgView({ org: q.org, roster: q.roster }).packages.length;
+  let r = step(q, { t: 'pk+', name: 'Package ' + (n + 1) });
+  if (!r.ok) return r;
+  const pid = last;
+  r = step(r.q, { t: 'fl+', pk: pid, name: 'Flight 1' });
+  if (!r.ok) return r;
+  const fid = last;
+  return step(r.q, { t: 'as', uid, f: fid });
+}

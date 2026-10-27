@@ -73,7 +73,7 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
   }</div>
 <div class="ogrole"><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${
     adm
-      ? '<div class="bar"><button class="btn g" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button><button class="btn g rd" data-clear>Clear all</button></div>'
+      ? '<div class="bar"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button><button class="btn g rd" data-clear>Clear all</button></div>'
       : '<div class="oghelp">Set up by the commanders</div>'
   }<div class="bar"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
 
@@ -118,7 +118,9 @@ ${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disable
     })
     .join('');
   const addPk =
-    adm && view.packages.length < MAX_PACKAGES ? '<button class="ogadd wide" data-addpk>+ Add package</button>' : '';
+    adm && view.packages.length < MAX_PACKAGES
+      ? '<button class="ogadd wide ogdrop" data-addpk data-drop="@pk">+ Add package</button>'
+      : '';
   const empty = !view.packages.length
     ? `<div class="oghelp ogempty">No packages yet.${adm ? ' Add a package, then its flights, and drag the pilots into them.' : ' The commander or the mission commander sets up the packages and flights.'}</div>`
     : '';
@@ -231,7 +233,10 @@ export function wireOrg(box, h) {
       ok = new Map();
       zones().forEach(z => {
         const f = z.dataset.drop,
-          r = orgReduce(q, h.me, { t: 'as', uid, f }, { now: Date.now(), rid: () => 'x', online: h.online() });
+          r =
+            f == '@pk'
+              ? orgReduce(q, h.me, { t: 'pk+', name: 'x' }, { now: Date.now(), rid: () => 'x', online: h.online() })
+              : orgReduce(q, h.me, { t: 'as', uid, f }, { now: Date.now(), rid: () => 'x', online: h.online() });
         ok.set(f, r.ok);
         z.classList.toggle('okdrop', r.ok);
       });
@@ -281,8 +286,11 @@ export function wireOrg(box, h) {
       box.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => box.removeEventListener('click', swallow, true), 0);
       if (z) {
-        if (ok.get(z.dataset.drop)) run({ t: 'as', uid, f: z.dataset.drop });
-        else h.toast('This pilot cannot go there.');
+        if (!ok.get(z.dataset.drop)) h.toast('This pilot cannot go there.');
+        else if (z.dataset.drop == '@pk') {
+          const r = h.newPack(uid);
+          if (!r.ok) h.toast(r.error);
+        } else run({ t: 'as', uid, f: z.dataset.drop });
       }
       box.dispatchEvent(new Event('dragend')); // the board is drawn again if something changed while he dragged
     };
