@@ -73,9 +73,9 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
   }</div>
 <div class="ogrole"><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${
     adm
-      ? '<div class="bar"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button><button class="btn g rd" data-clear>Clear all</button></div>'
+      ? '<div class="ogbtns"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button><button class="btn g rd" data-clear>Clear all</button></div>'
       : '<div class="oghelp">Set up by the commanders</div>'
-  }<div class="bar"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
+  }<div class="ogbtns one"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
 
   // pilots who fly nowhere
   const free = view.unassigned.slice().sort((a, b) => on(b) - on(a) || nameOf(a).localeCompare(nameOf(b)));
@@ -172,6 +172,14 @@ export function wireOrg(box, h) {
     if (!r.ok) h.toast(r.error);
     return r;
   };
+  // the open mission names the new package or flight when it can (its name is not used in the squadron yet)
+  const prefName = (kind, base, used, pk) => {
+    const t = h.hint && h.hint();
+    const want = !t ? '' : kind == 'pk' ? 'Package ' + t.pk : t.fl;
+    const taken = kind == 'pk' ? view().packages.map(p => p.n) : (pk ? pk.flights : []).map(f => f.n);
+    if (want && !taken.some(n => n.toLowerCase() == want.toLowerCase())) return want;
+    return nameN(base, used);
+  };
   const nameN = (base, used) => {
     let i = used + 1;
     return base + ' ' + i;
@@ -181,10 +189,10 @@ export function wireOrg(box, h) {
     const b = e.target.closest('button');
     if (!b) return;
     const d = b.dataset;
-    if ('addpk' in d) run({ t: 'pk+', name: nameN('Package', view().packages.length) });
+    if ('addpk' in d) run({ t: 'pk+', name: prefName('pk', 'Package', view().packages.length) });
     else if (d.addfl) {
       const p = view().packages.find(x => x.id === d.addfl);
-      run({ t: 'fl+', pk: d.addfl, name: nameN('Flight', p ? p.flights.length : 0) });
+      run({ t: 'fl+', pk: d.addfl, name: prefName('fl', 'Flight', p ? p.flights.length : 0, p) });
     } else if (d.delpk) {
       if (await h.confirm('Delete this package and its flights? The pilots go back to Unassigned.'))
         run({ t: 'pk-', id: d.delpk });

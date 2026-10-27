@@ -28,6 +28,19 @@ import { dtcBtns, dtcReloaded } from './dtcapply.js';
 /* Mission (core/mission.js): one folder per package = the mission file (package taken out of the campaign, the DTC as opened with its changes kept apart, the datacard with its
    automatic and manual values), the program settings, the cards and a copy of the original kneeboards. The mission works without the campaign. */
 export const MSFPREFS = ['mapprefs.json', 'dtcprefs.json', 'dtcdefaults.json', 'mfddefault.json'];
+// what the open campaign, TE or mission offers to name packages and flights of a squadron: the selected flight and all the flights
+export function msfIdent() {
+  const list = ST.CL || [];
+  if (!ST.C || !list.length) return null;
+  const no = x => {
+      const P = ST.C.byId && ST.C.byId[x.f.pkg.n + ':' + x.f.pkg.c];
+      return String((P && P.campId) || x.f.pkg.n);
+    },
+    cs = x => x.label.split(' · ')[0] || '',
+    x = list[+$('fsel').value || 0] || list[0],
+    uniq = a => [...new Set(a.filter(Boolean))];
+  return { pk: no(x), fl: cs(x), pks: uniq(list.map(no)), fls: uniq(list.map(cs)) };
+}
 // default name of a mission: package number + callsign of the flight, e.g. "1301 Hawkeye 4"
 export function msfName(x) {
   const p = x.label.split(' · '),

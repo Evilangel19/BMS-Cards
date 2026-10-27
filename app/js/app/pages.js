@@ -47,7 +47,7 @@ import { draw } from './cardview.js';
 import { dtcDir, wxWind } from './campaign.js';
 import { openSettings } from './settings.js';
 import { APP_VERSION } from '../core/version.js';
-import { msfBuild, msfLoad, msfSources, msfGroupsOf, msfForSend, msfStoreReceived } from './mission.js';
+import { msfIdent, msfBuild, msfLoad, msfSources, msfGroupsOf, msfForSend, msfStoreReceived } from './mission.js';
 
 export let mapV;
 const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
@@ -350,7 +350,12 @@ export async function init11() {
     loadMission: t => msfLoad(t, null),
     version: APP_VERSION,
     saveReceived: (t, n) => msfStoreReceived(t, n),
-    mission: { sources: () => msfSources(), groups: id => msfGroupsOf(id), forSend: (id, t) => msfForSend(id, t) },
+    mission: {
+      ident: () => msfIdent(),
+      sources: () => msfSources(),
+      groups: id => msfGroupsOf(id),
+      forSend: (id, t) => msfForSend(id, t),
+    },
   });
   pfPage = createPerfPage({
     esc,

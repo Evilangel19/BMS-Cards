@@ -1244,3 +1244,17 @@ body.og-dragging * {
   cursor: grabbing !important;
   user-select: none;
 }
+.ogbtns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+}
+.ogbtns.one {
+  grid-template-columns: 1fr;
+}
+.ogbtns .btn {
+  margin: 0;
+  white-space: nowrap;
+}

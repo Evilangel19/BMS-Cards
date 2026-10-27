@@ -423,6 +423,11 @@ ok(
       orgView(np.q).seat.w2 &&
       orgView(np.q).packages[1].flights.length === 1
   );
+  const nn = orgNewPackageWith(w, 'mc1', 'w2', { ...ctx(), names: { pk: 'Package 1301', fl: 'Hawkeye 4' } });
+  ok(
+    'the names of the open mission are used',
+    nn.ok && orgView(nn.q).packages[1].n === 'Package 1301' && orgView(nn.q).packages[1].flights[0].n === 'Hawkeye 4'
+  );
   ok('a wingman cannot create a package this way', !orgNewPackageWith(w, 'w1', 'w2', ctx()).ok);
   ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
 }

@@ -2542,6 +2542,21 @@ export function createSquadronPage(deps) {
     return s;
   };
   let orgPending = false;
+  // names offered by the open campaign, TE or mission (null when none is open)
+  // the first package and flight name the open mission offers that the squadron does not use yet
+  const hintNames = q => {
+    const t = hint(),
+      v = orgView(q),
+      used = new Set(v.packages.map(p => p.n.toLowerCase()));
+    return t && !used.has(('Package ' + t.pk).toLowerCase()) ? { pk: 'Package ' + t.pk, fl: t.fl } : null;
+  };
+  const hint = () => {
+    try {
+      return (deps.mission && deps.mission.ident && deps.mission.ident()) || null;
+    } catch (e) {
+      return null;
+    }
+  };
   function drawOrg() {
     const box = $('#sqorg');
     if (!box) return;
@@ -2748,13 +2763,13 @@ export function createSquadronPage(deps) {
 <div class="sqmain">
 <div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
 <div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
-<div class="sqc" id="sqlost" hidden></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
-<div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
+<div class="sqc" id="sqlost" hidden></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
 </div><div class="sqpane" data-pane="me">
-<div class="sqc"><div class="sqhd"><h3>My pilot</h3><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
+<div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 <div class="sqtwo">
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
 <div class="sqc"><div class="sqhd"><h3>Servers <small>PhoneBkn.ini</small></h3><div class="sqhr"><button class="btn g" id="sqpbopen">Open phone book…</button></div></div><div id="sqpb" class="sqpbbox"></div><input type="file" id="sqpbfile" accept=".ini" hidden></div>
@@ -2792,7 +2807,9 @@ export function createSquadronPage(deps) {
         if (sw) sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
       },
       canAll: () => canSendAll(cur()),
-      newPack: uid => orgAct(cur(), (q, actor, ctx) => orgNewPackageWith(q, actor, uid, ctx)),
+      newPack: uid =>
+        orgAct(cur(), (q, actor, ctx) => orgNewPackageWith(q, actor, uid, { ...ctx, names: hintNames(q) })),
+      hint,
       handover: () => {
         const q = cur(),
           nm = nameOfIn(q),
