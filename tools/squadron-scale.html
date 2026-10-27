@@ -43,7 +43,13 @@ window.SC = {
     return Promise.all(P.filter(p => idx.includes(p.i)).map(p => p.sw.start()));
   },
   status() {
-    return P.map(p => ({ i: p.i, online: p.sw.online().length, peers: p.sw.peers.size, roster: Object.keys(p.roster).length, av: Object.values(p.roster).filter(r => r.av && r.av.length > 100).length, recv: p.recv.length, skipped: p.sw.diag.skipped || 0, opened: p.sw.diag.open }));
+    return P.map(p => ({ i: p.i, online: p.sw.online().length, peers: p.sw.peers.size, roster: Object.keys(p.roster).length, av: Object.values(p.roster).filter(r => r.av && r.av.length > 100).length, miss: Object.keys(p.roster).filter(u => u != p.uid && !p.sw.online().some(q => q.uid == u)), err: p.sw.diag.err || '', ice: p.sw.diag.ice, closed: p.sw.diag.closed, rly: [p.sw.diag.rOff, p.sw.diag.rFwd, p.sw.diag.rAns, p.sw.diag.rAcc], recv: p.recv.length, skipped: p.sw.diag.skipped || 0, opened: p.sw.diag.open }));
+  },
+  async probe() { const t0 = performance.now(), l = SQ.createLink({ stun: false }); await l.rawOffer(); const d = Math.round(performance.now() - t0); l.close(); return d; },
+  inspect(i, j) {
+    const pl = P.find(p => p.i == i), u = uidOf(j);
+    const d = q => ({ verified: q.verified, open: q.link.open, offerer: q.offerer, ageS: Math.round((Date.now() - q.t) / 1000), conn: q.link.pc.connectionState, uid: q.uid && +q.uid.slice(1, 4) });
+    return { withIt: [...pl.sw.peers.values()].filter(q => q.uid == u).map(d), unverifiedOpen: [...pl.sw.peers.values()].filter(q => !q.verified && q.link.open).map(d), links: [...pl.sw.peers.values()].filter(q => q.verified).length };
   },
   async send(chars) {
     const L = P.find(p => p.i == 0); if (!L) return null;

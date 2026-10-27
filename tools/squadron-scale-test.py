@@ -44,7 +44,7 @@ try:
         for k, pg in enumerate(pages):
             pg.evaluate('([idx,n,s,t,iv,av])=>SC.create(idx,n,s,t,iv,av)', [list(range(k * per, min(N, (k + 1) * per))), N, 'scale-secret', 'ws://localhost:%d' % (8799 + PORT - 8761), 25000, AV])
         t_mesh = t_roster = t_av = None; last = 0
-        while time.time() - t0 < 900:
+        while time.time() - t0 < int(os.environ.get('MAXT', 900)):
             time.sleep(5)
             st = [x for pg in pages for x in pg.evaluate('SC.status()')]
             el = time.time() - t0
@@ -54,10 +54,19 @@ try:
             if el - last >= 20:
                 last = el; print('%4ds links min/avg %d/%.1f of %d | roster min %d | avatars min %d | peer objects avg %.0f' % (el, min(x['online'] for x in st), sum(x['online'] for x in st) / N, N - 1, min(x['roster'] for x in st), min(x['av'] for x in st), sum(x['peers'] for x in st) / N), flush=True)
             if t_mesh and t_roster and t_av: break
-        fmt = lambda t: ('%ds' % t) if t else 'NOT REACHED in 900s'
+        fmt = lambda t: ('%ds' % t) if t else 'NOT REACHED'
         print('every pilot linked with every other:', fmt(t_mesh)); print('every roster complete:', fmt(t_roster)); print('every avatar arrived:', fmt(t_av), flush=True)
         st = [x for pg in pages for x in pg.evaluate('SC.status()')]
+        for x in st:
+            if x['miss']: print('  pilot %d lacks %s | peer objects %d | last error: %s | ice %s closed %s | relay offers/fwd/ans/acc %s' % (x['i'], [int(u[1:4]) for u in x['miss']], x['peers'], x['err'], x['ice'], x['closed'], x['rly']))
+        for x in st:
+            if x['miss']:
+                for j in x['miss']:
+                    jn = int(j[1:4]); pg_i = pages[x['i'] // per]; pg_j = pages[jn // per]
+                    print('   inspect %d about %d: %s' % (x['i'], jn, json.dumps(pg_i.evaluate('([a,b])=>SC.inspect(a,b)', [x['i'], jn]))))
+                    print('   inspect %d about %d: %s' % (jn, x['i'], json.dumps(pg_j.evaluate('([a,b])=>SC.inspect(a,b)', [jn, x['i']]))))
         print('now: links min %d, roster min %d, avatars min %d' % (min(x['online'] for x in st), min(x['roster'] for x in st), min(x['av'] for x in st)))
+        if os.environ.get('PROBE'): print('time to make one offer now, per page (ms):', [pg.evaluate('SC.probe()') for pg in pages], flush=True)
         r = pages[0].evaluate('c=>SC.send(c)', MIS); time.sleep(4)
         st = [x for pg in pages for x in pg.evaluate('SC.status()')]
         got = sum(1 for x in st if x['i'] != 0 and x['recv'] >= 1)

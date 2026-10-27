@@ -390,7 +390,15 @@ export function createLink({
     dc = ch;
     ch.bufferedAmountLowThreshold = 1 << 20;
     ch.onbufferedamountlow = () => waiters.splice(0).forEach(r => r());
-    ch.onopen = () => onOpen();
+    // a channel that arrives already open (the answering side) may never fire 'open': the link would then never send its challenge and the other pilot would never see it as verified
+    let opened = false;
+    const fire = () => {
+      if (opened) return;
+      opened = true;
+      onOpen();
+    };
+    ch.onopen = fire;
+    if (ch.readyState == 'open') fire();
     ch.onclose = () => {
       waiters.splice(0).forEach(r => r());
       Object.keys(acks).forEach(i => {
@@ -468,8 +476,16 @@ export function createLink({
       } else onMessage(m);
     };
   };
+  // 'disconnected' can pass by itself (a busy computer misses a check of the connection): the link counts as lost only if it is still so after a moment
+  let dcT = 0;
   pc.onconnectionstatechange = () => {
-    if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) onClose();
+    const st = pc.connectionState;
+    clearTimeout(dcT);
+    if (st == 'failed' || st == 'closed') onClose();
+    else if (st == 'disconnected')
+      dcT = setTimeout(() => {
+        if (pc.connectionState == 'disconnected') onClose();
+      }, 10000);
   };
   const send = async o => {
     try {
@@ -843,7 +859,22 @@ export function createSwarm({
     stopped: false,
     trackers: 0,
     tinfo: {},
-    diag: { err: '', sent: 0, recv: 0, ans: 0, ansRecv: 0, open: 0, closed: 0, ok: 0, wrong: 0, ice: {} },
+    diag: {
+      err: '',
+      rOff: 0,
+      rFwd: 0,
+      rAns: 0,
+      rAcc: 0,
+      sent: 0,
+      recv: 0,
+      ans: 0,
+      ansRecv: 0,
+      open: 0,
+      closed: 0,
+      ok: 0,
+      wrong: 0,
+      ice: {},
+    },
   };
   let ih = '',
     myId = '',
@@ -861,6 +892,7 @@ export function createSwarm({
       },
       onClose: () => {
         S.diag.closed++;
+        link.close(); // a link this side forgets is closed for the other side too: otherwise he keeps it and the two never link again
         if (S.peers.get(p.challenge) === p) {
           S.peers.delete(p.challenge);
           if (p.verified) {
@@ -875,6 +907,7 @@ export function createSwarm({
         if (m.k == 'chal') {
           link.send({ k: 'hello', proof: await hmac(secret, 'proof:' + m.n), ...me() });
         } else if (m.k == 'hello') {
+          if (p.verified) return;
           if (m.proof !== (await hmac(secret, 'proof:' + p.challenge))) {
             S.diag.wrong++;
             link.close();
@@ -965,25 +998,33 @@ export function createSwarm({
             S.peers.delete(r.p.challenge);
           }
         }
-      let n = 0;
+      const todo = [];
       for (const [u, q] of via) {
         if (!wantSince.has(u)) wantSince.set(u, now);
         // of two pilots that miss each other the one with the smaller id offers; the other one offers too after a while (the first may be an older program)
         if (!(mine < u) && now - wantSince.get(u) < 20000) continue;
         if ([...relays.values()].some(r => r.to === u)) continue;
-        if (++n > 6) break;
-        const id = rnd20(),
-          pl = mkLink(null, true);
-        try {
-          const offer = await pl.link.rawOffer();
-          relays.set(id, { p: pl, to: u, t: Date.now() });
-          q.link.send({ k: 'rly', t: 'o', o: mine, d: u, id, sdp: offer });
-        } catch (e) {
-          S.diag.err = 'relay offer: ' + ((e && e.message) || e);
-          pl.link.close();
-          S.peers.delete(pl.challenge);
-        }
+        if (todo.length >= 10) break;
+        todo.push([u, q]);
       }
+      // the offers are made together (each waits for the gathering of the addresses of its connection)
+      await Promise.all(
+        todo.map(async ([u, q]) => {
+          const id = rnd20(),
+            pl = mkLink(null, true);
+          relays.set(id, { p: pl, to: u, t: Date.now() });
+          try {
+            const offer = await pl.link.rawOffer();
+            S.diag.rOff++;
+            q.link.send({ k: 'rly', t: 'o', o: mine, d: u, id, sdp: offer });
+          } catch (e) {
+            S.diag.err = 'relay offer: ' + ((e && e.message) || e);
+            relays.delete(id);
+            pl.link.close();
+            S.peers.delete(pl.challenge);
+          }
+        })
+      );
     } finally {
       relayBusy = false;
       if (relayAgain) {
@@ -1007,13 +1048,17 @@ export function createSwarm({
     const dest = m.t == 'o' ? m.d : m.o;
     if (dest !== mine) {
       const t = S.byUid(dest);
-      if (t) t.link.send(m); // I am the pilot in the middle
+      if (t) {
+        S.diag.rFwd++;
+        t.link.send(m); // I am the pilot in the middle
+      }
       return;
     }
     if (m.t == 'o') {
       if (S.online().some(q => q.uid === m.o) || !allow(m.o)) return;
       const pl = mkLink(null, false);
       try {
+        S.diag.rAns++;
         const sdp = await pl.link.rawAnswer(m.sdp);
         p.link.send({ k: 'rly', t: 'a', o: m.o, d: mine, id: m.id, sdp });
       } catch (e) {
@@ -1025,6 +1070,7 @@ export function createSwarm({
       const r = relays.get(m.id);
       if (!r || r.to !== m.d) return;
       relays.delete(m.id);
+      S.diag.rAcc++;
       try {
         await r.p.link.rawAccept(m.sdp);
       } catch (e) {
@@ -1141,6 +1187,11 @@ export function createSwarm({
           o.p.link.close();
           S.peers.delete(o.p.challenge);
         }
+      }
+    for (const p of S.peers.values())
+      if (p.link.open && !p.verified && now - p.t > 8000 && now - (p.chalAt || 0) > 8000) {
+        p.chalAt = now;
+        p.link.send({ k: 'chal', n: p.challenge }); // the first one may have been lost
       }
     for (const [k, p] of S.peers)
       if (!p.link.open && now - p.t > 90000) {
