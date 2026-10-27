@@ -708,3 +708,6 @@ input[type='range'] {
 :is(#mpbody, .mpx).game .flb.m b {
   color: #000;
 }
+.sqedit[hidden] {
+  display: none;
+}

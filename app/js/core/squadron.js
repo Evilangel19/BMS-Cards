@@ -1977,6 +1977,111 @@ export function createSquadronPage(deps) {
 
   // ----- MEMBERS: the roster -----
   // compact roster on the left of the Members page: search, online dot, leader tag; a click shows the pilot in the table
+  // ---- the members table: search, filter, sort, and only the first rows of a big squadron ----
+  let memCtx = null,
+    findT = 0;
+  const mem = { filter: 'all', sort: 'online', limit: 40 };
+  const MEM_STEP = 40;
+  // the flight of a pilot with his roles, for the table
+  const flightCell = (ov, q, uid) => {
+    const s = ov.seat[uid],
+      p = s && ov.packages.find(x => x.id === s.pk),
+      f = p && p.flights.find(x => x.id === s.fl),
+      tags = [
+        uid === q.mc ? 'MISSION CMD' : '',
+        ov.packages.some(x => x.lead === uid) ? 'PACKAGE LEAD' : '',
+        f && f.lead === uid ? 'LEAD' : '',
+      ].filter(Boolean);
+    return (
+      (f ? esc(p.n + ' · ' + f.n) : '—') +
+      tags
+        .map(t => ` <span class="ogtag ${t == 'LEAD' ? 'fl' : t == 'PACKAGE LEAD' ? 'pk' : 'cmd'}">${t}</span>`)
+        .join('')
+    );
+  };
+  function drawTable() {
+    const c = memCtx,
+      tb = $('#sqtabbox');
+    if (!c || !tb) return;
+    const { q, list, onUid, m, row } = c,
+      ov = orgView(q),
+      f = (($('#sqfind') && $('#sqfind').value) || '').trim().toLowerCase();
+    const flts = ov.packages.flatMap(p => p.flights.map(x => [x.id, p.n + ' · ' + x.n])),
+      opts = [
+        ['all', 'All pilots'],
+        ['online', 'Online'],
+        ['offline', 'Offline'],
+        ...(flts.length ? [['free', 'No flight'], ...flts] : []),
+      ];
+    if (!opts.some(o => o[0] == mem.filter)) mem.filter = 'all';
+    const sel = $('#sqflt');
+    if (sel)
+      sel.innerHTML = opts
+        .map(o => `<option value="${esc(o[0])}"${o[0] == mem.filter ? ' selected' : ''}>${esc(o[1])}</option>`)
+        .join('');
+    const srt = $('#sqsrt');
+    if (srt) srt.value = mem.sort;
+    const isOn = u => u == DB.uid || onUid.has(u);
+    let all = orderRoster(q, [q.roster[DB.uid] || { uid: DB.uid }, ...list], onUid);
+    const total = all.length;
+    all = all.filter(r => {
+      const x = r.uid == DB.uid ? m : r;
+      if (f && !((x.callsign || '') + ' ' + (x.name || '')).toLowerCase().includes(f)) return false;
+      if (mem.filter == 'online') return isOn(r.uid);
+      if (mem.filter == 'offline') return !isOn(r.uid);
+      if (mem.filter == 'free') return !ov.seat[r.uid];
+      if (mem.filter != 'all') return !!ov.seat[r.uid] && ov.seat[r.uid].fl == mem.filter;
+      return true;
+    });
+    const nm = r => String((r.uid == DB.uid ? m.callsign : r.callsign) || (r.uid == DB.uid ? m.name : r.name) || '');
+    if (mem.sort == 'callsign') all.sort((a, b) => nm(a).localeCompare(nm(b)));
+    else if (mem.sort == 'seen')
+      all.sort((a, b) => (isOn(b.uid) ? Infinity : b.lastSeen || 0) - (isOn(a.uid) ? Infinity : a.lastSeen || 0));
+    else if (mem.sort == 'flight') {
+      const ix = new Map(ov.packages.flatMap(p => p.flights).map((x, i) => [x.id, i]));
+      const k = r => (ov.seat[r.uid] ? ix.get(ov.seat[r.uid].fl) : 1e6);
+      all.sort((a, b) => k(a) - k(b) || nm(a).localeCompare(nm(b)));
+    }
+    const shown = all.slice(0, mem.limit);
+    $('#sqshown') &&
+      ($('#sqshown').textContent = all.length == total ? total + ' pilots' : all.length + ' of ' + total + ' pilots');
+    tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Flight</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${shown.map(r => row(r, r.uid == DB.uid)).join('')}</tbody></table>
+      ${all.length > shown.length ? `<div class="bar" style="margin-top:6px"><button class="btn g" id="sqmore">Show ${Math.min(MEM_STEP, all.length - shown.length)} more (${all.length - shown.length} left)</button></div>` : ''}
+      ${!all.length ? '<div class="hint">No pilot found.</div>' : list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
+    const more = $('#sqmore');
+    if (more)
+      more.onclick = () => {
+        mem.limit += MEM_STEP;
+        drawTable();
+      };
+    tb.querySelectorAll('tr[data-uid]').forEach(tr => {
+      const uid = tr.dataset.uid;
+      tr.querySelectorAll('input[data-f]').forEach(
+        i =>
+          (i.onchange = () => {
+            mkMe(q);
+            touchMember(q, uid, r => {
+              r[i.dataset.f] = i.value;
+            });
+          })
+      );
+      const ld = tr.querySelector('[data-lead]');
+      if (ld)
+        ld.onclick = () => {
+          q.leader = q.leader == uid ? '' : uid;
+          touchSquad(q);
+          drawAll();
+        };
+      const sd = tr.querySelector('[data-send]');
+      if (sd)
+        sd.onclick = () => {
+          const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid);
+          if (!p) return result(false, 'Mission not sent', 'This pilot is not online any more.');
+          sendFlow([toTarget(q.id, p)]);
+        };
+    });
+    drawList(q, list, onUid, m);
+  }
   function drawList(q, list, onUid, m) {
     const box = $('#sqlist');
     if (!box) return;
@@ -1990,6 +2095,7 @@ export function createSquadronPage(deps) {
     });
     box.innerHTML =
       shown
+        .slice(0, 60)
         .map(r => {
           const isMe = r.uid == DB.uid,
             x = isMe ? m : r,
@@ -2009,10 +2115,22 @@ export function createSquadronPage(deps) {
           )}</div></span><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></div>`;
         })
         .join('') || '<div class="hint">No pilot found.</div>';
+    if (shown.length > 60)
+      box.insertAdjacentHTML(
+        'beforeend',
+        `<div class="hint">${shown.length - 60} more: type in the search to find them.</div>`
+      );
     box.querySelectorAll('[data-pick]').forEach(
       el =>
         (el.onclick = () => {
-          const tr = $('#sqtabbox').querySelector('tr[data-uid="' + el.dataset.pick + '"]');
+          let tr = $('#sqtabbox').querySelector('tr[data-uid="' + el.dataset.pick + '"]');
+          if (!tr) {
+            // hidden by the filter or beyond the first rows of the table: show it
+            mem.filter = 'all';
+            mem.limit = 1e6;
+            drawTable();
+            tr = $('#sqtabbox').querySelector('tr[data-uid="' + el.dataset.pick + '"]');
+          }
           if (!tr) return;
           $('#sqtabbox')
             .querySelectorAll('tr.sel')
@@ -2027,6 +2145,8 @@ export function createSquadronPage(deps) {
     if (!box) return;
     const q = cur();
     if (!q) {
+      memCtx = null;
+      if ($('#sqtabbox')) $('#sqtabbox').innerHTML = '';
       box.innerHTML =
         '<div class="hint">You are not in a squadron yet: create one or join with an invite code in the Me section.</div>';
       return;
@@ -2043,12 +2163,13 @@ export function createSquadronPage(deps) {
           onUid.has(b.uid) - onUid.has(a.uid) ||
           String(a.callsign || a.name).localeCompare(String(b.callsign || b.name))
       );
-    const canSend = canSendAll(q),
-      flights = orgHasFlights(q); // with flights the leaders are the flight leads: the star of the mission leader is not shown
+    const ov = orgView(q),
+      canSend = canSendAll(q),
+      flights = ov.packages.some(p => p.flights.length > 0); // with flights the leaders are the flight leads: the star of the mission leader is not shown
     const row = (r, isMe) => {
       const o = isMe || onUid.has(r.uid),
         ed = own || isMe;
-      return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
+      return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${flightCell(ov, q, r.uid)}</td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
       <td class="sqa">${flights ? '' : `<button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>`}${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
     };
@@ -2058,16 +2179,8 @@ export function createSquadronPage(deps) {
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
       <div class="bar" style="margin-top:10px"><button class="btn g" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
-    const tb = $('#sqtabbox');
-    tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${orderRoster(
-      q,
-      [q.roster[DB.uid] || { uid: DB.uid }, ...list],
-      onUid
-    )
-      .map(r => row(r, r.uid == DB.uid))
-      .join('')}</tbody></table>
-      ${list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
-    drawList(q, list, onUid, m);
+    memCtx = { q, list, onUid, m, row };
+    drawTable();
     $('#sqsel').onchange = e => {
       DB.cur = e.target.value;
       save();
@@ -2102,32 +2215,6 @@ export function createSquadronPage(deps) {
       };
       $('#sqdelete').onclick = () => deleteSquad(q);
     }
-    tb.querySelectorAll('tr[data-uid]').forEach(tr => {
-      const uid = tr.dataset.uid;
-      tr.querySelectorAll('input[data-f]').forEach(
-        i =>
-          (i.onchange = () => {
-            mkMe(q);
-            touchMember(q, uid, r => {
-              r[i.dataset.f] = i.value;
-            });
-          })
-      );
-      const ld = tr.querySelector('[data-lead]');
-      if (ld)
-        ld.onclick = () => {
-          q.leader = q.leader == uid ? '' : uid;
-          touchSquad(q);
-          drawAll();
-        };
-      const sd = tr.querySelector('[data-send]');
-      if (sd)
-        sd.onclick = () => {
-          const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid);
-          if (!p) return result(false, 'Mission not sent', 'This pilot is not online any more.');
-          sendFlow([toTarget(q.id, p)]);
-        };
-    });
     $('#sqcopyinv').onclick = async () => copy(await squadInvite(q));
     if (own) {
       $('#sqlogo').onclick = () => $('#sqlogofile').click();
@@ -2653,7 +2740,7 @@ export function createSquadronPage(deps) {
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
 <div class="sqmain">
 <div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
-<div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div id="sqtabbox" style="overflow-x:auto"></div></div>
+<div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
 <div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button><button class="btn g" id="sqdiag" title="Copies a technical report to paste when something does not work">Copy diagnostics</button></div><h4>Received</h4><div id="sqrecv"></div></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
@@ -2778,7 +2865,20 @@ export function createSquadronPage(deps) {
         drawPb();
       }
     };
-    $('#sqfind').oninput = () => drawMembers();
+    $('#sqfind').oninput = () => {
+      mem.limit = MEM_STEP;
+      clearTimeout(findT);
+      findT = setTimeout(drawTable, 120);
+    };
+    $('#sqflt').onchange = e => {
+      mem.filter = e.target.value;
+      mem.limit = MEM_STEP;
+      drawTable();
+    };
+    $('#sqsrt').onchange = e => {
+      mem.sort = e.target.value;
+      drawTable();
+    };
     $('#sqdiag').onclick = () => copy(diag(S.err));
     $('#sqbcast').onclick = () => {
       const q = cur(),
