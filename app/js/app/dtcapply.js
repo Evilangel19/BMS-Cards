@@ -265,7 +265,7 @@ function applyDTC0(fl) {
     const s = g('STPT', k)
       .split(',')
       .map(x => x.trim());
-    if (s.length >= 4 && +s[3] >= 0 && (+s[0] || +s[1]) && ST.C) {
+    if (s.length >= 4 && (+s[0] || +s[1]) && ST.C) {
       F[fk] = s[4] && !/^not set$/i.test(s[4]) ? s[4] : dn;
       F[lk] = CAM.geoLL(ST.C, +s[1] / 3280.84, +s[0] / 3280.84);
     }
@@ -322,7 +322,7 @@ export function afterDtc(k, fromPage) {
       const q = G('STPT', kk)
         .split(',')
         .map(x => x.trim());
-      if (q.length >= 4 && +q[3] >= 0 && (+q[0] || +q[1])) {
+      if (q.length >= 4 && (+q[0] || +q[1])) {
         F[fk] = q[4] && !/^not set$/i.test(q[4]) ? q[4] : dn;
         F[lk] = CAM.geoLL(ST.C, +q[1] / 3280.84, +q[0] / 3280.84);
       } else {

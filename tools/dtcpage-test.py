@@ -66,6 +66,9 @@ try:
         # datacard <-> DTC
         pg.once('dialog', lambda d: d.accept()); pg.click('#dtcrev'); pg.wait_for_timeout(500)
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", cam); pg.wait_for_timeout(800)
+        # STPT 99 / 98 set by coordinates only (feature index -1, the way the map and the DTC write them) are the Primary / Secondary of the datacard
+        pg.evaluate("()=>{const f=(k,v)=>{const l=__app.lines.find(l=>l.k==k);l.v=v;l.dirty=1};f('target_98','1000000.000000, 2000000.000000, -50.000000, -1, Test primary');f('target_97','1100000.000000, 2100000.000000, -60.000000, -1, Test secondary');const s=document.querySelector('#fsel');s.dispatchEvent(new Event('change'))}"); pg.wait_for_timeout(2500)
+        check('STPT 99 / 98 with coordinates and no feature (-1) fill Primary and Secondary of the datacard', pg.evaluate("__app.F.pri") == 'Test primary' and pg.evaluate("__app.F.sec") == 'Test secondary' and bool(pg.evaluate("__app.F.ll1")) and bool(pg.evaluate("__app.F.ll2")))
         card = lambda lab: "[...document.querySelectorAll('#form label')].find(l=>l.textContent=='%s').nextSibling" % lab
         setcard = lambda lab, v: pg.evaluate("v=>{const e=%s;e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}" % card(lab), v)
         go('sys'); check('the "from Datacard" switch is on by default (ICP, EWS and Weapons)', pg.evaluate("document.querySelector('[data-sync=icp]').classList.contains('on')") and pg.evaluate("()=>{const d=__app.ST.DCS;return d.icp&&d.ews&&d.wpn}"))

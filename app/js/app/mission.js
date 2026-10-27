@@ -36,7 +36,9 @@ export function msfName(x) {
   return PJ.safeName(no + ' ' + (p[0] || ''));
 }
 export function msfCardKeys() {
-  return Object.keys(F).filter(k => (typeof F[k] == 'string' && !/^__/.test(k)) || k == '__taf');
+  return Object.keys(F).filter(
+    k => ((typeof F[k] == 'string' || typeof F[k] == 'number') && !/^__/.test(k)) || k == '__taf'
+  );
 }
 export async function wxPack(u8) {
   const s = new Blob([u8]).stream().pipeThrough(new CompressionStream('deflate')),
@@ -131,10 +133,11 @@ export async function msfBuild() {
   const final = {},
     auto = {};
   msfCardKeys().forEach(k => {
-    final[k] = F[k];
+    final[k] = typeof F[k] == 'number' ? String(F[k]) : F[k]; // numbers (airfield elevations) travel as text like the other fields
   });
   FD.forEach(d => {
-    auto[d.k] = (ST.AUTO && ST.AUTO[d.k]) || '';
+    const a = ST.AUTO && ST.AUTO[d.k];
+    auto[d.k] = a || a === 0 ? String(a) : '';
   });
   const manual = PJ.diffFields(
     ST.AUTO || {},
