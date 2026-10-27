@@ -15,6 +15,19 @@ import {
   RX_MAX_CHUNKS,
   RX_MAX_OPEN,
   RX_TTL,
+  FR_LIMIT,
+  FR_PIECE,
+  FR_MAX_PARTS,
+  frSplit,
+  frJoin,
+  avHash,
+  syncMsg,
+  rosterOut,
+  avNeeded,
+  avServe,
+  avAccept,
+  mergeRoster,
+  distribute,
 } from '../app/js/core/squadron.js';
 let ok = true;
 const ck = (n, c) => {
@@ -307,5 +320,154 @@ ck(
   }
   ck('rx: a block that inflates beyond the limit is dropped', tooMuch);
   ck('rx: within the limit it is read in full', (await unzip(big, 300000)).length === 200000);
+}
+// big squadrons: messages above the size a data channel carries, the roster without pictures, one mission for many pilots
+{
+  const big = { k: 'sync', roster: { a: { av: 'x'.repeat(300000) } } },
+    txt = JSON.stringify(big),
+    parts = frSplit(txt);
+  ck(
+    'fr: a message over 256 KB is split in pieces that each stay far below the limit',
+    parts.length > 5 && parts.every(m => JSON.stringify(m).length < FR_LIMIT + 200) && parts[0].d.length === FR_PIECE
+  );
+  const buf = {};
+  let out = null;
+  for (const m of [...parts].reverse()) out = frJoin(buf, m) || out;
+  ck(
+    'fr: the pieces in any order give the message back, and nothing stays in the buffer',
+    out && out.roster.a.av.length === 300000 && !Object.keys(buf).length
+  );
+  ck(
+    'fr: a wrong piece is refused (bad id, too many parts, index out of range, not a text), a half message expires',
+    frJoin({}, { k: 'fr', id: '', i: 0, n: 1, d: 'x' }) === null &&
+      frJoin({}, { k: 'fr', id: 'a', i: 0, n: FR_MAX_PARTS + 1, d: 'x' }) === null &&
+      frJoin({}, { k: 'fr', id: 'a', i: 5, n: 2, d: 'x' }) === null &&
+      frJoin({}, { k: 'fr', id: 'a', i: 0, n: 1, d: 5 }) === null &&
+      (() => {
+        const b = {};
+        frJoin(b, { k: 'fr', id: 'a', i: 0, n: 2, d: '{' }, 1000);
+        frJoin(b, { k: 'fr', id: 'z', i: 0, n: 2, d: '{' }, 1000 + 61000);
+        return !b.a && !!b.z;
+      })()
+  );
+  const b2 = {};
+  ck(
+    'fr: at most four messages are put together at once, a message that is not an object or holds a piece is refused',
+    [1, 2, 3, 4, 5].map(i => frJoin(b2, { k: 'fr', id: 'm' + i, i: 0, n: 2, d: '{' })).every(x => x === null) &&
+      Object.keys(b2).length === 4 &&
+      frJoin({}, { k: 'fr', id: 'p', i: 0, n: 1, d: '5' }) === null &&
+      frJoin({}, { k: 'fr', id: 'p', i: 0, n: 1, d: JSON.stringify({ k: 'fr' }) }) === null
+  );
+  // roster
+  const av = n => 'data:image/webp;base64,' + 'A'.repeat(n);
+  const mk = (n, size) =>
+    Object.fromEntries(
+      Array.from({ length: n }, (_, i) => ['u' + i, { uid: 'u' + i, callsign: 'C' + i, ts: 5, av: av(size) }])
+    );
+  const small = syncMsg({ name: 'S' }, mk(10, 3000)),
+    large = syncMsg({ name: 'S' }, mk(50, 9000));
+  ck(
+    'sync: a small roster travels whole, with the pictures (the form the older programs read)',
+    !small.lite && small.roster.u3.av.length > 3000
+  );
+  ck(
+    'sync: a big roster travels without the pictures, each with a fingerprint, and is small',
+    large.lite === 1 &&
+      !large.roster.u3.av &&
+      large.roster.u3.avh === avHash(av(9000)) &&
+      JSON.stringify(large).length < 20000
+  );
+  const mine = mk(50, 9000);
+  Object.values(mine).forEach(r => {
+    delete r.av;
+  });
+  const pend = new Map(),
+    need = avNeeded(mine, large.roster, pend);
+  ck(
+    'avatars: every missing picture is asked for once, and not again within the retry time',
+    need.length === 50 &&
+      avNeeded(mine, large.roster, pend).length === 0 &&
+      avNeeded(mine, large.roster, pend, Date.now() + 31000).length === 50
+  );
+  ck(
+    'avatars: a picture already here (same fingerprint) or from a newer entry of mine is not asked',
+    avNeeded(mk(50, 9000), large.roster).length === 0 &&
+      avNeeded(Object.fromEntries(Object.entries(mine).map(([k, r]) => [k, { ...r, ts: 9 }])), large.roster).length ===
+        0
+  );
+  const served = avServe(mk(50, 9000), ['u1', 'u2', 'nobody', 7]);
+  ck(
+    'avatars: a request is answered for the pilots known, one message each, 100 at most',
+    served.length === 2 &&
+      served[0].k === 'av' &&
+      avServe(
+        mk(300, 10),
+        Array.from({ length: 300 }, (_, i) => 'u' + i)
+      ).length === 100
+  );
+  const r1 = { u1: { uid: 'u1', ts: 5 } };
+  ck(
+    'avatars: a picture is taken only if it is a picture, is the announced one and belongs to the roster',
+    !avAccept(r1, { uid: 'u1', av: 'javascript:1', h: avHash('javascript:1') }) &&
+      !avAccept(r1, { uid: 'u1', av: av(10), h: 'bad' }) &&
+      !avAccept(r1, { uid: 'u9', av: av(10), h: avHash(av(10)) }) &&
+      avAccept(r1, { uid: 'u1', av: av(10), h: avHash(av(10)) }) &&
+      r1.u1.av === av(10)
+  );
+  const m = mergeRoster(
+    { u1: { uid: 'u1', ts: 1, av: av(10) } },
+    { u1: { uid: 'u1', ts: 2, avh: 'abc', callsign: 'N' } }
+  );
+  ck(
+    'roster: the fingerprint is not stored and the picture already held stays',
+    m.roster.u1.callsign === 'N' && !('avh' in m.roster.u1) && m.roster.u1.av === av(10)
+  );
+  ck(
+    'roster: rosterOut keeps the pictures that look right and drops the others',
+    Object.keys(rosterOut({ a: { av: 'x' }, b: { av: av(5) } }).a).includes('av') === false &&
+      !!rosterOut({ b: { av: av(5) } }).b.av
+  );
+}
+// one mission for many pilots
+{
+  let live = 0,
+    peak = 0,
+    zs = new Set();
+  const calls = {},
+    t = n => ({
+      label: 'P' + n,
+      send: async (text, name, o) => {
+        zs.add(o.z);
+        calls[n] = (calls[n] || 0) + 1;
+        live++;
+        peak = Math.max(peak, live);
+        await new Promise(r => setTimeout(r, 15));
+        live--;
+        if (n % 10 === 3) throw new Error('Not connected.'); // always fails
+        if (n % 10 === 7 && calls[n] === 1) throw new Error('Not connected.'); // fails once
+      },
+    });
+  const prog = [];
+  const r = await distribute(
+    Array.from({ length: 40 }, (_, i) => t(i)),
+    'mission',
+    'M',
+    { parallel: 4, wait: 5, onProgress: (d, n) => prog.push([d, n]) }
+  );
+  ck('distribute: at most four at a time and one compression for all', peak <= 4 && peak >= 2 && zs.size === 1);
+  ck(
+    'distribute: a failure is tried once more, then reported by name',
+    r.ok.length === 36 &&
+      r.bad.length === 4 &&
+      calls[7] === 2 &&
+      calls[3] === 2 &&
+      r.bad[0].startsWith('P3') &&
+      r.ok.includes('P7')
+  );
+  ck(
+    'distribute: the progress counts up to the total',
+    prog.length === 40 && prog[39][0] === 40 && prog[39][1] === 40 && typeof r.mid === 'string' && r.mid.length > 4
+  );
+  ck('distribute: nobody to send to is not an error', (await distribute([], 'x', 'y')).ok.length === 0);
 }
 process.exit(ok ? 0 : 1);

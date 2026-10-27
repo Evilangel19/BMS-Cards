@@ -218,6 +218,52 @@ const iceDone = (pc, ms = 5000) =>
     });
   });
 const CHUNK = 16000;
+// A data channel carries about 256 KB in one message (Chrome); a bigger one is lost without any error. Anything above FR_LIMIT characters goes in pieces ('fr') that the other side puts together.
+export const FR_LIMIT = 60000,
+  FR_PIECE = 48000,
+  FR_MAX_PARTS = 200, // 9.6 million characters at most
+  FR_MAX_OPEN = 4,
+  FR_TTL = 60000;
+export function frSplit(text, id = Math.random().toString(36).slice(2, 12)) {
+  const n = Math.ceil(text.length / FR_PIECE) || 1,
+    out = [];
+  for (let i = 0; i < n; i++) out.push({ k: 'fr', id, i, n, d: text.slice(i * FR_PIECE, (i + 1) * FR_PIECE) });
+  return out;
+}
+// a piece in: the message when it is complete (already read), null while pieces are missing or when something is wrong
+export function frJoin(buf, m, now = Date.now()) {
+  Object.keys(buf).forEach(k => {
+    if (now - buf[k].t > FR_TTL) delete buf[k];
+  });
+  if (typeof m.id != 'string' || !m.id || m.id.length > 40) return null;
+  if (!Number.isInteger(m.n) || m.n < 1 || m.n > FR_MAX_PARTS) return null;
+  if (!Number.isInteger(m.i) || m.i < 0 || m.i >= m.n || typeof m.d != 'string' || m.d.length > FR_PIECE * 2) {
+    delete buf[m.id];
+    return null;
+  }
+  let r = buf[m.id];
+  if (!r) {
+    if (Object.keys(buf).length >= FR_MAX_OPEN) return null;
+    r = buf[m.id] = { n: m.n, parts: [], got: 0, t: now };
+  }
+  if (r.n !== m.n) {
+    delete buf[m.id];
+    return null;
+  }
+  if (r.parts[m.i] === undefined) {
+    r.parts[m.i] = m.d;
+    r.got++;
+  }
+  r.t = now;
+  if (r.got < r.n) return null;
+  delete buf[m.id];
+  try {
+    const o = JSON.parse(r.parts.join(''));
+    return o && typeof o == 'object' && o.k !== 'fr' ? o : null;
+  } catch (e) {
+    return null;
+  }
+}
 // what a pilot of the squadron can send at most: a mission is a few MB; more, too many at once, or a transfer that stalls is refused
 export const RX_MAX_CHUNKS = 1000; // 16 MB compressed
 export const RX_MAX_TEXT = 64 * 1024 * 1024; // after unzipping
@@ -234,6 +280,7 @@ export function rxBegin(rx, m, now = Date.now()) {
   rx[m.id] = {
     name: String(m.name == null ? '' : m.name).slice(0, 200),
     from: String(m.from == null ? '' : m.from).slice(0, 100),
+    mid: typeof m.mid == 'string' ? m.mid.slice(0, 40) : '',
     n: m.n,
     parts: [],
     got: 0,
@@ -332,12 +379,20 @@ export function createLink({
   const pc = new RTCPeerConnection({ iceServers: [...(stun ? STUN : []), ...turn] });
   let dc = null,
     rx = {};
-  const acks = {};
+  const acks = {},
+    frs = {},
+    waiters = [];
+  // waits until the channel has sent most of what was queued (several messages may wait at once)
+  const drain = async () => {
+    while (dc && dc.readyState == 'open' && dc.bufferedAmount > 1 << 20) await new Promise(r => waiters.push(r));
+  };
   const wire = ch => {
     dc = ch;
     ch.bufferedAmountLowThreshold = 1 << 20;
+    ch.onbufferedamountlow = () => waiters.splice(0).forEach(r => r());
     ch.onopen = () => onOpen();
     ch.onclose = () => {
+      waiters.splice(0).forEach(r => r());
       Object.keys(acks).forEach(i => {
         const a = acks[i];
         delete acks[i];
@@ -351,6 +406,11 @@ export function createLink({
         m = JSON.parse(e.data);
       } catch (x) {
         return;
+      }
+      if (!m || typeof m != 'object') return;
+      if (m.k == 'fr') {
+        m = frJoin(frs, m);
+        if (!m) return;
       }
       if (m.k == 'mack') {
         const a = acks[m.id];
@@ -397,7 +457,7 @@ export function createLink({
             }
           }
           if (txt !== null) {
-            onMessage({ k: 'mission', name: r.name, from: r.from, text: txt });
+            onMessage({ k: 'mission', name: r.name, from: r.from, mid: r.mid, text: txt });
             try {
               ch.send(JSON.stringify({ k: 'mack', id: m.id, ok: true }));
             } catch (y) {
@@ -412,7 +472,21 @@ export function createLink({
     if (['failed', 'closed', 'disconnected'].includes(pc.connectionState)) onClose();
   };
   const send = async o => {
-    if (dc && dc.readyState == 'open') dc.send(JSON.stringify(o));
+    try {
+      if (!(dc && dc.readyState == 'open')) return false;
+      const t = JSON.stringify(o);
+      if (t.length <= FR_LIMIT) {
+        dc.send(t);
+        return true;
+      }
+      for (const piece of frSplit(t)) {
+        await drain();
+        dc.send(JSON.stringify(piece));
+      }
+      return true;
+    } catch (e) {
+      return false; // the channel closed while sending
+    }
   };
   // the descriptions (what a tracker passes along) and the same wrapped in a code (what a pilot swaps by hand)
   const rawOffer = async () => {
@@ -451,30 +525,35 @@ export function createLink({
       return pack({ t: 'answer', sdp: a.sdp });
     },
     send,
-    async sendMission(text, name, from) {
+    // opt.z: the mission already compressed (the same for many pilots); opt.mid: one identifier for all the copies of a sending, so a copy that arrives twice is shown once
+    async sendMission(text, name, from, opt = {}) {
       if (!dc || dc.readyState != 'open') throw new Error('Not connected.');
-      const z = await zip(text),
+      const z = opt.z || (await zip(text)),
         n = Math.ceil(z.length / CHUNK),
         id = Math.random().toString(36).slice(2);
-      dc.send(JSON.stringify({ k: 'mp', id, name, n, from }));
+      dc.send(
+        JSON.stringify({
+          k: 'mp',
+          id,
+          name,
+          n,
+          from: from && typeof from == 'object' ? from.callsign || from.name || '' : from,
+          mid: opt.mid || '',
+        })
+      );
       const answer = new Promise((res, rej) => {
         acks[id] = { res, rej };
         setTimeout(() => {
           if (acks[id]) {
             delete acks[id];
-            rej(new Error('The other pilot did not confirm within 30 seconds: the mission may not have arrived.'));
+            rej(new Error('The other pilot did not confirm within a minute: the mission may not have arrived.'));
           }
-        }, 30000);
+        }, 60000);
       });
       answer.catch(() => {});
       for (let i = 0; i < n; i++) {
-        if (dc.bufferedAmount > 1 << 20)
-          await new Promise(r => {
-            dc.onbufferedamountlow = () => {
-              dc.onbufferedamountlow = null;
-              r();
-            };
-          });
+        await drain();
+        if (!dc || dc.readyState != 'open') throw new Error('Not connected.');
         dc.send(JSON.stringify({ k: 'mc', id, i, d: z.slice(i * CHUNK, (i + 1) * CHUNK) }));
       }
       await answer;
@@ -634,6 +713,7 @@ export function mergeRoster(mine, theirs) {
     const o = out[uid],
       m = { ...m0 };
     if ('av' in m && !okImg(m.av)) delete m.av;
+    delete m.avh; // a fingerprint of the picture (big squadrons), not part of the entry
     if (!o || (m.ts || 0) > (o.ts || 0)) {
       out[uid] = { ...(o || {}), ...m };
       changed = true;
@@ -642,11 +722,107 @@ export function mergeRoster(mine, theirs) {
   return { roster: out, changed };
 }
 
+// ---------- big squadrons: the roster without the pictures, the pictures on request, one mission for many pilots ----------
+// a short fingerprint of a picture: a pilot compares it with his own to know which avatars he still needs
+export const avHash = s => {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+};
+export const SYNC_FULL_MAX = 150000; // up to this size the roster travels whole, with the pictures (the form older programs read)
+export const rosterOut = roster =>
+  Object.fromEntries(
+    Object.entries(roster).map(([k, r]) => {
+      const { av, ...x } = r;
+      return [k, okImg(av) ? { ...x, av } : x];
+    })
+  ); // the avatars of the pilots travel in the roster too, so the ones of pilots who are offline arrive as well
+export const rosterLite = roster =>
+  Object.fromEntries(
+    Object.entries(roster).map(([k, r]) => {
+      const { av, ...x } = r;
+      return [k, okImg(av) ? { ...x, avh: avHash(av) } : x];
+    })
+  );
+// the message that brings a pilot up to date: whole when small, without the pictures (each with its fingerprint) when it would be big
+export function syncMsg(meta, roster) {
+  const full = { k: 'sync', squad: meta, roster: rosterOut(roster) };
+  return JSON.stringify(full).length <= SYNC_FULL_MAX
+    ? full
+    : { k: 'sync', squad: meta, roster: rosterLite(roster), lite: 1 };
+}
+// after a roster without pictures: the pilots whose picture is missing or different here; 'pending' keeps what was asked a moment ago, so a picture is not asked to every pilot at once
+export function avNeeded(mine, theirs, pending = new Map(), now = Date.now(), retry = 30000) {
+  const out = [];
+  for (const [uid, t] of Object.entries(theirs || {})) {
+    if (!t || typeof t.avh != 'string' || !t.avh || t.avh.length > 16) continue;
+    const r = mine[uid];
+    if (!r || (r.av && avHash(r.av) === t.avh) || (t.ts || 0) < (r.ts || 0)) continue;
+    if (pending.has(uid) && now - pending.get(uid) < retry) continue;
+    pending.set(uid, now);
+    out.push(uid);
+    if (out.length >= 100) break;
+  }
+  return out;
+}
+export const avServe = (roster, uids) =>
+  (Array.isArray(uids) ? uids.slice(0, 100) : [])
+    .filter(u => typeof u == 'string' && roster[u] && okImg(roster[u].av))
+    .map(u => ({ k: 'av', uid: u, av: roster[u].av, h: avHash(roster[u].av) }));
+// a picture that was asked for: kept only if it looks like a picture, is the one announced, and belongs to a pilot of the roster
+export function avAccept(roster, m) {
+  const r = typeof m.uid == 'string' && roster[m.uid];
+  if (!r || !okImg(m.av) || m.h !== avHash(m.av) || r.av === m.av) return false;
+  r.av = m.av;
+  return true;
+}
+// one mission to many pilots: compressed once, a few at a time, each failure tried once more. targets: [{label, send(text, name, {z, mid})}] (the pilot is looked up when the turn comes, not before)
+export async function distribute(
+  targets,
+  text,
+  name,
+  { parallel = 4, retries = 1, wait = 1500, onProgress = () => {}, mid = randHex(8) } = {}
+) {
+  const z = await zip(text),
+    ok = [],
+    bad = [];
+  let next = 0,
+    done = 0;
+  const one = async t => {
+    let err;
+    for (let a = 0; a <= retries; a++) {
+      try {
+        await t.send(text, name, { z, mid });
+        ok.push(t.label);
+        return;
+      } catch (e) {
+        err = e;
+        if (a < retries) await new Promise(r => setTimeout(r, wait));
+      }
+    }
+    bad.push(t.label + ': ' + ((err && err.message) || err));
+  };
+  const run = async () => {
+    while (next < targets.length) {
+      await one(targets[next++]);
+      done++;
+      onProgress(done, targets.length, ok.length, bad.length);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(parallel, targets.length) }, run));
+  return { ok, bad, mid };
+}
+
 // ---------- the swarm: trackers pass the offers, the pilots of the squadron connect ----------
 // Protocol of the WebTorrent trackers (WebSocket, JSON): announce {action, info_hash, peer_id, offers: [{offer_id, offer}], numwant} -> the tracker hands each offer to another
 // peer of the swarm, which answers with {action: 'announce', info_hash, peer_id, to_peer_id, offer_id, answer}; the tracker hands the answer back to the offerer.
 // Every pilot announces as a downloader (left > 0): some trackers never match two seeders (left = 0) with each other.
 // A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
+const MAX_OFFERS = 6, // offers in one announce when many pilots are not linked yet
+  FAST_ANNOUNCE = 8000; // ms between announces then
 export function createSwarm({
   secret,
   me,
@@ -690,6 +866,7 @@ export function createSwarm({
           if (p.verified) {
             p.verified = false;
             if (!S.online().some(q => q.uid == p.uid)) onPeer(p, 'left');
+            gossip();
           }
           onChange();
         }
@@ -730,8 +907,17 @@ export function createSwarm({
             av: m.av || '',
           };
           onPeer(p, 'joined');
+          p.link.send({ k: 'lk', u: S.online().map(q => q.uid) });
+          gossip();
           onChange();
-        } else if (p.verified) onMessage(p, m);
+        } else if (p.verified && m.k == 'lk') {
+          // the pilots this one is linked with: the way to link with those I am not linked with yet
+          p.links = new Set(
+            (Array.isArray(m.u) ? m.u : []).filter(u => typeof u == 'string' && u.length <= 64).slice(0, 500)
+          );
+          relayTick();
+        } else if (p.verified && m.k == 'rly') relayMsg(p, m);
+        else if (p.verified) onMessage(p, m);
       },
     });
     link.pc.addEventListener('iceconnectionstatechange', () => {
@@ -743,11 +929,127 @@ export function createSwarm({
     S.peers.set(p.challenge, p);
     return p;
   };
+  // ---- linking through the pilots already linked: the trackers only bring the first links, the rest goes from pilot to pilot ----
+  // 'lk': the list of the pilots I am linked with, told to every pilot when it changes. 'rly': an offer (t 'o') or an answer (t 'a') of two pilots that are not linked yet, passed on by a pilot linked with both.
+  let gossipT = 0;
+  const gossip = () => {
+    clearTimeout(gossipT);
+    gossipT = setTimeout(() => {
+      if (!S.stopped) S.online().forEach(q => q.link.send({ k: 'lk', u: S.online().map(x => x.uid) }));
+    }, 400);
+  };
+  const relays = new Map(), // offer id -> {p, to, t}: offers sent through another pilot, waiting for the answer
+    wantSince = new Map(); // uid -> when I first saw him missing
+  let relayBusy = false,
+    relayAgain = false;
+  const relayTick = async () => {
+    if (S.stopped) return;
+    if (relayBusy) {
+      relayAgain = true; // asked again while working: once more when done
+      return;
+    }
+    relayBusy = true;
+    try {
+      const mine = me().uid,
+        now = Date.now(),
+        direct = new Set(S.online().map(q => q.uid)),
+        via = new Map();
+      for (const q of S.online())
+        for (const u of q.links || []) if (u !== mine && !direct.has(u) && allow(u) && !via.has(u)) via.set(u, q);
+      for (const u of [...wantSince.keys()]) if (!via.has(u)) wantSince.delete(u);
+      for (const [id, r] of relays)
+        if (now - r.t > 30000) {
+          relays.delete(id);
+          if (!r.p.link.open) {
+            r.p.link.close();
+            S.peers.delete(r.p.challenge);
+          }
+        }
+      let n = 0;
+      for (const [u, q] of via) {
+        if (!wantSince.has(u)) wantSince.set(u, now);
+        // of two pilots that miss each other the one with the smaller id offers; the other one offers too after a while (the first may be an older program)
+        if (!(mine < u) && now - wantSince.get(u) < 20000) continue;
+        if ([...relays.values()].some(r => r.to === u)) continue;
+        if (++n > 6) break;
+        const id = rnd20(),
+          pl = mkLink(null, true);
+        try {
+          const offer = await pl.link.rawOffer();
+          relays.set(id, { p: pl, to: u, t: Date.now() });
+          q.link.send({ k: 'rly', t: 'o', o: mine, d: u, id, sdp: offer });
+        } catch (e) {
+          S.diag.err = 'relay offer: ' + ((e && e.message) || e);
+          pl.link.close();
+          S.peers.delete(pl.challenge);
+        }
+      }
+    } finally {
+      relayBusy = false;
+      if (relayAgain) {
+        relayAgain = false;
+        relayTick();
+      }
+    }
+  };
+  const sdpOk = (x, type) =>
+    x && typeof x == 'object' && x.type === type && typeof x.sdp == 'string' && x.sdp.length < 40000;
+  const relayMsg = async (p, m) => {
+    const mine = me().uid;
+    if (
+      typeof m.id != 'string' ||
+      m.id.length > 64 ||
+      typeof m.o != 'string' ||
+      typeof m.d != 'string' ||
+      !sdpOk(m.sdp, m.t == 'o' ? 'offer' : 'answer')
+    )
+      return;
+    const dest = m.t == 'o' ? m.d : m.o;
+    if (dest !== mine) {
+      const t = S.byUid(dest);
+      if (t) t.link.send(m); // I am the pilot in the middle
+      return;
+    }
+    if (m.t == 'o') {
+      if (S.online().some(q => q.uid === m.o) || !allow(m.o)) return;
+      const pl = mkLink(null, false);
+      try {
+        const sdp = await pl.link.rawAnswer(m.sdp);
+        p.link.send({ k: 'rly', t: 'a', o: m.o, d: mine, id: m.id, sdp });
+      } catch (e) {
+        S.diag.err = 'relay answer: ' + ((e && e.message) || e);
+        pl.link.close();
+        S.peers.delete(pl.challenge);
+      }
+    } else {
+      const r = relays.get(m.id);
+      if (!r || r.to !== m.d) return;
+      relays.delete(m.id);
+      try {
+        await r.p.link.rawAccept(m.sdp);
+      } catch (e) {
+        S.diag.err = 'relay accept: ' + ((e && e.message) || e);
+        r.p.link.close();
+        S.peers.delete(r.p.challenge);
+      }
+    }
+  };
+  // how many pilots the trackers say are in the swarm and are not linked with me yet (-1: no tracker said)
+  const missing = () => {
+    const now = Date.now();
+    let k = -1;
+    for (const t of Object.values(S.tinfo))
+      if (t && !t.fail && now - t.at < interval * 3 + 5000) k = Math.max(k, t.peers);
+    return k < 0 ? -1 : Math.max(0, k - 1 - S.online().length);
+  };
   const announce = async ws => {
     if (ws.readyState !== 1 || S.stopped) return;
+    const miss = missing(),
+      pend = [...S.peers.values()].filter(q => !q.link.open).length,
+      want = Math.max(0, Math.min(miss < 0 ? offers : Math.min(MAX_OFFERS, miss), 60 - pend));
     const list = (
       await Promise.all(
-        Array.from({ length: offers }, async () => {
+        Array.from({ length: want }, async () => {
           const id = rnd20(),
             p = mkLink(null, true);
           pending.set(id, { p, t: Date.now() });
@@ -772,7 +1074,7 @@ export function createSwarm({
           uploaded: 0,
           downloaded: 0,
           left: 1,
-          numwant: offers,
+          numwant: want,
           offers: list,
         })
       );
@@ -790,6 +1092,11 @@ export function createSwarm({
       return;
     }
     if (m.offer && m.peer_id && m.peer_id !== myId) {
+      // already linked (or being linked) with this pilot: a second link would only be closed again
+      if ([...S.peers.values()].some(q => q.pid === m.peer_id && (q.link.open || Date.now() - q.t < 20000))) {
+        S.diag.skipped = (S.diag.skipped || 0) + 1;
+        return;
+      }
       const p = mkLink(m.peer_id);
       S.diag.recv++;
       try {
@@ -882,14 +1189,20 @@ export function createSwarm({
           return ws;
         })
         .filter(Boolean);
-      timer = setInterval(() => {
+      // quick while somebody of the swarm is not linked yet, then the usual pace
+      const tick = () => {
+        if (S.stopped) return;
         sweep();
+        relayTick();
         S.socks.forEach(announce);
-      }, interval);
+        timer = setTimeout(tick, missing() !== 0 ? Math.min(interval, FAST_ANNOUNCE) : interval);
+      };
+      timer = setTimeout(tick, Math.min(interval, FAST_ANNOUNCE));
     },
     stop() {
       S.stopped = true;
-      clearInterval(timer);
+      clearTimeout(timer);
+      clearTimeout(gossipT);
       S.socks.forEach(w => {
         try {
           w.close();
@@ -1048,6 +1361,12 @@ export async function cropImage(file, size = 128, round = false, title = 'Pictur
       o.getContext('2d').drawImage(bmp, ox * f, oy * f, bmp.width * k * f, bmp.height * k * f);
       let u = o.toDataURL('image/webp', 0.85);
       if (!u.startsWith('data:image/webp')) u = o.toDataURL('image/png');
+      // a small avatar stays small (24 KB at most): it travels to every pilot of the squadron
+      const cap = size > 160 ? 60000 : 24000;
+      for (const qv of [0.7, 0.55, 0.4, 0.3]) {
+        if (u.length <= cap || !u.startsWith('data:image/webp')) break;
+        u = o.toDataURL('image/webp', qv);
+      }
       if (!okImg(u)) {
         w.remove();
         document.removeEventListener('keydown', key);
@@ -1141,9 +1460,16 @@ export function createSquadronPage(deps) {
           ? Math.round(s / 3600) + ' h ago'
           : Math.round(s / 86400) + ' days ago';
   };
+  const seenMid = new Set();
   const onRecv = (m, who, sqName) => {
-    recv.unshift({ text: m.text, name: m.name, from: label(m.from || who), squad: sqName || '' });
-    say('Mission "' + m.name + '" received from ' + label(m.from || who) + '.');
+    if (m.mid) {
+      if (seenMid.has(m.mid)) return; // the same sending arrived twice (a retry): shown once
+      seenMid.add(m.mid);
+      if (seenMid.size > 50) seenMid.delete(seenMid.values().next().value);
+    }
+    const from = who && (who.callsign || who.name) ? label(who) : (typeof m.from == 'string' && m.from) || 'a pilot';
+    recv.unshift({ text: m.text, name: m.name, from, squad: sqName || '' });
+    say('Mission "' + m.name + '" received from ' + from + '.');
     drawMis();
     deps.toast && deps.toast('Mission received: ' + m.name);
     const r0 = recv[0];
@@ -1159,7 +1485,7 @@ export function createSquadronPage(deps) {
         })
         .catch(e => say('The received mission could not be saved: ' + ((e && e.message) || e)));
     pop(
-      `<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(label(m.from || who))}.<br>Load it now? (it opens the mission and applies the DTC groups you choose to your own DTC)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`,
+      `<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(from)}.<br>Load it now? (it opens the mission and applies the DTC groups you choose to your own DTC)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`,
       (o, c) => {
         o.querySelector('[data-x]').onclick = c;
         o.querySelector('[data-ok]').onclick = async () => {
@@ -1229,13 +1555,6 @@ export function createSquadronPage(deps) {
     logo: q.logo || '',
     ts: q.ts,
   });
-  const rosterOut = q =>
-    Object.fromEntries(
-      Object.entries(q.roster).map(([k, r]) => {
-        const { av, ...x } = r;
-        return [k, okImg(av) ? { ...x, av } : x];
-      })
-    ); // the avatars of the pilots travel in the roster too, so the ones of pilots who are offline arrive as well
   function swarmStart(q) {
     swarmStop(q.id);
     if (typeof RTCPeerConnection == 'undefined') return;
@@ -1278,7 +1597,7 @@ export function createSquadronPage(deps) {
             });
             say(label(pr) + ' is online (' + q.name + ').');
           }
-          p.link.send({ k: 'sync', squad: meta(q), roster: rosterOut(q) });
+          p.link.send(syncMsg(meta(q), q.roster));
           save();
         } else if (q.roster[p.uid]) {
           q.roster[p.uid].lastSeen = Date.now();
@@ -1319,6 +1638,20 @@ export function createSquadronPage(deps) {
             save();
             drawAll();
           }
+          if (m.lite) {
+            // the roster came without the pictures: ask this pilot for the ones missing here
+            const need = avNeeded(q.roster, m.roster, avPending(q.id));
+            if (need.length) p.link.send({ k: 'avq', uids: need });
+          }
+        } else if (m.k == 'avq') {
+          (async () => {
+            for (const a of avServe(q.roster, m.uids)) if (!(await p.link.send(a))) break;
+          })();
+        } else if (m.k == 'av') {
+          if (avAccept(q.roster, m)) {
+            avPending(q.id).delete(m.uid);
+            laterSave();
+          }
         } else if (m.k == 'hello2') {
           const r = q.roster[p.uid];
           if ((r && okImg(m.av)) || (r && !m.av)) {
@@ -1358,9 +1691,20 @@ export function createSquadronPage(deps) {
     gsw.clear();
     DB.gone.forEach(goneStart);
   };
+  // pictures asked for (per squadron) and a save that waits a moment, because many pictures can arrive one after the other
+  const avAsk = new Map();
+  const avPending = id => avAsk.get(id) || avAsk.set(id, new Map()).get(id);
+  let avT = 0;
+  const laterSave = () => {
+    clearTimeout(avT);
+    avT = setTimeout(() => {
+      save();
+      drawAll();
+    }, 800);
+  };
   const pushSync = q => {
     const w = swarms.get(q.id);
-    if (w) w.broadcast({ k: 'sync', squad: meta(q), roster: rosterOut(q) });
+    if (w) w.broadcast(syncMsg(meta(q), q.roster));
   };
   const touchSquad = q => {
     q.ts = Date.now();
@@ -1686,7 +2030,7 @@ export function createSquadronPage(deps) {
         sd.onclick = () => {
           const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid);
           if (!p) return result(false, 'Mission not sent', 'This pilot is not online any more.');
-          sendFlow([{ label: label(p.profile), send: (t, n) => p.link.sendMission(t, n, me()) }]);
+          sendFlow([toTarget(q.id, p)]);
         };
     });
     $('#sqcopyinv').onclick = async () => copy(await squadInvite(q));
@@ -2093,6 +2437,16 @@ export function createSquadronPage(deps) {
     }
     return doSend(T(), JSON.stringify(m), m.name);
   };
+  // a pilot to send to: looked up by his id when the turn comes (the link seen first may have been replaced meanwhile by another one to the same pilot)
+  const toTarget = (qid, p) => ({
+    label: label(p.profile),
+    send: (t, n, opt) => {
+      const sw = swarms.get(qid),
+        cur = sw && sw.byUid(p.uid);
+      if (!cur) throw new Error('Not connected.');
+      return cur.link.sendMission(t, n, me(), opt);
+    },
+  });
   const doSend = async (tg, text, name) => {
     if (!tg.length) return result(false, 'Mission not sent', 'Nobody is online to receive it.');
     const w = pop(
@@ -2102,18 +2456,13 @@ export function createSquadronPage(deps) {
         tg.length +
         ' pilot' +
         (tg.length == 1 ? '' : 's') +
-        '. Please wait.</div>'
+        '. Please wait.</div><div data-prog class="hint" style="margin-top:6px"></div>'
     );
-    const ok = [],
-      bad = [];
-    for (const t of tg) {
-      try {
-        await t.send(text, name);
-        ok.push(t.label);
-      } catch (e) {
-        bad.push(t.label + ': ' + ((e && e.message) || e));
-      }
-    }
+    const prog = (d, n, a, b) => {
+      const e = w.o.querySelector('[data-prog]');
+      if (e) e.textContent = d + ' of ' + n + ' done' + (b ? ' · ' + b + ' failed' : '');
+    };
+    const { ok, bad } = await distribute(tg, text, name, { onProgress: prog });
     w.close();
     if (ok.length) say('Mission "' + name + '" sent to ' + ok.join(', ') + '.');
     if (bad.length) {
@@ -2250,9 +2599,7 @@ export function createSquadronPage(deps) {
       const q = cur(),
         sw = q && swarms.get(q.id);
       if (!sw) return;
-      sendFlow(() =>
-        sw.online().map(p => ({ label: label(p.profile), send: (t, n) => p.link.sendMission(t, n, me()) }))
-      );
+      sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
     };
     // direct connection
     $('#sqlead').onclick = guard(async () => {
