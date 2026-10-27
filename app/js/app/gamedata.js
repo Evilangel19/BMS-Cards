@@ -70,7 +70,16 @@ export async function loadTheaters() {
   sel.innerHTML = ST.THEATERS.map(t => `<option value="${esc(t.name)}">${esc(t.name)}</option>`).join('');
   if (ST.TH) sel.value = ST.TH.name;
 }
-export async function loadGameData(reloadTheaters = true) {
+// Loads one after the other, the last request wins: a slow load of a theater left behind can never finish in the middle of the next one and mix their tables.
+let LOADGEN = 0,
+  LOADING = Promise.resolve();
+export function loadGameData(reloadTheaters = true) {
+  const gen = ++LOADGEN,
+    run = LOADING.then(() => (gen === LOADGEN ? readGameData(reloadTheaters) : undefined));
+  LOADING = run.catch(() => {});
+  return run;
+}
+async function readGameData(reloadTheaters) {
   if (isDesktop() && !ST.CFG.paths.bmsInstall) {
     const d = await detectBms();
     if (d) {
@@ -347,14 +356,19 @@ export async function loadGameData(reloadTheaters = true) {
 
 // run 16: statements that run when the program starts (in the order of the original file)
 export async function init16() {
+  let tgen = 0;
   $('tsel').onchange = async () => {
+    const gen = ++tgen; // another choice made while this one is loading: only the last one goes on
     ST.CFG.theater = $('tsel').value;
     try {
       await saveConfig(ST.CFG);
     } catch (e) {}
+    if (gen !== tgen) return;
     ST.TH = ST.THEATERS.find(t => t.name === ST.CFG.theater) || ST.TH;
     await loadGameData(false);
+    if (gen !== tgen) return;
     await fillCampaigns();
+    if (gen !== tgen) return;
     await selectCampaign('');
   };
 }

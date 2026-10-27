@@ -15,7 +15,7 @@ import { parseDtc } from '../parsers/dtc.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { $, IO, appToast, enc8, esc, jclone } from './base.js';
-import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, view, openDtc } from './dtcfile.js';
+import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD } from './datacard.js';
 import { WXDIR, WXS, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
 import { harmPage, mapV, pfPage, sqPage } from './pages.js';
@@ -174,6 +174,7 @@ export async function msfSave() {
     if (!isDesktop()) {
       saveFile(new Blob([text]), PJ.missionFolder.file(msf.name), '');
       MSFSIG = msfSig();
+      ST.XBASE = extraSig();
       appToast('Mission saved: ' + PJ.missionFolder.file(msf.name));
       return;
     }
@@ -190,6 +191,7 @@ export async function msfSave() {
     await IO.writeBytes(joinPath(dir, PJ.missionFolder.settings), enc8(JSON.stringify(await msfSettings(), null, 1)));
     MSFDIR = dir;
     MSFSIG = msfSig();
+    ST.XBASE = extraSig();
     appToast('Mission saved in: ' + dir);
   } catch (e) {
     alert('Could not save the mission: ' + ((e && e.message) || e));
@@ -381,6 +383,37 @@ export async function msfLoad(text, file) {
       );
     }
   } // before anything of the program is replaced: a failure leaves it as it was
+  // everything that can fail while reading the file is prepared first: weather and map picture
+  const wxSeries = new Map();
+  let wxNow = null,
+    shot = null;
+  try {
+    if (p.weather && p.weather.series) {
+      for (const k of Object.keys(p.weather.series)) {
+        try {
+          wxSeries.set(+k, CAM.parseFmap(await wxUnpack(p.weather.series[k])));
+        } catch (e) {}
+      }
+    }
+    if (p.weather && p.weather.fmap) {
+      try {
+        wxNow = CAM.parseFmap(await wxUnpack(p.weather.fmap));
+      } catch (e) {}
+    }
+    if (p.mapshot) {
+      try {
+        const im = await loadImg(p.mapshot),
+          c = document.createElement('canvas');
+        c.width = im.naturalWidth;
+        c.height = im.naturalHeight;
+        c.getContext('2d').drawImage(im, 0, 0);
+        shot = c;
+      } catch (e) {}
+    }
+  } catch (e) {
+    return alert('Could not open the mission: ' + ((e && e.message) || e) + '\nNothing was changed.');
+  }
+  const snap = msfSnapshot();
   try {
     ST.NOPERF = true;
     WXS.clear();
@@ -399,20 +432,8 @@ export async function msfLoad(text, file) {
       acMemo.delete(p.aircraft.name);
     }
     pfPage.refresh();
-    if (p.weather && p.weather.series) {
-      for (const k of Object.keys(p.weather.series)) {
-        try {
-          WXS.set(+k, CAM.parseFmap(await wxUnpack(p.weather.series[k])));
-        } catch (e) {}
-      }
-    }
-    if (p.weather && p.weather.fmap) {
-      try {
-        ST.WX = CAM.parseFmap(await wxUnpack(p.weather.fmap));
-      } catch (e) {
-        ST.WX = null;
-      }
-    }
+    wxSeries.forEach((v, k) => WXS.set(k, v));
+    ST.WX = wxNow;
     try {
       mapV.setTanks(Array.isArray(p.tanks) ? p.tanks : []);
     } catch (e) {}
@@ -459,24 +480,111 @@ export async function msfLoad(text, file) {
     }
     const d = p.datacard;
     Object.assign(F, d.final || {});
-    await msfMapshot(p.mapshot);
+    ST.MAPSHOT = shot;
     ST.AUTO = Object.assign({}, d.auto || ST.AUTO);
     ST.MANK = new Set(Object.keys(d.manual || {}));
     view();
     markMan();
     atoCloseState();
     atoSearch();
+    ST.XBASE = extraSig();
     MSFSIG = shared ? '\u0000dtc-not-written' : msfSig(); // the DTC lines taken from the mission are not written yet: closing the program warns
   } catch (e) {
-    alert('Could not open the mission: ' + ((e && e.message) || e));
+    try {
+      msfRestore(snap); // the program goes back to what it was before the mission
+    } catch (e2) {}
+    alert('Could not open the mission: ' + ((e && e.message) || e) + '\nThe program was put back as it was.');
   } finally {
     ST.NOPERF = false;
   }
+}
+// the state a mission replaces, kept to put it back when the load fails halfway
+const SNAPK = [
+  'C',
+  'CL',
+  'OVR',
+  'LDX',
+  'AUTO',
+  'CURK',
+  'MANK',
+  'WX',
+  'L16',
+  'IFFP',
+  'CAMSEL',
+  'MSFAC',
+  'MSFLOCK',
+  'MSFCARD',
+  'MAPSHOT',
+  'DTCF',
+  'name',
+  'XBASE',
+  'ATOSEL',
+];
+export function msfSnapshot() {
+  const s = { st: {}, f: { ...F }, lines, dtc: DTCTEXT, wxs: new Map(WXS), files: WXDIR.files, weapons: msfWeapons() };
+  SNAPK.forEach(k => {
+    s.st[k] = ST[k];
+  });
+  s.html = { fsel: $('fsel').innerHTML, sel: $('fsel').value, cinfo: $('cinfo').textContent, fn: $('fn').textContent };
+  try {
+    s.tanks = jclone(mapV.tanks());
+  } catch (e) {
+    s.tanks = [];
+  }
+  return s;
+}
+export function msfRestore(s) {
+  SNAPK.forEach(k => {
+    ST[k] = s.st[k];
+  });
+  Object.keys(F).forEach(k => delete F[k]);
+  Object.assign(F, s.f);
+  WXS.clear();
+  s.wxs.forEach((v, k) => WXS.set(k, v));
+  WXDIR.files = s.files;
+  $('fsel').innerHTML = s.html.fsel;
+  $('fsel').value = s.html.sel;
+  $('cinfo').textContent = s.html.cinfo;
+  $('fn').textContent = s.html.fn;
+  [...$('fsel').options].forEach(o => {
+    o.disabled = false;
+  });
+  if (ST.MSFLOCK) [...$('fsel').options].forEach((o, k) => (o.disabled = String(k) !== s.html.sel));
+  restoreDtc(s.dtc, s.lines);
+  try {
+    mapV.setTanks(s.tanks);
+  } catch (e) {}
+  try {
+    s.weapons && s.weapons.wp && ST.wpPage.setState(s.weapons.wp);
+    s.weapons && s.weapons.harm && harmPage.setState(s.weapons.harm);
+    s.weapons && s.weapons.bvr && ST.msPage.setState(s.weapons.bvr);
+  } catch (e) {}
+  try {
+    view();
+    markMan();
+    atoSearch();
+  } catch (e) {}
 }
 // unsaved changes: the datacard fields typed by hand, the edited DTC lines; compared with what the last saved (or opened) mission held
 export let MSFSIG = '';
 export const dtcDirty = () => lines.some(l => l.dirty);
 // the values of the DTC (not the 'edited' marks, which a Save DTC clears: saving the file is not a change of the mission)
+// what a mission holds besides the datacard and the DTC: Weapons, HARM and BVR pages, tanker tracks, the map picture
+export const extraSig = () => {
+  try {
+    const w = msfWeapons();
+    if (w && w.wp) delete w.wp.fz; // read back from the DTC by the page when it opens: the DTC lines already count
+    return JSON.stringify([w, mapV.tanks(), ST.MAPSHOT ? [ST.MAPSHOT.width, ST.MAPSHOT.height] : 0]);
+  } catch (e) {
+    return '';
+  }
+};
+// the baseline is taken the first time it is asked after a flight is chosen or a mission is opened or saved
+const extraChanged = () => {
+  const s = extraSig();
+  if (ST.XBASE === undefined) ST.XBASE = s;
+  return s !== ST.XBASE;
+};
 export const msfSig = () => {
   try {
     return JSON.stringify([
@@ -484,12 +592,13 @@ export const msfSig = () => {
       manDiff(),
       [...ST.OVR.entries()],
       lines.map(l => l.s + '|' + l.k + '|' + l.v),
+      extraSig(),
     ]);
   } catch (e) {
     return '';
   }
 };
-export const unsaved = () => (hasMan() || dtcDirty()) && msfSig() !== MSFSIG;
+export const unsaved = () => (hasMan() || dtcDirty() || extraChanged()) && msfSig() !== MSFSIG;
 export let MSFDIR = '';
 
 // run 3: statements that run when the program starts (in the order of the original file)

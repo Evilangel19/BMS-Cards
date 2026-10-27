@@ -114,6 +114,20 @@ ck(
     P.parseMission('{}').error &&
     P.parseMission(JSON.stringify({ format: P.PROJECT_FORMAT, version: 99 })).error
 );
+{
+  const mk = o => P.parseMission(JSON.stringify({ format: P.MISSION_FORMAT, version: 1, ...o }));
+  ck(
+    'a mission with a wrong shape is refused: edits, weather, weapons, tanks, map picture',
+    mk({ dtc: { original: 'x', edits: 'x' } }).error &&
+      mk({ dtc: { original: 'x', edits: [{ s: 1 }] } }).error &&
+      mk({ weather: { fmap: 5 } }).error &&
+      mk({ weapons: { wp: [] } }).error &&
+      mk({ tanks: {} }).error &&
+      mk({ mapshot: 'javascript:1' }).error &&
+      !mk({ dtc: { original: 'x', edits: [] }, weapons: { wp: {} }, tanks: [], mapshot: 'data:image/png;base64,AA' })
+        .error
+  );
+}
 ck(
   'the manual changes are the fields that differ from the automatic values',
   JSON.stringify(P.diffFields({ a: '1', b: '2' }, { a: '1', b: '3', c: 'x' })) === '{"b":"3","c":"x"}'

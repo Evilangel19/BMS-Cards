@@ -87,6 +87,30 @@ try:
         pg.click('[data-t=wp]'); pg.wait_for_timeout(1200)
         check('the weapons page opens from the mission', pg.is_visible('#wp') and pg.locator('#wp .wcard, #wp .wrow').count() > 0)
         pg.click('[data-t=ms]') if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
+        # F10: the pictures, Weapons data and tankers count as changes; F11: a load that fails halfway puts everything back
+        pg.on('dialog', lambda d: d.accept())  # reopening over an open mission asks to discard
+        pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
+        check('F10: a mission just opened is not unsaved', pg.evaluate("()=>__app.unsaved()") is False)
+        pg.evaluate("()=>{const c=document.createElement('canvas');c.width=100;c.height=80;__app.MAPSHOT=c}"); pg.wait_for_timeout(200)
+        check('F10: changing the map picture alone makes the mission unsaved', pg.evaluate("()=>__app.unsaved()") is True)
+        pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
+        r = pg.evaluate("""async(t)=>{const c0=__app.C,f0=JSON.stringify(__app.F),n0=__app.lines.length,fs0=document.querySelector('#fsel').innerHTML,w0=JSON.stringify(__app.wpPage.state());
+          const oa=Object.assign;Object.assign=function(a){if(a===__app.F){Object.assign=oa;throw new Error('boom')}return oa.apply(this,arguments)};
+          try{await __app.msfLoad(t)}finally{Object.assign=oa}
+          return [__app.C===c0,JSON.stringify(__app.F)===f0,__app.lines.length===n0,document.querySelector('#fsel').innerHTML===fs0,JSON.stringify(__app.wpPage.state())===w0,__app.unsaved()]}""", msf)
+        check('F11: a load that fails halfway leaves campaign, datacard, DTC and Weapons as they were', r[:5] == [True] * 5)
+        check('F11: and the program is not left unsaved by it', r[5] is False)
+        bad = json.loads(msf); bad['dtc']['edits'] = 'x'
+        pg.evaluate("t=>__app.msfLoad(t)", json.dumps(bad)); pg.wait_for_timeout(300)
+        check('F11: a mission with a wrong shape is refused before anything changes', pg.evaluate("()=>__app.unsaved()") is False and pg.evaluate("()=>!!__app.C"))
+        pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
+        pg.evaluate("()=>{const s=__app.wpPage.state();s.mode=s.mode=='toss'?'bvr':'toss';__app.wpPage.setState(s)}"); pg.wait_for_timeout(300)
+        check('F10: changing the Weapons page alone makes the mission unsaved', pg.evaluate("()=>__app.unsaved()") is True)
+        # F31: loads of the game data started one on top of the other: only the last one runs, none of them fails
+        rr = pg.evaluate("""async()=>{const g=await import('/app/js/app/gamedata.js');let n=0;const t0=g.GAMEDATA;
+          const res=await Promise.allSettled([g.loadGameData(false),g.loadGameData(false),g.loadGameData(false)]);
+          return [res.every(x=>x.status=='fulfilled'),res.slice(0,2).every(x=>x.value===undefined)]}""")
+        check('F31: three loads of the game data at once all end well, the first two are skipped', rr == [True, True])
         check('no page errors in standalone use', not errs); print(errs)
         check('no page errors', not errs); print(errs)
         br.close()

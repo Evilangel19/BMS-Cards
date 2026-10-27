@@ -366,7 +366,53 @@ export function parseMission(text) {
   if (!(o.version >= 1)) return { error: 'The mission has no version number.' };
   if (o.version > MISSION_VERSION)
     return { error: 'This mission was saved by a newer program (format ' + o.version + '); update BMS Cards.' };
+  const bad = missionShapeError(o);
+  if (bad) return { error: 'The mission file is damaged (' + bad + '). Nothing was changed.' };
   return { mission: o };
+}
+// the shapes the loader relies on, checked before anything of the program is touched (the file may come from anybody)
+const isObj = x => !!x && typeof x == 'object' && !Array.isArray(x);
+export function missionShapeError(o) {
+  const optObj = (x, n) => (x == null || isObj(x) ? '' : n + ' is not an object');
+  const d = o.dtc;
+  if (d != null) {
+    if (!isObj(d)) return 'dtc is not an object';
+    if (d.original != null && typeof d.original != 'string') return 'dtc.original is not text';
+    if (d.edits != null) {
+      if (!Array.isArray(d.edits)) return 'dtc.edits is not a list';
+      if (!d.edits.every(e => isObj(e) && typeof e.s == 'string' && typeof e.k == 'string' && typeof e.v == 'string'))
+        return 'dtc.edits has a wrong line';
+    }
+    if (typeof d.original == 'string' && !Array.isArray(d.edits)) return 'dtc.edits is missing';
+    const e = optObj(d.share, 'dtc.share') || optObj(d.author, 'dtc.author');
+    if (e) return e;
+  }
+  const c = o.datacard;
+  if (c != null) {
+    if (!isObj(c)) return 'datacard is not an object';
+    const e =
+      optObj(c.final, 'datacard.final') || optObj(c.auto, 'datacard.auto') || optObj(c.manual, 'datacard.manual');
+    if (e) return e;
+    if (c.flight != null && typeof c.flight != 'string') return 'datacard.flight is not text';
+  }
+  const w = o.weather;
+  if (w != null) {
+    if (!isObj(w)) return 'weather is not an object';
+    if (w.fmap != null && typeof w.fmap != 'string') return 'weather.fmap is not text';
+    if (w.series != null && (!isObj(w.series) || !Object.values(w.series).every(v => typeof v == 'string')))
+      return 'weather.series is wrong';
+  }
+  const x = o.weapons;
+  if (x != null) {
+    if (!isObj(x)) return 'weapons is not an object';
+    for (const k of ['wp', 'harm', 'bvr'])
+      if (x[k] != null && !isObj(x[k])) return 'weapons.' + k + ' is not an object';
+  }
+  if (o.tanks != null && !Array.isArray(o.tanks)) return 'tanks is not a list';
+  if (o.mapshot != null && !(typeof o.mapshot == 'string' && /^data:image\/(png|jpeg);base64,/.test(o.mapshot)))
+    return 'mapshot is not a picture';
+  if (o.aircraft != null && !isObj(o.aircraft)) return 'aircraft is not an object';
+  return '';
 }
 // the manual changes of the datacard: the fields that differ from the automatic values
 export const diffFields = (auto, final, keys) => {

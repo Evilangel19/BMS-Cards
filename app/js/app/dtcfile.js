@@ -15,6 +15,12 @@ import { campaignIni } from '../core/mapdtc.js';
 export let lines = [];
 ST.name = 'DTC.ini';
 export let DTCTEXT = ''; // the DTC text as opened: the mission keeps it apart from the changes
+// puts back the DTC lines taken before a failed mission load
+export function restoreDtc(text, arr) {
+  DTCTEXT = text;
+  lines = arr;
+  view();
+}
 export function parse(t) {
   DTCTEXT = t;
   lines = parseDtc(t);

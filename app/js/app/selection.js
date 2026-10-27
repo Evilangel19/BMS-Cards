@@ -49,6 +49,7 @@ export function manClear() {
   ST.AUTO = null;
   ST.CURK = null;
   ST.MANK = new Set();
+  ST.XBASE = undefined;
 }
 export function apply(i, mode) {
   if (mode !== 'reset' && mode !== 'fresh' && ST.CURK !== null && ST.AUTO) {
@@ -57,6 +58,7 @@ export function apply(i, mode) {
     else ST.OVR.delete(ST.CURK);
   }
   ST.MAPSHOT = null;
+  ST.XBASE = undefined; // the other data of the mission (Weapons, HARM, BVR, tankers, map picture) start again from here
   ST.ATOSEL = ST.CL[i] && ST.CL[i].f;
   if (ST.ATOSEL && ST.ATOSEL.owner == PLAYER) {
     ATOOPEN.add(ST.ATOSEL.pkg.n);
