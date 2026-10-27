@@ -128,6 +128,34 @@ ck(
         .error
   );
 }
+{
+  const mk = o => P.parseMission(JSON.stringify({ format: P.MISSION_FORMAT, version: 1, ...o }));
+  const ed = e => mk({ dtc: { original: 'x', edits: [e] } });
+  ck(
+    'F14: a DTC edit cannot carry a line break, a "=" in the key or a bracket in the section (it would add lines of its own)',
+    ed({ s: 'STPT', k: 'a', v: '1\r\n[X]' }).error &&
+      ed({ s: 'STPT', k: 'a=b', v: '1' }).error &&
+      ed({ s: 'ST]PT', k: 'a', v: '1' }).error &&
+      ed({ s: 'STPT', k: 'a', v: 'x'.repeat(5000) }).error &&
+      !ed({ s: 'STPT', k: 'target_3', v: '1, 2, -500, 1, ' }).error
+  );
+  ck(
+    'F14: datacard values are text or numbers; the flight is a short identifier',
+    mk({ datacard: { final: { a: {} } } }).error &&
+      mk({ datacard: { flight: 'x'.repeat(100) } }).error &&
+      !mk({ datacard: { flight: '20098:0', final: { a: 'x', b: 5 } } }).error
+  );
+  ck(
+    'F4: a mission carries the oldest program that reads it; a newer one is refused with a clear message, an older or equal one opens',
+    P.buildMission({ name: 'x' }).minReader === P.MIN_READER &&
+      /needs BMS Cards 9\.0\.0 or newer/.test(mk({ minReader: '9.0.0' }).error) &&
+      !mk({ minReader: '0.9.9-beta.1' }).error &&
+      !mk({ minReader: '0.9.9-beta.35' }).error &&
+      !mk({ minReader: 'garbage' }).error &&
+      P.appVerNum('0.9.9-beta.35').join() === '0,9,9,35' &&
+      P.appVerNum('1.0.0')[3] > P.appVerNum('1.0.0-beta.9')[3]
+  );
+}
 ck(
   'the manual changes are the fields that differ from the automatic values',
   JSON.stringify(P.diffFields({ a: '1', b: '2' }, { a: '1', b: '3', c: 'x' })) === '{"b":"3","c":"x"}'

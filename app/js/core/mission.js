@@ -3,9 +3,11 @@
 //   {format, version, created, app, name, package: {campaign snapshot}, dtc: {name, enc, bom, original, edits}, datacard: {flight, auto, manual}, settings}
 import { parseDtc } from '../parsers/dtc.js';
 import { bmsStptKey } from './mapdtc.js';
+import { APP_VERSION } from './version.js';
 export const MISSION_FORMAT = 'bms-cards-mission',
   OLD_FORMAT = 'bms-cards-project',
   MISSION_VERSION = 1,
+  MIN_READER = '0.9.9-beta.26', // the oldest program that reads what this one writes: raised when a change of the file cannot be read by older ones
   MISSION_EXT = '.bcrd'; // files saved as projects (.bmsproj) are still read
 const KM_NM = 1.852;
 const key = id => id.n + ':' + id.c;
@@ -341,6 +343,7 @@ export function buildMission({
     saved: new Date().toISOString(),
     app,
     appVersion: version,
+    minReader: MIN_READER,
     theater,
     name,
     package: snapshot,
@@ -366,11 +369,29 @@ export function parseMission(text) {
   if (!(o.version >= 1)) return { error: 'The mission has no version number.' };
   if (o.version > MISSION_VERSION)
     return { error: 'This mission was saved by a newer program (format ' + o.version + '); update BMS Cards.' };
+  if (o.minReader != null && appVerNum(o.minReader) && cmpVer(appVerNum(APP_VERSION), appVerNum(o.minReader)) < 0)
+    return {
+      error:
+        'This mission needs BMS Cards ' +
+        String(o.minReader).slice(0, 30) +
+        ' or newer (this is ' +
+        APP_VERSION +
+        '); update BMS Cards.',
+    };
   const bad = missionShapeError(o);
   if (bad) return { error: 'The mission file is damaged (' + bad + '). Nothing was changed.' };
   return { mission: o };
 }
 // the shapes the loader relies on, checked before anything of the program is touched (the file may come from anybody)
+// "0.9.9-beta.35" -> [0, 9, 9, 35]; a release without "beta" counts above every beta of that number; null when it is not a version
+export const appVerNum = v => {
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:-beta\.(\d+))?$/.exec(String(v == null ? '' : v).trim());
+  return m ? [+m[1], +m[2], +m[3], m[4] == null ? 1e9 : +m[4]] : null;
+};
+const cmpVer = (a, b) => {
+  for (let i = 0; i < 4; i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
+  return 0;
+};
 const isObj = x => !!x && typeof x == 'object' && !Array.isArray(x);
 export function missionShapeError(o) {
   const optObj = (x, n) => (x == null || isObj(x) ? '' : n + ' is not an object');
@@ -380,7 +401,23 @@ export function missionShapeError(o) {
     if (d.original != null && typeof d.original != 'string') return 'dtc.original is not text';
     if (d.edits != null) {
       if (!Array.isArray(d.edits)) return 'dtc.edits is not a list';
-      if (!d.edits.every(e => isObj(e) && typeof e.s == 'string' && typeof e.k == 'string' && typeof e.v == 'string'))
+      if (d.edits.length > 20000) return 'dtc.edits is too long';
+      // a DTC line is one line: no line break, no "=" in a key, no bracket in a section name (a value could otherwise add lines of its own)
+      if (
+        !d.edits.every(
+          e =>
+            isObj(e) &&
+            typeof e.s == 'string' &&
+            typeof e.k == 'string' &&
+            typeof e.v == 'string' &&
+            e.s.length <= 80 &&
+            e.k.length <= 80 &&
+            e.v.length <= 4000 &&
+            !/[\r\n[\]]/.test(e.s) &&
+            !/[\r\n=]/.test(e.k) &&
+            !/[\r\n]/.test(e.v)
+        )
+      )
         return 'dtc.edits has a wrong line';
     }
     if (typeof d.original == 'string' && !Array.isArray(d.edits)) return 'dtc.edits is missing';
@@ -393,7 +430,11 @@ export function missionShapeError(o) {
     const e =
       optObj(c.final, 'datacard.final') || optObj(c.auto, 'datacard.auto') || optObj(c.manual, 'datacard.manual');
     if (e) return e;
-    if (c.flight != null && typeof c.flight != 'string') return 'datacard.flight is not text';
+    if (c.flight != null && !(typeof c.flight == 'string' && c.flight.length <= 40))
+      return 'datacard.flight is not an identifier';
+    for (const k of ['final', 'auto', 'manual'])
+      if (c[k] && !Object.values(c[k]).every(v => v == null || typeof v == 'string' || Number.isFinite(v)))
+        return 'datacard.' + k + ' has a wrong value';
   }
   const w = o.weather;
   if (w != null) {
