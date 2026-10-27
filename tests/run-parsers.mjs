@@ -115,5 +115,55 @@ for (const [name, fn] of [
     /* expected */
   }
 }
+// damaged compressed data / table of contents: an error, never zeros that look like data (synthetic bytes, no game data)
+{
+  const { lzExpand } = await import('../app/js/parsers/lzss.js'),
+    { camToc } = await import('../app/js/parsers/cam.js');
+  const lit = new Uint8Array([0xff, 1, 2, 3, 4, 5, 6, 7, 8]); // flags: eight literals
+  const ok = (name, c) => {
+    n++;
+    if (!c) {
+      bad++;
+      console.log('FAIL', name);
+    }
+  };
+  const throws = fn => {
+    try {
+      fn();
+      return false;
+    } catch (e) {
+      return true;
+    }
+  };
+  ok('lzss: eight literals expand to themselves', lzExpand(lit, 8).join() === '1,2,3,4,5,6,7,8');
+  ok(
+    'lzss: a block shorter than its declared size is an error',
+    throws(() => lzExpand(lit, 20))
+  );
+  ok(
+    'lzss: an absurd declared size is an error (no huge allocation)',
+    throws(() => lzExpand(lit, 0x7fffffff))
+  );
+  ok(
+    'lzss: a negative size is an error',
+    throws(() => lzExpand(lit, -5))
+  );
+  const toc = (t, cnt) => {
+    const b = new Uint8Array(64);
+    const d = new DataView(b.buffer);
+    d.setUint32(0, t, true);
+    if (t + 4 <= 64) d.setUint32(t, cnt, true);
+    return b;
+  };
+  ok(
+    'camToc: a table of contents outside the file is an error',
+    throws(() => camToc(toc(4000, 1)))
+  );
+  ok(
+    'camToc: an absurd number of entries is an error',
+    throws(() => camToc(toc(8, 0x7fffffff)))
+  );
+  ok('camToc: an empty table is fine', Object.keys(camToc(toc(8, 0))).length === 0);
+}
 console.log(bad ? `${bad} of ${n} parser checks failed` : `OK - ${n} parser checks match the prototype`);
 process.exit(bad ? 1 : 0);

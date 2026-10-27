@@ -4,15 +4,19 @@ import { lzExpand } from './lzss.js';
 
 export function camToc(u8) {
   const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
-  const t = dv.getUint32(0, true),
-    n = dv.getUint32(t, true);
+  const t = dv.getUint32(0, true);
+  if (t + 4 > u8.length) throw new Error('Damaged campaign file: the table of contents is outside the file');
+  const n = dv.getUint32(t, true);
+  if (n > 4096) throw new Error('Damaged campaign file: too many entries in the table of contents');
   let p = t + 4;
   const E = {};
   for (let k = 0; k < n; k++) {
     const nl = u8[p];
+    if (p + 9 + nl > u8.length) throw new Error('Damaged campaign file: the table of contents is cut');
     const nm = new TextDecoder().decode(u8.subarray(p + 1, p + 1 + nl));
     const o = dv.getUint32(p + 1 + nl, true),
       s = dv.getUint32(p + 5 + nl, true);
+    if (o > u8.length) throw new Error('Damaged campaign file: an entry starts outside the file');
     p += 9 + nl;
     E[nm.split('.').pop().toLowerCase()] = u8.subarray(o, o + s);
   }

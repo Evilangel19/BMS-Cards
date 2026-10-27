@@ -10,6 +10,11 @@ import {
   unzip,
   pack,
   unpack,
+  rxBegin,
+  rxChunk,
+  RX_MAX_CHUNKS,
+  RX_MAX_OPEN,
+  RX_TTL,
 } from '../app/js/core/squadron.js';
 let ok = true;
 const ck = (n, c) => {
@@ -252,5 +257,55 @@ ck(
       rankSvg(10) === '' &&
       rankSvg(-1) === ''
   );
+}
+// missions arriving over the link: limits on what a pilot can send (synthetic messages)
+{
+  const rx = {};
+  ck('rx: a normal transfer is accepted', !!rxBegin(rx, { id: 'a', n: 2, name: 'M', from: 'P' }, 1000).r);
+  ck('rx: a chunk out of range drops the transfer', rxChunk(rx, { id: 'a', i: 5, d: 'x' }, 1001).error && !rx.a);
+  ck('rx: an absurd number of chunks is refused', rxBegin(rx, { id: 'b', n: RX_MAX_CHUNKS + 1 }, 1002).error && !rx.b);
+  ck(
+    'rx: a bad identifier or count is refused',
+    rxBegin(rx, { id: '', n: 2 }).error &&
+      rxBegin(rx, { id: 'c', n: 1.5 }).error &&
+      rxBegin(rx, { id: 'c', n: 0 }).error
+  );
+  const r2 = {};
+  for (let i = 0; i < RX_MAX_OPEN; i++) rxBegin(r2, { id: 'k' + i, n: 1 }, 5000);
+  ck('rx: too many transfers at once are refused', rxBegin(r2, { id: 'extra', n: 1 }, 5001).error);
+  ck(
+    'rx: a transfer that stalls is forgotten, so a new one fits',
+    !!rxBegin(r2, { id: 'extra', n: 1 }, 5000 + RX_TTL + 1).r && !r2.k0
+  );
+  const r3 = {};
+  rxBegin(r3, { id: 'x', n: 2, name: 'n'.repeat(500) }, 0);
+  ck('rx: a name is cut to a sensible length', r3.x.name.length === 200);
+  ck(
+    'rx: chunks arrive in any order, a repeated one counts once',
+    (() => {
+      const a = rxChunk(r3, { id: 'x', i: 1, d: 'b' }, 1);
+      const b = rxChunk(r3, { id: 'x', i: 1, d: 'b' }, 2);
+      const c = rxChunk(r3, { id: 'x', i: 0, d: 'a' }, 3);
+      return !a.done && !b.done && c.done && c.r.parts.join('') === 'ab';
+    })()
+  );
+  ck('rx: a chunk for nobody is ignored', rxChunk({}, { id: 'q', i: 0, d: 'x' }) === null);
+  ck(
+    'rx: a piece that is not text is refused',
+    (() => {
+      const t = {};
+      rxBegin(t, { id: 'z', n: 1 });
+      return !!rxChunk(t, { id: 'z', i: 0, d: 5 }).error;
+    })()
+  );
+  const big = await zip('x'.repeat(200000));
+  let tooMuch = false;
+  try {
+    await unzip(big, 1000);
+  } catch (e) {
+    tooMuch = true;
+  }
+  ck('rx: a block that inflates beyond the limit is dropped', tooMuch);
+  ck('rx: within the limit it is read in full', (await unzip(big, 300000)).length === 200000);
 }
 process.exit(ok ? 0 : 1);

@@ -146,16 +146,39 @@ const unb64 = t => {
   for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
   return u;
 };
-const pipe = async (u8, S) => new Uint8Array(await new Response(new Blob([u8]).stream().pipeThrough(S)).arrayBuffer());
+// max: the most bytes the result may have (a block that inflates beyond it is dropped while it is read)
+const pipe = async (u8, S, max = Infinity) => {
+  const rd = new Blob([u8]).stream().pipeThrough(S).getReader(),
+    parts = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await rd.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) {
+      await rd.cancel();
+      throw new Error('Too much data.');
+    }
+    parts.push(value);
+  }
+  const out = new Uint8Array(n);
+  let o = 0;
+  parts.forEach(p => {
+    out.set(p, o);
+    o += p.length;
+  });
+  return out;
+};
 export const zip = async text => {
   const u = new TextEncoder().encode(text);
   return typeof CompressionStream == 'function'
     ? 'z' + b64(await pipe(u, new CompressionStream('deflate-raw')))
     : 'p' + b64(u);
 };
-export const unzip = async t => {
+export const unzip = async (t, max = Infinity) => {
   const u = unb64(t.slice(1));
-  return new TextDecoder().decode(t[0] == 'z' ? await pipe(u, new DecompressionStream('deflate-raw')) : u);
+  if (t[0] != 'z' && u.length > max) throw new Error('Too much data.');
+  return new TextDecoder().decode(t[0] == 'z' ? await pipe(u, new DecompressionStream('deflate-raw'), max) : u);
 };
 export const pack = async (obj, tag = 'BC1') => tag + '.' + (await zip(JSON.stringify(obj)));
 export const unpack = async (code, tag = 'BC1') => {
@@ -195,6 +218,44 @@ const iceDone = (pc, ms = 5000) =>
     });
   });
 const CHUNK = 16000;
+// what a pilot of the squadron can send at most: a mission is a few MB; more, too many at once, or a transfer that stalls is refused
+export const RX_MAX_CHUNKS = 1000; // 16 MB compressed
+export const RX_MAX_TEXT = 64 * 1024 * 1024; // after unzipping
+export const RX_MAX_OPEN = 3; // transfers at the same time
+export const RX_TTL = 120000; // ms without a new chunk
+export function rxBegin(rx, m, now = Date.now()) {
+  Object.keys(rx).forEach(k => {
+    if (now - rx[k].t > RX_TTL) delete rx[k];
+  });
+  if (typeof m.id != 'string' || !m.id || m.id.length > 64) return { error: 'The mission has a bad identifier.' };
+  if (!Number.isInteger(m.n) || m.n < 1 || m.n > RX_MAX_CHUNKS)
+    return { error: 'The mission is too big or malformed.' };
+  if (!rx[m.id] && Object.keys(rx).length >= RX_MAX_OPEN) return { error: 'Too many missions arriving at once.' };
+  rx[m.id] = {
+    name: String(m.name == null ? '' : m.name).slice(0, 200),
+    from: String(m.from == null ? '' : m.from).slice(0, 100),
+    n: m.n,
+    parts: [],
+    got: 0,
+    t: now,
+  };
+  return { r: rx[m.id] };
+}
+// a piece of a mission: null when nobody is waiting for it; {error} (the transfer is dropped) when it is wrong; {r, done} otherwise
+export function rxChunk(rx, m, now = Date.now()) {
+  const r = rx[m.id];
+  if (!r) return null;
+  if (!Number.isInteger(m.i) || m.i < 0 || m.i >= r.n || typeof m.d != 'string' || m.d.length > CHUNK * 2) {
+    delete rx[m.id];
+    return { error: 'A piece of the mission is wrong.' };
+  }
+  if (r.parts[m.i] === undefined) {
+    r.parts[m.i] = m.d;
+    r.got++;
+  }
+  r.t = now;
+  return { r, done: r.got == r.n };
+}
 const STUN = [{ urls: 'stun:stun.l.google.com:19302' }];
 export function parseTurn(text) {
   // one server per line: turn:host:port user credential  (user and credential optional)
@@ -297,17 +358,29 @@ export function createLink({
           delete acks[m.id];
           m.ok ? a.res() : a.rej(new Error(m.text || 'The pilot could not read the mission.'));
         }
-      } else if (m.k == 'mp') {
-        rx[m.id] = { name: m.name, n: m.n, parts: [], from: m.from };
-      } else if (m.k == 'mc') {
-        const r = rx[m.id];
-        if (!r) return;
-        r.parts[m.i] = m.d;
-        if (r.parts.filter(x => x !== undefined).length == r.n) {
+      } else if (m.k == 'mp' || m.k == 'mc') {
+        const refuse = text => {
+          onMessage({ k: 'error', text });
+          try {
+            ch.send(JSON.stringify({ k: 'mack', id: m.id, ok: false, text }));
+          } catch (y) {
+            /* closed */
+          }
+        };
+        if (m.k == 'mp') {
+          const b = rxBegin(rx, m);
+          if (b.error) refuse(b.error);
+          return;
+        }
+        const c = rxChunk(rx, m);
+        if (!c) return;
+        if (c.error) return refuse(c.error);
+        const r = c.r;
+        if (c.done) {
           delete rx[m.id];
           let txt = null;
           try {
-            txt = await unzip(r.parts.join(''));
+            txt = await unzip(r.parts.join(''), RX_MAX_TEXT);
           } catch (x) {
             onMessage({ k: 'error', text: 'The mission received could not be read.' });
             try {

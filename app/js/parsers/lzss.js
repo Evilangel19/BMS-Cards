@@ -1,6 +1,9 @@
 // @ts-check
 // LZSS expander used by Falcon BMS campaign files.
+export const LZ_MAX = 256 * 1024 * 1024; // no block of a campaign is anywhere near this: a larger size in a header means a damaged (or hostile) file
 export function lzExpand(s, size) {
+  if (!Number.isInteger(size) || size < 0 || size > LZ_MAX)
+    throw new Error('Damaged data: bad size in a compressed block');
   const w = new Uint8Array(4096);
   let pos = 1,
     i = 1,
@@ -34,5 +37,6 @@ export function lzExpand(s, size) {
       }
     }
   }
+  if (n < size) throw new Error('Damaged data: a compressed block ends before its declared size');
   return o;
 }
