@@ -1,6 +1,6 @@
 import { loadConfig, isDesktop, pickFolder, saveConfig, fileExists, readBytes } from '../platform/desktop.js';
 import { ST } from './state.js';
-import { $, applyAnim } from './base.js';
+import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
 import { kbDir, kbMemLoad, kbRender } from './kneeboard.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
@@ -38,7 +38,7 @@ export async function openSettings() {
   const dlg = $('cfg'),
     loc = (await loadConfig()).location;
   dlg.innerHTML =
-    '<h3 style="margin:0 0 6px">Settings</h3><p class="hint" style="margin:0 0 10px">Saved in: ' + loc + '</p>';
+    '<h3 style="margin:0 0 6px">Settings</h3><p class="hint" style="margin:0 0 10px">Saved in: ' + esc(loc) + '</p>';
   const r3 = document.createElement('div');
   r3.className = 'cf';
   const l3 = document.createElement('label');

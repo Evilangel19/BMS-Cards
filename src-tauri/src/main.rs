@@ -13,17 +13,20 @@ fn app_dir() -> Result<String, String> {
     exe_dir().map(|p| p.to_string_lossy().to_string()).ok_or_else(|| "cannot locate the program folder".to_string())
 }
 
-/// A piece of an .exe file (the program reads the version of Falcon BMS.exe from its headers: a few small pieces).
-/// Only .exe files and short pieces: the permission of the file plugin does not cover executables on purpose.
+/// A piece of Falcon BMS.exe (the program reads the version of the game from its headers: a few small pieces).
+/// Only a file called "Falcon BMS.exe" and short pieces: the permission of the file plugin does not cover executables on purpose.
 #[tauri::command]
 fn read_exe_range(path: String, offset: u64, len: usize) -> Result<Vec<u8>, String> {
     use std::io::{Read, Seek, SeekFrom};
     let p = PathBuf::from(&path);
-    let is_exe = p.extension().map(|e| e.eq_ignore_ascii_case("exe")).unwrap_or(false);
-    if !is_exe {
-        return Err("only .exe files".to_string());
+    let is_bms = p
+        .file_name()
+        .map(|n| n.to_string_lossy().eq_ignore_ascii_case("Falcon BMS.exe"))
+        .unwrap_or(false);
+    if !is_bms {
+        return Err("only Falcon BMS.exe".to_string());
     }
-    if len > 65536 {
+    if len > 65536 || offset > 268_435_456 {
         return Err("piece too long".to_string());
     }
     let mut f = std::fs::File::open(&p).map_err(|e| e.to_string())?;

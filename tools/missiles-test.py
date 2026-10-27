@@ -108,8 +108,11 @@ try:
         pg.click('button[data-t=dtc]'); pg.wait_for_timeout(300)
         pg.click('[data-t=kb]'); pg.wait_for_timeout(500)
         box = pg.locator('#cv').bounding_box(); k = box['width'] / 2048
+        pg.evaluate("()=>[0,1,2,3].forEach(i=>__app.CYC['bv'+i+'_0'].push('<i id=\"xss\">x</i>'))")
         pg.mouse.click(box['x'] + 1325 * 1.28 * k, box['y'] + 833 * (2048 / 1200) * k); pg.wait_for_timeout(300)
         check('Datacard: a click on a Class cell opens a menu with the aircraft', pg.is_visible('#chm') and pg.locator('#chm button').count() > 10)
+        check('the menu shows a label with HTML as plain text (no element is created from it)', pg.locator('#xss').count() == 0 and '<i id' in pg.inner_text('#chm'))
+        pg.evaluate("()=>[0,1,2,3].forEach(i=>__app.CYC['bv'+i+'_0'].pop())")
         pg.click('#chm button:text-is("F-15C")'); pg.wait_for_timeout(300)
         rowv = pg.evaluate("()=>{const g=t=>{const l=[...document.querySelectorAll('#form label')].find(x=>x.textContent===t);return l?l.parentElement.querySelector('input,select').value:null};return [g('BVR 2 Class'),g('BVR 2 MTR'),g('BVR 2 MAR'),g('BVR 2 DR'),g('BVR 2 DOR')]}")
         check('Datacard: choosing the aircraft fills MTR, MAR, DR and DOR of that row', rowv[0] == 'F-15C' and all(x and x.isdigit() for x in rowv[1:]) and not pg.is_visible('#chm'))

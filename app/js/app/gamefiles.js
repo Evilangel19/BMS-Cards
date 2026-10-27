@@ -94,7 +94,19 @@ export const misLoad = () =>
 /* Performance page: aircraft tables from Data\Sim\Acdata (desktop), or the ones saved in an open mission (no aircraft table is included in the program) */
 ST.MSFAC = {};
 export let ACDIR = null;
+let ACKEY = '';
+// the aircraft tables belong to one installation and one theater: another one starts again from nothing
+const acKey = () => (ST.CFG.paths.bmsInstall || '') + '|' + ((ST.TH && ST.TH.sim) || '');
+function acSync() {
+  const k = acKey();
+  if (ACKEY !== k) {
+    ACKEY = k;
+    ACDIR = null;
+    if (acMemo) acMemo.clear();
+  }
+}
 export async function acFolder() {
+  acSync();
   if (ACDIR) return ACDIR;
   const inst = ST.CFG.paths.bmsInstall;
   if (!isDesktop() || !inst) return null;
@@ -122,6 +134,7 @@ export let acMemo;
 export async function perfAcGet(n) {
   if (!n) return null;
   if (ST.MSFAC[n]) return ST.MSFAC[n];
+  acSync();
   if (acMemo.has(n)) return acMemo.get(n);
   let d = null;
   const f = await acFolder();

@@ -333,7 +333,7 @@ export function buildForm() {
           : document.createElement('input');
       if (i.tagName == 'TEXTAREA') i.rows = d.k == 'atis' ? 2 : 4;
       if (CYC[d.k]) {
-        i.innerHTML = ['', ...CYC[d.k]].map(o => `<option>${o}</option>`).join('');
+        i.innerHTML = ['', ...CYC[d.k]].map(o => `<option>${esc(o)}</option>`).join('');
         i.value = F[d.k] || '';
         i.onchange = () => setField(d.k, i.value, i);
       } else {

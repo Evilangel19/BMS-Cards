@@ -71,7 +71,9 @@ export function openMenu(d) {
     b = boxOf(d),
     cur = String(F[d.k] || '');
   m.innerHTML = ['', ...CYC[d.k]]
-    .map(o => `<button type="button" class="${o === cur ? 'on' : ''}" data-v="${o}">${o || '— none —'}</button>`)
+    .map(
+      o => `<button type="button" class="${o === cur ? 'on' : ''}" data-v="${esc(o)}">${esc(o) || '— none —'}</button>`
+    )
     .join('');
   m.style.display = 'block';
   const w = Math.max(b.w * SX * k, 130),

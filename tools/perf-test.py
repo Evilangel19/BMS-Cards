@@ -15,6 +15,10 @@ try:
         check('the Performance tab exists', pg.locator('[data-t=pf]').count() == 1)
         pg.click('[data-t=pf]'); pg.wait_for_timeout(1200)
         check('the page shows the aircraft (built-in F-16CM-50)', 'F-16CM-50' in pg.inner_text('#pf'))
+        # the aircraft tables of one installation / theater are not kept for another one
+        pg.evaluate("async()=>{await __app.perfAcGet('F-16CM-50');__app.acMemo.set('ZZ-TEST',{x:1});__app.ST.CFG.paths.bmsInstall='Z:/Another BMS';await __app.perfAcGet('F-16CM-50')}")
+        check('another BMS folder: the aircraft tables kept from the first one are dropped', not pg.evaluate("__app.acMemo.has('ZZ-TEST')"))
+        pg.evaluate("()=>{__app.ST.CFG.paths.bmsInstall=''}")
         check('the first tab, Take-off & landing, is the one open by default', pg.locator('#pf [data-mode=field].on').count() == 1 and pg.locator('#pf .wtabs button').first.get_attribute('data-mode') == 'field')
         pg.click('#pf [data-mode=turn]'); pg.wait_for_timeout(600)
         check('turn tab: corner speed tile and three charts', 'corner speed' in pg.inner_text('#pf').lower() and pg.locator('#pf svg').count() >= 3)

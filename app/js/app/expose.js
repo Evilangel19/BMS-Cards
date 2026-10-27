@@ -14,7 +14,7 @@ import { dtcOut, lines, parse } from './dtcfile.js';
 import { apply, loadCam } from './selection.js';
 import { applyFormToggle, closeEd, openEd } from './editor.js';
 import { perfFill } from './perf.js';
-import { acMemo } from './gamefiles.js';
+import { acMemo, perfAcGet } from './gamefiles.js';
 import { TDATA } from './dtctargets.js';
 import { GAMEDATA } from './gamedata.js';
 
@@ -83,6 +83,10 @@ export async function init19() {
     wxKeys,
     msfBuild,
     msfLoad,
+    perfAcGet,
+    get acMemo() {
+      return acMemo;
+    },
     setAc: (n, d) => {
       ST.MSFAC[n] = d;
       acMemo.delete(n);

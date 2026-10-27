@@ -232,6 +232,7 @@ export async function dtcOverwrite() {
     const out = encodeDtc(dtcOut());
     await IO.writeBytes(ST.DTCF.path, out);
     ST.DTCF.orig = out;
+    const failed = []; // campaign files that could not be written: said to the pilot, and the changes stay "to save" so Write can be pressed again
     for (const f of extra) {
       try {
         let old = null;
@@ -251,21 +252,31 @@ export async function dtcOverwrite() {
             )
           )
         );
-      } catch (e) {}
-    }
-    lines.forEach(l => {
-      if (l.dirty) {
-        l.raw = l.k + '=' + l.v;
-        l.dirty = 0;
+      } catch (e) {
+        failed.push(f + ' (' + ((e && e.message) || e) + ')');
       }
-    });
+    }
+    if (!failed.length)
+      lines.forEach(l => {
+        if (l.dirty) {
+          l.raw = l.k + '=' + l.v;
+          l.dirty = 0;
+        }
+      });
     dtcBtns();
-    $('fn').textContent = ST.name + ' · saved';
-    appToast(
-      'DTC saved: ' +
-        ST.DTCF.path +
-        (extra.length ? ' (+ ' + extra.length + ' campaign file' + (extra.length > 1 ? 's' : '') + ')' : '')
-    );
+    $('fn').textContent = ST.name + (failed.length ? ' · saved, with errors' : ' · saved');
+    if (failed.length)
+      alert(
+        'The DTC was saved, but these campaign files could NOT be written:\n\n' +
+          failed.join('\n') +
+          '\n\nThe changes are still marked as not saved: fix the problem (file in use? folder not writable?) and press Write again.'
+      );
+    else
+      appToast(
+        'DTC saved: ' +
+          ST.DTCF.path +
+          (extra.length ? ' (+ ' + extra.length + ' campaign file' + (extra.length > 1 ? 's' : '') + ')' : '')
+      );
     try {
       if (mapV.isReady()) mapV.refreshDtc();
     } catch (e) {}
