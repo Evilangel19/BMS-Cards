@@ -5,7 +5,17 @@
 // available when no tracker can be used.
 
 import { medalSvg, rankSvg } from './medals.js';
-import { newOrg, mergeOrg, pruneOrg, orgReduce, orgView, isAdmin, flightWarning } from './organization.js';
+import {
+  orgToTemplate,
+  orgFromTemplate,
+  newOrg,
+  mergeOrg,
+  pruneOrg,
+  orgReduce,
+  orgView,
+  isAdmin,
+  flightWarning,
+} from './organization.js';
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 
 // ---------- logbook (.lbk) ----------
@@ -1800,7 +1810,8 @@ export function createSquadronPage(deps) {
     const sw = swarms.get(q.id),
       online = new Set(sw ? sw.online().map(p => p.uid) : []);
     online.add(DB.uid);
-    const r = orgReduce(q, DB.uid, a, { now: Date.now(), rid: () => randHex(6), online });
+    const ctx = { now: Date.now(), rid: () => randHex(6), online };
+    const r = typeof a == 'function' ? a(q, DB.uid, ctx) : orgReduce(q, DB.uid, a, ctx);
     if (!r.ok || r.q === q) return r;
     Object.assign(q, { org: r.q.org, owner: r.q.owner, mc: r.q.mc, roster: r.q.roster, ts: r.q.ts });
     save();
@@ -2779,6 +2790,75 @@ export function createSquadronPage(deps) {
         if (sw) sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
       },
       canAll: () => canSendAll(cur()),
+      handover: () => {
+        const q = cur(),
+          nm = nameOfIn(q),
+          list = live(q).filter(r => r.uid != DB.uid);
+        if (!q || !list.length) return;
+        pop(
+          `<h3>Hand over the command</h3><div class="hint" style="min-height:0">Choose the pilot who becomes the commander of the squadron.</div>${list.map(r => `<div class="sqm"><span>${esc(nm(r.uid))}</span><button class="btn g gn" data-to="${esc(r.uid)}">Give the command</button></div>`).join('')}<div class="bar" style="margin-top:10px"><button class="btn g" data-x>Cancel</button></div>`,
+          (o, close) => {
+            o.onclick = e => {
+              const b = e.target.closest('button');
+              if (!b) return;
+              if (b.dataset.to) {
+                const r = orgAct(cur(), { t: 'cmd', uid: b.dataset.to });
+                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+              }
+              if (b.dataset.to || 'x' in b.dataset) close();
+            };
+          }
+        );
+      },
+      saveTpl: () => {
+        const q = cur();
+        pop(
+          `<h3>Save template</h3><div class="hint" style="min-height:0">Saves the packages, flights, leads and pilots as they are now, so you can load them another night.</div><div class="sqone"><input id="sqtplname" maxlength="24" placeholder="Name of the template"><button class="btn g gn" data-ok>Save</button><button class="btn g" data-x>Cancel</button></div>`,
+          (o, close) => {
+            o.onclick = e => {
+              const b = e.target.closest('button');
+              if (!b) return;
+              if ('ok' in b.dataset) {
+                const n = o.querySelector('#sqtplname').value.trim().slice(0, 24);
+                if (!n) return;
+                q.tpl = (q.tpl || []).filter(t => t.name.toLowerCase() != n.toLowerCase());
+                q.tpl.unshift({ name: n, ts: Date.now(), ...orgToTemplate(q) });
+                q.tpl = q.tpl.slice(0, 20);
+                save();
+                deps.toast && deps.toast('Template saved: ' + n);
+              }
+              close();
+            };
+          }
+        );
+      },
+      loadTpl: () => {
+        const q = cur(),
+          list = q.tpl || [];
+        pop(
+          `<h3>Load template</h3>${list.length ? '<div class="hint" style="min-height:0">Loading replaces the packages and flights you have now.</div>' + list.map((t, i) => `<div class="sqm"><span><b>${esc(t.name)}</b> <em>${t.pk.length} package${t.pk.length == 1 ? '' : 's'} · ${t.pk.reduce((n, p) => n + p.fl.length, 0)} flights</em></span><span><button class="btn g gn" data-use="${i}">Load</button> <button class="btn g rd" data-del="${i}">Delete</button></span></div>`).join('') : '<div class="hint">No template saved yet.</div>'}<div class="bar" style="margin-top:10px"><button class="btn g" data-x>Close</button></div>`,
+          (o, close) => {
+            o.onclick = async e => {
+              const b = e.target.closest('button');
+              if (!b) return;
+              const d = b.dataset;
+              if (d.use != null) {
+                if (!(await confirm('Replace the packages and flights with this template?'))) return;
+                const t = list[+d.use],
+                  r = orgAct(q, (qq, actor, ctx) => orgFromTemplate(qq, actor, t, ctx));
+                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+                close();
+              } else if (d.del != null) {
+                list.splice(+d.del, 1);
+                q.tpl = list;
+                save();
+                close();
+                $('#sqorg [data-loadtpl]').click();
+              } else close();
+            };
+          }
+        );
+      },
       leave: leaveHandover,
       toast: t => (deps.toast ? deps.toast(t) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),

@@ -11,6 +11,8 @@ import {
   MAX_PILOTS,
   NAME_MAX,
   flightWarning,
+  orgToTemplate,
+  orgFromTemplate,
 } from '../app/js/core/organization.js';
 import { orgHtml } from '../app/js/core/orgpage.js';
 
@@ -354,7 +356,7 @@ ok(
     'a wingman can take himself out of his flight, nobody else',
     /data-out="w1"/.test(h3) && !/data-out="fl1"/.test(h3)
   );
-  ok('only the commander can hand over the command', /data-cmd/.test(h4) && !/data-cmd/.test(h1));
+  ok('only the commander can hand over the command', /data-handover/.test(h4) && !/data-handover/.test(h1));
   ok(
     'the count of online pilots to send to leaves me out',
     /Send my mission to Viper \(1 online\)/.test(h2) && /Send my mission to Viper \(2 online\)/.test(h1)
@@ -374,6 +376,43 @@ ok(
         u => String(w.roster[u].callsign || '')
       )
     )
+  );
+  ok('the names take the colour of the role', /rc-fl/.test(h1) && /rc-mc/.test(h1));
+  ok('the commander tag is yellow and the mission commander one violet', /ogtag cmd/.test(h4) && /ogtag mc/.test(h1));
+  ok('flights and packages carry their colour', /class="ogpack" style="--pc:#/.test(h1) && /--fc:#/.test(h1));
+  ok(
+    'the card says Today and offers the templates and the send to everybody',
+    /Today/.test(h1) &&
+      !/Tonight/.test(h1) &&
+      /data-savetpl/.test(h1) &&
+      /data-loadtpl/.test(h1) &&
+      /data-sendall/.test(h1) &&
+      !/data-savetpl/.test(h3)
+  );
+  ok('the squadron name is on top', /<h2>/.test(h1));
+  // templates: the shape is saved and brought back after the packages are cleared
+  const tpl = orgToTemplate(w);
+  ok(
+    'a template holds packages, flights, lead and pilots',
+    tpl.pk.length === 1 && tpl.pk[0].fl[0].lead === 'fl1' && tpl.pk[0].fl[0].m.includes('w1')
+  );
+  let t2 = run(w, 'mc1', { t: 'pk-', id: P });
+  ok('the packages are cleared', !!t2 && orgView(t2).packages.length === 0);
+  const back = orgFromTemplate(t2, 'mc1', tpl, ctx());
+  ok(
+    'loading a template rebuilds the night',
+    back.ok &&
+      orgView(back.q).packages[0].flights[0].lead === 'fl1' &&
+      orgView(back.q).packages[0].flights[0].members.length === 2
+  );
+  ok('a wingman cannot load a template', !orgFromTemplate(w, 'w1', tpl, ctx()).ok);
+  const gone = { ...t2, roster: { ...t2.roster, w1: { ...t2.roster.w1, removed: 1 } } };
+  const part = orgFromTemplate(gone, 'mc1', tpl, ctx());
+  ok('a pilot who left is skipped', part.ok && !orgView(part.q).seat.w1 && !!orgView(part.q).seat.fl1);
+  ok(
+    'loading a template replaces what is there',
+    orgFromTemplate(w, 'mc1', { pk: [] }, ctx()).ok &&
+      orgView(orgFromTemplate(w, 'mc1', { pk: [] }, ctx()).q).packages.length === 0
   );
   ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
 }

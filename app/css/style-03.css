@@ -808,14 +808,15 @@
   }
 }
 
-/* Squadron: the Organization section (packages, flights, pilots to drag). Its own colours: dark panels with an amber accent */
+/* Squadron: the Organization section (packages, flights, pilots to drag). Its own colours: dark panels with the green accent of the program */
 .sqorg {
   --og-panel: #181e26;
   --og-card: #202833;
   --og-line: #2c3644;
   --og-edge: #3a4758;
   --og-mu: #9fb0c2;
-  --og-amber: #f0b24a;
+  --og-amber: #4cc38a;
+  --og-yellow: #f5d142;
   --og-blue: #7cc4ff;
   --og-violet: #c9a6ff;
   display: flex;
@@ -851,7 +852,7 @@
   font-size: 12px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--og-mu);
+  color: var(--ac);
 }
 .ogval {
   font-size: 16px;
@@ -900,6 +901,7 @@
 .ogpack {
   background: var(--og-panel);
   border: 1px solid var(--og-line);
+  border-left: 5px solid var(--pc, var(--og-edge));
   border-radius: 8px;
   padding: 14px 16px;
 }
@@ -987,6 +989,7 @@
 .ogflight {
   background: var(--og-card);
   border: 1px solid var(--og-line);
+  border-left: 5px solid var(--fc, var(--og-edge));
   border-radius: 8px;
   padding: 12px;
   display: flex;
@@ -994,7 +997,9 @@
   gap: 4px;
 }
 .ogflight.mine {
-  border-color: var(--og-amber);
+  border-top-color: var(--ac);
+  border-right-color: var(--ac);
+  border-bottom-color: var(--ac);
 }
 .ogrow {
   display: flex;
@@ -1011,7 +1016,19 @@
   font-weight: 600;
 }
 .ogrow.off b {
-  color: var(--og-mu);
+  opacity: 0.6;
+}
+.ogrow b.rc-cmd {
+  color: var(--og-yellow);
+}
+.ogrow b.rc-mc {
+  color: var(--og-violet);
+}
+.ogrow b.rc-pk {
+  color: var(--og-blue);
+}
+.ogrow b.rc-fl {
+  color: var(--ac);
 }
 .ogside .ogrow {
   background: var(--og-card);
@@ -1086,6 +1103,9 @@
   color: var(--og-blue);
 }
 .ogtag.cmd {
+  color: var(--og-yellow);
+}
+.ogtag.mc {
   color: var(--og-violet);
 }
 .ogtag.you {
@@ -1096,8 +1116,8 @@
 }
 .ogsend {
   margin-top: 6px;
-  background: var(--og-amber);
-  color: #14181d;
+  background: var(--ac);
+  color: #07140d;
   border: 0;
   border-radius: 6px;
   padding: 9px 12px;
@@ -1141,4 +1161,85 @@
 .ogdrop.over {
   outline-style: solid;
   background: #1d2631;
+}
+.ogtop {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.ogtop h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.ogtop .sqlogo {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.ogrole.cmdcard {
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ogtxt {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.oghand {
+  flex: 0 0 auto;
+  width: 88px;
+  height: 88px;
+  align-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 6px;
+  background: var(--og-card);
+  color: var(--tx);
+  border: 1px solid var(--og-edge);
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  cursor: pointer;
+}
+.oghand span {
+  font-size: 22px;
+  color: var(--og-yellow);
+}
+.oghand:hover {
+  border-color: var(--ac);
+}
+.ogrow {
+  user-select: none;
+  -webkit-user-select: none;
+}
+.ogrow.dragging {
+  opacity: 0.35;
+}
+.ogghost {
+  position: fixed;
+  z-index: 2200;
+  pointer-events: none;
+  background: var(--og-card);
+  border: 1px solid var(--ac);
+  border-radius: 6px;
+  padding: 4px 10px;
+  box-shadow: 0 6px 18px #000a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ogghost .ogact {
+  display: none;
+}
+body.og-dragging,
+body.og-dragging * {
+  cursor: grabbing !important;
+  user-select: none;
 }

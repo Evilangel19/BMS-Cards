@@ -363,3 +363,52 @@ export function flightWarning(flightName, m) {
     '": the name of the flight should hold the callsign or the package number of the mission. Send it anyway?'
   );
 }
+
+/**
+ * The shape of the night as a template: packages and flights with their names, leads and pilots.
+ * @returns {{pk:{n:string, lead:string, fl:{n:string, lead:string, m:string[]}[]}[]}}
+ */
+export function orgToTemplate(q) {
+  const v = orgView({ org: q.org, roster: q.roster });
+  return {
+    pk: v.packages.map(p => ({
+      n: p.n,
+      lead: p.lead || '',
+      fl: p.flights.map(f => ({ n: f.n, lead: f.lead || '', m: f.members.slice() })),
+    })),
+  };
+}
+
+/**
+ * Replaces all the packages and flights with the ones of a template (only a commander may). Pilots who left the squadron are skipped.
+ * ctx: as in orgReduce. @returns {{ok:true, q:any}|{ok:false, error:string}}
+ */
+export function orgFromTemplate(q, actor, tpl, ctx) {
+  if (!isAdmin(q, actor)) return fail('Only the commander and the mission commander load a template.');
+  const list = tpl && Array.isArray(tpl.pk) ? tpl.pk.slice(0, MAX_PACKAGES) : [];
+  let cur = q,
+    last = '';
+  const rid = () => (last = ctx.rid());
+  /** @param {any} a @returns {boolean} */
+  const go = a => {
+    const r = orgReduce(cur, actor, a, { ...ctx, rid });
+    if (!r.ok) return false;
+    cur = r.q;
+    return true;
+  };
+  for (const p of orgView({ org: q.org, roster: q.roster }).packages) go({ t: 'pk-', id: p.id });
+  for (const tp of list) {
+    if (!tp || !go({ t: 'pk+', name: String(tp.n || '') })) continue;
+    const pid = last;
+    if (tp.lead && liveIn(q, tp.lead)) go({ t: 'pklead', id: pid, uid: tp.lead });
+    for (const tf of Array.isArray(tp.fl) ? tp.fl.slice(0, MAX_FLIGHTS) : []) {
+      if (!tf || !go({ t: 'fl+', pk: pid, name: String(tf.n || '') })) continue;
+      const fid = last;
+      const placed = [];
+      for (const u of Array.isArray(tf.m) ? tf.m.slice(0, MAX_PILOTS) : [])
+        if (liveIn(q, u) && go({ t: 'as', uid: u, f: fid })) placed.push(u);
+      if (tf.lead && placed.includes(tf.lead)) go({ t: 'fllead', id: fid, uid: tf.lead });
+    }
+  }
+  return { ok: true, q: cur };
+}
