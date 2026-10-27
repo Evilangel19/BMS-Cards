@@ -9,6 +9,8 @@ import {
   readRange,
   loadPrefs,
   savePrefs,
+  loadPrefsSafe,
+  savePrefsSafe,
   readBytes,
   listDir,
   findFiles,
@@ -325,7 +327,23 @@ export async function init11() {
           },
         }
       : null,
-    store: { load: () => loadPrefs('squadron.json'), save: o => savePrefs('squadron.json', o) },
+    store: {
+      load: async () => {
+        const r = await loadPrefsSafe('squadron.json');
+        if (r.issue)
+          setTimeout(
+            () =>
+              appToast(
+                r.issue == 'repaired'
+                  ? 'The squadron file was damaged: it was restored from its copy.'
+                  : 'The squadron file could not be read. A copy of it was kept as squadron.json.bad in the program folder.'
+              ),
+            1500
+          );
+        return r.value;
+      },
+      save: o => savePrefsSafe('squadron.json', o),
+    },
     campaign: () => ST.C,
     swarm: window.__swarmTest,
     buildMission: () => msfBuild(),

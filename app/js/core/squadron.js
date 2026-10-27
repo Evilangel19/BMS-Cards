@@ -838,7 +838,10 @@ export async function distribute(
 // Every pilot announces as a downloader (left > 0): some trackers never match two seeders (left = 0) with each other.
 // A peer counts only after it proves it knows the secret of the squadron (HMAC of a challenge): the swarm name alone is not enough.
 const MAX_OFFERS = 6, // offers in one announce when many pilots are not linked yet
-  FAST_ANNOUNCE = 8000; // ms between announces then
+  FAST_ANNOUNCE = 8000, // ms between announces then
+  START_JITTER = 3000; // ms: the first announce of a pilot waits a random part of this, so a whole squadron opening the program together does not hit the trackers at once
+// the pace of the announces spread by +-20% (r: 0..1), so the pilots do not stay in step; off (jitter = 0) the time is exact (tests)
+export const spread = (ms, on, r = Math.random()) => (on ? Math.round(ms * (0.8 + 0.4 * r)) : ms);
 export function createSwarm({
   secret,
   me,
@@ -852,6 +855,7 @@ export function createSwarm({
   interval = 25000,
   offers = 3,
   allow = () => true,
+  jitter = 0, // ms of random delay before the first announce (0: none); with it the pace of the announces is also spread
 }) {
   const S = {
     peers: new Map(),
@@ -1203,6 +1207,7 @@ export function createSwarm({
     async start() {
       ih = await sha1('bmscards-squadron:' + secret);
       myId = rnd20();
+      const startWait = jitter ? Math.round(Math.random() * jitter) : 0;
       S.socks = trackers
         .map(url => {
           let ws;
@@ -1217,7 +1222,11 @@ export function createSwarm({
           };
           ws.onopen = () => {
             count();
-            announce(ws);
+            if (!startWait) announce(ws);
+            else
+              setTimeout(() => {
+                if (!S.stopped) announce(ws);
+              }, startWait);
           };
           ws.onmessage = e => {
             const t = typeof e.data == 'string' ? e.data : '';
@@ -1246,9 +1255,9 @@ export function createSwarm({
         sweep();
         relayTick();
         S.socks.forEach(announce);
-        timer = setTimeout(tick, missing() !== 0 ? Math.min(interval, FAST_ANNOUNCE) : interval);
+        timer = setTimeout(tick, spread(missing() !== 0 ? Math.min(interval, FAST_ANNOUNCE) : interval, !!jitter));
       };
-      timer = setTimeout(tick, Math.min(interval, FAST_ANNOUNCE));
+      timer = setTimeout(tick, spread(Math.min(interval, FAST_ANNOUNCE), !!jitter) + startWait);
     },
     stop() {
       S.stopped = true;
@@ -1617,6 +1626,7 @@ export function createSquadronPage(deps) {
       trackers: trackerList(),
       WS: (deps.swarm && deps.swarm.WS) || globalThis.WebSocket,
       interval: (deps.swarm && deps.swarm.interval) || 25000,
+      jitter: deps.swarm ? 0 : START_JITTER,
       allow: uid => !(q.roster[uid] && q.roster[uid].removed),
       onPeer: (p, ev) => {
         if (ev == 'joined') {
@@ -1791,6 +1801,7 @@ export function createSquadronPage(deps) {
       trackers: trackerList(),
       WS: (deps.swarm && deps.swarm.WS) || globalThis.WebSocket,
       interval: (deps.swarm && deps.swarm.interval) || 25000,
+      jitter: deps.swarm ? 0 : START_JITTER,
       onPeer: (p, ev) => {
         if (ev == 'joined') p.link.send({ k: 'gone' });
       },

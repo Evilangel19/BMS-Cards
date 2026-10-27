@@ -1,5 +1,6 @@
 // Desktop integration (Tauri) with browser fallbacks: config file next to the exe, file dialogs, saving files.
 import { DEFAULTS, mergeConfig } from '../config/config.js';
+import { safeLoad, safeSave } from '../core/prefs.js';
 
 const T = () => window.__TAURI__;
 export const isDesktop = () => !!(T() && T().core && T().dialog && T().fs);
@@ -345,6 +346,35 @@ export function savePrefs(name, obj) {
     } catch (e) {
       /* read-only folder */
     }
+  }, 800);
+}
+// For a file that must not be lost (the squadrons): two complete copies, see core/prefs.js
+const prefIo = () => ({
+  read: async n => {
+    try {
+      return isDesktop() ? await T().fs.readTextFile(join(await appDir(), n)) : localStorage.getItem('bmscards.' + n);
+    } catch (e) {
+      return null;
+    }
+  },
+  write: async (n, t) => {
+    if (isDesktop()) await T().fs.writeTextFile(join(await appDir(), n), t);
+    else localStorage.setItem('bmscards.' + n, t);
+  },
+});
+export const loadPrefsSafe = name => safeLoad(prefIo(), name);
+const safeChain = {};
+export function savePrefsSafe(name, obj) {
+  clearTimeout(prefTimer[name]);
+  prefTimer[name] = setTimeout(() => {
+    // one write at a time: the next one waits for the one in progress
+    safeChain[name] = (safeChain[name] || Promise.resolve()).then(async () => {
+      try {
+        await safeSave(prefIo(), name, JSON.stringify(obj));
+      } catch (e) {
+        /* read-only folder */
+      }
+    });
   }, 800);
 }
 
