@@ -5,7 +5,8 @@
 // available when no tracker can be used.
 
 import { medalSvg, rankSvg } from './medals.js';
-import { newOrg, mergeOrg, pruneOrg, orgReduce, orgView } from './organization.js';
+import { newOrg, mergeOrg, pruneOrg, orgReduce, orgView, isAdmin, flightWarning } from './organization.js';
+import { orgHtml, wireOrg } from './orgpage.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -2042,13 +2043,14 @@ export function createSquadronPage(deps) {
           onUid.has(b.uid) - onUid.has(a.uid) ||
           String(a.callsign || a.name).localeCompare(String(b.callsign || b.name))
       );
-    const canSend = !q.leader || q.leader == DB.uid;
+    const canSend = canSendAll(q),
+      flights = orgHasFlights(q); // with flights the leaders are the flight leads: the star of the mission leader is not shown
     const row = (r, isMe) => {
       const o = isMe || onUid.has(r.uid),
         ed = own || isMe;
       return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
-      <td class="sqa"><button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
+      <td class="sqa">${flights ? '' : `<button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>`}${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
     };
     box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
       <div class="sqhead">${okImg(q.logo) ? `<img class="sqlogo" src="${q.logo}" alt="">` : '<span class="sqlogo"></span>'}<div class="sqtt"><div class="sqtitle" id="sqtitle">${esc(q.name)}</div><div class="hint" id="sqmottot" style="min-height:0">${esc(q.motto || (own ? 'No motto yet' : ''))}</div></div></div>
@@ -2152,8 +2154,12 @@ export function createSquadronPage(deps) {
         : q.leader == DB.uid
           ? 'You are the mission leader: you can send the mission.'
           : 'Mission leader: ' + label(lead) + '. Only the leader sends the mission.';
+    if (q && orgHasFlights(q))
+      $('#sqleadinfo').textContent = canSendAll(q)
+        ? 'You can send a mission to everybody online, or to one flight from the Organization section.'
+        : 'This squadron works in flights: the lead of your flight sends you the mission (Organization section).';
     const bc = $('#sqbcast');
-    bc.disabled = !n || !(q && (!q.leader || q.leader == DB.uid));
+    bc.disabled = !n || !(q && canSendAll(q));
     bc.textContent = 'Send my mission to everybody online' + (n ? ' (' + n + ')' : '');
     box.innerHTML = recv.length
       ? recv
@@ -2243,8 +2249,11 @@ export function createSquadronPage(deps) {
               '"?\n\nYou stop seeing its members and receiving its missions. No file on your computer is deleted, and you can come back with the invite code.' +
               (owns(q) ? '' : '')
           )
-        )
-          leave(q);
+        ) {
+          const r = orgAct(q, { t: 'leave' }); // the seat is freed for the others before the links close
+          if (r.ok) setTimeout(() => leave(q), 400);
+          else leave(q);
+        }
       };
       el.querySelectorAll('[data-kick]').forEach(
         b =>
@@ -2403,6 +2412,7 @@ export function createSquadronPage(deps) {
 
   const TABS = [
     ['members', 'Members'],
+    ['org', 'Organization'],
     ['me', 'Me'],
     ['settings', 'Settings'],
   ];
@@ -2415,6 +2425,7 @@ export function createSquadronPage(deps) {
     showTab();
     avDraw();
     drawMembers();
+    drawOrg();
     drawMis();
     drawCamp();
     drawMine();
@@ -2431,6 +2442,68 @@ export function createSquadronPage(deps) {
       say('Error: ' + S.err);
     }
     drawSession();
+  };
+
+  // ---- the Organization section ----
+  const orgHasFlights = q => orgView(q).packages.some(p => p.flights.length > 0);
+  // who may send to everybody: the commanders when the squadron works in flights, else the mission leader (or anybody while none is chosen)
+  const canSendAll = q => (orgHasFlights(q) ? isAdmin(q, DB.uid) : !q.leader || q.leader == DB.uid);
+  const nameOfIn = q => u => {
+    const r = q.roster[u] || (u == DB.uid ? me() : null);
+    return (r && (r.callsign || r.name)) || 'Pilot';
+  };
+  const onlineSet = q => {
+    const sw = swarms.get(q.id),
+      s = new Set(sw ? sw.online().map(p => p.uid) : []);
+    s.add(DB.uid);
+    return s;
+  };
+  let orgPending = false;
+  function drawOrg() {
+    const box = $('#sqorg');
+    if (!box) return;
+    const q = cur();
+    if (!q) {
+      box.innerHTML = '<div class="hint">You are not in a squadron yet.</div>';
+      return;
+    }
+    // not while somebody types, chooses or drags in it: it is drawn again when he is done
+    const a = document.activeElement;
+    if (box.dataset.drag || (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName))) {
+      orgPending = true;
+      return;
+    }
+    orgPending = false;
+    mkMe(q);
+    box.innerHTML = orgHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q));
+  }
+  const sendFlight = fid => {
+    const q = cur(),
+      f =
+        q &&
+        orgView(q)
+          .packages.flatMap(p => p.flights)
+          .find(x => x.id === fid);
+    if (!f) return;
+    const sw = swarms.get(q.id),
+      ps = f.members
+        .filter(u => u != DB.uid)
+        .map(u => sw && sw.byUid(u))
+        .filter(Boolean);
+    if (!ps.length) return result(false, 'Mission not sent', 'Nobody of this flight is online.');
+    sendFlow(
+      ps.map(p => toTarget(q.id, p)),
+      { check: m => flightWarning(f.n, m) }
+    );
+  };
+  const leaveHandover = async () => {
+    const q = cur();
+    if (!q || q.owner != DB.uid) return;
+    const to = nameOfIn(q)(q.mc);
+    if (!(await confirm('Leave "' + q.name + '" and hand the command to ' + to + '?'))) return;
+    const r = orgAct(q, { t: 'leave' });
+    if (!r.ok) return deps.toast ? deps.toast(r.error) : say(r.error);
+    setTimeout(() => leave(q, 'You left ' + q.name + ': ' + to + ' is the commander now.'), 600);
   };
 
   // ---- sending a mission: choose the mission and the DTC groups, then progress / result popups ----
@@ -2472,7 +2545,7 @@ export function createSquadronPage(deps) {
       }
     );
   // targets: async list of {label, send(text, name)}; resolves when done
-  const sendFlow = async targets => {
+  const sendFlow = async (targets, opts = {}) => {
     const T = typeof targets == 'function' ? targets : () => targets;
     if (!deps.mission) {
       const m = await deps.buildMission(),
@@ -2530,6 +2603,8 @@ export function createSquadronPage(deps) {
     } catch (e) {
       return result(false, 'Mission not sent', 'The mission could not be prepared: ' + ((e && e.message) || e));
     }
+    const warn = opts.check ? opts.check(m) : '';
+    if (warn && !(await confirm(warn))) return;
     return doSend(T(), JSON.stringify(m), m.name);
   };
   // a pilot to send to: looked up by his id when the turn comes (the link seen first may have been replaced meanwhile by another one to the same pilot)
@@ -2582,6 +2657,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Mission</h3><div class="hint" id="sqleadinfo"></div><div class="bar" style="margin-top:6px"><button class="btn g gn" id="sqbcast" disabled>Send my mission to everybody online</button><button class="btn g" id="sqdiag" title="Copies a technical report to paste when something does not work">Copy diagnostics</button></div><h4>Received</h4><div id="sqrecv"></div></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
 </div>
+</div><div class="sqpane" data-pane="org"><div class="sqc"><h3>Organization <small>packages, flights and who flies where</small></h3><div id="sqorg" class="sqorg"></div></div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div><div class="hint">A small picture (JPG, PNG or WebP) the other pilots of your squadrons see next to your name.</div></div><div id="sqpilot" class="pilmain"></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><div class="bar" style="margin-top:8px"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>My squadrons</h3><div id="sqmine"></div></div>
@@ -2600,6 +2676,20 @@ export function createSquadronPage(deps) {
   <textarea id="sqanscode" rows="3" readonly placeholder="Your answer code appears here" style="display:none"></textarea><div class="bar"><button class="btn g" id="sqcpa" style="display:none">Copy the answer code</button></div></div>
  <h4>Connected</h4><div id="sqmem"></div><div class="bar"><button class="btn g gn" id="sqsend" style="display:none">Send my mission to the session</button></div><div class="err" id="sqerr"></div></details></div>
 <div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div></div></div>`;
+    const og = $('#sqorg');
+    wireOrg(og, {
+      q: cur,
+      me: DB.uid,
+      online: () => onlineSet(cur()),
+      view: () => orgView(cur()),
+      act: a => orgAct(cur(), a),
+      send: sendFlight,
+      leave: leaveHandover,
+      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      confirm: t => Promise.resolve(confirm(t)),
+    });
+    og.addEventListener('focusout', () => setTimeout(() => orgPending && drawOrg(), 80));
+    og.addEventListener('dragend', () => setTimeout(() => orgPending && drawOrg(), 80));
     $('#sqtabs').onclick = e => {
       const b = e.target.closest('[data-tab]');
       if (b) {

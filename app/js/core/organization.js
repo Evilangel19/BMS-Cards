@@ -332,3 +332,34 @@ export function orgReduce(q, actor, a, ctx) {
   }
   return { ok: true, q: nq };
 }
+
+const norm = t =>
+  String(t == null ? '' : t)
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '');
+const GENERIC = new Set(['package', 'pkg', 'pack', 'flight', 'fl', 'flt', 'no', 'nr', 'num', 'number']);
+/**
+ * A warning when the name of a flight does not look like the mission about to be sent to it ('' = it does, or nothing can be said).
+ * The name may hold the callsign or the package number of the mission, in any case and with or without spaces: "Hawkeye", "hawkeye 4", "1301", "Pkg 1301".
+ * @param {string} flightName @param {any} m the mission (name, datacard.label)
+ */
+export function flightWarning(flightName, m) {
+  const fn = norm(flightName);
+  if (!fn || !m) return '';
+  const label = (m.datacard && m.datacard.label) || '',
+    hay = norm((m.name || '') + ' ' + label);
+  if (!hay) return '';
+  if (hay.includes(fn)) return '';
+  const toks = String(flightName)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(x => x.length >= 2 && !GENERIC.has(x));
+  if (toks.some(x => hay.includes(x))) return '';
+  return (
+    'The mission "' +
+    (m.name || '') +
+    '" does not look like the flight "' +
+    flightName +
+    '": the name of the flight should hold the callsign or the package number of the mission. Send it anyway?'
+  );
+}

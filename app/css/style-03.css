@@ -807,3 +807,207 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Squadron: the Organization section (packages, flights, pilots to drag) */
+.ogroles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.ogrole {
+  flex: 1 1 220px;
+  background: #0b0f14;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.oglab {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.ogval {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 2px 0 4px;
+}
+.ogbody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-start;
+}
+.ogside {
+  flex: 0 0 230px;
+  background: #0b0f14;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+}
+.ogside h4,
+.ogmain h4 {
+  margin: 0 0 4px;
+}
+.ogmain {
+  flex: 1 1 420px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ogpack {
+  background: #0b0f14;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.ogflights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.ogflight {
+  flex: 1 1 200px;
+  min-width: 190px;
+  max-width: 320px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ogflight.mine {
+  border-color: var(--ac);
+}
+.oghead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.oghead .ogx {
+  margin-left: auto;
+}
+.ogname {
+  min-width: 0;
+  flex: 1;
+  background: transparent;
+  color: var(--tx);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-weight: 700;
+  padding: 2px 4px;
+}
+.ogname:hover,
+.ogname:focus {
+  border-color: var(--line);
+  background: #0b0f14;
+}
+.ogname.big {
+  font-size: 15px;
+}
+.big {
+  font-size: 15px;
+}
+.ogcnt.full {
+  color: #ff8a7a;
+}
+.ogchip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #0b0f14;
+  cursor: grab;
+}
+.ogchip.me {
+  border-color: var(--ac);
+}
+.ogchip em {
+  color: var(--mu);
+  font-style: normal;
+  font-size: 12px;
+}
+.ogtag {
+  border-radius: 4px;
+  padding: 0 5px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #000;
+  background: var(--mu);
+}
+.ogtag.cmd {
+  background: #c9a227;
+}
+.ogtag.pk {
+  background: #7cc4ff;
+}
+.ogtag.fl {
+  background: #f0b24a;
+}
+.ogtag.you {
+  background: var(--ac);
+}
+.ogx {
+  background: transparent;
+  border: 0;
+  color: var(--mu);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ogx:hover {
+  color: #ff8a7a;
+}
+.ogadd {
+  flex: 1 1 160px;
+  min-height: 44px;
+  background: transparent;
+  color: var(--mu);
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.ogadd.wide {
+  width: 100%;
+  flex: none;
+}
+.ogadd:hover {
+  color: var(--tx);
+  border-color: var(--ac);
+}
+.ogfree {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 6px 0;
+}
+.ogfree select {
+  font-size: 12px;
+}
+.ogsend {
+  margin-top: 4px;
+}
+.oglost {
+  margin-top: 6px;
+}
+.ogempty {
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+}
+.ogdrop.okdrop {
+  outline: 2px dashed var(--ac);
+  outline-offset: 2px;
+}
+.ogdrop.over {
+  outline-style: solid;
+  background: #1d2631;
+}

@@ -10,7 +10,9 @@ import {
   MAX_FLIGHTS,
   MAX_PILOTS,
   NAME_MAX,
+  flightWarning,
 } from '../app/js/core/organization.js';
+import { orgHtml } from '../app/js/core/orgpage.js';
 
 let n = 0,
   bad = 0;
@@ -285,6 +287,96 @@ ok(
 }
 ok('unknown action refused', run(mkQ(), 'cmd1', { t: 'nope' }) === null);
 ok('somebody outside the squadron cannot act', run(mkQ(), 'stranger', { t: 'pk+', name: 'X' }) === null);
+
+// ---- the name of a flight against the mission about to be sent to it
+const mis = { name: '1301 Hawkeye 4', datacard: { label: 'Hawkeye 4 · F-16C · SEAD' } };
+ok(
+  'the callsign in any case matches',
+  flightWarning('hawkeye 4', mis) === '' &&
+    flightWarning('HAWKEYE', mis) === '' &&
+    flightWarning('Hawkeye4', mis) === ''
+);
+ok(
+  'the package number matches',
+  flightWarning('1301', mis) === '' &&
+    flightWarning('Pkg 1301', mis) === '' &&
+    flightWarning('Package 1301 Strike', mis) === ''
+);
+ok(
+  'another name warns, naming both',
+  /does not look like/.test(flightWarning('Viper', mis)) &&
+    /Viper/.test(flightWarning('Viper', mis)) &&
+    /1301 Hawkeye 4/.test(flightWarning('Viper', mis))
+);
+ok('a flight with a generic name warns', flightWarning('Flight 2', mis) !== '');
+ok(
+  'nothing to compare: no warning',
+  flightWarning('', mis) === '' && flightWarning('Viper', null) === '' && flightWarning('Viper', {}) === ''
+);
+
+// ---- the board: each role sees the controls it can use
+{
+  let w = run(mkQ(), 'mc1', { t: 'pk+', name: 'STRIKE' });
+  const P = idOf(w, 'pk', 'STRIKE');
+  w = run(w, 'mc1', { t: 'fl+', pk: P, name: 'Viper' });
+  const F = idOf(w, 'fl', 'Viper');
+  w = run(w, 'mc1', { t: 'as', uid: 'fl1', f: F });
+  w = run(w, 'mc1', { t: 'fllead', id: F, uid: 'fl1' });
+  w = run(w, 'mc1', { t: 'as', uid: 'w1', f: F });
+  const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const html = (me, on = ['fl1', 'w1']) => orgHtml(w, orgView(w), me, new Set(on), esc, u => w.roster[u].callsign);
+  const h1 = html('mc1'),
+    h2 = html('fl1'),
+    h3 = html('w1'),
+    h4 = html('cmd1');
+  ok(
+    'the mission commander can build and send',
+    /data-addpk/.test(h1) &&
+      /data-addfl/.test(h1) &&
+      /data-send=/.test(h1) &&
+      /data-clear/.test(h1) &&
+      /data-mc/.test(h1)
+  );
+  ok(
+    'the flight lead sends and renames his flight but cannot add packages or flights',
+    /data-send=/.test(h2) &&
+      /data-flname/.test(h2) &&
+      !/data-addpk/.test(h2) &&
+      !/data-addfl/.test(h2) &&
+      !/data-delpk/.test(h2) &&
+      !/data-delfl/.test(h2)
+  );
+  ok(
+    'a wingman has no button to send, rename or move',
+    !/data-send=/.test(h3) && !/data-flname/.test(h3) && !/data-fllead/.test(h3) && !/data-pklead/.test(h3)
+  );
+  ok(
+    'a wingman can take himself out of his flight, nobody else',
+    /data-out="w1"/.test(h3) && !/data-out="fl1"/.test(h3)
+  );
+  ok('only the commander can hand over the command', /data-cmd/.test(h4) && !/data-cmd/.test(h1));
+  ok(
+    'the count of online pilots to send to leaves me out',
+    /Send my mission to Viper \(1 online\)/.test(h2) && /Send my mission to Viper \(2 online\)/.test(h1)
+  );
+  ok('my flight is marked', /YOUR FLIGHT/.test(h2) && !/YOUR FLIGHT/.test(h1));
+  ok('the commander is called so, a flight lead too', /COMMANDER/.test(h1) && />LEAD</.test(h1));
+  ok('pilots who fly nowhere are offered for the flight', /data-moveto="pl1"/.test(h1) && /STRIKE · Viper/.test(h1));
+  ok(
+    'a name with markup is escaped',
+    !/<script/.test(
+      orgHtml(
+        { ...w, roster: { ...w.roster, pl1: { uid: 'pl1', callsign: '<script>x</script>' } } },
+        orgView(w),
+        'mc1',
+        new Set(),
+        esc,
+        u => String(w.roster[u].callsign || '')
+      )
+    )
+  );
+  ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
+}
 
 console.log(bad ? `${bad} of ${n} organization checks failed` : `OK - ${n} organization checks`);
 process.exit(bad ? 1 : 0);
