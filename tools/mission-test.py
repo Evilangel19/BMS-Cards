@@ -87,6 +87,38 @@ try:
         pg.click('[data-t=wp]'); pg.wait_for_timeout(1200)
         check('the weapons page opens from the mission', pg.is_visible('#wp') and pg.locator('#wp .wcard, #wp .wrow').count() > 0)
         pg.click('[data-t=ms]') if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
+        # the shape of the mission file against a reference (tests/mission-shape.json): a change must come with a decision about minReader
+        def shape(v, d=0):
+            if v is None: return None
+            if isinstance(v, bool): return 'boolean'
+            if isinstance(v, (int, float)): return 'number'
+            if isinstance(v, str): return 'string'
+            if isinstance(v, list): return ['list'] if not v or d >= 2 else ['list', shape(v[0], d + 1)]
+            return 'object' if d >= 2 else {k: shape(x, d + 1) for k, x in sorted(v.items())}
+        def flat(x, pre=''):
+            if isinstance(x, dict):
+                r = {}
+                for k, v in x.items(): r.update(flat(v, pre + '/' + k))
+                return r
+            return {pre: x}
+        cur_shape = shape(json.loads(pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())")))
+        min_reader = pg.evaluate("async()=>(await import('/app/js/core/mission.js')).MIN_READER")
+        ref_path = R + '/tests/mission-shape.json'
+        ref = json.load(open(ref_path)) if os.path.exists(ref_path) else None
+        if '--update-shape' in sys.argv:
+            if ref:
+                a_, b_ = flat(ref['shape']), flat(cur_shape)
+                # a key that is gone or has another type breaks the older readers (a null value says nothing about the type)
+                broken = [k for k in a_ if k not in b_ or (a_[k] is not None and b_[k] is not None and a_[k] != b_[k])]
+                if broken and ref['minReader'] == min_reader:
+                    print('REFUSED: these fields were removed or changed type:', broken, '\nRaise MIN_READER in app/js/core/mission.js to the version of this change, then update again.'); sys.exit(1)
+            json.dump({'minReader': min_reader, 'shape': cur_shape}, open(ref_path, 'w'), indent=1, sort_keys=True); open(ref_path, 'a').write('\n'); print('mission shape saved')
+        elif ref:
+            a_, b_ = flat(ref['shape']), flat(cur_shape)
+            same = a_.keys() == b_.keys() and all(a_[k] is None or b_[k] is None or a_[k] == b_[k] for k in a_)
+            check('the shape of the mission file is the reference one (if it changed: decide about MIN_READER in app/js/core/mission.js, then python3 tools/mission-test.py --update-shape)', same)
+        else:
+            check('tests/mission-shape.json exists (create it with --update-shape)', False)
         # F10: the pictures, Weapons data and tankers count as changes; F11: a load that fails halfway puts everything back
         pg.on('dialog', lambda d: d.accept())  # reopening over an open mission asks to discard
         pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
