@@ -133,6 +133,17 @@ try:
         if len(o) > 1:
             pg.select_option('select[data-pick=em]', o[1]); pg.wait_for_timeout(500)
             check('HARM: changing the emitter updates the page (the new STPT is on the map)', pg.evaluate("()=>document.querySelector('select[data-pick=em]').selectedOptions[0].textContent.split(' · ')[0]") in pg.inner_text('#wp'))
+        # the map layer and the objects switches of the horizontal envelope, as on the other three Weapons pages
+        tp = lambda: pg.evaluate("()=>{const p=document.querySelector('.leaflet-tile-pane');return p?+getComputedStyle(p).opacity:-1}")
+        check('HARM: Map layer (On/Off, Opacity) and Objects (On/Off) are there, like on Pop-up / HADB / TOSS', pg.locator('#wp .wpc .wmap [data-set=mapon]').all_inner_texts() == ['On', 'Off'] and pg.locator('#wp .wpc .wmap [data-set=objon]').all_inner_texts() == ['On', 'Off'] and pg.locator('#wp .wpc input[data-mop]').count() == 1)
+        pg.evaluate("()=>{const i=document.querySelector('#wp .wpc input[data-mop]');i.value=30;i.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
+        check('HARM: the Opacity slider fades the map layer (30%)', abs(tp() - 0.3) < 0.02 and '30%' in pg.inner_text('#wp .wpc .wmap'))
+        pg.click('#wp .wpc [data-set=mapon][data-v="0"]'); pg.wait_for_timeout(200)
+        check('HARM: Map layer Off hides it and the slider', tp() == 0 and not pg.is_visible('#wp .wpc .wmap .slr'))
+        pg.click('#wp .wpc [data-set=mapon][data-v="1"]'); pg.wait_for_timeout(200)
+        check('HARM: Map layer On brings it back at the chosen opacity', abs(tp() - 0.3) < 0.02 and pg.is_visible('#wp .wpc .wmap .slr'))
+        pg.click('#wp .wpc [data-set=objon][data-v="0"]'); pg.wait_for_timeout(300)
+        check('HARM: Objects Off switches the objects of the map off', pg.evaluate("()=>__app.mapV&&__app.mapV.objectsOn?__app.mapV.objectsOn():false") is False)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

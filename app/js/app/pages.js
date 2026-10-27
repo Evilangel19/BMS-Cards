@@ -198,6 +198,8 @@ export async function init9() {
     missiles: misLoad,
     only: 'harm',
     key: 'msmissiles1h',
+    objectsAll: on => mapV.objectsAll(on),
+    objectsOn: () => mapV.objectsOn(),
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
     toggleEdit: () => mapV.toggleEdit(),

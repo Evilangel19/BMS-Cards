@@ -55,6 +55,7 @@ export function createMissilesPage(deps) {
       tgtSize: 'fighter',
     },
     tl: { std: { ...STD }, sel: 0, cls: ['Su-27', 'Mig-29A', 'F-16C', 'Mig-31'] },
+    map: { on: true, op: 80 }, // the map layer under the horizontal envelope, as on the Weapons page
   };
   try {
     const o = JSON.parse(sessionStorage.getItem(KEY) || 'null');
@@ -63,6 +64,7 @@ export function createMissilesPage(deps) {
         ...st,
         ...o,
         harm: { ...st.harm, ...o.harm },
+        map: { ...st.map, ...o.map },
         bvr: { ...st.bvr, ...o.bvr },
         mode: deps.only || o.mode,
         tl: {
@@ -495,6 +497,15 @@ export function createMissilesPage(deps) {
       /* none */
     }
   }
+  // the map layer (satellite / coast) fades with the slider, or is switched off
+  function applyOp() {
+    if (!M) return;
+    const o = st.map.on ? st.map.op / 100 : 0;
+    ['tilePane', 'coastP'].forEach(k => {
+      const p = M.map.getPane(k);
+      if (p) p.style.opacity = o;
+    });
+  }
   function paint() {
     if (st.mode != 'harm') return;
     if (!M) {
@@ -505,6 +516,7 @@ export function createMissilesPage(deps) {
         });
       return;
     }
+    applyOp();
     const r = res,
       { L, map, WL } = M,
       RN = map._wpR;
@@ -667,7 +679,25 @@ export function createMissilesPage(deps) {
       if (st.mode == 'bvr')
         root.innerHTML = `${tabs}<div class="wpg" style="grid-template-columns:480px minmax(0,1fr) 340px"><div class="wpc" style="grid-column:1;grid-row:1;min-width:0"><div class="wpc" id="mstlbox" style="grid-column:auto;grid-row:auto"></div><div class="wpl" style="grid-row:auto">${left}</div></div><div class="wpc" id="msch" style="grid-column:2;grid-row:1"></div><div class="wpc" style="grid-column:3;grid-row:1;min-width:0"><div class="wpr" id="msr" style="grid-column:auto;grid-row:auto"></div></div></div>`;
       else
-        root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${left}</div>${st.mode == 'harm' ? `<div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div><div id="msh" class="wmapbox"></div><div class="wleg">${HLEG.map(([c, t, d]) => `<span><svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="3"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>${t}</span>`).join('')}</div><p class="hint wnote">The seeker opens at the trip point (POS / HAD); the white outline is the HTS footprint (the heart of EOM / RUK, the wedge of PB), HAS shows its ±60°.</p></div></div>` : ''}<div class="wpr"><div id="msv" style="display:contents"></div><div id="msr" style="display:contents"></div></div></div>`;
+        root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${left}</div>${
+          st.mode == 'harm'
+            ? `<div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div><div class="wrow wmap"><label>Map layer</label>${seg(
+                'mapon',
+                [
+                  ['1', 'On'],
+                  ['0', 'Off'],
+                ],
+                st.map.on ? 1 : 0
+              )}<div class="slr"${st.map.on ? '' : ' hidden'}><label>Opacity</label><input type="range" min="0" max="100" step="5" value="${st.map.op}" data-mop><em data-em="mop">${st.map.op}%</em></div><div class="wobj"><label>Objects</label>${seg(
+                'objon',
+                [
+                  ['1', 'On'],
+                  ['0', 'Off'],
+                ],
+                deps.objectsOn && deps.objectsOn() ? 1 : 0
+              )}</div></div><div id="msh" class="wmapbox"></div><div class="wleg">${HLEG.map(([c, t, d]) => `<span><svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="3"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>${t}</span>`).join('')}</div><p class="hint wnote">The seeker opens at the trip point (POS / HAD); the white outline is the HTS footprint (the heart of EOM / RUK, the wedge of PB), HAS shows its ±60°.</p></div></div>`
+            : ''
+        }<div class="wpr"><div id="msv" style="display:contents"></div><div id="msr" style="display:contents"></div></div></div>`;
       wire(root);
     }
     root.querySelector('#msr').innerHTML = results();
@@ -742,10 +772,34 @@ export function createMissilesPage(deps) {
     root.querySelectorAll('[data-set]').forEach(
       b =>
         (b.onclick = () => {
+          const f = b.dataset.set;
+          if (f == 'objon' || f == 'mapon') {
+            if (f == 'objon') {
+              if (deps.objectsAll) deps.objectsAll(b.dataset.v == '1');
+            } else {
+              st.map.on = b.dataset.v == '1';
+              const sl = root.querySelector('.wmap .slr');
+              if (sl) sl.hidden = !st.map.on;
+              applyOp();
+              save();
+            }
+            b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+            return;
+          }
           cur()[b.dataset.set] = ['iso', 'gi'].includes(b.dataset.set) ? +b.dataset.v : b.dataset.v;
           b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
           save();
           draw(b.dataset.set != 'mode');
+        })
+    );
+    root.querySelectorAll('input[data-mop]').forEach(
+      i =>
+        (i.oninput = () => {
+          st.map.op = +i.value;
+          const em = root.querySelector('[data-em="mop"]');
+          if (em) em.textContent = i.value + '%';
+          applyOp();
+          save();
         })
     );
     root.querySelectorAll('input[data-sl]').forEach(
@@ -848,7 +902,7 @@ export function createMissilesPage(deps) {
     state: () => st,
     setState: o => {
       if (o && typeof o == 'object') {
-        st = { ...st, ...o, mode: deps.only || o.mode || st.mode };
+        st = { ...st, ...o, map: { ...st.map, ...o.map }, mode: deps.only || o.mode || st.mode };
         save();
         refresh();
       }
