@@ -5,6 +5,7 @@
 // available when no tracker can be used.
 
 import { medalSvg, rankSvg } from './medals.js';
+import { newOrg, mergeOrg, pruneOrg, orgReduce, orgView } from './organization.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -712,6 +713,8 @@ export const newSquadron = (name, owner = '') => ({
   secret: randHex(16),
   owner,
   leader: '',
+  mc: '', // the mission commander: has the powers of the commander and takes the command when the commander leaves
+  org: newOrg(), // packages, flights and who flies where (core/organization.js)
   ts: Date.now(),
   roster: {},
 });
@@ -764,11 +767,11 @@ export const rosterLite = roster =>
     })
   );
 // the message that brings a pilot up to date: whole when small, without the pictures (each with its fingerprint) when it would be big
-export function syncMsg(meta, roster) {
-  const full = { k: 'sync', squad: meta, roster: rosterOut(roster) };
+export function syncMsg(meta, roster, org) {
+  const full = { k: 'sync', squad: meta, roster: rosterOut(roster), ...(org ? { org } : {}) };
   return JSON.stringify(full).length <= SYNC_FULL_MAX
     ? full
-    : { k: 'sync', squad: meta, roster: rosterLite(roster), lite: 1 };
+    : { k: 'sync', squad: meta, roster: rosterLite(roster), lite: 1, ...(org ? { org } : {}) };
 }
 // after a roster without pictures: the pilots whose picture is missing or different here; 'pending' keeps what was asked a moment ago, so a picture is not asked to every pilot at once
 export function avNeeded(mine, theirs, pending = new Map(), now = Date.now(), retry = 30000) {
@@ -1612,6 +1615,7 @@ export function createSquadronPage(deps) {
     notes: q.notes,
     owner: q.owner,
     leader: q.leader,
+    mc: q.mc || '',
     logo: q.logo || '',
     ts: q.ts,
   });
@@ -1658,7 +1662,7 @@ export function createSquadronPage(deps) {
             });
             say(label(pr) + ' is online (' + q.name + ').');
           }
-          p.link.send(syncMsg(meta(q), q.roster));
+          p.link.send(syncMsg(meta(q), q.roster, q.org));
           save();
         } else if (q.roster[p.uid]) {
           q.roster[p.uid].lastSeen = Date.now();
@@ -1670,13 +1674,15 @@ export function createSquadronPage(deps) {
       onMessage: (p, m) => {
         if (m.k == 'sync') {
           let ch = false;
-          if (m.squad && (m.squad.ts || 0) > (q.ts || 0) && (!q.owner || m.squad.owner == q.owner)) {
+          if (m.squad && (m.squad.ts || 0) > (q.ts || 0)) {
+            // the commander can change (he hands over the command, or the mission commander gives the seat back): the newest news wins
             Object.assign(q, {
               name: m.squad.name,
               motto: m.squad.motto,
               notes: m.squad.notes,
               owner: m.squad.owner || q.owner,
               leader: m.squad.leader || '',
+              mc: typeof m.squad.mc == 'string' ? m.squad.mc : '',
               logo: okImg(m.squad.logo) ? m.squad.logo : '',
               ts: m.squad.ts,
             });
@@ -1690,6 +1696,13 @@ export function createSquadronPage(deps) {
           if (r.changed) {
             q.roster = r.roster;
             ch = true;
+          }
+          if (m.org) {
+            const g = mergeOrg(q.org || newOrg(), m.org);
+            if (g.changed) {
+              q.org = g.org;
+              ch = true;
+            }
           }
           if (q.roster[DB.uid] && q.roster[DB.uid].removed) {
             leave(q, 'You were removed from ' + q.name + ' by its leader.');
@@ -1765,7 +1778,7 @@ export function createSquadronPage(deps) {
   };
   const pushSync = q => {
     const w = swarms.get(q.id);
-    if (w) w.broadcast(syncMsg(meta(q), q.roster));
+    if (w) w.broadcast(syncMsg(meta(q), q.roster, q.org));
   };
   const touchSquad = q => {
     q.ts = Date.now();
@@ -1779,6 +1792,20 @@ export function createSquadronPage(deps) {
     r.ts = Date.now();
     save();
     pushSync(q);
+  };
+  // one change of the organisation made by this pilot (see orgReduce for the rules); {ok:false, error} when it is not allowed
+  const orgAct = (q, a) => {
+    if (!q) return { ok: false, error: 'No squadron.' };
+    const sw = swarms.get(q.id),
+      online = new Set(sw ? sw.online().map(p => p.uid) : []);
+    online.add(DB.uid);
+    const r = orgReduce(q, DB.uid, a, { now: Date.now(), rid: () => randHex(6), online });
+    if (!r.ok || r.q === q) return r;
+    Object.assign(q, { org: r.q.org, owner: r.q.owner, mc: r.q.mc, roster: r.q.roster, ts: r.q.ts });
+    save();
+    pushSync(q);
+    drawAll();
+    return r;
   };
   function leave(q, why) {
     swarmStop(q.id);
@@ -1836,6 +1863,10 @@ export function createSquadronPage(deps) {
     r.ts = Date.now();
     if (q.leader == uid) {
       q.leader = '';
+      q.ts = Date.now();
+    }
+    if (q.mc == uid) {
+      q.mc = '';
       q.ts = Date.now();
     }
     save();
@@ -2239,6 +2270,8 @@ export function createSquadronPage(deps) {
         if (DB.squads.some(x => x.secret == q.secret)) throw new Error('You are already in this squadron.');
         q.id = randHex(4);
         q.roster = {};
+        q.mc = '';
+        q.org = newOrg();
         mkMe(q);
         DB.squads.push(q);
         DB.cur = q.id;
@@ -2739,6 +2772,8 @@ export function createSquadronPage(deps) {
         delete DB.roster;
         DB.squads.forEach(q => {
           q.roster = q.roster || {};
+          q.mc = typeof q.mc == 'string' ? q.mc : '';
+          q.org = pruneOrg(mergeOrg(newOrg(), q.org).org); // shapes checked, old deleted items forgotten
         });
       }
     } catch (e) {
@@ -2790,5 +2825,9 @@ export function createSquadronPage(deps) {
       gsw.clear();
     },
     restart: startAll,
+    org: {
+      act: a => orgAct(cur(), a),
+      view: () => (cur() ? orgView(cur()) : null),
+    },
   };
 }
