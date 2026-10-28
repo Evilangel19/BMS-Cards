@@ -351,8 +351,13 @@ export async function init11() {
     version: APP_VERSION,
     saveReceived: (t, n) => msfStoreReceived(t, n),
     receiveCard: async (c, from) => {
-      const blob = await (await fetch(c.img)).blob();
-      await kbAddTray(blob, c.name + ' · from ' + from);
+      // the picture arrives as a data: address already checked by the squadron; it is decoded here (no fetch, so a strict CSP can stay)
+      const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(c.img);
+      if (!m) throw new Error('not a picture');
+      const bin = atob(m[2]),
+        u = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+      await kbAddTray(new Blob([u], { type: m[1] }), c.name + ' · from ' + from);
     },
     mission: {
       ident: () => msfIdent(),

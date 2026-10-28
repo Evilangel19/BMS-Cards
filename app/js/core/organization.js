@@ -17,6 +17,8 @@ export const MAX_FLIGHTS = 5; // flights in a package (BMS does not accept a six
 export const MAX_PILOTS = 4; // pilots in a flight
 export const NAME_MAX = 24;
 const MAX_ITEMS = { pk: MAX_PACKAGES, fl: MAX_PACKAGES * MAX_FLIGHTS, as: 600 };
+// deleted items kept for the pilots who were offline: counted apart, so many deletions never push a live package or flight out
+const MAX_DEAD = { pk: 100, fl: 400, as: 0 };
 export const TOMB_DAYS = 60;
 
 export const newOrg = () => ({ pk: {}, fl: {}, as: {} });
@@ -39,16 +41,18 @@ export function cleanOrg(o) {
   const take = (sec, f) => {
     const src = o[sec];
     if (!src || typeof src != 'object') return;
-    let n = 0;
+    /** @type {Array<[string, any]>} */
+    const items = [];
     for (const [k, v] of Object.entries(src)) {
-      if (n >= MAX_ITEMS[sec]) break;
       if (!isId(k) || !v || typeof v != 'object') continue;
       const c = f(k, v);
-      if (c) {
-        out[sec][k] = c;
-        n++;
-      }
+      if (c) items.push([k, c]);
     }
+    // the limits count the live items (the oldest are kept); the deleted ones have a limit of their own (the newest are kept)
+    // the same pick on every computer, whatever the order the items arrived in
+    const live = items.filter(([, c]) => !c.x).sort((a, b) => (a[1].c || 0) - (b[1].c || 0) || (a[0] < b[0] ? -1 : 1)),
+      dead = items.filter(([, c]) => c.x).sort((a, b) => b[1].ts - a[1].ts || (a[0] < b[0] ? -1 : 1));
+    for (const [k, c] of [...live.slice(0, MAX_ITEMS[sec]), ...dead.slice(0, MAX_DEAD[sec])]) out[sec][k] = c;
   };
   take('pk', (k, v) => {
     if (!isTs(v.ts)) return null;
@@ -387,11 +391,13 @@ export function orgFromTemplate(q, actor, tpl, ctx) {
   if (!isAdmin(q, actor)) return fail('Only the commander and the mission commander load a template.');
   const list = tpl && Array.isArray(tpl.pk) ? tpl.pk.slice(0, MAX_PACKAGES) : [];
   let cur = q,
-    last = '';
+    last = '',
+    step = 0;
   const rid = () => (last = ctx.rid());
+  // every step has its own time (one more millisecond), so the packages, the flights and the pilots keep the order of the template
   /** @param {any} a @returns {boolean} */
   const go = a => {
-    const r = orgReduce(cur, actor, a, { ...ctx, rid });
+    const r = orgReduce(cur, actor, a, { ...ctx, now: ctx.now + step++, rid });
     if (!r.ok) return false;
     cur = r.q;
     return true;

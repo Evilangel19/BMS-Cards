@@ -443,5 +443,80 @@ ok(
   ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
 }
 
+// ---- a template keeps the order of the night, whatever the (random) ids of the new items are
+{
+  const q0 = mkQ();
+  const flights = [
+    [
+      ['w1', 'w2'],
+      ['w3', 'w4'],
+    ],
+    [
+      ['w5', 'x1'],
+      ['x2', 'pl1'],
+    ],
+    [[], []],
+  ];
+  const tp = {
+    pk: flights.map((fl, i) => ({
+      n: 'Pkg ' + (i + 1),
+      lead: '',
+      fl: fl.map((m, j) => ({ n: 'Fl ' + (i + 1) + (j + 1), lead: '', m })),
+    })),
+  };
+  const rnd = () => Math.random().toString(36).slice(2, 10) || 'a';
+  let same = 0,
+    all = 30;
+  for (let t = 0; t < all; t++) {
+    const r = orgFromTemplate(q0, 'mc1', tp, { now: 9000 + t * 100, rid: rnd, online: new Set() });
+    if (!r.ok) continue;
+    const v = orgView(r.q),
+      shape = v.packages.map(p => p.n + ':' + p.flights.map(f => f.n + '=' + f.members.join('+')).join('|')).join(' ');
+    if (shape === 'Pkg 1:Fl 11=w1+w2|Fl 12=w3+w4 Pkg 2:Fl 21=w5+x1|Fl 22=x2+pl1 Pkg 3:Fl 31=|Fl 32=') same++;
+  }
+  ok('a template always comes back in its own order (' + same + ' of ' + all + ')', same === all);
+}
+
+// ---- many nights of creating and deleting never push a live package or flight out
+{
+  let q = mkQ(),
+    all = true;
+  const step = a => {
+    const r = q && run(q, 'mc1', a);
+    if (r) q = r;
+    else all = false;
+    return !!r;
+  };
+  const find = (sec, name) => Object.values((q && q.org[sec]) || {}).find(x => x.n === name);
+  for (let i = 0; i < 150 && all; i++) {
+    if (!step({ t: 'pk+', name: 'N' + i })) break;
+    const p = find('pk', 'N' + i);
+    if (!p) break;
+    step({ t: 'fl+', pk: p.id, name: 'F' + i });
+    step({ t: 'pk-', id: p.id });
+  }
+  ok('150 packages created and deleted', all);
+  step({ t: 'pk+', name: 'Last' });
+  const lp = find('pk', 'Last');
+  if (lp) step({ t: 'fl+', pk: lp.id, name: 'Lastflight' });
+  const clean = q ? { ...q, org: cleanOrg(q.org) } : mkQ();
+  ok(
+    'after the clean-up the new package and flight are still there',
+    orgView(clean).packages.some(p => p.n === 'Last' && p.flights.some(f => f.n === 'Lastflight'))
+  );
+  ok(
+    'the deleted ones have a limit of their own',
+    Object.values(clean.org.pk).filter(x => x.x).length <= 100 &&
+      Object.values(clean.org.fl).filter(x => x.x).length <= 400
+  );
+  // the same pick whatever the order the items arrive in
+  const keys = o => JSON.stringify(Object.keys(cleanOrg(o).pk).sort());
+  const rev = { pk: Object.fromEntries(Object.entries(q ? q.org.pk : {}).reverse()), fl: {}, as: {} };
+  ok(
+    'the pick does not depend on the order of arrival',
+    keys(rev) === keys({ ...rev, pk: Object.fromEntries(Object.entries(rev.pk).reverse()) })
+  );
+}
+
 console.log(bad ? `${bad} of ${n} organization checks failed` : `OK - ${n} organization checks`);
 process.exit(bad ? 1 : 0);

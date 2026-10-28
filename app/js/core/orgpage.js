@@ -228,6 +228,7 @@ export function wireOrg(box, h) {
     const t = e.target,
       d = t.dataset,
       v = t.value;
+    if (t.blur) t.blur(); // a chosen select (or a name finished with Enter) keeps the focus, and a board with the focus inside is not redrawn
     if (d.pkname) run({ t: 'pk~', id: d.pkname, name: v });
     else if (d.flname) run({ t: 'fl~', id: d.flname, name: v });
     else if (d.pklead) run({ t: 'pklead', id: d.pklead, uid: v });

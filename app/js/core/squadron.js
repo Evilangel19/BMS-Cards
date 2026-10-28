@@ -831,7 +831,6 @@ export function parseCard(text) {
     if (o.format != 'bms-cards-card' || typeof o.img != 'string') return null;
     if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(o.img)) return null;
     if ((o.img.length * 3) / 4 > CARD_MAX * 1.02) return null;
-    // eslint-disable-next-line no-control-regex
     const name = String(o.name || '')
       .replace(/[\u0000-\u001f<>"\\/:|?*]/g, ' ')
       .replace(/\s+/g, ' ')
@@ -2052,7 +2051,7 @@ export function createSquadronPage(deps) {
     return (
       (f ? esc(p.n + ' · ' + f.n) : '—') +
       tags
-        .map(t => ` <span class="ogtag ${t == 'LEAD' ? 'fl' : t == 'PACKAGE LEAD' ? 'pk' : 'cmd'}">${t}</span>`)
+        .map(t => ` <span class="ogtag ${t == 'LEAD' ? 'fl' : t == 'PACKAGE LEAD' ? 'pk' : 'mc'}">${t}</span>`)
         .join('')
     );
   };
@@ -2060,6 +2059,10 @@ export function createSquadronPage(deps) {
     const c = memCtx,
       tb = $('#sqtabbox');
     if (!c || !tb) return;
+    if (typing(tb)) {
+      late(tb);
+      return;
+    }
     const { q, list, onUid, m, row } = c,
       ov = orgView(q),
       f = (($('#sqfind') && $('#sqfind').value) || '').trim().toLowerCase();
@@ -2102,9 +2105,11 @@ export function createSquadronPage(deps) {
     const shown = all.slice(0, mem.limit);
     $('#sqshown') &&
       ($('#sqshown').textContent = all.length == total ? total + ' pilots' : all.length + ' of ' + total + ' pilots');
+    const back = formKeep(tb);
     tb.innerHTML = `<table class="sqt"><thead><tr><th></th><th>Pilot</th><th>Flight</th><th>Logbook</th><th>Role</th><th>Notes</th><th>Seen</th><th></th></tr></thead><tbody id="sqros">${shown.map(r => row(r, r.uid == DB.uid)).join('')}</tbody></table>
       ${all.length > shown.length ? `<div class="bar" style="margin-top:6px"><button class="btn g" id="sqmore">Show ${Math.min(MEM_STEP, all.length - shown.length)} more (${all.length - shown.length} left)</button></div>` : ''}
       ${!all.length ? '<div class="hint">No pilot found.</div>' : list.length ? '' : '<div class="hint">Nobody else yet: give your invite code to the pilots.</div>'}`;
+    back();
     const more = $('#sqmore');
     if (more)
       more.onclick = () => {
@@ -2116,6 +2121,7 @@ export function createSquadronPage(deps) {
       tr.querySelectorAll('input[data-f]').forEach(
         i =>
           (i.onchange = () => {
+            i.defaultValue = i.value; // saved: it is not "typed and waiting" any more
             mkMe(q);
             touchMember(q, uid, r => {
               r[i.dataset.f] = i.value;
@@ -2197,9 +2203,54 @@ export function createSquadronPage(deps) {
         })
     );
   }
+  // Somebody is typing in a field of this box: it is not drawn again (his text and his cursor would be lost) until he leaves the field.
+  const typing = box => {
+    const a = document.activeElement;
+    return !!a && box.contains(a) && /^(INPUT|TEXTAREA)$/.test(a.tagName);
+  };
+  const late = box => {
+    const b = /** @type {any} */ (box);
+    if (b._late) return;
+    b._late = true;
+    box.addEventListener(
+      'focusout',
+      () =>
+        setTimeout(() => {
+          b._late = false;
+          drawAll();
+        }, 0),
+      { once: true }
+    );
+  };
+  // Draws a box again without losing what was typed in its fields and not saved yet (and the edit box that was open).
+  // Use: `const back = formKeep(box); box.innerHTML = …; back();`
+  const formKeep = box => {
+    const key = e => {
+      const r = e.closest('[data-uid]');
+      return e.id || (e.dataset.f && r ? r.dataset.uid + '/' + e.dataset.f : '');
+    };
+    const fields = () =>
+      [...box.querySelectorAll('input,textarea')].filter(e => /** @type {any} */ (e).type != 'file' && key(e));
+    const dirty = fields()
+        .filter(e => /** @type {any} */ (e).value !== /** @type {any} */ (e).defaultValue)
+        .map(e => [key(e), /** @type {any} */ (e).value]),
+      open = [...box.querySelectorAll('.sqedit')].filter(e => e.id && !(/** @type {any} */ (e).hidden)).map(e => e.id);
+    return () => {
+      const now = new Map(fields().map(e => [key(e), /** @type {any} */ (e)]));
+      for (const [k, v] of dirty) if (now.has(k)) now.get(k).value = v;
+      for (const id of open) {
+        const e = /** @type {any} */ (box.querySelector('#' + id));
+        if (e) e.hidden = false;
+      }
+    };
+  };
   function drawMembers() {
     const box = $('#sqhead');
     if (!box) return;
+    if (typing(box)) {
+      late(box);
+      return;
+    }
     const q = cur();
     if (!q) {
       memCtx = null;
@@ -2210,9 +2261,11 @@ export function createSquadronPage(deps) {
         if (e) e[e.tagName == 'DIV' || e.tagName == 'SELECT' ? 'innerHTML' : 'textContent'] = '';
       });
       if ($('#sqhead3')) $('#sqhead3').textContent = 'My squadrons';
+      const back = formKeep(box);
       box.innerHTML =
         '<div class="hint">You are not in a squadron yet: create one or join with an invite code.</div>' +
         startHtml('m');
+      back();
       startWire(box, 'm');
       return;
     }
@@ -2232,6 +2285,7 @@ export function createSquadronPage(deps) {
     const ov = orgView(q),
       canSend = canSendAll(q),
       flights = ov.packages.some(p => p.flights.length > 0); // with flights the leaders are the flight leads: the star of the mission leader is not shown
+    if ($('#sqleg')) $('#sqleg').hidden = flights; // the star exists only while the squadron has no flights
     const row = (r, isMe) => {
       const o = isMe || onUid.has(r.uid),
         ed = own || isMe;
@@ -2239,12 +2293,14 @@ export function createSquadronPage(deps) {
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
       <td class="sqa">${flights ? '' : `<button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>`}${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
     };
+    const back = formKeep(box);
     box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
       <div class="sqhead">${okImg(q.logo) ? `<img class="sqlogo" src="${q.logo}" alt="">` : '<span class="sqlogo"></span>'}<div class="sqtt"><div class="sqtitle" id="sqtitle">${esc(q.name)}</div><div class="hint" id="sqmottot" style="min-height:0">${esc(q.motto || (own ? 'No motto yet' : ''))}</div></div></div>
       ${own ? `<div class="sqedit" id="sqedit" hidden><input id="sqname" value="${esc(q.name)}" maxlength="40" placeholder="Name of the squadron"><input id="sqmotto" value="${esc(q.motto || '')}" placeholder="Motto" maxlength="80"><button class="btn g gn" id="sqeditok">Save</button><button class="btn g" id="sqeditx">Cancel</button></div>` : ''}
       <textarea id="sqnotes" rows="2" placeholder="Information about the squadron (briefing place, Discord, schedule …)"${own ? '' : ' disabled'}>${esc(q.notes || '')}</textarea>
       <div class="sqstat" id="sqstat">${sw ? (sw.trackers ? sw.trackers + ' tracker' + (sw.trackers == 1 ? '' : 's') + ' connected · ' + on.length + ' pilot' + (on.length == 1 ? '' : 's') + ' online' : 'Connecting to the trackers…') : 'Not connected'}</div>
       <div class="bar" style="margin-top:10px"><button class="btn g gn" id="sqcopyinv">Copy the invite code</button>${own ? '<button class="btn g" id="sqrename">Rename…</button><button class="btn g" id="sqlogo">Squadron logo…</button>' + (q.logo ? '<button class="btn g" id="sqlogox">Remove the logo</button>' : '') + '<button class="btn g rd" id="sqdelete">Delete the squadron</button>' : ''}</div>`;
+    back();
     memCtx = { q, list, onUid, m, row };
     drawTable();
     $('#sqsel').onchange = e => {
@@ -2254,6 +2310,7 @@ export function createSquadronPage(deps) {
     };
     const st = (id, f) => {
       $(id).onchange = e => {
+        e.target.defaultValue = e.target.value; // saved
         q[f] = e.target.value;
         touchSquad(q);
       };
@@ -2360,6 +2417,7 @@ export function createSquadronPage(deps) {
       DB.cur = q.id;
       save();
       swarmStart(q);
+      g('sqnew').value = '';
       drawAll();
       say('Squadron "' + q.name + '" created.');
     };
@@ -2376,6 +2434,7 @@ export function createSquadronPage(deps) {
         DB.cur = q.id;
         save();
         swarmStart(q);
+        g('sqinvin').value = '';
         drawAll();
         say('You joined ' + q.name + '.');
       } catch (e) {
@@ -2386,6 +2445,10 @@ export function createSquadronPage(deps) {
   function drawMine() {
     const box = $('#sqmine');
     if (!box) return;
+    if (typing(box)) {
+      late(box);
+      return;
+    }
     const rows = DB.squads
       .map(q => {
         const sw = swarms.get(q.id),
@@ -2396,7 +2459,9 @@ export function createSquadronPage(deps) {
       ${own && mem.length ? `<details class="sqmod"><summary>Moderation</summary><div class="hint">Remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</details>` : ''}</div>`;
       })
       .join('');
+    const back = formKeep(box);
     box.innerHTML = (rows || '<div class="hint">You are not in any squadron.</div>') + startHtml('');
+    back();
     box.querySelectorAll('.sqsqr').forEach(el => {
       const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => {
@@ -2639,7 +2704,7 @@ export function createSquadronPage(deps) {
     if (!box) return;
     const q = cur(),
       a = document.activeElement;
-    if (a && box.contains(a)) return;
+    if (a && box.contains(a) && /^(INPUT|SELECT)$/.test(a.tagName)) return; // not while somebody chooses in it
     box.hidden = !q;
     const h = q ? lostHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q)) : '';
     box.innerHTML = h;
@@ -2935,7 +3000,7 @@ export function createSquadronPage(deps) {
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
 <div class="sqmain">
 <div class="sqc"><h3 id="sqhead3">Squadron</h3><div id="sqhead"></div></div>
-<div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
+<div class="sqc"><h3>Members <small id="sqleg">☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
 <div class="sqc" id="sqlost" hidden></div>
 </div>

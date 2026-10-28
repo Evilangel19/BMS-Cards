@@ -21,7 +21,7 @@ app/index.html     the page (HTML only); style sheets app/css/style-01..09.css (
 app/js/app/        the page's code: main.js (entry), state.js (ST: state shared by modules), pages.js, settings.js,
                    campaign.js, dtcfile.js, dtcapply.js, mission.js, kneeboard.js, datacard.js, expose.js (helper for tests) ...
 app/js/core/       the pages and their logic: mapview.js (+ mapconst, mapdata, mapdtc, mapoffs, mapsymbols, mapwarp),
-                   weaponspage.js, dtcpage.js, squadron.js, missilespage.js, perfpage.js, weatherpage.js, docspage.js,
+                   weaponspage.js, dtcpage.js, squadron.js (+ organization.js, orgpage.js, medals.js), missilespage.js, perfpage.js, weatherpage.js, docspage.js,
                    ato.js, flight.js, fillcard.js, cardlayout.js, dctemplate.js, dds.js, kneeboard.js, mission.js ...
 app/js/parsers/    cam, fmap, link16, iff, twx, dtc, lzss
 app/js/rules/      weather (ATIS/TAF), airbase, geo, support, ephemerides
@@ -51,6 +51,15 @@ docs/              this file, ROADMAP.md, archive/
 - Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
 - Animations use the Web Animations API through small helpers; `.noanim` (reduced motion) switches them off; tests run with reduced motion unless they test an animation.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
+
+## Squadron (online)
+
+- Pilots find each other through WebSocket trackers (only offers and answers pass there) and then talk over a WebRTC data-channel mesh. Everything that travels is a JSON message: the roster, the organization, missions (zip, then base64 in chunks with an acknowledgement) and kneeboard cards (a picture as a `data:` address, at most 8 MB). A message above what a channel carries is split into fragments.
+- The state of a squadron (`q`) is kept in `squadron.json` next to the program (`core/prefs.js`: the text is written to `squadron.json.new` and read back, only then to `squadron.json`, so a whole copy always exists; a file that cannot be read is kept as `.bad`, never overwritten by an empty start). The roster merges member by member, the organization item by item: the newer time stamp wins, a deleted package or flight stays as a marker for 60 days so the pilots who were offline hear about it.
+- `core/organization.js`: the rules of the organization, pure functions without DOM or network: `q.owner` (commander), `q.mc` (mission commander), `q.org` (packages, flights, seats), `orgView` (what is shown: the limits of 5 flights and 4 pilots are applied there, the same on every computer), `orgReduce` (every action of the board with its permission check), templates.
+- `core/orgpage.js`: the board as HTML and its events (clicks, menus, dragging with pointer events: the HTML5 drag-and-drop does not reach the page inside the Tauri window on Windows). `core/squadron.js`: the page itself (network, persistence, Me / Members / Organization / Missions / Settings).
+- The members of a squadron are trusted: the roles are rules of the screen and of the shared data, not a defence against a hostile member (decided, see `ROADMAP.md`).
+- Tests: `tests/run-organization.mjs` (rules), `run-swarm.mjs` (transport, rosters, cards; no BMS file, runs in CI), `run-squadron.mjs` (logbook cipher, needs a campaign file), `tools/squadron-test.py` (the whole page, with a simulated mesh) and `tools/squadron-scale-test.py` (many pilots).
 
 ## Tests
 

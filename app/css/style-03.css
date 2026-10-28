@@ -562,8 +562,12 @@
     0 0 2px #000;
   pointer-events: none;
 }
-#mpdtc .btn.g.nil,
+/* the page of the squadron; the accent colours are here (not in .sqorg) because the role tags of the Members table use them too */
 .sqw {
+  --og-amber: #4cc38a;
+  --og-yellow: #f5d142;
+  --og-blue: #7cc4ff;
+  --og-violet: #c9a6ff;
   max-width: 1400px;
   margin: 0 auto;
   padding: 6px 0 30px;
@@ -815,10 +819,6 @@
   --og-line: #2c3644;
   --og-edge: #3a4758;
   --og-mu: #9fb0c2;
-  --og-amber: #4cc38a;
-  --og-yellow: #f5d142;
-  --og-blue: #7cc4ff;
-  --og-violet: #c9a6ff;
   display: flex;
   flex-direction: column;
   gap: 16px;
