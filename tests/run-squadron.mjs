@@ -69,11 +69,29 @@ const o = {
   sdp: 'v=0\r\no=- 1 2 IN IP4 127.0.0.1\r\n' + 'a=candidate:1 1 udp 2113937151 192.168.1.5 5000 typ host\r\n'.repeat(4),
 };
 const code = await pack(o);
-ck('a code is one line of text starting with BC1.', /^BC1\.[A-Za-z0-9_-]+$/.test(code));
+ck('a code is one line of text starting with BC1.', /^BC1\.[A-Za-z0-9+/]+$/.test(code));
 ck(
   'unpack gives the object back, even with spaces and line breaks inserted',
   JSON.stringify(await unpack(code.replace(/(.{40})/g, '$1\n '))) == JSON.stringify(o)
 );
+{
+  // no character a chat takes for formatting, whatever the content, and a code of the older alphabet is still read
+  let bad = 0;
+  for (let i = 0; i < 300; i++) {
+    const t = await pack({ s: Array.from({ length: 40 }, () => Math.random().toString(36)).join(''), i }, 'BCS');
+    if (/[_\-*~`|>]/.test(t.slice(4))) bad++;
+  }
+  ck('a code has no _ - * ~ ` | > (Discord formatting) in 300 random codes', bad === 0);
+  const t = await pack(o);
+  ck(
+    'a code written with the older alphabet (- and _) is still read',
+    JSON.stringify(await unpack(t.replace(/\+/g, '-').replace(/\//g, '_'))) == JSON.stringify(o)
+  );
+  ck(
+    'and one pasted inside backticks or with a zero-width space is read',
+    JSON.stringify(await unpack('`' + t.slice(0, 20) + '\u200b' + t.slice(20) + '`')) == JSON.stringify(o)
+  );
+}
 let e2 = '';
 try {
   await unpack('hello');

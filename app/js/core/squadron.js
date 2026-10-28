@@ -152,7 +152,8 @@ export const lbkChoices = names => names.filter(n => /\.lbk$/i.test(n) && !/^vip
 const b64 = u8 => {
   let s = '';
   for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode(...u8.subarray(i, i + 0x8000));
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  // standard alphabet (A-Z a-z 0-9 + /), no padding: no '_' and no '-', which Discord and other chats take for formatting (italics) and lose when the code is copied; the reader still accepts both alphabets
+  return btoa(s).replace(/=+$/, '');
 };
 const unb64 = t => {
   const s = atob(t.replace(/-/g, '+').replace(/_/g, '/'));
@@ -196,7 +197,7 @@ export const unzip = async (t, max = Infinity) => {
 };
 export const pack = async (obj, tag = 'BC1') => tag + '.' + (await zip(JSON.stringify(obj)));
 export const unpack = async (code, tag = 'BC1') => {
-  const c = String(code || '').replace(/\s+/g, '');
+  const c = String(code || '').replace(/[\s\u200b-\u200d\ufeff`<>*|~"'“”]+/g, ''); // spaces, line breaks and the marks a chat may add around or inside the code
   if (!c.startsWith(tag + '.')) throw new Error('This is not a code of this kind.');
   try {
     return JSON.parse(await unzip(c.slice(tag.length + 1)));
@@ -204,7 +205,7 @@ export const unpack = async (code, tag = 'BC1') => {
     if (e && e.message === 'Too much data.') throw e;
     // the browser says "compressed input was truncated" (or "incorrect header check") when the end of the code is missing or a character was changed
     throw new Error(
-      'This code is incomplete or damaged: it was probably cut when it was copied or sent (a chat can shorten a long message, or the end was not selected). Ask for the code again and paste it whole, from "' +
+      'This code is incomplete or damaged: it was probably cut when it was copied or sent (a chat can shorten a long message, or the end was not selected; Discord removes the "_" of a code made by an older version). Ask for the code again, copy it with its Copy button and paste it whole, from "' +
         tag +
         '." to the last character.'
     );
