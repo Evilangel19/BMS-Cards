@@ -81,6 +81,13 @@ try {
   e2 = e.message;
 }
 ck('a wrong code is refused', /not a code/.test(e2));
+let e3 = '';
+try {
+  await unpack(code.slice(0, code.length - 25));
+} catch (e) {
+  e3 = e.message;
+}
+ck('a code cut at the end says it is incomplete, in plain words', /incomplete or damaged/.test(e3) && /whole/.test(e3));
 // pilots of the campaign squadrons: kills and missions flown
 import fs from 'node:fs';
 import { CAM } from '../app/js/core/cam-core.js';

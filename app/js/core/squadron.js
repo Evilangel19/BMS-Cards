@@ -198,7 +198,17 @@ export const pack = async (obj, tag = 'BC1') => tag + '.' + (await zip(JSON.stri
 export const unpack = async (code, tag = 'BC1') => {
   const c = String(code || '').replace(/\s+/g, '');
   if (!c.startsWith(tag + '.')) throw new Error('This is not a code of this kind.');
-  return JSON.parse(await unzip(c.slice(tag.length + 1)));
+  try {
+    return JSON.parse(await unzip(c.slice(tag.length + 1)));
+  } catch (e) {
+    if (e && e.message === 'Too much data.') throw e;
+    // the browser says "compressed input was truncated" (or "incorrect header check") when the end of the code is missing or a character was changed
+    throw new Error(
+      'This code is incomplete or damaged: it was probably cut when it was copied or sent (a chat can shorten a long message, or the end was not selected). Ask for the code again and paste it whole, from "' +
+        tag +
+        '." to the last character.'
+    );
+  }
 };
 const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, '0')).join('');
 const randHex = n => hex(crypto.getRandomValues(new Uint8Array(n)));
