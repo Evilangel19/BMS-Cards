@@ -274,6 +274,24 @@ export async function openSettings() {
       satAttr: sa.value.trim(),
       satMaxZoom: Math.max(5, Math.min(22, Math.round(+sz.value || 18))),
     };
+    // a folder typed with a mistake would leave the program without its data or write nowhere: said before saving
+    if (isDesktop()) {
+      const missing = [];
+      for (const [k, lab] of CFG_PATHS) {
+        const v = n.paths[k];
+        // the missions folder is made when the first mission is saved
+        if (k != 'missions' && v && v !== ST.CFG.paths[k] && !(await fileExists(v))) missing.push(lab + ': ' + v);
+      }
+      if (
+        missing.length &&
+        !(await confirm(
+          'These folders do not exist on this computer:\n\n' +
+            missing.join('\n') +
+            '\n\nSave the settings anyway? (Cancel = go back and correct them)'
+        ))
+      )
+        return;
+    }
     try {
       await saveConfig(n);
       const changed = n.paths.bmsInstall !== ST.CFG.paths.bmsInstall;

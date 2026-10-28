@@ -36,15 +36,17 @@ docs/              this file, ROADMAP.md, archive/
 ## Data flow
 
 1. At start `app/js/app/gamedata.js` / `gamefiles.js` find the BMS folder (desktop app) and read the tables into `data/index.js` and `bmsdata/*`.
-2. A campaign (`.cam`, `.uni`, `.tea`, `.iff`, `.l16`, weather `.fmap`, `.twx`) or a Tactical Engagement is opened in `app/js/app/campaign.js` and parsed by `parsers/`; `core/cam-core.js` ties the pieces together (flights, ATO, bullseye ...).
+2. A campaign (`.cam`, `.uni`, `.tea`, `.iff`, `.l16`, weather `.fmap`, `.twx`) or a Tactical Engagement is opened in `app/js/app/campaign.js` and parsed by `parsers/`; `core/cam-core.js` ties the pieces together (flights, ATO, bullseye ...). The last choice wins: a campaign of the menu still loading is dropped when another one is chosen (the arrow keys choose at every step) or a campaign or a mission is opened another way (`CAMGEN`, `campCancel`, `loadCam(file, stale)`).
 3. A flight is selected (`app/js/app/selection.js`): the Datacard (`core/fillcard.js`, `cardlayout.js`) and the other pages are filled from it.
-4. The DTC (`.ini`) is opened as a list of lines (`parsers/dtc.js`); the Map and Weapons pages edit steerpoints, PPT, lines and weapon targets in it (`core/mapdtc.js`); saving writes it back and also the campaign / TE `.ini` like BMS does (short format).
-5. A mission file (`core/mission.js`) carries one package to a pilot without the campaign.
+4. The DTC (`.ini`) is opened as a list of lines (`parsers/dtc.js`); the Map and Weapons pages edit steerpoints, PPT, lines and weapon targets in it (`core/mapdtc.js`); saving writes it back and also the campaign / TE `.ini` like BMS does (short format). Before writing, the file on the disk is read: it is the original kept once in `backup\dtc`, and when it is not the one opened here (BMS saved it meanwhile, or the DTC came from a mission) the confirmation says so.
+5. A mission file (`core/mission.js`) carries one package to a pilot without the campaign, but not without the game data (the tables of `data/index.js`: a mission is refused without them, like a campaign). A mission of another pilot brings only the DTC block (`DTC_BLOCK_SECS`, checked line by line like the edits): it goes into the pilot's own DTC (`<callsign>.ini` of the DTC folder, opened by itself); when no DTC is open a window waits: open the DTC, open the mission without the DTC data, or cancel. `msfLoad` returns true only when the mission was opened.
+6. Kneeboard: the DDS files are written in the kneeboard folder; the originals are kept once for each folder in `backup\kneeboard` (`index.json` gives the sub-folder of each folder; the copies made before the index belong to the first folder that asks).
 
 ## State and settings
 
 - `ST` (`app/js/app/state.js`) holds what several modules assign. Settings: `config.json` next to the exe (desktop) or the browser storage; remembered choices (last DTC / campaign) live under `ui` in the config.
 - Small files (`savePrefs`, `savePrefsSafe` in `platform/desktop.js`) are written 800 ms after the last change; when the window closes, `flushAll()` writes what still waits (a page that keeps a change waiting hands it over with `beforeClose`).
+- The program is portable: its files are next to the exe. At start a small file is written there and removed (`canWriteAppDir`); a folder that cannot be written (Program Files, read-only) is said once, and so is the first file of the program that cannot be saved (`onSaveFail` / `saveFailed`, `checkAppFolder` in `app/settings.js`). The web view keeps its own data in `data\webview` only when that folder can be written (`src-tauri/src/main.rs`), otherwise in the user's folder, so the program starts anyway. The Settings name the folders typed that do not exist before saving.
 - The map keeps its own choices (layers, filters, menus) in `store` (`core/mapconst.js`).
 
 ## Conventions

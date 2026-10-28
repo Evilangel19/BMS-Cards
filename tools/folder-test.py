@@ -31,6 +31,13 @@ try:
         check('no page errors %s' % errs, not errs); pg.close()
         pg, errs, msgs = page('ok')
         check('a folder that can be written: no message, and no test file left behind', not msgs and not pg.evaluate("()=>[...__F.keys()].some(k=>/write-test/.test(k))"))
+        # Settings: a folder typed with a mistake is said before saving
+        pg.click('#cfgbtn'); pg.wait_for_timeout(500)
+        pg.fill('#cfg .cf:has(> label:text-is("BMS install folder")) input', 'D:\\Falcon BMS 4.38x')
+        pg.click('#cfg .bar .btn:not(.g)'); pg.wait_for_timeout(800)
+        m = [x for x in msgs if 'do not exist' in x]
+        check('Settings: a folder that does not exist is named before saving (BMS install folder)', len(m) == 1 and 'BMS install folder: D:\\Falcon BMS 4.38x' in m[0])
+        check('and OK saves the settings anyway', pg.evaluate("()=>__app.CFG.paths.bmsInstall") == 'D:\\Falcon BMS 4.38x')
         pg.close()
         pg, errs, msgs = page('text')
         msgs.clear()
