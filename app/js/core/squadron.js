@@ -2911,6 +2911,7 @@ export function createSquadronPage(deps) {
       nm = nameOfIn(q),
       pil = [...onl.keys()].filter(u => u != DB.uid);
     const onlyOn = us => us.filter(u => onl.has(u) && u != DB.uid);
+    if (!pil.length) return result(false, 'Card not sent', 'Nobody else of this squadron is online.');
     const pk = v.packages.filter(p => p.flights.some(f => f.members.length));
     const row = (k, id, text, n, sub) =>
       `<label class="sqm" style="gap:8px;${n ? '' : 'opacity:.5'}"><span><input type="checkbox" data-k="${k}" data-id="${esc(id)}"${n ? '' : ' disabled'} style="width:auto"> ${text}${sub ? ' <em>' + sub + '</em>' : ''}</span><span class="hint" style="min-height:0">${n} online</span></label>`;

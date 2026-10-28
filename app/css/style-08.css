@@ -511,7 +511,7 @@ input[type='number']::-webkit-outer-spin-button {
   -webkit-appearance: none;
   margin: 0;
 }
-.btn.g.on {
+.btn.g.on:not(.rd):not(.bl):not(.gn) {
   background: #1f7a46;
   color: #fff;
 }

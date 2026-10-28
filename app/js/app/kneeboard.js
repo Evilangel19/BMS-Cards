@@ -616,7 +616,7 @@ export function kbRender(keepMenu) {
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
  <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
- <div class="kbx"><button class="btn g gn" id="kbsend" disabled title="Click a picture card, then send it to the pilots of your squadron">Send card…</button>${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
+ <div class="kbx"><button class="btn g gn nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button>${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
   const pickCard = c => {
     KBCARD = c && c.kind == 'pic' && c.item ? c.item : null;
@@ -629,7 +629,7 @@ export function kbRender(keepMenu) {
     });
     const b = $('kbsend');
     if (b) {
-      b.disabled = !KBCARD || !KBX.can();
+      b.classList.toggle('nil', !KBCARD || !KBX.can()); // dimmed, not disabled: a click says what is missing
       b.title = !KBCARD
         ? 'Click a picture card, then send it to the pilots of your squadron'
         : !KBX.can()
@@ -639,7 +639,13 @@ export function kbRender(keepMenu) {
   };
   if (KBCARD && !KBLIB.includes(KBCARD)) KBCARD = null;
   kbMarkCard();
-  if ($('kbsend')) $('kbsend').onclick = () => KBCARD && KBX.send && KBX.send(KBCARD);
+  if ($('kbsend'))
+    $('kbsend').onclick = () => {
+      if (!KBCARD)
+        return alert('Click a picture card first (in a slot or among the unused cards), then press Send card.');
+      if (!KBX.can()) return alert('Join or create a squadron first (Squadron page): the card is sent to its pilots.');
+      if (KBX.send) KBX.send(KBCARD);
+    };
   el.querySelectorAll('div.kbt[data-i]').forEach(t =>
     t.addEventListener('click', () => {
       if (!KBDRAGGED) pickCard(KBTR[+t.dataset.i]);
