@@ -1,167 +1,69 @@
-<!doctype html><meta charset="utf-8" /><title>squadron scale test page</title>
+<!doctype html><meta charset="utf-8"><title>squadron scale test page</title>
 <script type="module">
-  // Hosts many simulated pilots of one squadron in a page (tools/squadron-scale-test.py drives it). Uses the real swarm and the real roster / picture / mission functions of core/squadron.js.
-  // Works with an older core/squadron.js too (no syncMsg): then it behaves like that version (whole roster, sequential send), to measure before and after.
-  import * as SQ from '../app/js/core/squadron.js';
-  const NEW = !!SQ.syncMsg,
-    P = [];
-  const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-  const fakeAv = (i, n) => {
-    let s = 'data:image/webp;base64,',
-      x = ((i + 1) * 2654435761) >>> 0;
-    for (let k = 0; k < n; k++) {
-      x = (Math.imul(x, 1664525) + 1013904223) >>> 0;
-      s += B64[x >>> 26];
-    }
-    return s;
-  };
-  const uidOf = i => 'p' + String(i).padStart(3, '0') + 'abcdef0123';
-  const full = r =>
-    Object.fromEntries(
-      Object.entries(r).map(([k, v]) => {
-        const { av, ...x } = v;
-        return [k, av ? { ...x, av } : x];
-      })
-    );
-  window.SC = {
-    NEW,
-    create(idx, n, secret, tracker, interval, avLen) {
-      for (const i of idx) {
-        const uid = uidOf(i),
-          av = fakeAv(i, avLen),
-          pl = {
-            i,
-            uid,
-            roster: { [uid]: { uid, name: 'Pilot ' + i, callsign: 'C' + i, av, ts: 1 } },
-            recv: [],
-            seen: new Set(),
-            pending: new Map(),
-          };
-        const meta = () => ({ name: 'Big', motto: '', notes: '', owner: uidOf(0), leader: uidOf(0), logo: '', ts: 1 });
-        const sync = () =>
-          NEW ? SQ.syncMsg(meta(), pl.roster) : { k: 'sync', squad: meta(), roster: full(pl.roster) };
-        pl.sw = SQ.createSwarm({
-          secret,
-          trackers: [tracker],
-          interval,
-          stun: false,
-          WS: WebSocket,
-          me: () => ({ uid, name: 'Pilot ' + i, callsign: 'C' + i, squadron: 'SQ', st: null, av }),
-          onPeer: (p, ev) => {
-            if (ev != 'joined') return;
-            const pr = p.profile;
-            if (!pl.roster[p.uid])
-              pl.roster[p.uid] = { uid: p.uid, name: pr.name, callsign: pr.callsign, av: pr.av, ts: 1 };
-            p.link.send(sync());
-          },
-          onMessage: (p, m) => {
-            if (m.k == 'sync') {
-              const r = SQ.mergeRoster(pl.roster, m.roster);
-              if (r.changed) pl.roster = r.roster;
-              if (m.lite) {
-                const need = SQ.avNeeded(pl.roster, m.roster, pl.pending);
-                if (need.length) p.link.send({ k: 'avq', uids: need });
-              }
-            } else if (m.k == 'avq') {
-              (async () => {
-                for (const a of SQ.avServe(pl.roster, m.uids)) if (!(await p.link.send(a))) break;
-              })();
-            } else if (m.k == 'av') {
-              if (SQ.avAccept(pl.roster, m)) pl.pending.delete(m.uid);
-            } else if (m.k == 'mission') {
-              if (m.mid) {
-                if (pl.seen.has(m.mid)) return;
-                pl.seen.add(m.mid);
-              }
-              pl.recv.push({ name: m.name, len: m.text.length, t: performance.now() });
-            }
-          },
-        });
-        P.push(pl);
-      }
-      return Promise.all(P.filter(p => idx.includes(p.i)).map(p => p.sw.start()));
-    },
-    status() {
-      return P.map(p => ({
-        i: p.i,
-        online: p.sw.online().length,
-        peers: p.sw.peers.size,
-        roster: Object.keys(p.roster).length,
-        av: Object.values(p.roster).filter(r => r.av && r.av.length > 100).length,
-        miss: Object.keys(p.roster).filter(u => u != p.uid && !p.sw.online().some(q => q.uid == u)),
-        err: p.sw.diag.err || '',
-        ice: p.sw.diag.ice,
-        closed: p.sw.diag.closed,
-        rly: [p.sw.diag.rOff, p.sw.diag.rFwd, p.sw.diag.rAns, p.sw.diag.rAcc],
-        recv: p.recv.length,
-        skipped: p.sw.diag.skipped || 0,
-        opened: p.sw.diag.open,
-      }));
-    },
-    async probe() {
-      const t0 = performance.now(),
-        l = SQ.createLink({ stun: false });
-      await l.rawOffer();
-      const d = Math.round(performance.now() - t0);
-      l.close();
-      return d;
-    },
-    inspect(i, j) {
-      const pl = P.find(p => p.i == i),
-        u = uidOf(j);
-      const d = q => ({
-        verified: q.verified,
-        open: q.link.open,
-        offerer: q.offerer,
-        ageS: Math.round((Date.now() - q.t) / 1000),
-        conn: q.link.pc.connectionState,
-        uid: q.uid && +q.uid.slice(1, 4),
-      });
-      return {
-        withIt: [...pl.sw.peers.values()].filter(q => q.uid == u).map(d),
-        unverifiedOpen: [...pl.sw.peers.values()].filter(q => !q.verified && q.link.open).map(d),
-        links: [...pl.sw.peers.values()].filter(q => q.verified).length,
-      };
-    },
-    async send(chars) {
-      const L = P.find(p => p.i == 0);
-      if (!L) return null;
-      let t = '{"name":"BIG","d":[';
-      const a = [];
-      for (let i = 0; i < chars / 40; i++)
-        a.push('"' + (Math.random() * 1e6).toFixed(3) + ',' + (Math.random() * 1e6).toFixed(3) + ',' + i + '"');
-      t += a.join(',') + ']}';
-      const T0 = performance.now(),
-        peers = L.sw.online();
-      let ok = [],
-        bad = [];
-      if (NEW) {
-        const tg = peers.map(p => ({
-          label: p.profile.callsign,
-          send: (tx, n, opt) => {
-            const cur = L.sw.byUid(p.uid);
-            if (!cur) throw new Error('Not connected.');
-            return cur.link.sendMission(tx, n, { callsign: 'L' }, opt);
-          },
-        }));
-        const r = await SQ.distribute(tg, t, 'BIG');
-        ok = r.ok;
-        bad = r.bad;
-      } else {
-        for (const p of peers) {
-          try {
-            await p.link.sendMission(t, 'BIG', { callsign: 'L' });
-            ok.push(p.profile.callsign);
-          } catch (e) {
-            bad.push(p.profile.callsign + ': ' + e.message);
+// Hosts many simulated pilots of one squadron in a page (tools/squadron-scale-test.py drives it). Uses the real swarm and the real roster / picture / mission functions of core/squadron.js.
+// Works with an older core/squadron.js too (no syncMsg): then it behaves like that version (whole roster, sequential send), to measure before and after.
+import * as SQ from '../app/js/core/squadron.js';
+const NEW = !!SQ.syncMsg, P = [];
+const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const fakeAv = (i, n) => { let s = 'data:image/webp;base64,', x = (i + 1) * 2654435761 >>> 0; for (let k = 0; k < n; k++) { x = (Math.imul(x, 1664525) + 1013904223) >>> 0; s += B64[x >>> 26]; } return s; };
+const uidOf = i => 'p' + String(i).padStart(3, '0') + 'abcdef0123';
+const full = r => Object.fromEntries(Object.entries(r).map(([k, v]) => { const { av, ...x } = v; return [k, av ? { ...x, av } : x]; }));
+window.SC = {
+  NEW,
+  create(idx, n, secret, tracker, interval, avLen) {
+    for (const i of idx) {
+      const uid = uidOf(i), av = fakeAv(i, avLen), pl = { i, uid, roster: { [uid]: { uid, name: 'Pilot ' + i, callsign: 'C' + i, av, ts: 1 } }, recv: [], seen: new Set(), pending: new Map() };
+      const meta = () => ({ name: 'Big', motto: '', notes: '', owner: uidOf(0), leader: uidOf(0), logo: '', ts: 1 });
+      const sync = () => (NEW ? SQ.syncMsg(meta(), pl.roster) : { k: 'sync', squad: meta(), roster: full(pl.roster) });
+      pl.sw = SQ.createSwarm({
+        secret, trackers: [tracker], interval, stun: false, WS: WebSocket,
+        me: () => ({ uid, name: 'Pilot ' + i, callsign: 'C' + i, squadron: 'SQ', st: null, av }),
+        onPeer: (p, ev) => {
+          if (ev != 'joined') return;
+          const pr = p.profile;
+          if (!pl.roster[p.uid]) pl.roster[p.uid] = { uid: p.uid, name: pr.name, callsign: pr.callsign, av: pr.av, ts: 1 };
+          p.link.send(sync());
+        },
+        onMessage: (p, m) => {
+          if (m.k == 'sync') {
+            const r = SQ.mergeRoster(pl.roster, m.roster);
+            if (r.changed) pl.roster = r.roster;
+            if (m.lite) { const need = SQ.avNeeded(pl.roster, m.roster, pl.pending); if (need.length) p.link.send({ k: 'avq', uids: need }); }
+          } else if (m.k == 'avq') {
+            (async () => { for (const a of SQ.avServe(pl.roster, m.uids)) if (!(await p.link.send(a))) break; })();
+          } else if (m.k == 'av') { if (SQ.avAccept(pl.roster, m)) pl.pending.delete(m.uid); }
+          else if (m.k == 'mission') {
+            if (m.mid) { if (pl.seen.has(m.mid)) return; pl.seen.add(m.mid); }
+            pl.recv.push({ name: m.name, len: m.text.length, t: performance.now() });
           }
-        }
-      }
-      return { ms: Math.round(performance.now() - T0), targets: peers.length, ok: ok.length, bad, chars: t.length };
-    },
-    stop() {
-      P.forEach(p => p.sw.stop());
-    },
-  };
-  window.SC_READY = true;
+        },
+      });
+      P.push(pl);
+    }
+    return Promise.all(P.filter(p => idx.includes(p.i)).map(p => p.sw.start()));
+  },
+  status() {
+    return P.map(p => ({ i: p.i, online: p.sw.online().length, peers: p.sw.peers.size, roster: Object.keys(p.roster).length, av: Object.values(p.roster).filter(r => r.av && r.av.length > 100).length, miss: Object.keys(p.roster).filter(u => u != p.uid && !p.sw.online().some(q => q.uid == u)), err: p.sw.diag.err || '', ice: p.sw.diag.ice, closed: p.sw.diag.closed, rly: [p.sw.diag.rOff, p.sw.diag.rFwd, p.sw.diag.rAns, p.sw.diag.rAcc], recv: p.recv.length, skipped: p.sw.diag.skipped || 0, opened: p.sw.diag.open }));
+  },
+  async probe() { const t0 = performance.now(), l = SQ.createLink({ stun: false }); await l.rawOffer(); const d = Math.round(performance.now() - t0); l.close(); return d; },
+  inspect(i, j) {
+    const pl = P.find(p => p.i == i), u = uidOf(j);
+    const d = q => ({ verified: q.verified, open: q.link.open, offerer: q.offerer, ageS: Math.round((Date.now() - q.t) / 1000), conn: q.link.pc.connectionState, uid: q.uid && +q.uid.slice(1, 4) });
+    return { withIt: [...pl.sw.peers.values()].filter(q => q.uid == u).map(d), unverifiedOpen: [...pl.sw.peers.values()].filter(q => !q.verified && q.link.open).map(d), links: [...pl.sw.peers.values()].filter(q => q.verified).length };
+  },
+  async send(chars) {
+    const L = P.find(p => p.i == 0); if (!L) return null;
+    let t = '{"name":"BIG","d":['; const a = []; for (let i = 0; i < chars / 40; i++) a.push('"' + (Math.random() * 1e6).toFixed(3) + ',' + (Math.random() * 1e6).toFixed(3) + ',' + i + '"'); t += a.join(',') + ']}';
+    const T0 = performance.now(), peers = L.sw.online(); let ok = [], bad = [];
+    if (NEW) {
+      const tg = peers.map(p => ({ label: p.profile.callsign, send: (tx, n, opt) => { const cur = L.sw.byUid(p.uid); if (!cur) throw new Error('Not connected.'); return cur.link.sendMission(tx, n, { callsign: 'L' }, opt); } }));
+      const r = await SQ.distribute(tg, t, 'BIG'); ok = r.ok; bad = r.bad;
+    } else {
+      for (const p of peers) { try { await p.link.sendMission(t, 'BIG', { callsign: 'L' }); ok.push(p.profile.callsign); } catch (e) { bad.push(p.profile.callsign + ': ' + e.message); } }
+    }
+    return { ms: Math.round(performance.now() - T0), targets: peers.length, ok: ok.length, bad, chars: t.length };
+  },
+  stop() { P.forEach(p => p.sw.stop()); },
+};
+window.SC_READY = true;
 </script>
