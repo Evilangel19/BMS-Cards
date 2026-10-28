@@ -232,7 +232,6 @@ export function wireOrg(box, h) {
     if (d.pkname) run({ t: 'pk~', id: d.pkname, name: v });
     else if (d.flname) run({ t: 'fl~', id: d.flname, name: v });
     else if (d.pklead) run({ t: 'pklead', id: d.pklead, uid: v });
-    else if (d.fllead) run({ t: 'fllead', id: d.fllead, uid: v });
     else if ('mc' in d) run({ t: 'mc', uid: v });
     else if (d.moveto) {
       if (v) run({ t: 'as', uid: d.moveto, f: v });

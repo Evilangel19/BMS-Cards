@@ -14,6 +14,7 @@ import {
   pruneOrg,
   orgReduce,
   orgView,
+  orgClock,
   isAdmin,
   flightWarning,
 } from './organization.js';
@@ -282,6 +283,36 @@ export const RX_MAX_CHUNKS = 1000; // 16 MB compressed
 export const RX_MAX_TEXT = 64 * 1024 * 1024; // after unzipping
 export const RX_MAX_OPEN = 3; // transfers at the same time
 export const RX_TTL = 120000; // ms without a new chunk
+/**
+ * Waits for the answer of the other pilot to a mission he is being sent. The wait ends with an error when nothing happens for `ms`:
+ * `progress()` starts the minute again, so a big picture on a slow line, which is still being sent, is not silence.
+ * acks[id] = {res, rej} is what the receiver of the answer calls.
+ */
+export function ackWait(acks, id, ms = 60000) {
+  let timer = 0,
+    over = false;
+  const promise = new Promise((res, rej) => {
+    const end = f => v => {
+      over = true;
+      clearTimeout(timer);
+      delete acks[id];
+      f(v);
+    };
+    acks[id] = { res: end(res), rej: end(rej) };
+  });
+  promise.catch(() => {}); // it is awaited after the last piece: no "unhandled" error while it is still being sent
+  const progress = () => {
+    if (over) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      if (acks[id])
+        acks[id].rej(new Error('The other pilot did not confirm within a minute: the mission may not have arrived.'));
+    }, ms);
+  };
+  progress();
+  return { promise, progress };
+}
+
 export function rxBegin(rx, m, now = Date.now()) {
   Object.keys(rx).forEach(k => {
     if (now - rx[k].t > RX_TTL) delete rx[k];
@@ -570,22 +601,14 @@ export function createLink({
           mid: opt.mid || '',
         })
       );
-      const answer = new Promise((res, rej) => {
-        acks[id] = { res, rej };
-        setTimeout(() => {
-          if (acks[id]) {
-            delete acks[id];
-            rej(new Error('The other pilot did not confirm within a minute: the mission may not have arrived.'));
-          }
-        }, 60000);
-      });
-      answer.catch(() => {});
+      const wait = ackWait(acks, id);
       for (let i = 0; i < n; i++) {
         await drain();
         if (!dc || dc.readyState != 'open') throw new Error('Not connected.');
         dc.send(JSON.stringify({ k: 'mc', id, i, d: z.slice(i * CHUNK, (i + 1) * CHUNK) }));
+        wait.progress();
       }
-      await answer;
+      await wait.promise;
     },
     get open() {
       return !!dc && dc.readyState == 'open';
@@ -1506,15 +1529,19 @@ export function createSquadronPage(deps) {
     const l = $('#sqlog');
     if (l) l.textContent = log.join('\n');
   };
+  let savePending = false;
+  const writeNow = () => {
+    savePending = false;
+    try {
+      deps.store && deps.store.save(DB);
+    } catch (e) {
+      /* not saved */
+    }
+  };
   const save = () => {
     clearTimeout(saveT);
-    saveT = setTimeout(() => {
-      try {
-        deps.store && deps.store.save(DB);
-      } catch (e) {
-        /* not saved */
-      }
-    }, 300);
+    savePending = true;
+    saveT = setTimeout(writeNow, 300);
   };
   const cur = () => DB.squads.find(q => q.id == DB.cur) || DB.squads[0] || null;
   const owns = q => !!q && q.owner == DB.uid;
@@ -1632,7 +1659,7 @@ export function createSquadronPage(deps) {
         av: m.av,
         role: '',
         notes: '',
-        ts: Date.now(),
+        ts: orgClock(q),
         lastSeen: Date.now(),
       };
     else Object.assign(r, { name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av });
@@ -1647,7 +1674,7 @@ export function createSquadronPage(deps) {
     avDraw();
     DB.squads.forEach(q => {
       mkMe(q);
-      q.roster[DB.uid].ts = Date.now();
+      q.roster[DB.uid].ts = orgClock(q);
       const w = swarms.get(q.id);
       if (w) w.broadcast({ k: 'hello2', ...me() });
     });
@@ -1824,20 +1851,36 @@ export function createSquadronPage(deps) {
   // pictures asked for (per squadron) and a save that waits a moment, because many pictures can arrive one after the other
   const avAsk = new Map();
   const avPending = id => avAsk.get(id) || avAsk.set(id, new Map()).get(id);
-  let avT = 0;
+  let avT = 0,
+    avLate = false;
   const laterSave = () => {
     clearTimeout(avT);
+    avLate = true;
     avT = setTimeout(() => {
+      avLate = false;
       save();
       drawAll();
     }, 800);
+  };
+  // closing the program: what waits for its few hundred milliseconds is handed to the store now
+  const flush = () => {
+    if (avLate) {
+      clearTimeout(avT);
+      avLate = false;
+      save();
+    }
+    if (savePending) {
+      clearTimeout(saveT);
+      writeNow();
+    }
   };
   const pushSync = q => {
     const w = swarms.get(q.id);
     if (w) w.broadcast(syncMsg(meta(q), q.roster, q.org));
   };
+  // every time stamp of a change goes through orgClock: never before what this pilot has already seen (a late clock must not lose)
   const touchSquad = q => {
-    q.ts = Date.now();
+    q.ts = orgClock(q);
     save();
     pushSync(q);
   };
@@ -1845,7 +1888,7 @@ export function createSquadronPage(deps) {
     const r = q.roster[uid];
     if (!r) return;
     f(r);
-    r.ts = Date.now();
+    r.ts = orgClock(q);
     save();
     pushSync(q);
   };
@@ -1855,7 +1898,7 @@ export function createSquadronPage(deps) {
     const sw = swarms.get(q.id),
       online = new Set(sw ? sw.online().map(p => p.uid) : []);
     online.add(DB.uid);
-    const ctx = { now: Date.now(), rid: () => randHex(6), online };
+    const ctx = { now: orgClock(q), rid: () => randHex(6), online };
     const r = typeof a == 'function' ? a(q, DB.uid, ctx) : orgReduce(q, DB.uid, a, ctx);
     if (!r.ok || r.q === q) return r;
     Object.assign(q, { org: r.q.org, owner: r.q.owner, mc: r.q.mc, roster: r.q.roster, ts: r.q.ts });
@@ -1916,15 +1959,16 @@ export function createSquadronPage(deps) {
     const r = q.roster[uid];
     if (!r) return;
     const p = swarms.get(q.id) && swarms.get(q.id).byUid(uid);
+    const t = orgClock(q);
     r.removed = true;
-    r.ts = Date.now();
+    r.ts = t;
     if (q.leader == uid) {
       q.leader = '';
-      q.ts = Date.now();
+      q.ts = t;
     }
     if (q.mc == uid) {
       q.mc = '';
-      q.ts = Date.now();
+      q.ts = t;
     }
     save();
     pushSync(q);
@@ -1998,7 +2042,7 @@ export function createSquadronPage(deps) {
       if ($('#sqcs')) $('#sqcs').value = DB.cs;
       DB.squads.forEach(q => {
         mkMe(q);
-        q.roster[DB.uid].ts = Date.now();
+        q.roster[DB.uid].ts = orgClock(q);
         pushSync(q);
       });
       save();
@@ -3337,6 +3381,7 @@ export function createSquadronPage(deps) {
         .filter(l => !seen.has(l) && seen.add(l))
         .sort((a, b) => a.localeCompare(b));
     },
+    flush,
     refresh: () => {
       if (!pilot) loadLbks();
       if (!PB) loadPb();

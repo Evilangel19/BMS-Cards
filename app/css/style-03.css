@@ -1151,10 +1151,6 @@
   border: 1px dashed var(--og-edge);
   border-radius: 8px;
 }
-.oglost summary {
-  cursor: pointer;
-  color: var(--og-mu);
-}
 .ogdrop.okdrop {
   outline: 2px dashed var(--og-amber);
   outline-offset: 2px;

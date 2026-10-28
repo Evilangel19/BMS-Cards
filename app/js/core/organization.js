@@ -80,6 +80,21 @@ export function cleanOrg(o) {
   return out;
 }
 
+/**
+ * The time stamp of a new change: the clock of this computer, but never before the newest change this pilot has already seen in the squadron.
+ * Every change is decided by its time stamp (the newer wins), so a clock that is a few minutes late would make a new change lose against an older one.
+ * @param {{ts?:number, org?:any, roster?:any}} q @param {number} [now]
+ */
+export function orgClock(q, now = Date.now()) {
+  let top = Number(q.ts) || 0;
+  const see = v => {
+    if (v && typeof v.ts == 'number' && isFinite(v.ts) && v.ts > top) top = v.ts;
+  };
+  for (const sec of ['pk', 'fl', 'as']) for (const v of Object.values((q.org && q.org[sec]) || {})) see(v);
+  for (const r of Object.values(q.roster || {})) see(r);
+  return Math.max(now, top + 1);
+}
+
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 /** Item by item, the newer one wins (the same time: the smaller text, so every computer picks the same one). */
 export function mergeOrg(mine, theirs) {

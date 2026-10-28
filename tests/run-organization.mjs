@@ -14,6 +14,7 @@ import {
   orgToTemplate,
   orgFromTemplate,
   orgNewPackageWith,
+  orgClock,
 } from '../app/js/core/organization.js';
 import { orgHtml } from '../app/js/core/orgpage.js';
 
@@ -515,6 +516,27 @@ ok(
   ok(
     'the pick does not depend on the order of arrival',
     keys(rev) === keys({ ...rev, pk: Object.fromEntries(Object.entries(rev.pk).reverse()) })
+  );
+}
+
+// ---- a clock that is late does not make a new change lose against an older one
+{
+  const none = () => new Set();
+  const q = orgReduce(mkQ(), 'cmd1', { t: 'pk+', name: 'Old' }, { now: 5000, rid: () => 'k1', online: none() }).q;
+  ok('the clock of the computer is used when it is ahead of everything seen', orgClock(q, 9000) === 9000);
+  const late = orgClock(q, 1000);
+  ok('a late clock never gives a time before what was already seen', late > 5000);
+  const r = orgReduce(q, 'mc1', { t: 'pk~', id: 'k1', name: 'New' }, { now: late, rid: () => 'k2', online: none() });
+  ok(
+    'the new name wins on both sides even if it was made with a late clock',
+    r.ok && mergeOrg(q.org, r.q.org).org.pk.k1.n === 'New' && mergeOrg(r.q.org, q.org).org.pk.k1.n === 'New'
+  );
+  const raw = orgReduce(q, 'mc1', { t: 'pk~', id: 'k1', name: 'New' }, { now: 1000, rid: () => 'k2', online: none() });
+  ok('(with the late clock as it is, the old name would have won)', mergeOrg(q.org, raw.q.org).org.pk.k1.n === 'Old');
+  const q2 = { ...q, roster: { ...q.roster, w1: { ...q.roster.w1, ts: 7000 } } };
+  ok(
+    'the time stamps of the roster and of the squadron are seen too',
+    orgClock(q2, 10) === 7001 && orgClock({ ...q, ts: 8000 }, 10) === 8001
   );
 }
 

@@ -11,6 +11,7 @@ import {
   savePrefs,
   loadPrefsSafe,
   savePrefsSafe,
+  beforeClose,
   readBytes,
   listDir,
   findFiles,
@@ -366,6 +367,7 @@ export async function init11() {
       forSend: (id, t) => msfForSend(id, t),
     },
   });
+  beforeClose(() => sqPage.flush());
   KBX.send = it => sqPage.sendCard(it);
   KBX.can = () => sqPage.canSendCard();
   pfPage = createPerfPage({

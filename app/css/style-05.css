@@ -616,11 +616,12 @@ dialog[open]::backdrop {
 .drow2 .drow {
   margin: 0;
 }
-.btn.g.bl {
+/* the blue buttons of the squadron page (Invite, Save template); the blue of the other pages is the one of style-04 */
+.sqw .btn.g.bl {
   background: #1d5f99;
   color: #fff;
   border-color: #3a8fd6;
 }
-.btn.g.bl:hover {
+.sqw .btn.g.bl:hover {
   background: #2574b8;
 }

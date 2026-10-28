@@ -335,10 +335,18 @@ export async function loadPrefs(name) {
   }
 }
 const prefTimer = {};
+const prefWait = {}; // what waits for its moment: file name -> the function that writes it (flushAll writes them at once)
+function prefLater(name, write) {
+  clearTimeout(prefTimer[name]);
+  prefWait[name] = write;
+  prefTimer[name] = setTimeout(() => {
+    delete prefWait[name];
+    write();
+  }, 800);
+}
 export function savePrefs(name, obj) {
   // written a moment after the last change (the map view changes all the time)
-  clearTimeout(prefTimer[name]);
-  prefTimer[name] = setTimeout(async () => {
+  prefLater(name, async () => {
     try {
       const text = JSON.stringify(obj);
       if (isDesktop()) await T().fs.writeTextFile(join(await appDir(), name), text);
@@ -346,7 +354,7 @@ export function savePrefs(name, obj) {
     } catch (e) {
       /* read-only folder */
     }
-  }, 800);
+  });
 }
 // For a file that must not be lost (the squadrons): two complete copies, see core/prefs.js
 const prefIo = () => ({
@@ -365,8 +373,7 @@ const prefIo = () => ({
 export const loadPrefsSafe = name => safeLoad(prefIo(), name);
 const safeChain = {};
 export function savePrefsSafe(name, obj) {
-  clearTimeout(prefTimer[name]);
-  prefTimer[name] = setTimeout(() => {
+  prefLater(name, () => {
     // one write at a time: the next one waits for the one in progress
     safeChain[name] = (safeChain[name] || Promise.resolve()).then(async () => {
       try {
@@ -375,7 +382,29 @@ export function savePrefsSafe(name, obj) {
         /* read-only folder */
       }
     });
-  }, 800);
+    return safeChain[name];
+  });
+}
+
+// Closing the program must not lose the last change: a page that keeps a change waiting hands it over with beforeClose(fn),
+// and flushAll() writes everything that still waits for its few hundred milliseconds.
+const closeHooks = [];
+export const beforeClose = fn => closeHooks.push(fn);
+export async function flushAll() {
+  for (const f of closeHooks) {
+    try {
+      await f();
+    } catch (e) {
+      /* a page that cannot hand over its change */
+    }
+  }
+  const writes = Object.keys(prefWait).map(name => {
+    clearTimeout(prefTimer[name]);
+    const w = prefWait[name];
+    delete prefWait[name];
+    return w();
+  });
+  await Promise.all([...writes, ...Object.values(safeChain)]);
 }
 
 // Closing the program: ok() returns (a promise of) true to let it close, false to stay. Desktop: the window's close request; browser: the usual "leave this page?" question.
@@ -384,7 +413,12 @@ export async function onCloseGuard(ok, dirty = () => false) {
     try {
       const w = T().window.getCurrentWindow();
       await w.onCloseRequested(async ev => {
-        if (!(await ok())) ev.preventDefault();
+        if (!(await ok())) {
+          ev.preventDefault();
+          return;
+        }
+        // the last changes are written before the window closes (a stuck disk does not keep it open)
+        await Promise.race([flushAll(), new Promise(r => setTimeout(r, 3000))]);
       });
       return;
     } catch (e) {
@@ -396,6 +430,9 @@ export async function onCloseGuard(ok, dirty = () => false) {
       e.preventDefault();
       e.returnValue = '';
     }
+  });
+  addEventListener('pagehide', () => {
+    flushAll();
   });
 }
 

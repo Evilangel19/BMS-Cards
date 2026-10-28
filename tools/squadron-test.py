@@ -206,6 +206,9 @@ try:
         check('the notes are saved when the field is left', 'Briefing 20:00' in A.evaluate("()=>JSON.stringify(__app.sq.db().squads)") and A.input_value('#sqnotes') == 'Briefing 20:00')
         ri = A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]'); ri.click(); A.keyboard.type('Lead'); A.evaluate("()=>__app.sq.refresh()"); A.wait_for_timeout(300)
         check('a role being typed in the table is kept as well', ri.input_value() == 'Lead' and A.evaluate("()=>document.activeElement.dataset.f") == 'role')
+        # closing the program: the last change is written at once, without waiting for the delays of the saves
+        A.fill('#sqnotes', 'Flush check'); A.keyboard.press('Tab'); A.evaluate("()=>dispatchEvent(new Event('pagehide'))"); A.wait_for_timeout(150)
+        check('closing the program writes the last change at once', 'Flush check' in (A.evaluate("()=>localStorage.getItem('bmscards.squadron.json')") or ''))
         A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').fill('Wingman'); A.locator('#sqros tr[data-uid]:not(:first-child) input[data-f=role]').press('Tab'); A.wait_for_timeout(2500)
         check('the role set in the roster reaches the pilot', 'Wingman' in B.evaluate("JSON.stringify(__app.sq.db().squads)"))
         import base64
@@ -270,6 +273,7 @@ try:
         check('a name typed in Create is still there when the page is drawn again', A.input_value('#sqnew') == 'Typed name')
         A.click('#sqcreate'); A.wait_for_timeout(500)
         check('after Create the field is empty again', A.input_value('#sqnew') == '' and A.locator('#sqmine .sqsqr', has_text='Typed name').count() == 1)
+        check('the Invite button of My squadrons is blue (and only here: the other blue buttons keep theirs)', A.evaluate("()=>getComputedStyle(document.querySelector('#sqmine [data-inv]')).backgroundColor") == 'rgb(29, 95, 153)')
         A.click('#sqtabs [data-tab=settings]'); A.wait_for_timeout(200)
         check('the settings show the diagnostics and the TURN field', A.is_visible('#sqturn') and A.is_visible('#sqturnsave'))
         A.click('#sqnettest'); A.wait_for_function("()=>document.querySelector('#sqnet').textContent!=='Testing…'", timeout=15000); check('the network test gives an answer', len(A.inner_text('#sqnet')) > 20)

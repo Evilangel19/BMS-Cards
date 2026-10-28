@@ -94,5 +94,35 @@ for (let i = 0; i < 2000; i++) {
 }
 ok('random pace stays inside +-20%', lo >= 8000 && hi <= 12000 && hi - lo > 2000);
 
+// closing the program: what still waits for its moment is written at once (the browser storage stands in for the program folder)
+{
+  const store = new Map();
+  globalThis.window = {};
+  globalThis.localStorage = {
+    getItem: k => (store.has(k) ? store.get(k) : null),
+    setItem: (k, v) => store.set(k, String(v)),
+  };
+  const D = await import('../app/js/platform/desktop.js');
+  let handed = 0;
+  D.beforeClose(() => {
+    handed++;
+    D.savePrefs('hooked.json', { h: 1 });
+  });
+  D.savePrefs('map.json', { a: 1 });
+  D.savePrefsSafe('squadron.json', { uid: 'u', squads: [] });
+  ok('nothing is written before its moment', store.size === 0);
+  await D.flushAll();
+  ok('closing writes the waiting settings at once', store.get('bmscards.map.json') === '{"a":1}');
+  ok(
+    'and the squadrons, both copies',
+    /"uid":"u"/.test(store.get('bmscards.squadron.json') || '') &&
+      store.get('bmscards.squadron.json') === store.get('bmscards.squadron.json.new')
+  );
+  ok(
+    'a page hands over its own change before the files are written',
+    handed === 1 && store.get('bmscards.hooked.json') === '{"h":1}'
+  );
+}
+
 console.log(bad ? `${bad} of ${n} prefs checks failed` : `OK - ${n} prefs checks`);
 process.exit(bad ? 1 : 0);

@@ -290,4 +290,38 @@ const SQ = await import('../app/js/core/squadron.js');
   );
   ck('a damaged card text is refused', parseCard(t.slice(0, 60)) === null);
 }
+// the answer to a mission: a minute of silence is an error, a transfer that keeps going is not
+{
+  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const acks = {};
+  const w1 = SQ.ackWait(acks, 'a', 60);
+  let e1 = '';
+  w1.promise.catch(e => (e1 = e.message));
+  await sleep(250);
+  ck(
+    'no answer and no progress: the wait ends with an error and leaves nothing behind',
+    /did not confirm/.test(e1) && !acks.a
+  );
+  const w2 = SQ.ackWait(acks, 'b', 400);
+  let s2 = '';
+  w2.promise.then(
+    () => (s2 = 'ok'),
+    e => (s2 = e.message)
+  );
+  for (let i = 0; i < 6; i++) {
+    await sleep(150);
+    w2.progress();
+  }
+  ck('a transfer that keeps going is not cut after the first minute (900 ms against 400)', s2 === '');
+  acks.b.res();
+  await sleep(10);
+  ck('the answer ends the wait', s2 === 'ok' && !acks.b);
+  const w3 = SQ.ackWait(acks, 'c', 400);
+  let s3 = '';
+  w3.promise.catch(e => (s3 = e.message));
+  acks.c.rej(new Error('refused'));
+  await sleep(10);
+  w3.progress();
+  ck('a refusal ends the wait at once and a late progress does nothing', s3 === 'refused' && !acks.c);
+}
 process.exit(ok ? 0 : 1);

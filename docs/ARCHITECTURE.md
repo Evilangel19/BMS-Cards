@@ -44,6 +44,7 @@ docs/              this file, ROADMAP.md, archive/
 ## State and settings
 
 - `ST` (`app/js/app/state.js`) holds what several modules assign. Settings: `config.json` next to the exe (desktop) or the browser storage; remembered choices (last DTC / campaign) live under `ui` in the config.
+- Small files (`savePrefs`, `savePrefsSafe` in `platform/desktop.js`) are written 800 ms after the last change; when the window closes, `flushAll()` writes what still waits (a page that keeps a change waiting hands it over with `beforeClose`).
 - The map keeps its own choices (layers, filters, menus) in `store` (`core/mapconst.js`).
 
 ## Conventions
@@ -58,6 +59,7 @@ docs/              this file, ROADMAP.md, archive/
 - The state of a squadron (`q`) is kept in `squadron.json` next to the program (`core/prefs.js`: the text is written to `squadron.json.new` and read back, only then to `squadron.json`, so a whole copy always exists; a file that cannot be read is kept as `.bad`, never overwritten by an empty start). The roster merges member by member, the organization item by item: the newer time stamp wins, a deleted package or flight stays as a marker for 60 days so the pilots who were offline hear about it.
 - `core/organization.js`: the rules of the organization, pure functions without DOM or network: `q.owner` (commander), `q.mc` (mission commander), `q.org` (packages, flights, seats), `orgView` (what is shown: the limits of 5 flights and 4 pilots are applied there, the same on every computer), `orgReduce` (every action of the board with its permission check), templates.
 - `core/orgpage.js`: the board as HTML and its events (clicks, menus, dragging with pointer events: the HTML5 drag-and-drop does not reach the page inside the Tauri window on Windows). `core/squadron.js`: the page itself (network, persistence, Me / Members / Organization / Missions / Settings).
+- Every change has a time stamp from `orgClock` (the clock of the computer, never before the newest change already seen), so a late clock cannot make a new change lose. The wait for the answer to a mission or card is an idle timeout (`ackWait`): it starts again at every piece sent.
 - The members of a squadron are trusted: the roles are rules of the screen and of the shared data, not a defence against a hostile member (decided, see `ROADMAP.md`).
 - Tests: `tests/run-organization.mjs` (rules), `run-swarm.mjs` (transport, rosters, cards; no BMS file, runs in CI), `run-squadron.mjs` (logbook cipher, needs a campaign file), `tools/squadron-test.py` (the whole page, with a simulated mesh) and `tools/squadron-scale-test.py` (many pilots).
 
