@@ -28,6 +28,8 @@ import {
   avAccept,
   mergeRoster,
   distribute,
+  cardText,
+  parseCard,
 } from '../app/js/core/squadron.js';
 let ok = true;
 const ck = (n, c) => {
@@ -469,5 +471,25 @@ ck(
     prog.length === 40 && prog[39][0] === 40 && prog[39][1] === 40 && typeof r.mid === 'string' && r.mid.length > 4
   );
   ck('distribute: nobody to send to is not an error', (await distribute([], 'x', 'y')).ok.length === 0);
+}
+// kneeboard cards travel as a small JSON text
+{
+  const png = 'data:image/png;base64,iVBORw0KGgo=';
+  const t = cardText('Chart: LGTG/west?', png);
+  const c = parseCard(t);
+  ck('a card text is read back', !!c && c.img === png);
+  ck('the name of a card is cleaned', !!c && !/[:/?]/.test(c.name) && c.name.includes('LGTG'));
+  ck('a mission is not a card', parseCard('{"format":"bms-cards-mission"}') === null && parseCard('x') === null);
+  ck(
+    'only png, jpeg and webp pictures are cards',
+    parseCard(cardText('x', 'data:image/svg+xml;base64,AAAA')) === null &&
+      parseCard(cardText('x', 'data:text/html;base64,AAAA')) === null
+  );
+  ck('a card with a broken picture is refused', parseCard(cardText('x', 'data:image/png;base64,@@@')) === null);
+  ck(
+    'a card too big is refused',
+    parseCard(cardText('x', 'data:image/png;base64,' + 'A'.repeat(12 * 1024 * 1024))) === null
+  );
+  ck('a damaged card text is refused', parseCard(t.slice(0, 60)) === null);
 }
 process.exit(ok ? 0 : 1);

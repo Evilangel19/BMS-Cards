@@ -810,6 +810,38 @@ export function avAccept(roster, m) {
   r.av = m.av;
   return true;
 }
+// A kneeboard card travels like a mission (same pieces, same acknowledgement); its text is this small JSON, recognised by its beginning.
+export const CARD_MAX = 8 * 1024 * 1024; // bytes of the picture
+const CARD_HEAD = '{"format":"bms-cards-card"';
+export function cardText(name, img) {
+  return (
+    CARD_HEAD +
+    ',"v":1,"name":' +
+    JSON.stringify(String(name || 'Card').slice(0, 60)) +
+    ',"img":' +
+    JSON.stringify(img) +
+    '}'
+  );
+}
+/** @returns {{name:string, img:string}|null} the card inside a received text, null when it is not a valid card */
+export function parseCard(text) {
+  if (typeof text != 'string' || !text.startsWith(CARD_HEAD)) return null;
+  try {
+    const o = JSON.parse(text);
+    if (o.format != 'bms-cards-card' || typeof o.img != 'string') return null;
+    if (!/^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(o.img)) return null;
+    if ((o.img.length * 3) / 4 > CARD_MAX * 1.02) return null;
+    // eslint-disable-next-line no-control-regex
+    const name = String(o.name || '')
+      .replace(/[\u0000-\u001f<>"\\/:|?*]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 60);
+    return { name: name || 'Card', img: o.img };
+  } catch (e) {
+    return null;
+  }
+}
 // one mission to many pilots: compressed once, a few at a time, each failure tried once more. targets: [{label, send(text, name, {z, mid})}] (the pilot is looked up when the turn comes, not before)
 export async function distribute(
   targets,
@@ -1543,6 +1575,19 @@ export function createSquadronPage(deps) {
       if (seenMid.size > 50) seenMid.delete(seenMid.values().next().value);
     }
     const from = who && (who.callsign || who.name) ? label(who) : (typeof m.from == 'string' && m.from) || 'a pilot';
+    const card = parseCard(m.text);
+    if (card) {
+      // a kneeboard card: among the unused cards of the Kneeboard, nothing else changes
+      if (deps.receiveCard)
+        deps
+          .receiveCard(card, from)
+          .then(() => {
+            say('Card "' + card.name + '" received from ' + from + '.');
+            deps.toast && deps.toast('Card received from ' + from + ': ' + card.name + ' (Kneeboard, unused cards)');
+          })
+          .catch(e => say('The received card could not be kept: ' + ((e && e.message) || e)));
+      return;
+    }
     recv.unshift({ text: m.text, name: m.name, from, squad: sqName || '' });
     say('Mission "' + m.name + '" received from ' + from + '.');
     drawMis();
@@ -2740,10 +2785,124 @@ export function createSquadronPage(deps) {
       return cur.link.sendMission(t, n, me(), opt);
     },
   });
-  const doSend = async (tg, text, name) => {
-    if (!tg.length) return result(false, 'Mission not sent', 'Nobody is online to receive it.');
+  // the pilots to choose from: the packages and flights when the squadron has them, the pilots online, "everybody online"
+  const sendCard = async item => {
+    const q = cur();
+    if (!q) return result(false, 'Card not sent', 'Join or create a squadron first.');
+    if (!item || !item.blob) return;
+    if (item.blob.size > CARD_MAX)
+      return result(
+        false,
+        'Card not sent',
+        'This card is too big (' + Math.round(item.blob.size / 1048576) + ' MB, the limit is 8 MB).'
+      );
+    const sw = swarms.get(q.id),
+      onl = new Map((sw ? sw.online() : []).map(p => [p.uid, p])),
+      v = orgView(q),
+      nm = nameOfIn(q),
+      pil = [...onl.keys()].filter(u => u != DB.uid);
+    const onlyOn = us => us.filter(u => onl.has(u) && u != DB.uid);
+    const pk = v.packages.filter(p => p.flights.some(f => f.members.length));
+    const row = (k, id, text, n, sub) =>
+      `<label class="sqm" style="gap:8px;${n ? '' : 'opacity:.5'}"><span><input type="checkbox" data-k="${k}" data-id="${esc(id)}"${n ? '' : ' disabled'} style="width:auto"> ${text}${sub ? ' <em>' + sub + '</em>' : ''}</span><span class="hint" style="min-height:0">${n} online</span></label>`;
+    const html =
+      `<h3 style="margin:0 0 6px;font-size:15px">Send card</h3><div class="hint" style="min-height:0;margin-bottom:8px">"${esc(item.name)}" goes among the unused cards of each pilot you choose. It never replaces a card of his kneeboard.</div>` +
+      row('all', '', '<b>Everybody online</b>', pil.length) +
+      (pk.length
+        ? '<h4>Packages and flights</h4>' +
+          pk
+            .map(
+              p =>
+                row('pk', p.id, '<b>' + esc(p.n) + '</b>', onlyOn(p.flights.flatMap(f => f.members)).length) +
+                p.flights
+                  .filter(f => f.members.length)
+                  .map(
+                    f =>
+                      '<div style="margin-left:22px">' + row('fl', f.id, esc(f.n), onlyOn(f.members).length) + '</div>'
+                  )
+                  .join('')
+            )
+            .join('')
+        : '') +
+      '<h4>Pilots</h4>' +
+      (live(q).length > 1 || pil.length
+        ? [
+            ...new Set([
+              ...pil,
+              ...live(q)
+                .map(r => r.uid)
+                .filter(u => u != DB.uid),
+            ]),
+          ]
+            .sort((a, b) => nm(a).localeCompare(nm(b)))
+            .map(u =>
+              row('p', u, esc(nm(u)), onl.has(u) ? 1 : 0).replace(
+                /<span class="hint"[^>]*>\d+ online<\/span>/,
+                `<span class="hint" style="min-height:0">${onl.has(u) ? 'online' : 'offline'}</span>`
+              )
+            )
+            .join('')
+        : '<div class="hint">Nobody else is in the squadron.</div>') +
+      '<div class="bar" style="margin-top:12px;justify-content:flex-end"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok disabled>Send</button></div>';
+    const pick = await new Promise(res => {
+      pop(html, (o, c) => {
+        const ok = o.querySelector('[data-ok]');
+        const sel = () => {
+          const set = new Set();
+          o.querySelectorAll('input:checked').forEach(i => {
+            const { k, id } = i.dataset;
+            if (k == 'all') pil.forEach(u => set.add(u));
+            else if (k == 'p') set.add(id);
+            else if (k == 'pk')
+              v.packages
+                .filter(p => p.id == id)
+                .forEach(p => onlyOn(p.flights.flatMap(f => f.members)).forEach(u => set.add(u)));
+            else
+              v.packages
+                .flatMap(p => p.flights)
+                .filter(f => f.id == id)
+                .forEach(f => onlyOn(f.members).forEach(u => set.add(u)));
+          });
+          return set;
+        };
+        o.onchange = () => (ok.disabled = !sel().size);
+        o.querySelector('[data-x]').onclick = () => {
+          c();
+          res(null);
+        };
+        ok.onclick = () => {
+          const set = sel();
+          c();
+          res([...set]);
+        };
+      });
+    });
+    if (!pick || !pick.length) return;
+    let text;
+    try {
+      const img = await new Promise((ok, no) => {
+        const r = new FileReader();
+        r.onload = () => ok(String(r.result));
+        r.onerror = () => no(new Error('The card could not be read.'));
+        r.readAsDataURL(item.blob);
+      });
+      text = cardText(item.name, img);
+      if (!parseCard(text)) throw new Error('Only PNG, JPG and WebP cards can be sent.');
+    } catch (e) {
+      return result(false, 'Card not sent', String((e && e.message) || e));
+    }
+    const tg = pick
+      .map(u => sw && sw.byUid(u))
+      .filter(Boolean)
+      .map(p => toTarget(q.id, p));
+    return doSend(tg, text, item.name, 'Card');
+  };
+  const doSend = async (tg, text, name, what = 'Mission') => {
+    if (!tg.length) return result(false, what + ' not sent', 'Nobody is online to receive it.');
     const w = pop(
-      '<h3 style="margin:0 0 8px;font-size:15px">Sending…</h3><div>Mission "' +
+      '<h3 style="margin:0 0 8px;font-size:15px">Sending…</h3><div>' +
+        what +
+        ' "' +
         esc(name) +
         '" is going to ' +
         tg.length +
@@ -2757,16 +2916,16 @@ export function createSquadronPage(deps) {
     };
     const { ok, bad } = await distribute(tg, text, name, { onProgress: prog });
     w.close();
-    if (ok.length) say('Mission "' + name + '" sent to ' + ok.join(', ') + '.');
+    if (ok.length) say(what + ' "' + name + '" sent to ' + ok.join(', ') + '.');
     if (bad.length) {
       say('Error: ' + bad.join(' | '));
       result(
         false,
-        ok.length ? 'Mission partly sent' : 'Mission not sent',
+        ok.length ? what + ' partly sent' : what + ' not sent',
         (ok.length ? 'Sent to: ' + ok.join(', ') + '\n\n' : '') + 'Failed:\n' + bad.join('\n'),
         bad.join(' | ')
       );
-    } else result(true, 'Mission delivered', 'Mission "' + name + '" was received by ' + ok.join(', ') + '.');
+    } else result(true, what + ' delivered', what + ' "' + name + '" was received by ' + ok.join(', ') + '.');
     drawSession();
   };
   function build() {
@@ -3097,6 +3256,8 @@ export function createSquadronPage(deps) {
     S,
     ready,
     received: () => recv,
+    sendCard,
+    canSendCard: () => !!cur(),
     roster: () => {
       const q = cur();
       if (!q) return [];

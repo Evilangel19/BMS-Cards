@@ -173,6 +173,9 @@ export let KBFMT = 'dxt1';
 export let KBLIB = [];
 ST.KBG = null;
 export let KBTR = [];
+export let KBCARD = null; // the picture card chosen for "Send card…" (click a card: in a slot or among the unused ones)
+// hooks set by the squadron page (the modules cannot import each other): send(item) opens the choice of pilots
+export const KBX = { send: null, can: () => false };
 export let KBFIT = false;
 export const kbUsedKind = k => KBS.some(r => r.left.kind == k || r.right.kind == k);
 export const kbUsedItem = it =>
@@ -350,6 +353,14 @@ export async function kbAddPic(blob, name) {
   if (side) Object.assign(KBS[row][side], { kind: 'pic', item: it, mode: 'fill' });
   kbRender();
   return side ? { side, row } : null;
+}
+// A card received from a pilot goes among the unused cards (never into a slot, never over another card)
+export async function kbAddTray(blob, name) {
+  const it = await kbMakeItem(blob, name);
+  KBLIB.push(it);
+  kbMemLater();
+  kbRender(true);
+  return it;
 }
 export async function kbAddShot(c) {
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
@@ -599,18 +610,46 @@ export function kbRender(keepMenu) {
     ? `<div id="kbtray"><div class="hint" style="margin:0 0 6px">Unused cards — drag them onto the kneeboard · drop a card on the bin to delete it, click the bin to empty this area</div><div class="kbtw">${KBTR.map((c, i) => `<div class="kbt kbtr" data-i="${i}" title="${esc(kbName(c))}"><canvas class="kbt" width="144" height="216" data-i="${i}"></canvas></div>`).join('')}<div id="kbtrash" title="Click to delete all unused imported cards, or drop a card here to delete it">🗑</div></div></div>`
     : '';
   el.innerHTML = `<style>.kbw{display:grid;grid-template-columns:auto minmax(300px,1fr) auto;gap:18px;align-items:start;margin-top:6px}.kbside{display:flex;flex-direction:column}.kbbtns{padding-top:14px;display:flex;gap:10px;flex-wrap:wrap}.kbbtns.right{justify-content:flex-end}.kbw h3{margin:0 0 8px;text-align:center}.kbgrid{display:grid;grid-template-columns:repeat(4,100px);gap:8px}
- div.kbt{position:relative;cursor:pointer;border:2px solid transparent;border-radius:4px;line-height:0}.kbdrag div.kbt{cursor:grab}div.kbt.sel{border-color:#1f7a46}div.kbt:hover{border-color:var(--ac)}div.kbt.ib{box-shadow:inset 8px 0 0 #3ddc84}div.kbt.ia{box-shadow:inset -8px 0 0 #3ddc84}div.kbt.ib::before,div.kbt.ia::after{content:'';position:absolute;top:-3px;bottom:-3px;width:7px;border-radius:4px;background:#3ddc84;box-shadow:0 0 12px 3px #3ddc84cc;z-index:4;pointer-events:none}div.kbt.ib::before{left:-10px}div.kbt.ia::after{right:-10px}div.kbt.ib,div.kbt.ia{border-style:solid;border-color:#3ddc84}div.kbt.dr,#kbtrash.dr,#kbtray.dr{border-color:#e0a030;border-style:dashed}#kbtrash.dr{background:#a12b2b55;border-color:#d44}div.kbt.dg{opacity:.4}div.kbt span{position:absolute;left:2px;top:2px;background:#000b;color:#fff;font:600 11px/1 sans-serif;padding:2px 4px;border-radius:3px}canvas.kbt{width:96px;height:144px;background:#0003;display:block}
+ div.kbt{position:relative;cursor:pointer;border:2px solid transparent;border-radius:4px;line-height:0}.kbdrag div.kbt{cursor:grab}div.kbt.sel{border-color:#1f7a46}div.kbt.csel{outline:2px solid #4aa3ff;outline-offset:1px}div.kbt:hover{border-color:var(--ac)}div.kbt.ib{box-shadow:inset 8px 0 0 #3ddc84}div.kbt.ia{box-shadow:inset -8px 0 0 #3ddc84}div.kbt.ib::before,div.kbt.ia::after{content:'';position:absolute;top:-3px;bottom:-3px;width:7px;border-radius:4px;background:#3ddc84;box-shadow:0 0 12px 3px #3ddc84cc;z-index:4;pointer-events:none}div.kbt.ib::before{left:-10px}div.kbt.ia::after{right:-10px}div.kbt.ib,div.kbt.ia{border-style:solid;border-color:#3ddc84}div.kbt.dr,#kbtrash.dr,#kbtray.dr{border-color:#e0a030;border-style:dashed}#kbtrash.dr{background:#a12b2b55;border-color:#d44}div.kbt.dg{opacity:.4}div.kbt span{position:absolute;left:2px;top:2px;background:#000b;color:#fff;font:600 11px/1 sans-serif;padding:2px 4px;border-radius:3px}canvas.kbt{width:96px;height:144px;background:#0003;display:block}
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}#pnmenu{position:fixed;z-index:50;width:200px;max-height:260px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px;display:flex;flex-direction:column;gap:2px;box-shadow:0 8px 24px #000a;animation:popin .14s ease-out}.pni{background:none;border:0;color:var(--tx);text-align:left;padding:6px 8px;border-radius:6px;cursor:pointer;font:inherit}.pni:hover{background:#ffffff14}.pne{padding:8px;color:var(--mut,#8b98a9);font-size:12px}.pnrow{display:flex;gap:4px}.pnrow input{flex:1;min-width:0}.pnb{padding:0 8px}
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
  <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
- <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
+ <div class="kbx"><button class="btn g gn" id="kbsend" disabled title="Click a picture card, then send it to the pilots of your squadron">Send card…</button>${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
+  const pickCard = c => {
+    KBCARD = c && c.kind == 'pic' && c.item ? c.item : null;
+    kbMarkCard();
+  };
+  const kbMarkCard = () => {
+    el.querySelectorAll('div.kbt').forEach(t => {
+      const c = t.dataset.i !== undefined ? KBTR[+t.dataset.i] : t.dataset.s ? KBS[+t.dataset.r][t.dataset.s] : null;
+      t.classList.toggle('csel', !!(KBCARD && c && c.kind == 'pic' && c.item === KBCARD));
+    });
+    const b = $('kbsend');
+    if (b) {
+      b.disabled = !KBCARD || !KBX.can();
+      b.title = !KBCARD
+        ? 'Click a picture card, then send it to the pilots of your squadron'
+        : !KBX.can()
+          ? 'Join or create a squadron to send cards'
+          : 'Send "' + KBCARD.name + '" to the pilots of your squadron';
+    }
+  };
+  if (KBCARD && !KBLIB.includes(KBCARD)) KBCARD = null;
+  kbMarkCard();
+  if ($('kbsend')) $('kbsend').onclick = () => KBCARD && KBX.send && KBX.send(KBCARD);
+  el.querySelectorAll('div.kbt[data-i]').forEach(t =>
+    t.addEventListener('click', () => {
+      if (!KBDRAGGED) pickCard(KBTR[+t.dataset.i]);
+    })
+  );
   el.querySelectorAll('div.kbt[data-s]').forEach(
     t =>
       (t.onclick = e => {
         if (KBDRAGGED) return;
+        pickCard(KBS[+t.dataset.r][t.dataset.s]);
         KBSEL = +t.dataset.r;
         kbThumbs();
         el.querySelectorAll('div.kbt[data-s]').forEach(x => x.classList.toggle('sel', +x.dataset.r == KBSEL));

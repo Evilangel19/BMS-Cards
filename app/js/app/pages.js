@@ -42,7 +42,7 @@ import { ATOL, PLAYER, msLocked } from './ato.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
 import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
-import { kbAddShot } from './kneeboard.js';
+import { kbAddShot, kbAddTray, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { dtcDir, wxWind } from './campaign.js';
 import { openSettings } from './settings.js';
@@ -350,6 +350,10 @@ export async function init11() {
     loadMission: t => msfLoad(t, null),
     version: APP_VERSION,
     saveReceived: (t, n) => msfStoreReceived(t, n),
+    receiveCard: async (c, from) => {
+      const blob = await (await fetch(c.img)).blob();
+      await kbAddTray(blob, c.name + ' · from ' + from);
+    },
     mission: {
       ident: () => msfIdent(),
       sources: () => msfSources(),
@@ -357,6 +361,8 @@ export async function init11() {
       forSend: (id, t) => msfForSend(id, t),
     },
   });
+  KBX.send = it => sqPage.sendCard(it);
+  KBX.can = () => sqPage.canSendCard();
   pfPage = createPerfPage({
     esc,
     root: $('pf'),
