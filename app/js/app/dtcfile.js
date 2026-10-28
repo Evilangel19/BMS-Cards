@@ -9,7 +9,7 @@ import { apply } from './selection.js';
 import { buildForm } from './datacard.js';
 import { draw } from './cardview.js';
 import { campDir, dtcDir } from './campaign.js';
-import { campaignIni } from '../core/mapdtc.js';
+import { campaignIni, routeRows } from '../core/mapdtc.js';
 
 /* ---------- DTC ---------- */
 export let lines = [];
@@ -217,10 +217,31 @@ const sameBytes = (a, b) => {
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 };
+// The route (target_0-24) of the flight of the datacard, as the DTC should have it: [[key, value]] or [] (no DTC, no flight)
+export const routeWanted = () => {
+  if (!lines.length || !ST.C || !ST.ATOSEL) return [];
+  try {
+    return routeRows(ST.C, ST.ATOSEL) || [];
+  } catch (e) {
+    return [];
+  }
+};
+const sameRow = (a, b) => String(a).replace(/\s+/g, ' ').trim() === String(b).replace(/\s+/g, ' ').trim();
+// a row is to be written when it differs from the DTC (an empty row is not added to a DTC that does not have the line)
+const rowDue = ([k, v]) =>
+  !sameRow(G('STPT', k, ''), v) && (!!L('STPT', k) || !/^0\.000000, 0\.000000, 0\.000000, -1/.test(v));
+export const routeDiffers = () => routeWanted().some(rowDue);
+// puts the route into the DTC lines (the lines that change are marked, so Write saves them); true when something changed
+export function syncRoute() {
+  const due = routeWanted().filter(rowDue);
+  due.forEach(([k, v]) => S('STPT', k, v));
+  return due.length > 0;
+}
 export async function dtcOverwrite() {
   if (!lines.length) return alert('Open a DTC file first.');
   if (!ST.DTCF || !ST.DTCF.path)
     return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
+  syncRoute();
   if (!lines.some(l => l.dirty)) return;
   let extra = [];
   try {

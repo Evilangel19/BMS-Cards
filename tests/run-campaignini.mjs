@@ -9,6 +9,8 @@ import {
   bmsStptKey,
   bmsStptKeys,
   dtcPoints,
+  routeRows,
+  isRouteKey,
 } from '../app/js/core/mapdtc.js';
 import { dtcShare } from '../app/js/core/mission.js';
 let bad = 0,
@@ -103,5 +105,57 @@ const part = dtcPoints(
   )
 );
 ok('with 14 used the free PPT slot is the 15th (STPT 70)', freeSlot(part, 'ppt') === 14);
+// the route of the flight (target_0-24): like BMS writes it, with the altitudes of the flight plan, and the bullseye as STPT 25
+{
+  const C0 = { bull: { x: 667, y: 217 } },
+    f0 = {
+      wps: [
+        { x: 432, y: 224, z: 0, act: 1 },
+        { x: 518, y: 224, z: 2200, act: 0 },
+        { x: 432, y: 224, z: 0, act: 7 },
+      ],
+    },
+    r = routeRows(C0, f0);
+  ok('route: 25 rows, target_0 to target_24', r.length === 25 && r[0][0] === 'target_0' && r[24][0] === 'target_24');
+  ok(
+    'route: north, east, -altitude, action and the BMS name',
+    r[0][1] === '734908.160000, 1417322.880000, 0.000000, 1, Not set'
+  );
+  ok(
+    'route: the altitude of the plan is written negative (22000 ft)',
+    r[1][1] === '734908.160000, 1699475.120000, -22000.000000, 0, Not set'
+  );
+  ok(
+    'route: a row after the last steerpoint is the empty row of BMS',
+    r[3][1] === '0.000000, 0.000000, 0.000000, -1, Not set' && r[23][1] === r[3][1]
+  );
+  ok(
+    'route: target_24 is the bullseye (north, east, 0)',
+    r[24][1] === (217 * 3280.84).toFixed(6) + ', ' + (667 * 3280.84).toFixed(6) + ', 0.000000, 0, Not set'
+  );
+  ok('route: no flight plan, no rows', routeRows(C0, { wps: [] }) === null && routeRows(null, f0) === null);
+  ok(
+    'route keys are target_0 to target_24 only',
+    isRouteKey('target_0') &&
+      isRouteKey('target_24') &&
+      !isRouteKey('target_25') &&
+      !isRouteKey('target_80') &&
+      !isRouteKey('ppt_1')
+  );
+  const withRoute = parseDtc('[STPT]\r\n' + r.map(([k, v]) => k + '=' + v).join('\r\n') + '\r\n'),
+    out = campaignIni('R', withRoute).split('\r\n'),
+    i23 = out.findIndex(l => l.startsWith('target_23=')),
+    p80 = out.findIndex(l => l.startsWith('target_80='));
+  ok(
+    'campaign ini: the route is written as it is, target_24 follows target_23',
+    out[i23 + 1] === 'target_24=' + r[24][1] && p80 === i23 + 2 && out[3] === 'target_0=' + r[0][1]
+  );
+  ok(
+    'campaign ini: a DTC without target_24 gives no target_24 row (BMS files stay byte for byte)',
+    !campaignIni('R', parseDtc('[STPT]\r\ntarget_0=1, 2, 3, 1, Not set\r\n'))
+      .split('\r\n')
+      .some(l => l.startsWith('target_24='))
+  );
+}
 console.log(bad ? `${bad} FAILED of ${n}` : `OK - ${n} campaign ini checks`);
 process.exit(bad ? 1 : 0);

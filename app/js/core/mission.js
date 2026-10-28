@@ -2,7 +2,7 @@
 // with its automatic and manual values. Pure functions (no DOM, no files): the app reads and writes the files.
 //   {format, version, created, app, name, package: {campaign snapshot}, dtc: {name, enc, bom, original, edits}, datacard: {flight, auto, manual}, settings}
 import { parseDtc } from '../parsers/dtc.js';
-import { bmsStptKey } from './mapdtc.js';
+import { bmsStptKey, isRouteKey } from './mapdtc.js';
 import { APP_VERSION } from './version.js';
 export const MISSION_FORMAT = 'bms-cards-mission',
   OLD_FORMAT = 'bms-cards-project',
@@ -205,8 +205,9 @@ export const DTC_GROUPS = [
   },
 ];
 // the groups of the lines [{s, k, v}] of a DTC: [{id, label, mission, items: [[s, k, v], ...]}], only the groups that have lines
-// the steerpoint keys BMS does not use (ppt_15 and up, target_24-79 ...) are not carried
-const stptOk = l => l.s !== 'STPT' || !/^(target_|ppt_|lineSTPT_|wpntarget_)\d+$/.test(l.k) || bmsStptKey(l.k);
+// the steerpoint keys BMS does not use (ppt_15 and up, target_24-79 ...) are not carried, nor the route (target_0-24): it comes from the flight of the campaign of whoever opens the mission
+const stptOk = l =>
+  l.s !== 'STPT' || !/^(target_|ppt_|lineSTPT_|wpntarget_)\d+$/.test(l.k) || (bmsStptKey(l.k) && !isRouteKey(l.k));
 export function dtcShare(lines) {
   return DTC_GROUPS.map(g => ({
     id: g.id,
@@ -261,6 +262,7 @@ export function shareClears(existing, g) {
     if (
       !SLOT_SECS.includes(l.s) ||
       l.k === undefined ||
+      (l.s == 'STPT' && isRouteKey(l.k)) ||
       !g.items.some(i => i[0] == l.s) ||
       have.has(l.s + '|' + l.k) ||
       isEmptySlot(l.v)
@@ -303,6 +305,7 @@ export function applyShare(set, groups, ids, existing) {
     if (want.has(g.id)) {
       const clr = shareClears(existing, g);
       for (const [s, k, v] of g.items) {
+        if (!stptOk({ s, k })) continue; // a mission saved by an older version may still carry the route
         if (secs && !secs.has(s)) {
           skipped++;
           continue;

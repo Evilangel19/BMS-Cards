@@ -45,6 +45,35 @@ export const bmsStptKey = k => {
   const m = /^(target_|ppt_|lineSTPT_|wpntarget_)(\d+)$/.exec(k || '');
   return !!m && BMS_STPT.some(([p, rs]) => p == m[1] && rs.some(([a, b]) => +m[2] >= a && +m[2] <= b));
 };
+// The route of the flight: target_0-23 (STPT 1-24) as BMS writes them ("north, east, -altitude, action, Not set"; an unused row is the empty line), and target_24 (STPT 25) = the bullseye.
+// BMS keeps the ground elevation as the altitude; here it is the altitude of the flight plan (the campaign has no terrain heights), 0 on the ground.
+export const ROUTE_N = 25;
+export const isRouteKey = k => {
+  const m = /^target_(\d+)$/.exec(k || '');
+  return !!m && +m[1] < ROUTE_N;
+};
+/** @returns {[string, string][]|null} the 25 rows [key, value] for a flight of a campaign, null when the flight has no plan */
+export function routeRows(C, f) {
+  if (!C || !f || !Array.isArray(f.wps) || !f.wps.length) return null;
+  /** @type {[string, string][]} */
+  const rows = [];
+  for (let i = 0; i < 24; i++) {
+    const p = f.wps[i];
+    rows.push([
+      'target_' + i,
+      p
+        ? [f6(p.y * FT_KM), f6(p.x * FT_KM), f6(p.z ? -p.z * 10 : 0), p.act | 0, 'Not set'].join(', ')
+        : '0.000000, 0.000000, 0.000000, -1, Not set',
+    ]);
+  }
+  rows.push([
+    'target_24',
+    C.bull
+      ? [f6(C.bull.y * FT_KM), f6(C.bull.x * FT_KM), f6(0), 0, 'Not set'].join(', ')
+      : '0.000000, 0.000000, 0.000000, -1, Not set',
+  ]);
+  return rows;
+}
 export function campaignIni(title, lines) {
   const by = new Map();
   (lines || []).forEach(l => {
@@ -55,7 +84,12 @@ export function campaignIni(title, lines) {
       '[MISSION]',
       'title=' + title,
       '[STPT]',
-      ...bmsStptKeys().map(([k, e]) => k + '=' + (by.has(k) ? by.get(k) : e)),
+      ...bmsStptKeys().flatMap(([k, e]) => {
+        const o = [k + '=' + (by.has(k) ? by.get(k) : e)];
+        // the bullseye row follows the route only when the DTC has it (BMS files do not)
+        if (k == 'target_23' && by.has('target_24')) o.push('target_24=' + by.get('target_24'));
+        return o;
+      }),
     ].join('\r\n') + '\r\n'
   );
 }

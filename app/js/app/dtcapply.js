@@ -2,7 +2,7 @@ import { navRow } from '../core/weaponspage.js';
 import { CAM } from '../core/cam-core.js';
 import { dtcKey, dtcValue, dtcEmpty } from '../core/mapdtc.js';
 import { ST } from './state.js';
-import { G, S, lines, view } from './dtcfile.js';
+import { G, S, lines, view, routeDiffers } from './dtcfile.js';
 import { F, mirrorAll } from './datacard.js';
 import { $ } from './base.js';
 import { mapV } from './pages.js';
@@ -286,7 +286,7 @@ export function dtcClear(g, slot, fromPage) {
 export function dtcBtns() {
   const d = lines.some(l => l.dirty);
   [
-    ['saveow', !d],
+    ['saveow', !d && !routeDiffers()], // the route of the flight is also written
     ['dtcrev', !d],
   ].forEach(([i, n]) => {
     const b = $(i);

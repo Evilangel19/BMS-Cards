@@ -211,7 +211,7 @@ ck(
 // sharing: ONE block of the DTC, applied on the receiver's own DTC
 {
   const dl = [
-    { s: 'STPT', k: 'target_1', v: '1, 2, 0, 1, ' },
+    { s: 'STPT', k: 'target_81', v: '1, 2, 0, 1, ' },
     { s: 'MFD', k: 'Display1', v: 'A' },
     { s: 'Radio', k: 'UHF_1', v: '251.0' },
     { s: 'LINK16', k: 'FILE_A_FLIGHT_LEAD', v: '1' },
@@ -228,7 +228,7 @@ ck(
   const m = P.shareMission(
     P.buildMission({
       name: 'x',
-      dtc: { original: '[STPT]\r\ntarget_1=1, 2, 0, 1, \r\n', edits: [], name: 'Mine.ini', author: { uid: 'a' } },
+      dtc: { original: '[STPT]\r\ntarget_81=1, 2, 0, 1, \r\n', edits: [], name: 'Mine.ini', author: { uid: 'a' } },
     }),
     g
   );
@@ -248,7 +248,7 @@ ck(
     share: {
       groups: [
         { id: 'mfd', items: [['MFD', 'a', '1']] },
-        { id: 'stpt', items: [['STPT', 'target_1', '1']] },
+        { id: 'stpt', items: [['STPT', 'target_81', '1']] },
       ],
     },
   });
@@ -260,27 +260,27 @@ ck(
   const r = P.applyShare((a, b, c) => got.push([a, b, c]), m.dtc.share.groups, ['mission']);
   ck(
     'applyShare writes the block into the DTC of the receiver',
-    r.n === got.length && got.some(x => x[1] === 'target_1') && !got.some(x => x[0] === 'MFD')
+    r.n === got.length && got.some(x => x[1] === 'target_81') && !got.some(x => x[0] === 'MFD')
   );
   ck(
     'the file of an old mission still gives its block from original + edits',
-    P.shareFromSaved({ original: '[STPT]\r\ntarget_1=1, 2, 0, 1, \r\n[MFD]\r\na=1\r\n', edits: [] })[0].items.length ===
-      1
+    P.shareFromSaved({ original: '[STPT]\r\ntarget_81=1, 2, 0, 1, \r\n[MFD]\r\na=1\r\n', edits: [] })[0].items
+      .length === 1
   );
   {
     const ex = [
-        { s: 'STPT', k: 'target_1', v: '9, 9, 0, 1, A' },
-        { s: 'STPT', k: 'target_5', v: '7, 7, 0, 1, B' },
+        { s: 'STPT', k: 'target_81', v: '9, 9, 0, 1, A' },
+        { s: 'STPT', k: 'target_85', v: '7, 7, 0, 1, B' },
         { s: 'STPT', k: 'lineSTPT_9', v: '1.0, 2.0, 3.0' },
         { s: 'NAV OFFSETS', k: 'vip_1', v: '1, 2' },
       ],
       gg = {
         id: 'stpt',
         items: [
-          ['STPT', 'target_1', '1, 2, 0, 1, '],
-          ['STPT', 'target_2', '0, 0, 0, -1, Not set'],
+          ['STPT', 'target_81', '1, 2, 0, 1, '],
+          ['STPT', 'target_82', '0, 0, 0, -1, Not set'],
           ['STPT', 'lineSTPT_1', '0.000000, 0.000000, 0.000000'],
-          ['STPT', 'target_5', '0, 0, 0, -1, Not set'],
+          ['STPT', 'target_85', '0, 0, 0, -1, Not set'],
           ['ICP', 'Bingo_Fuel', '3300'],
         ],
       },
@@ -329,6 +329,32 @@ ck(
   const pk = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')),
     V = (await import(new URL('../app/js/core/version.js', import.meta.url))).APP_VERSION;
   ck('the version of the program is the same in version.js and package.json', V === pk.version);
+}
+// the route (target_0-24) comes from the flight of the campaign of the pilot who opens the mission: it is not carried and the receiver's is not emptied
+{
+  const rt = [
+      { s: 'STPT', k: 'target_0', v: '1, 2, 0, 1, Not set' },
+      { s: 'STPT', k: 'target_24', v: '1, 2, 0, 0, Not set' },
+      { s: 'STPT', k: 'target_81', v: '3, 4, 0, -1, Pt' },
+    ],
+    g = P.dtcShare(rt)[0];
+  ck(
+    'the route is not part of the block of a mission (target_0-24); target_81 is',
+    g.items.length === 1 && g.items[0][1] === 'target_81'
+  );
+  const gg = {
+      id: 'mission',
+      items: [
+        ['STPT', 'target_81', '0, 0, 0, -1, Not set'],
+        ['STPT', 'target_0', '9, 9, 0, 1, X'],
+      ],
+    },
+    w = [];
+  P.applyShare((a, b, c) => w.push(b), [gg], ['mission'], rt);
+  ck(
+    'a mission of an older version that carries the route does not write it, and the receiver route is not emptied',
+    w.join() === 'target_81'
+  );
 }
 console.log(bad ? 'mission: ' + bad + ' FAILED' : 'mission: ' + n + '/' + n + ' checks passed');
 process.exit(bad ? 1 : 0);

@@ -7,7 +7,7 @@ import { $, esc } from './base.js';
 import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch } from './ato.js';
 import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
-import { applyDTC, msfFreeze } from './dtcapply.js';
+import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { draw } from './cardview.js';
 import { perfFill } from './perf.js';
 
@@ -94,6 +94,7 @@ export function apply(i, mode) {
       });
   }
   applyDTC(ST.CL[i].f);
+  dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
   [
     ['ab', 3, 7],
     ['fl', 4, 7],
