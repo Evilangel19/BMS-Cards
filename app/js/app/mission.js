@@ -459,7 +459,10 @@ export async function msfLoad(text, file) {
         'Could not apply the DTC data of the mission: ' + ((e && e.message) || e) + '\nThe mission was not opened.'
       );
     }
-    if (shared === null) return false; // the pilot cancelled: the mission is not opened
+    if (shared === null) {
+      back(); // the pilot cancelled: the mission is not opened (and a DTC opened meanwhile without lines is closed again)
+      return false;
+    }
   }
   // everything that can fail while reading the file is prepared first: weather and map picture
   const wxSeries = new Map();
