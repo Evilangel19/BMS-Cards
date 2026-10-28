@@ -10,7 +10,7 @@ for f in ['EvilKorea.cam', 'EvilKorea.iff', 'EvilKorea.twx', 'EvilKorea_l16.txtp
 open(camp + '/Save1.cam', 'wb').write(b'x')
 INIT = """(()=>{const root=%s;window.__TAURI__={core:{invoke:async(c)=>{if(c==='app_dir')return '/app';if(c==='detect_bms')return root;return null}},dialog:{open:async()=>null,save:async()=>null},
  fs:{readDir:async p=>await (await fetch('/__ls?p='+encodeURIComponent(p))).json(),readFile:async p=>new Uint8Array(await (await fetch('/__f?p='+encodeURIComponent(p))).arrayBuffer()),
-  readTextFile:async p=>{ if(p.endsWith('config.json')) throw new Error('none'); return await (await fetch('/__f?p='+encodeURIComponent(p))).text()},writeTextFile:async()=>{},writeFile:async()=>{},exists:async p=>false,mkdir:async()=>{}}};})();""" % json.dumps(BMS)
+  readTextFile:async p=>{const m=window.__TX;if(m&&m.has(p))return m.get(p); if(p.endsWith('config.json')) throw new Error('none'); return await (await fetch('/__f?p='+encodeURIComponent(p))).text()},writeTextFile:async(p,s)=>{(window.__TX=window.__TX||new Map()).set(p,s)},writeFile:async()=>{},exists:async p=>false,mkdir:async()=>{}}};})();""" % json.dumps(BMS)
 code = r'''
 import http.server, os, json, urllib.parse, sys
 R=sys.argv[1]
@@ -54,6 +54,7 @@ try:
         check('selecting a campaign clears the TE menu and loads a normal campaign', pg.input_value('#tesel') == '' and pg.evaluate("()=>__app.C.isTe") is False and pg.eval_on_selector('#fsel', 'e=>e.options.length') > 5)
         pg.select_option('#tesel', 'TE_BMS_03_F-16_DEAD.tac'); pg.wait_for_timeout(2000)
         pg.click('[data-t=sq]'); pg.wait_for_timeout(500)
+        pg.click('#sqtabs [data-tab=me]'); pg.wait_for_timeout(300)  # "Squadron in the campaign" is on the Me tab since beta 47
         check('squadron page: says there is no player squadron in a TE', 'Tactical Engagement' in pg.inner_text('#sq'))
         pg.click('[data-t=mp]'); pg.wait_for_selector('#mpmap .leaflet-pane', state='attached', timeout=8000); pg.wait_for_timeout(800)
         check('map page: both menus sit in the map bar', pg.locator('#mpcam #csel').count() == 1 and pg.locator('#mpcam #tesel').count() == 1 and pg.is_visible('#mpcam #tesel'))

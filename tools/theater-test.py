@@ -37,8 +37,8 @@ window.__TAURI__={core:{invoke:async(c)=>{if(c==='app_dir')return '/app';if(c===
  dialog:{open:async()=>null,save:async()=>null},
  fs:{readDir:async p=>await (await fetch('/__ls?p='+encodeURIComponent(p))).json(),
   readFile:async p=>new Uint8Array(await (await fetch('/__f?p='+encodeURIComponent(p))).arrayBuffer()),
-  readTextFile:async p=>{ if(p.endsWith('config.json')) throw new Error('none'); return await (await fetch('/__f?p='+encodeURIComponent(p))).text()},
-  writeTextFile:async()=>{},writeFile:async()=>{},exists:async p=>false,mkdir:async()=>{}}};})();
+  readTextFile:async p=>{const m=window.__TX;if(m&&m.has(p))return m.get(p); if(p.endsWith('config.json')) throw new Error('none'); return await (await fetch('/__f?p='+encodeURIComponent(p))).text()},
+  writeTextFile:async(p,s)=>{(window.__TX=window.__TX||new Map()).set(p,s)},writeFile:async()=>{},exists:async p=>false,mkdir:async()=>{}}};})();
 """ % json.dumps(BMS)
 code = r'''
 import http.server, os, json, urllib.parse, sys

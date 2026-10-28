@@ -23,7 +23,7 @@ files = {
 INIT = """(()=>{const F=new Map(Object.entries(%s).map(([k,v])=>[k,Uint8Array.from(atob(v),c=>c.charCodeAt(0))]));window.__F=F;
 const ls=p=>{p=p.replace(/\\\\+$/,'');const o=new Map();for(const k of F.keys()){if(!k.startsWith(p+'\\\\'))continue;const r=k.slice(p.length+1).split('\\\\');o.set(r[0],r.length>1)}return [...o].map(([name,d])=>({name,isDirectory:d,isFile:!d,isSymlink:false}))};
 window.__TAURI__={core:{invoke:async c=>c==='app_dir'?'C:\\\\app':null},dialog:{open:async()=>null,save:async()=>null},
- fs:{readDir:async p=>ls(p),readFile:async p=>{if(!F.has(p))throw new Error('missing');return F.get(p)},readTextFile:async()=>{throw new Error('none')},writeTextFile:async()=>{},
+ fs:{readDir:async p=>ls(p),readFile:async p=>{if(!F.has(p))throw new Error('missing');return F.get(p)},readTextFile:async p=>{const m=window.__TX;if(m&&m.has(p))return m.get(p);throw new Error('none')},writeTextFile:async(p,s)=>{(window.__TX=window.__TX||new Map()).set(p,s)},
   writeFile:async(p,b)=>{F.set(p,new Uint8Array(b))},exists:async p=>F.has(p),mkdir:async()=>{}}};})();""" % json.dumps(files)
 ok = True
 def check(n, c):
