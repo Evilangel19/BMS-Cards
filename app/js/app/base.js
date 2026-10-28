@@ -11,14 +11,14 @@ import { draw } from './cardview.js';
 import { dcPage, kbRender } from './kneeboard.js';
 
 export const $ = id => document.getElementById(id);
-import { saveConfig } from '../platform/desktop.js';
+import { saveConfig, saveFailed } from '../platform/desktop.js';
 // the program keeps the last DTC and campaign (for the "load the last ones at start" option); written to the settings only when it changes
 export function rememberLast(k, v) {
   try {
     const u = (ST.CFG.ui = ST.CFG.ui || {});
     if (!v || u[k] === v) return;
     u[k] = v;
-    saveConfig(ST.CFG).catch(() => {});
+    saveConfig(ST.CFG).catch(e => saveFailed('config.json', e));
   } catch (e) {
     /* none */
   }

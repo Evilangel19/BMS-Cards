@@ -84,11 +84,27 @@ fn detect_bms() -> Option<String> {
     None
 }
 
+/// The folder can be written: created when missing, and a small file can be written there and removed again.
+fn writable(dir: &std::path::Path) -> bool {
+    if std::fs::create_dir_all(dir).is_err() {
+        return false;
+    }
+    let probe = dir.join("write-test.tmp");
+    let ok = std::fs::write(&probe, b"ok").is_ok();
+    let _ = std::fs::remove_file(&probe);
+    ok
+}
+
 fn main() {
     // Keep the web view's own data (cache, local storage) inside the program folder so that
-    // deleting or moving the folder removes/moves everything.
+    // deleting or moving the folder removes/moves everything. In a folder that cannot be written
+    // (Program Files, a read-only folder) the web view could not start: it then keeps its data in
+    // the user's own folder, and the program says at start that its folder cannot be written.
     if let Some(dir) = exe_dir() {
-        std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", dir.join("data").join("webview"));
+        let wv = dir.join("data").join("webview");
+        if writable(&wv) {
+            std::env::set_var("WEBVIEW2_USER_DATA_FOLDER", wv);
+        }
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())

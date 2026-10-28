@@ -151,13 +151,17 @@ export async function loadBaseOwners(C) {
     return 0;
   }
 }
-export async function loadCam(file) {
+// stale(): true when another campaign was chosen meanwhile (then this one is dropped before it replaces anything)
+export async function loadCam(file, stale) {
   if (!CAM.D.ct.length)
     return alert(
       'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.'
     );
+  let C;
   try {
-    ST.C = CAM.openCam(new Uint8Array(await file.arrayBuffer()), CAM.D, file.name);
+    const u8 = new Uint8Array(await file.arrayBuffer());
+    if (stale && stale()) return;
+    C = ST.C = CAM.openCam(u8, CAM.D, file.name);
     ST.CL = CAM.listFlights(ST.C, null);
     manClear();
   } catch (e) {
@@ -171,7 +175,8 @@ export async function loadCam(file) {
           : '')
     );
   }
-  await loadBaseOwners(ST.C);
+  await loadBaseOwners(C);
+  if (ST.C !== C) return; // another campaign was opened meanwhile: it goes on from here
   if (ST.C.ver > CAM.CAM_VER_MAX)
     alert(
       'This campaign file is newer (' +

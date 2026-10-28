@@ -26,6 +26,16 @@ try:
         check('second save does not overwrite the backup', pg.evaluate("()=>Array.from(__F.get('C:\\\\app\\\\backup\\\\kneeboard\\\\7982.dds')).join()") == '79,76,68')
         pg.click('#kbrest'); pg.wait_for_timeout(500)
         check('Restore puts the original back', pg.evaluate("()=>Array.from(__F.get('C:\\\\kb\\\\7982.dds')).join()") == '79,76,68')
+        # another folder (another theater, another BMS installation): its originals are kept apart and the first ones are not touched
+        pg.evaluate("()=>{__F.set('C:\\\\kb2\\\\7982.dds',new Uint8Array([50,50]));__app.CFG.paths.kneeboardDir='C:\\\\kb2'}")
+        pg.click('#kbsave'); pg.wait_for_timeout(6000)
+        check('a second folder gets its own backup (backup\\kneeboard\\folder 2), the first one is untouched',
+              pg.evaluate("()=>Array.from(__F.get('C:\\\\app\\\\backup\\\\kneeboard\\\\folder 2\\\\7982.dds')||[]).join()") == '50,50'
+              and pg.evaluate("()=>Array.from(__F.get('C:\\\\app\\\\backup\\\\kneeboard\\\\7982.dds')).join()") == '79,76,68')
+        pg.click('#kbrest'); pg.wait_for_timeout(500)
+        check('Restore in the second folder puts back its own original, not the one of the first folder',
+              pg.evaluate("()=>Array.from(__F.get('C:\\\\kb2\\\\7982.dds')).join()") == '50,50'
+              and pg.evaluate("()=>__F.get('C:\\\\kb\\\\7982.dds').length") == 3)
         pg.wait_for_timeout(1500)
         check('the cards are kept in the program folder (cardmemory) to load at the next start', pg.evaluate("()=>[...__F.keys()].some(k=>/cardmemory.cards\\.json$/.test(k))"))
         check('no page errors %s' % errs, not errs)

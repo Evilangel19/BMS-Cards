@@ -1510,7 +1510,7 @@ export async function cropImage(file, size = 128, round = false, title = 'Pictur
 // Three sections: Members (the roster of a squadron, who is online, the mission, the squadron in the campaign), Me (my logbook, my squadrons and their moderation)
 // and Settings (invite codes, trackers, phone book, direct connection).
 // deps: {root, esc, store: {load() -> Promise<obj|null>, save(obj)}, lbk: {list(), read(name)} | null, phonebook: {read()} | null, campaign() -> C | null, squadInfo(unit) -> {owner, base},
-//        trackers() -> text, openSettings(), buildMission() -> {name, ...}, loadMission(text), toast(msg), swarm: {trackers, WS, interval} (tests)}
+//        trackers() -> text, openSettings(), buildMission() -> {name, ...}, loadMission(text) -> false when it was not opened, toast(msg), swarm: {trackers, WS, interval} (tests)}
 export function createSquadronPage(deps) {
   const { root, esc } = deps;
   const $ = s => root.querySelector(s);
@@ -1631,14 +1631,14 @@ export function createSquadronPage(deps) {
         })
         .catch(e => say('The received mission could not be saved: ' + ((e && e.message) || e)));
     pop(
-      `<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(from)}.<br>Load it now? (it opens the mission and applies the DTC groups you choose to your own DTC)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`,
+      `<h3 style="margin:0 0 8px;font-size:15px">Mission received</h3><div style="margin-bottom:12px">"${esc(m.name)}" from ${esc(from)}.<br>Load it now? (it opens the mission and puts its DTC data, steerpoints, lines, targets and offsets, into your own DTC after showing what changes)</div><div class="bar" style="justify-content:flex-end;gap:8px"><button class="btn g" data-x>Later</button><button class="btn g gn" data-ok>Load now</button></div>`,
       (o, c) => {
         o.querySelector('[data-x]').onclick = c;
         o.querySelector('[data-ok]').onclick = async () => {
           c();
           try {
-            await deps.loadMission(r0.text);
-            say('Mission "' + r0.name + '" loaded.');
+            const ok = await deps.loadMission(r0.text);
+            say('Mission "' + r0.name + '" ' + (ok === false ? 'not opened.' : 'loaded.'));
           } catch (e) {
             result(false, 'Mission not loaded', String((e && e.message) || e));
           }
@@ -2410,8 +2410,8 @@ export function createSquadronPage(deps) {
         (b.onclick = async () => {
           const r = recv[+b.dataset.load];
           try {
-            await deps.loadMission(r.text);
-            say('Mission "' + r.name + '" loaded.');
+            const ok = await deps.loadMission(r.text);
+            say('Mission "' + r.name + '" ' + (ok === false ? 'not opened.' : 'loaded.'));
           } catch (e) {
             S.err = String((e && e.message) || e);
           }

@@ -212,6 +212,11 @@ export async function dtcBackupOnce(path, bytes) {
   map[key] = name;
   await IO.writeBytes(ix, new TextEncoder().encode(JSON.stringify(map, null, 1)));
 }
+const sameBytes = (a, b) => {
+  if (!a || !b || a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+};
 export async function dtcOverwrite() {
   if (!lines.length) return alert('Open a DTC file first.');
   if (!ST.DTCF || !ST.DTCF.path)
@@ -221,9 +226,20 @@ export async function dtcOverwrite() {
   try {
     extra = await dtcCampaignFiles();
   } catch (e) {}
+  // the file as it is on the disk now: the original kept in the backup, and a change made outside since it was opened here (BMS saves the DTC too)
+  let disk = null;
+  try {
+    if (await IO.fileExists(ST.DTCF.path)) disk = await readBytes(ST.DTCF.path);
+  } catch (e) {
+    disk = null;
+  }
+  const outside = !!(disk && ST.DTCF.orig && !sameBytes(disk, ST.DTCF.orig));
   if (
     !(await confirm(
-      'Overwrite this file with your changes?\n\n' +
+      (outside
+        ? '⚠ This file is not the one opened here any more: it was changed outside BMS Cards (by BMS, or another program), or the DTC comes from a mission. Writing replaces it with the DTC shown here, and the changes made outside are lost.\n\n'
+        : '') +
+        'Overwrite this file with your changes?\n\n' +
         ST.DTCF.path +
         (extra.length
           ? '\n\nThe steerpoints, PPT, lines and weapon targets are also written, as BMS keeps them, to the campaign files BMS loads in the game:\n' +
@@ -234,7 +250,7 @@ export async function dtcOverwrite() {
   )
     return;
   try {
-    await dtcBackupOnce(ST.DTCF.path, ST.DTCF.orig);
+    await dtcBackupOnce(ST.DTCF.path, disk || ST.DTCF.orig);
     const out = encodeDtc(dtcOut());
     await IO.writeBytes(ST.DTCF.path, out);
     ST.DTCF.orig = out;

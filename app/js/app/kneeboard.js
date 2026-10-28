@@ -952,6 +952,33 @@ export function kbRender(keepMenu) {
   });
 }
 export const kbBackupDir = async () => joinPath(joinPath(await appDir(), 'backup'), 'kneeboard');
+// The originals are kept once for each folder they come from (the folder can change: another theater, another BMS installation, the Settings):
+// backup\kneeboard\index.json gives the sub-folder of each folder; the copies made before the index (directly in backup\kneeboard) belong to the first folder that asks.
+export async function kbBackupFor(dir) {
+  const root = await kbBackupDir(),
+    ix = joinPath(root, 'index.json'),
+    key = String(dir)
+      .replace(/[\\/]+$/, '')
+      .toLowerCase();
+  let map = {};
+  try {
+    if (await fileExists(ix)) map = JSON.parse(new TextDecoder().decode(await readBytes(ix))) || {};
+  } catch (e) {
+    map = {};
+  }
+  if (typeof map[key] == 'string') return map[key] ? joinPath(root, map[key]) : root;
+  const used = new Set(Object.values(map));
+  let sub = '';
+  if (used.has('')) {
+    let k = 2;
+    while (used.has('folder ' + k)) k++;
+    sub = 'folder ' + k;
+  }
+  map[key] = sub;
+  await makeDir(root);
+  await writeBytes(ix, enc8(JSON.stringify(map, null, 1)));
+  return sub ? joinPath(root, sub) : root;
+}
 export async function kbRestore() {
   const dir = kbDir(),
     st = $('kbst');
@@ -963,7 +990,7 @@ export async function kbRestore() {
     alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.');
     return;
   }
-  const bk = await kbBackupDir(),
+  const bk = await kbBackupFor(dir),
     have = [];
   for (let i = 0; i < ROWS; i++) {
     const f = rowFile(i),
@@ -1045,7 +1072,7 @@ export async function kbSave() {
         bytes = KBFMT == 'dxt5' ? toDDS5(2048, dd) : toDDS(2048, dd);
       if (isDesktop()) {
         const path = joinPath(dir, rowFile(i)),
-          bk = await kbBackupDir(),
+          bk = await kbBackupFor(dir),
           orig = joinPath(bk, rowFile(i));
         if ((await fileExists(path)) && !(await fileExists(orig))) {
           await makeDir(bk);

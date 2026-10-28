@@ -1,4 +1,13 @@
-import { loadConfig, isDesktop, pickFolder, saveConfig, fileExists, readBytes } from '../platform/desktop.js';
+import {
+  loadConfig,
+  isDesktop,
+  pickFolder,
+  saveConfig,
+  fileExists,
+  readBytes,
+  canWriteAppDir,
+  onSaveFail,
+} from '../platform/desktop.js';
 import { ST } from './state.js';
 import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
@@ -314,6 +323,37 @@ export function stepper(i) {
   };
 }
 
+// The program keeps its files next to the exe (portable). A folder it cannot write to (Program Files, a protected, read-only or synced folder) would lose the settings,
+// the squadron, the missions, the cards and the backups without a word: said once at start, or the first time a file of the program cannot be written.
+let FOLDERWARN = false;
+const MOVE_HINT =
+  'Move the whole BMS Cards folder to a folder of yours (Documents, or C:\\Games for example) and start it from there.';
+export async function checkAppFolder() {
+  const r = await canWriteAppDir();
+  if (r.ok || FOLDERWARN) return r.ok;
+  FOLDERWARN = true;
+  alert(
+    'BMS Cards cannot write in its own folder:\n' +
+      r.dir +
+      '\n\nThe settings, the squadron, the missions, the kneeboard cards and the backups of the DTC and kneeboard files are kept there: nothing would be saved. ' +
+      MOVE_HINT +
+      (r.why ? '\n\n(' + r.why + ')' : '')
+  );
+  return false;
+}
+onSaveFail((name, e) => {
+  if (FOLDERWARN) return;
+  FOLDERWARN = true;
+  alert(
+    'Could not save ' +
+      name +
+      ' in the folder of the program (' +
+      String((e && e.message) || e || 'error') +
+      ').\n\nIf the folder cannot be written (Program Files, a protected, read-only or synced folder, a full disk), your changes are not kept. ' +
+      MOVE_HINT
+  );
+});
+
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
@@ -328,6 +368,7 @@ export async function init18() {
     })
     .catch(() => {});
   await Promise.race([boot, new Promise(r => setTimeout(r, 30000))]); // the start-up bar waits for the game data and the campaign list (30 s at most)
+  checkAppFolder().catch(() => {});
   document.querySelectorAll('input[type=number]').forEach(stepper);
   autoLoadLast().catch(() => {});
   initAppear();

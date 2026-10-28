@@ -393,6 +393,17 @@ const cmpVer = (a, b) => {
   return 0;
 };
 const isObj = x => !!x && typeof x == 'object' && !Array.isArray(x);
+// a DTC line is one line: no line break, no "=" in a key, no bracket in a section name (a value could otherwise add lines of its own)
+const lineOk = (s, k, v) =>
+  typeof s == 'string' &&
+  typeof k == 'string' &&
+  typeof v == 'string' &&
+  s.length <= 80 &&
+  k.length <= 80 &&
+  v.length <= 4000 &&
+  !/[\r\n[\]]/.test(s) &&
+  !/[\r\n=]/.test(k) &&
+  !/[\r\n]/.test(v);
 export function missionShapeError(o) {
   const optObj = (x, n) => (x == null || isObj(x) ? '' : n + ' is not an object');
   const d = o.dtc;
@@ -402,27 +413,25 @@ export function missionShapeError(o) {
     if (d.edits != null) {
       if (!Array.isArray(d.edits)) return 'dtc.edits is not a list';
       if (d.edits.length > 20000) return 'dtc.edits is too long';
-      // a DTC line is one line: no line break, no "=" in a key, no bracket in a section name (a value could otherwise add lines of its own)
-      if (
-        !d.edits.every(
-          e =>
-            isObj(e) &&
-            typeof e.s == 'string' &&
-            typeof e.k == 'string' &&
-            typeof e.v == 'string' &&
-            e.s.length <= 80 &&
-            e.k.length <= 80 &&
-            e.v.length <= 4000 &&
-            !/[\r\n[\]]/.test(e.s) &&
-            !/[\r\n=]/.test(e.k) &&
-            !/[\r\n]/.test(e.v)
-        )
-      )
-        return 'dtc.edits has a wrong line';
+      if (!d.edits.every(e => isObj(e) && lineOk(e.s, e.k, e.v))) return 'dtc.edits has a wrong line';
     }
     if (typeof d.original == 'string' && !Array.isArray(d.edits)) return 'dtc.edits is missing';
     const e = optObj(d.share, 'dtc.share') || optObj(d.author, 'dtc.author');
     if (e) return e;
+    // the block that travels to other pilots goes into their DTC line by line: the same rules as the edits
+    if (d.share && d.share.groups != null) {
+      const G = d.share.groups;
+      if (!Array.isArray(G) || G.length > 20 || !G.every(isObj)) return 'dtc.share.groups is wrong';
+      let n = 0;
+      for (const g of G) {
+        if (g.items == null) continue;
+        if (!Array.isArray(g.items)) return 'dtc.share has a wrong block';
+        n += g.items.length;
+        if (n > 20000) return 'dtc.share is too long';
+        if (!g.items.every(i => Array.isArray(i) && i.length == 3 && lineOk(i[0], i[1], i[2])))
+          return 'dtc.share has a wrong line';
+      }
+    }
   }
   const c = o.datacard;
   if (c != null) {

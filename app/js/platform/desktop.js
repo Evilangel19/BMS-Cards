@@ -325,6 +325,32 @@ export async function onFilesDropped(cb, hover = () => {}) {
   });
 }
 
+// A file of the program that could not be written (settings, squadron ...): the page that registered with onSaveFail(fn) tells the pilot (fn(name, error))
+const failHooks = [];
+export const onSaveFail = fn => failHooks.push(fn);
+export function saveFailed(name, e) {
+  for (const f of failHooks)
+    try {
+      f(name, e);
+    } catch (x) {
+      /* a hook that fails does not stop the others */
+    }
+}
+// The program keeps its files next to the exe (portable): {ok, dir, why} after writing (and removing) a small file there. Always ok in the browser.
+export async function canWriteAppDir() {
+  if (!isDesktop()) return { ok: true, dir: '' };
+  let dir = '';
+  try {
+    dir = await appDir();
+    const p = join(dir, 'write-test.tmp');
+    await T().fs.writeFile(p, new Uint8Array([111, 107]));
+    await removeFile(p);
+    return { ok: true, dir };
+  } catch (e) {
+    return { ok: false, dir, why: String((e && e.message) || e || '') };
+  }
+}
+
 // Small settings files of a page (e.g. the map filters), kept next to config.json in the desktop app, in the browser storage otherwise.
 export async function loadPrefs(name) {
   try {
@@ -352,7 +378,7 @@ export function savePrefs(name, obj) {
       if (isDesktop()) await T().fs.writeTextFile(join(await appDir(), name), text);
       else localStorage.setItem('bmscards.' + name, text);
     } catch (e) {
-      /* read-only folder */
+      saveFailed(name, e); // read-only folder, disk full ...
     }
   });
 }
@@ -379,7 +405,7 @@ export function savePrefsSafe(name, obj) {
       try {
         await safeSave(prefIo(), name, JSON.stringify(obj));
       } catch (e) {
-        /* read-only folder */
+        saveFailed(name, e); // read-only folder, disk full ...
       }
     });
     return safeChain[name];

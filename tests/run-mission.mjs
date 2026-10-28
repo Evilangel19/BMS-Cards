@@ -139,6 +139,28 @@ ck(
       ed({ s: 'STPT', k: 'a', v: 'x'.repeat(5000) }).error &&
       !ed({ s: 'STPT', k: 'target_3', v: '1, 2, -500, 1, ' }).error
   );
+  const sh = items => mk({ dtc: { share: { groups: [{ id: 'mission', items }] }, author: { uid: 'a' } } });
+  ck(
+    'the DTC block sent to other pilots follows the same rules: one line each, three texts, no line break, no "=" in the key, no bracket in the section',
+    sh([['STPT', 'target_3', '1\r\n[MFD]\r\nx=1']]).error &&
+      sh([['STPT', 'a=b', '1']]).error &&
+      sh([['ST]PT', 'a', '1']]).error &&
+      sh([['STPT', 'a', 5]]).error &&
+      sh([['STPT', 'a']]).error &&
+      sh('x').error &&
+      mk({ dtc: { share: { groups: 'x' } } }).error &&
+      !sh([['STPT', 'target_3', '1, 2, -500, 1, Bridge']]).error &&
+      !mk({ dtc: { share: { groups: [] } } }).error
+  );
+  {
+    // a mission as it travels (shareMission) passes the check
+    const orig = '[STPT]\r\ntarget_0=1, 2, -500, 1, A\r\n[NAV OFFSETS]\r\nModesel=vrp\r\n';
+    const m = P.buildMission({ name: 'x', dtc: { original: orig, edits: [], author: { uid: 'a' } } });
+    ck(
+      'a mission prepared for sending passes the shape check',
+      !P.parseMission(JSON.stringify(P.shareMission(m, P.shareFromSaved(m.dtc)))).error
+    );
+  }
   ck(
     'F14: datacard values are text or numbers; the flight is a short identifier',
     mk({ datacard: { final: { a: {} } } }).error &&

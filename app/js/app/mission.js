@@ -17,7 +17,7 @@ import { ST } from './state.js';
 import { $, IO, appToast, enc8, esc, jclone } from './base.js';
 import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD } from './datacard.js';
-import { WXDIR, WXS, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
+import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
 import { harmPage, mapV, pfPage, sqPage } from './pages.js';
 import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
@@ -280,35 +280,77 @@ function askBlock(g, diff, warns, dtcName, author) {
     document.body.append(o);
   });
 }
-// the DTC of this pilot: <callsign>.ini of the DTC folder, or a file he picks (never the name of the author of the mission)
+// the DTC of this pilot opened by itself: <callsign>.ini of the DTC folder (never the name of the author of the mission); false when there is none
 async function msfOwnDtc() {
   const cs = (myIdent().callsign || '').trim(),
     dir = dtcDir();
-  if (isDesktop() && cs && dir) {
-    const path = joinPath(dir, cs + '.ini');
-    try {
-      if (await IO.fileExists(path)) {
-        const b = await readBytes(path);
-        await openDtc({
-          name: cs + '.ini',
-          path,
-          arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
-        });
-        return;
-      }
-    } catch (e) {}
+  if (!isDesktop() || !cs || !dir) return false;
+  const path = joinPath(dir, cs + '.ini');
+  try {
+    if (!(await IO.fileExists(path))) return false;
+    const b = await readBytes(path);
+    await openDtc({
+      name: cs + '.ini',
+      path,
+      arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+    });
+    return lines.length > 0;
+  } catch (e) {
+    return false;
   }
-  const f = await pickFile({ exts: ['ini'], startDir: dir, title: 'Open your DTC: the mission will be applied to it' });
-  if (f) await openDtc(f);
 }
-// a mission made by somebody else: its DTC block goes into the DTC of this pilot; true when lines were written
+// no DTC is open and the pilot's own was not found: the choice waits for him ('open' his DTC, 'skip' = the mission without its DTC data, 'cancel')
+function askNoDtc(author) {
+  const cs = (myIdent().callsign || '').trim(),
+    dir = dtcDir(),
+    why = !cs
+      ? 'Your callsign is not set (Squadron page, Me): with it the program opens <callsign>.ini of the DTC folder by itself.'
+      : !dir
+        ? 'The DTC folder is not known: set the BMS install folder (or the DTC folder) in Settings.'
+        : '"' + cs + '.ini" was not found in ' + dir + '.';
+  return new Promise(res => {
+    const o = document.createElement('div');
+    o.id = 'msfnodtc';
+    o.style.cssText =
+      'position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
+    o.innerHTML = `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">No DTC is open${author && author.callsign ? ' · mission from ' + esc(author.callsign) : ''}</h3>
+ <div style="margin-bottom:8px">The mission brings its DTC data (steerpoints, targets, PPT, lines, weapon targets, nav offsets, bomb profiles, laser codes, Bingo / Alow): they go into <b>your own DTC</b>, and no DTC is open. ${esc(why)}</div>
+ <div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ Without a DTC the mission opens without them: the map, the Weapons page and the Data Cartridge do not show the points of the mission.</div>
+ <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px;flex-wrap:wrap"><button class="btn g" data-x>Cancel</button><button class="btn g" data-skip>Open without the DTC data</button><button class="btn g gn" data-ok>Open my DTC…</button></div></div>`;
+    const done = v => {
+      removeEventListener('keydown', esc0, true);
+      o.remove();
+      res(v);
+    };
+    const esc0 = e => {
+      if (e.key == 'Escape') {
+        e.stopPropagation();
+        done('cancel');
+      }
+    };
+    addEventListener('keydown', esc0, true);
+    o.querySelector('[data-ok]').onclick = () => done('open');
+    o.querySelector('[data-skip]').onclick = () => done('skip');
+    o.querySelector('[data-x]').onclick = () => done('cancel');
+    document.body.append(o);
+    o.querySelector('[data-ok]').focus();
+  });
+}
+// a mission made by somebody else: its DTC block goes into the DTC of this pilot; true when lines were written, false when not, null = the pilot cancelled (the mission is not opened)
 async function msfShared(d) {
   const groups = PJ.shareFromSaved(d);
   if (!groups.length) return false;
   if (!lines.length) await msfOwnDtc();
-  if (!lines.length) {
-    appToast('No DTC is open: the DTC data of the mission was not applied. Open your DTC and load the mission again.');
-    return false;
+  while (!lines.length) {
+    const c = await askNoDtc(d.author);
+    if (c == 'cancel') return null;
+    if (c == 'skip') return false;
+    const f = await pickFile({
+      exts: ['ini'],
+      startDir: dtcDir(),
+      title: 'Open your DTC: the mission will be applied to it',
+    });
+    if (f) await openDtc(f);
   }
   const g = groups[0],
     cur = lines.map(l => ({ s: l.s, k: l.k, v: l.v })),
@@ -346,11 +388,22 @@ async function msfShared(d) {
   if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.');
   return r.n > 0;
 }
+// true when the mission was opened (false: refused, cancelled or failed; the program is as it was)
 export async function msfLoad(text, file) {
+  const no = m => {
+    if (m) alert(m);
+    return false;
+  };
   const r = PJ.parseMission(text);
-  if (r.error) return alert(r.error);
+  if (r.error) return no(r.error);
   const p = r.mission;
-  if (!p.package || !p.datacard) return alert('This mission has no package.');
+  if (!p.package || !p.datacard) return no('This mission has no package.');
+  // the units of the mission are read with the tables of the game (names, aircraft, tankers, objects): without them the flights and the map would be wrong
+  if (!CAM.D.ct.length)
+    return no(
+      'The game data is missing: set the BMS install folder in Settings, then open the mission again. The program reads the names, the aircraft, the tankers and the objects from your Falcon BMS installation.' +
+        (isDesktop() ? '' : ' (desktop app)')
+    );
   if (
     p.theater &&
     p.theater.name &&
@@ -365,8 +418,8 @@ export async function msfLoad(text, file) {
         '" selected: positions and names would be wrong.\n\nChoose the right theater in the top bar first.\n\nOK = open anyway, Cancel = go back.'
     ))
   )
-    return;
-  if (ST.C && !(await discardOk())) return;
+    return false;
+  if (ST.C && !(await discardOk())) return false;
   const mine = !p.dtc || !p.dtc.author || !p.dtc.author.uid || p.dtc.author.uid === myIdent().uid,
     own = !!(p.dtc && mine && typeof p.dtc.original == 'string'); // a mission saved by this installation brings its DTC back; one of somebody else only its DTC block
   if (
@@ -378,26 +431,36 @@ export async function msfLoad(text, file) {
         : 'The DTC open now has changes not written to its file. The mission will add its DTC data on top of them.\n\nContinue?'
     ))
   )
-    return;
+    return false;
   let C2, CL2;
   try {
     C2 = PJ.restoreCampaign(p.package, CAM.D);
     CL2 = CAM.listFlights(C2, null);
   } catch (e) {
-    return alert(
+    return no(
       'Could not open the mission: its package is damaged (' + ((e && e.message) || e) + '). Nothing was changed.'
     );
   }
+  if (!CL2.length) return no('Could not open the mission: it has no flight. Nothing was changed.');
+  // what the mission replaces, kept before the DTC of the pilot is touched: a failure from here on puts everything back
+  const snap = msfSnapshot(),
+    back = () => {
+      try {
+        msfRestore(snap);
+      } catch (e2) {}
+    };
   let shared = false;
   if (p.dtc && !own) {
     try {
       shared = await msfShared(p.dtc);
     } catch (e) {
-      return alert(
+      back();
+      return no(
         'Could not apply the DTC data of the mission: ' + ((e && e.message) || e) + '\nThe mission was not opened.'
       );
     }
-  } // before anything of the program is replaced: a failure leaves it as it was
+    if (shared === null) return false; // the pilot cancelled: the mission is not opened
+  }
   // everything that can fail while reading the file is prepared first: weather and map picture
   const wxSeries = new Map();
   let wxNow = null,
@@ -426,10 +489,11 @@ export async function msfLoad(text, file) {
       } catch (e) {}
     }
   } catch (e) {
-    return alert('Could not open the mission: ' + ((e && e.message) || e) + '\nNothing was changed.');
+    back();
+    return no('Could not open the mission: ' + ((e && e.message) || e) + '\nNothing was changed.');
   }
-  const snap = msfSnapshot();
   try {
+    campCancel(); // a campaign of the menu still loading must not come over the mission
     ST.NOPERF = true;
     WXS.clear();
     WXDIR.files = null;
@@ -504,11 +568,10 @@ export async function msfLoad(text, file) {
     atoSearch();
     ST.XBASE = extraSig();
     MSFSIG = shared ? '\u0000dtc-not-written' : msfSig(); // the DTC lines taken from the mission are not written yet: closing the program warns
+    return true;
   } catch (e) {
-    try {
-      msfRestore(snap); // the program goes back to what it was before the mission
-    } catch (e2) {}
-    alert('Could not open the mission: ' + ((e && e.message) || e) + '\nThe program was put back as it was.');
+    back(); // the program goes back to what it was before the mission
+    return no('Could not open the mission: ' + ((e && e.message) || e) + '\nThe program was put back as it was.');
   } finally {
     ST.NOPERF = false;
   }
@@ -536,7 +599,15 @@ const SNAPK = [
   'ATOSEL',
 ];
 export function msfSnapshot() {
-  const s = { st: {}, f: { ...F }, lines, dtc: DTCTEXT, wxs: new Map(WXS), files: WXDIR.files, weapons: msfWeapons() };
+  const s = {
+    st: {},
+    f: { ...F },
+    lines: lines.map(l => ({ ...l })), // a copy: the DTC data of a mission are written into the same line objects
+    dtc: DTCTEXT,
+    wxs: new Map(WXS),
+    files: WXDIR.files,
+    weapons: msfWeapons(),
+  };
   SNAPK.forEach(k => {
     s.st[k] = ST[k];
   });
@@ -566,8 +637,12 @@ export function msfRestore(s) {
   });
   if (ST.MSFLOCK) [...$('fsel').options].forEach((o, k) => (o.disabled = String(k) !== s.html.sel));
   restoreDtc(s.dtc, s.lines);
+  dtcBtns();
   try {
     mapV.setTanks(s.tanks);
+  } catch (e) {}
+  try {
+    if (mapV.isReady()) mapV.refreshDtc();
   } catch (e) {}
   try {
     s.weapons && s.weapons.wp && ST.wpPage.setState(s.weapons.wp);

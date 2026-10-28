@@ -221,7 +221,7 @@ export async function fillCampaigns() {
   }
   const all = (await listDir(d)).filter(e => !e.isDirectory),
     srt = (a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }),
-    opt = (n, rx) => `<option value="${n.replace(/"/g, '&quot;')}">${n.replace(rx, '')}</option>`;
+    opt = (n, rx) => `<option value="${esc(n)}">${esc(n.replace(rx, ''))}</option>`;
   const names = all
       .filter(e => /\.cam$/i.test(e.name) && !/^instant/i.test(e.name) && !/^save\d+\.cam$/i.test(e.name))
       .map(e => e.name)
@@ -237,11 +237,18 @@ export async function fillCampaigns() {
     '<option value="">— select a tactical engagement —</option>' + tacs.map(n => opt(n, /\.tac$/i)).join('');
   if (!tacs.length) tsel.innerHTML = '<option value="">— no tactical engagements found —</option>';
 }
+// the last choice wins: the arrow keys on the menu choose one campaign after the other, and a slow file of a campaign left behind must not end up over the one chosen last
+let CAMGEN = 0;
+// a campaign or a mission opened another way (Open menu): a choice of the menu still loading is dropped
+export const campCancel = () => ++CAMGEN;
 export async function selectCampaign(name) {
+  const gen = ++CAMGEN,
+    stale = () => gen !== CAMGEN;
   if (ST.C && !(await discardOk())) {
-    setSel(ST.CAMSEL);
+    if (!stale()) setSel(ST.CAMSEL);
     return;
   }
+  if (stale()) return;
   ST.CAMSEL = name;
   setSel(name);
   rememberLast('lastCamp', name);
@@ -260,6 +267,7 @@ export async function selectCampaign(name) {
   const dir = campDir(),
     es = await listDir(dir),
     stem = name.replace(/\.(cam|tac)$/i, '');
+  if (stale()) return;
   const find = (...sfx) => {
     const e =
       es.find(e => !e.isDirectory && sfx.some(s => e.name.toLowerCase() === (stem + s).toLowerCase())) ||
@@ -287,7 +295,9 @@ export async function selectCampaign(name) {
       return;
     }
     try {
-      await fn(await readBytes(joinPath(dir, n)));
+      const b = await readBytes(joinPath(dir, n));
+      if (stale()) return;
+      await fn(b);
       got.push(label);
     } catch (e) {
       miss.push(label + ' (unreadable)');
@@ -316,6 +326,7 @@ export async function selectCampaign(name) {
       localStorage.setItem('bmsd1', v);
     } catch (e) {}
   });
+  if (stale()) return;
   $('cinfo').textContent =
     (got.length ? 'Loaded: ' + got.join(', ') + '. ' : '') +
     (miss.length ? 'Not found: ' + miss.join(', ') + '.' : '') +
@@ -329,7 +340,16 @@ export async function selectCampaign(name) {
           .join(' ') || 'none') +
         ')'
       : '');
-  await loadCam(new File([await readBytes(joinPath(dir, name))], name));
+  let bytes;
+  try {
+    bytes = await readBytes(joinPath(dir, name));
+  } catch (e) {
+    if (!stale()) alert('Unable to read the campaign file: ' + ((e && e.message) || e));
+    return;
+  }
+  if (stale()) return;
+  await loadCam(new File([bytes], name), stale);
+  if (stale()) return;
   if (ST.C && ST.C.isTe) $('cinfo').textContent = 'Tactical Engagement. ' + $('cinfo').textContent;
 }
 export async function loadFmap(file) {
@@ -412,7 +432,10 @@ export async function init14() {
       msfLoad(await f.text(), f);
       return;
     }
-    if (await discardOk()) loadCam(f);
+    if (await discardOk()) {
+      const gen = campCancel();
+      loadCam(f, () => gen !== CAMGEN);
+    }
   };
   $('fsel').onchange = () => ST.C && apply(+$('fsel').value);
   $('rstf').onclick = async () => {
