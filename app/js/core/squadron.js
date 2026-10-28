@@ -2159,10 +2159,19 @@ export function createSquadronPage(deps) {
     if (!q) {
       memCtx = null;
       if ($('#sqtabbox')) $('#sqtabbox').innerHTML = '';
+      // nothing of the squadron that was removed stays on the screen
+      ['#sqlist', '#sqflt', '#sqshown', '#sqcount'].forEach(i => {
+        const e = $(i);
+        if (e) e[e.tagName == 'DIV' || e.tagName == 'SELECT' ? 'innerHTML' : 'textContent'] = '';
+      });
+      if ($('#sqhead3')) $('#sqhead3').textContent = 'My squadrons';
       box.innerHTML =
-        '<div class="hint">You are not in a squadron yet: create one or join with an invite code in the Me section.</div>';
+        '<div class="hint">You are not in a squadron yet: create one or join with an invite code.</div>' +
+        startHtml('m');
+      startWire(box, 'm');
       return;
     }
+    if ($('#sqhead3')) $('#sqhead3').textContent = 'Squadron';
     const sw = swarms.get(q.id),
       on = sw ? sw.online() : [],
       onUid = new Set(on.map(p => p.uid)),
@@ -2293,6 +2302,42 @@ export function createSquadronPage(deps) {
   }
 
   // ----- ME: my squadrons -----
+  // create a squadron or join one with an invite code: shown in My squadrons (Me) and, while there is no squadron, in Members (k tells them apart)
+  const startHtml = k =>
+    `<div class="sqone"><input id="sqnew${k}" placeholder="Create: name of the new squadron" maxlength="40"><button class="btn g gn" id="sqcreate${k}">Create</button></div>
+      <div class="sqone"><input id="sqinvin${k}" placeholder="Join: squadron invite code (BCS.…)"><button class="btn g gn" id="sqjoinsq${k}">Join</button></div><div class="err" id="sqsqerr${k}"></div>`;
+  const startWire = (root, k) => {
+    const g = id => root.querySelector('#' + id + k);
+    g('sqcreate').onclick = () => {
+      const q = newSquadron(g('sqnew').value, DB.uid);
+      mkMe(q);
+      DB.squads.push(q);
+      DB.cur = q.id;
+      save();
+      swarmStart(q);
+      drawAll();
+      say('Squadron "' + q.name + '" created.');
+    };
+    g('sqjoinsq').onclick = async () => {
+      try {
+        const q = await readSquadInvite(g('sqinvin').value);
+        if (DB.squads.some(x => x.secret == q.secret)) throw new Error('You are already in this squadron.');
+        q.id = randHex(4);
+        q.roster = {};
+        q.mc = '';
+        q.org = newOrg();
+        mkMe(q);
+        DB.squads.push(q);
+        DB.cur = q.id;
+        save();
+        swarmStart(q);
+        drawAll();
+        say('You joined ' + q.name + '.');
+      } catch (e) {
+        g('sqsqerr').textContent = String((e && e.message) || e);
+      }
+    };
+  };
   function drawMine() {
     const box = $('#sqmine');
     if (!box) return;
@@ -2306,10 +2351,7 @@ export function createSquadronPage(deps) {
       ${own && mem.length ? `<details class="sqmod"><summary>Moderation</summary><div class="hint">Remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</details>` : ''}</div>`;
       })
       .join('');
-    box.innerHTML =
-      (rows || '<div class="hint">You are not in any squadron.</div>') +
-      `<div class="sqone"><input id="sqnew" placeholder="Create: name of the new squadron" maxlength="40"><button class="btn g gn" id="sqcreate">Create</button></div>
-      <div class="sqone"><input id="sqinvin" placeholder="Join: squadron invite code (BCS.…)"><button class="btn g gn" id="sqjoinsq">Join</button></div><div class="err" id="sqsqerr"></div>`;
+    box.innerHTML = (rows || '<div class="hint">You are not in any squadron.</div>') + startHtml('');
     box.querySelectorAll('.sqsqr').forEach(el => {
       const q = DB.squads.find(x => x.id == el.dataset.sid);
       el.querySelector('[data-open]').onclick = () => {
@@ -2345,35 +2387,7 @@ export function createSquadronPage(deps) {
           })
       );
     });
-    $('#sqcreate').onclick = () => {
-      const q = newSquadron($('#sqnew').value, DB.uid);
-      mkMe(q);
-      DB.squads.push(q);
-      DB.cur = q.id;
-      save();
-      swarmStart(q);
-      drawAll();
-      say('Squadron "' + q.name + '" created.');
-    };
-    $('#sqjoinsq').onclick = async () => {
-      try {
-        const q = await readSquadInvite($('#sqinvin').value);
-        if (DB.squads.some(x => x.secret == q.secret)) throw new Error('You are already in this squadron.');
-        q.id = randHex(4);
-        q.roster = {};
-        q.mc = '';
-        q.org = newOrg();
-        mkMe(q);
-        DB.squads.push(q);
-        DB.cur = q.id;
-        save();
-        swarmStart(q);
-        drawAll();
-        say('You joined ' + q.name + '.');
-      } catch (e) {
-        $('#sqsqerr').textContent = String((e && e.message) || e);
-      }
-    };
+    startWire(box, '');
   }
 
   // ----- SETTINGS -----
@@ -2573,7 +2587,7 @@ export function createSquadronPage(deps) {
     }
     orgPending = false;
     mkMe(q);
-    box.innerHTML = orgHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q));
+    box.innerHTML = orgHtml(q, orgView(q), DB.uid, onlineSet(q), esc, nameOfIn(q), hint());
   }
   function drawLost() {
     const box = $('#sqlost');
@@ -2761,7 +2775,7 @@ export function createSquadronPage(deps) {
 <div class="sqpane sqmem" data-pane="members">
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
 <div class="sqmain">
-<div class="sqc"><h3>Squadron</h3><div id="sqhead"></div></div>
+<div class="sqc"><h3 id="sqhead3">Squadron</h3><div id="sqhead"></div></div>
 <div class="sqc"><h3>Members <small>☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
 <div class="sqc" id="sqlost" hidden></div>

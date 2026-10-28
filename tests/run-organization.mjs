@@ -429,6 +429,17 @@ ok(
     nn.ok && orgView(nn.q).packages[1].n === 'Package 1301' && orgView(nn.q).packages[1].flights[0].n === 'Hawkeye 4'
   );
   ok('a wingman cannot create a package this way', !orgNewPackageWith(w, 'w1', 'w2', ctx()).ok);
+  const hint = { map: { 1301: ['Hawkeye 4', 'Viper 1'] } };
+  const w2 = run(w, 'mc1', { t: 'pk~', id: P, name: 'Package 1301' });
+  const hh = orgHtml(w2, orgView(w2), 'mc1', new Set(), esc, u => String(w2.roster[u].callsign || ''), hint);
+  ok(
+    'a flight that is not in its package of the open mission is flagged',
+    /ogname bad/.test(hh) && /Hawkeye 4, Viper 1/.test(hh)
+  );
+  ok(
+    'no flag without an open mission',
+    !/ogname bad/.test(orgHtml(w2, orgView(w2), 'mc1', new Set(), esc, u => String(w2.roster[u].callsign || '')))
+  );
   ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
 }
 

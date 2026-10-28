@@ -225,6 +225,8 @@ try:
         check('the removed pilot is out of the squadron', B.locator('#sqmine .sqsqr').count() == 0 and A.locator('#sqros tr[data-uid]').count() == 1)
         B.fill('#sqinvin', code); B.click('#sqjoinsq'); B.wait_for_timeout(6000)
         check('a removed pilot cannot come back with the invite', A.locator('#sqros tr[data-uid]').count() == 1)
+        B.click('#sqtabs [data-tab=me]'); B.locator('#sqmine .sqsqr [data-leave]').first.click(); B.wait_for_timeout(1200); B.click('#sqtabs [data-tab=members]'); B.wait_for_timeout(300)
+        check('with no squadron Members offers to create or join and shows nothing of the old one', B.locator('#sqnewm').count() == 1 and B.locator('#sqlist .sqrow, #sqlist [data-uid]').count() == 0 and B.locator('#sqflt option').count() == 0)
         n0 = A.locator('#sqmine .sqsqr').count()
         check('the creator sees Delete (not Leave) on his squadron', A.locator('#sqmine .sqsqr', has_text='Blue Devils').locator('[data-leave]').inner_text() == 'Delete')
         A.click('#sqtabs [data-tab=members]'); A.click('#sqdelete'); A.wait_for_timeout(1200); A.click('#sqtabs [data-tab=me]')

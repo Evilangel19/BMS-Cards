@@ -39,7 +39,9 @@ export function msfIdent() {
     cs = x => x.label.split(' · ')[0] || '',
     x = list[+$('fsel').value || 0] || list[0],
     uniq = a => [...new Set(a.filter(Boolean))];
-  return { pk: no(x), fl: cs(x), pks: uniq(list.map(no)), fls: uniq(list.map(cs)) };
+  const map = {};
+  for (const y of list) (map[no(y)] = map[no(y)] || []).push(cs(y));
+  return { pk: no(x), fl: cs(x), pks: uniq(list.map(no)), fls: uniq(list.map(cs)), map };
 }
 // default name of a mission: package number + callsign of the flight, e.g. "1301 Hawkeye 4"
 export function msfName(x) {

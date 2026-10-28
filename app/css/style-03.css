@@ -1258,3 +1258,10 @@ body.og-dragging * {
   margin: 0;
   white-space: nowrap;
 }
+.ogname.bad,
+.ogtitle.bad {
+  color: #ff6b6b;
+}
+.oghelp.warn {
+  color: #ff8a7a;
+}

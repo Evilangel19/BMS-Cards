@@ -10,7 +10,7 @@ import { orgReduce, isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './org
 const nFlightsAny = view => view.packages.some(p => p.flights.length);
 // colours of the packages and of the flights (a flight takes the colour of its place in the package, so they repeat from package to package)
 const PAL = ['#4aa3ff', '#f0b040', '#b07cff', '#2ec4b6', '#ff7a90'];
-export function orgHtml(q, view, me, online, esc, nameOf) {
+export function orgHtml(q, view, me, online, esc, nameOf, hint) {
   const adm = isAdmin(q, me),
     live = Object.values(q.roster || {}).filter(r => !r.removed),
     on = u => u === me || online.has(u);
@@ -97,14 +97,28 @@ export function orgHtml(q, view, me, online, esc, nameOf) {
   }<div class="oghelp ogfoot">Pilots left here do not receive any mission.</div></div>`;
 
   // packages
+  // the name of a flight must be one of the flights of its package in the open campaign, TE or mission (package number in the package name)
+  const norm = x =>
+    String(x)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '');
+  const mismatch = (p, f) => {
+    const no = (/(\d{1,6})/.exec(p.n) || [])[1],
+      names = hint && hint.map && no ? hint.map[no] : null;
+    return names && !names.some(n => norm(n) === norm(f.n))
+      ? 'Package ' + no + ' of the open mission has: ' + names.join(', ')
+      : '';
+  };
   const flightCard = (p, f, fi) => {
     const canLead = adm || pkLeadOf(p.id),
       mine = f.id === myFlight,
       canSend = adm || pkLeadOf(p.id) || f.lead === me,
       n = f.members.filter(u => u !== me && online.has(u)).length,
-      canEdit = adm || pkLeadOf(p.id) || f.lead === me;
+      canEdit = adm || pkLeadOf(p.id) || f.lead === me,
+      bad = mismatch(p, f);
     return `<div class="ogflight ogdrop${mine ? ' mine' : ''}" data-drop="${esc(f.id)}" style="--fc:${PAL[fi % PAL.length]}">
-<div class="oghead">${canEdit ? `<input class="ogname" data-flname="${esc(f.id)}" value="${esc(f.n)}" maxlength="24" aria-label="Flight name">` : `<b class="ogtitle">${esc(f.n)}</b>`}<span class="ogmu${f.full ? ' full' : ''}">${f.members.length} / ${MAX_PILOTS}</span>${mine ? '<span class="ogtag you">YOUR FLIGHT</span>' : ''}${canLead ? `<button class="ogx ogdel" data-delfl="${esc(f.id)}" title="Delete the flight" aria-label="Delete the flight ${esc(f.n)}">×</button>` : ''}</div>
+<div class="oghead">${canEdit ? `<input class="ogname${bad ? ' bad' : ''}" data-flname="${esc(f.id)}" value="${esc(f.n)}" maxlength="24" aria-label="Flight name"${bad ? ` title="${esc(bad)}"` : ''}>` : `<b class="ogtitle${bad ? ' bad' : ''}">${esc(f.n)}</b>`}<span class="ogmu${f.full ? ' full' : ''}">${f.members.length} / ${MAX_PILOTS}</span>${mine ? '<span class="ogtag you">YOUR FLIGHT</span>' : ''}${canLead ? `<button class="ogx ogdel" data-delfl="${esc(f.id)}" title="Delete the flight" aria-label="Delete the flight ${esc(f.n)}">×</button>` : ''}</div>
+${bad ? `<div class="oghelp warn">⚠ This name does not match the package. ${esc(bad)}</div>` : ''}
 ${f.members.length ? f.members.map(u => row(u, { out: canEdit || u === me, star: canLead ? (f.lead === u ? 2 : 1) : 0, fl: f.id })).join('') : '<div class="oghelp">Empty: drag a pilot here</div>'}
 ${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disabled'} title="Send the mission to the pilots of this flight who are online">Send my mission to ${esc(f.n)} (${n} online)</button>` : f.lead ? `<div class="oghelp">Only ${esc(nameOf(f.lead))} can send to this flight</div>` : ''}
 </div>`;
