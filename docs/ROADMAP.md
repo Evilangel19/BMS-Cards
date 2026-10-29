@@ -52,6 +52,10 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
    d. DONE (2026-10-22): `app/index.html` split into modules in `app/js/app` (see archive/ARCHITECTURE-history v99).
 6. **Backlog (online)**: "Allow in Windows Firewall" button (elevated netsh) or installer, only if the firewall turns out to block the traffic; own tracker / TURN (free Oracle VM with coturn) if STUN is not enough for some networks (the user is behind CGNAT; STUN worked on two real PCs); Iroh only if WebRTC proves unreliable. STUN stays off by default (decided).
 
+7. **AFTER the first release (asked by the user 2026-10-29)**:
+   a. **Briefing section (live, online)**: commanders and leads show the map and every pilot sees the cursor move, drawings, added text, markers. Feasible with the links between pilots that exist (the squadron swarm): a new message kind for the cursor (position on the map, not on the screen, about 10 times a second, with the name of the pilot), and small objects with an id (line, text, marker) sent when drawn and sent all together to who joins later, merged like the Organization (last change of an object wins, deleted ones kept as deleted). To decide with the user: only live, or also saved (in the mission or as a kneeboard card); who may draw (commanders and leads only, or everybody with a request); one view followed by everybody or each pilot with his own. Several betas of work, not a small change.
+   b. **F-15 compatibility**: the F-15 uses other `.dds` pictures for the kneeboard (the thigh card). The user will give the material and the details at the first occasion: files, sizes and the difference to the F-16 ones are not known yet.
+
 ## To check on the real PC
 
 - Datacard cell positions; MDC format against the game's MDC; pilot-name dropdown from the roster.
