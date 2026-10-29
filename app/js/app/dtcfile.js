@@ -1,4 +1,4 @@
-import { parseDtc } from '../parsers/dtc.js';
+import { parseDtc, mergeSections } from '../parsers/dtc.js';
 import { pickFile, join as joinPath, readBytes } from '../platform/desktop.js';
 import * as PJ from '../core/mission.js';
 import { ST } from './state.js';
@@ -21,9 +21,18 @@ export function restoreDtc(text, arr) {
   lines = arr;
   view();
 }
+// the sections the opened DTC had more than once, folded into one copy each (see mergeSections): the file is to be written again to be repaired
+export let MERGED = [];
 export function parse(t) {
+  let arr = parseDtc(t);
+  const m = mergeSections(arr);
+  if (m.merged.length) {
+    MERGED = m.merged;
+    arr = m.lines;
+    t = arr.map(l => l.raw).join('\r\n') + '\r\n';
+  }
   DTCTEXT = t;
-  lines = parseDtc(t);
+  lines = arr;
   view();
   try {
     ST.wpPage.render();
@@ -122,7 +131,14 @@ export const openDtc = async f => {
     t = new TextDecoder('latin1').decode(bytes);
     ST.DTCF.enc = 'latin1';
   }
+  MERGED = [];
   parse(t);
+  if (MERGED.length)
+    alert(
+      'This DTC has some sections twice: ' +
+        MERGED.join(', ') +
+        '.\n\nThe game reads only one copy of each, so a change made here could not show in the game. The program now shows the copies as one (where both have a line, the later one is used, as the game does). Write DTC saves them as one copy; the file as it is now is kept in the backup (backup\\dtc).'
+    );
   $('fn').textContent = ST.name;
   if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
   else {
@@ -242,7 +258,7 @@ export async function dtcOverwrite() {
   if (!ST.DTCF || !ST.DTCF.path)
     return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
   syncRoute();
-  if (!lines.some(l => l.dirty)) return;
+  if (!lines.some(l => l.dirty) && !MERGED.length) return;
   let extra = [];
   try {
     extra = await dtcCampaignFiles();
@@ -299,6 +315,7 @@ export async function dtcOverwrite() {
         failed.push(f + ' (' + ((e && e.message) || e) + ')');
       }
     }
+    if (!failed.length) MERGED = [];
     if (!failed.length)
       lines.forEach(l => {
         if (l.dirty) {
