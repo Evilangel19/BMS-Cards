@@ -57,7 +57,7 @@ import {
   msfForSend,
   msfStoreReceived,
   msfSave,
-  unsaved,
+  missionToSave,
 } from './mission.js';
 
 export let mapV;
@@ -137,7 +137,7 @@ export async function init6() {
       clear: (g, slot) => dtcClear(g, slot, false),
     },
     saveMission: () => msfSave(),
-    missionDirty: () => unsaved(),
+    missionDirty: () => missionToSave(),
     satCfg: () => ST.CFG.map,
     loadPrefs: () => loadPrefs('mapprefs.json'),
     savePrefs: o => savePrefs('mapprefs.json', o),

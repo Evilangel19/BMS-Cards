@@ -73,7 +73,7 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
   }</div>
 <div class="ogrole ogtoday"><div class="ogtd"><div><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${adm ? '' : '<div class="oghelp">Set up by the commanders</div>'}</div><button class="btn g gn sm" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send all${nOn ? ' (' + nOn + ')' : ''}</button></div>${
     adm
-      ? '<div class="ogvert"><button class="btn g bl sm" data-savetpl>Save template</button><button class="btn g sm" data-loadtpl>Load template</button><button class="btn g rd sm" data-clear>Clear all</button></div>'
+      ? '<div class="ogvert"><button class="btn g bl sm" data-savetpl>Save template</button><button class="btn g gn sm" data-loadtpl>Load template</button><button class="btn g rd sm" data-clear>Clear all</button></div>'
       : ''
   }</div></div>`;
 
@@ -249,7 +249,6 @@ export function wireOrg(box, h) {
       over = null;
     const zones = () => box.querySelectorAll('[data-drop]');
     const start = () => {
-      const q = h.q();
       ok = new Map();
       zones().forEach(z => {
         const f = z.dataset.drop,

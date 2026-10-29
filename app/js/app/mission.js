@@ -691,6 +691,8 @@ export const msfSig = () => {
     return '';
   }
 };
+// for the Save mission button of the map: lit while the mission is not saved as it is now (never saved, or something changed since; writing the DTC does not count as saving the mission)
+export const missionToSave = () => !!$('fsel').value && msfSig() !== MSFSIG;
 export const unsaved = () => (hasMan() || dtcDirty() || extraChanged()) && msfSig() !== MSFSIG;
 export let MSFDIR = '';
 
@@ -701,7 +703,7 @@ export async function init3() {
     const b = $('msfsave');
     if (b) b.classList.toggle('nil', !unsaved());
     const mb = $('mpmsave');
-    if (mb) mb.classList.toggle('nil', !unsaved());
+    if (mb) mb.classList.toggle('nil', !missionToSave());
     if (document.body.classList.contains('onwp'))
       try {
         ST.wpPage.btn();
