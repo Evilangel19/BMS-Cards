@@ -75,7 +75,9 @@ export function cleanOrg(o) {
   });
   take('as', (k, v) => {
     if (!isTs(v.ts) || (v.f !== '' && !isId(v.f))) return null;
-    return { f: v.f, ts: v.ts };
+    const c = { f: v.f, ts: v.ts };
+    if (isId(v.by)) c.by = v.by; // who put him there: a pilot who chose his flight himself can change it again
+    return c;
   });
   return out;
 }
@@ -279,13 +281,14 @@ export function orgReduce(q, actor, a, ctx) {
       if (to && from && to.f.id === from.f.id) return { ok: true, q };
       if (!to && !from) return { ok: true, q };
       let allowed = admin;
-      if (!allowed && a.uid === actor) allowed = !to; // a pilot can leave his flight, not choose another
+      // a pilot can leave his flight; he can take a flight when he flies nowhere, or change it when he chose it himself (not when a lead put him there)
+      if (!allowed && a.uid === actor) allowed = !to || !from || (org.as[actor] && org.as[actor].by === actor);
       if (!allowed) allowed = (!!to && to.p.lead === actor) || (!!from && from.p.lead === actor);
       if (!allowed && to && !from) allowed = to.f.lead === actor; // a flight lead takes a pilot who flies nowhere
       if (!allowed && !to && from) allowed = from.f.lead === actor; // and lets him go
       if (!allowed) return fail('You cannot move this pilot.');
       if (to && to.f.members.length >= MAX_PILOTS) return fail('This flight is full (' + MAX_PILOTS + ' pilots).');
-      org.as[a.uid] = { f: a.f || '', ts: now };
+      org.as[a.uid] = { f: a.f || '', ts: now, by: actor };
       break;
     }
     case 'mc': {

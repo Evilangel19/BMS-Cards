@@ -129,7 +129,26 @@ const HAWK = idOf(q, 'fl', 'Hawk'),
   F2 = idOf(q, 'fl', 'F2');
 
 // ---- moving pilots
-ok('a pilot does not choose his flight', run(q, 'w1', { t: 'as', uid: 'w1', f: F1 }) === null);
+{
+  // a pilot who flies nowhere takes a flight himself and can change it; a pilot put there by a lead can only leave
+  const a1 = run(q, 'w5', { t: 'as', uid: 'w5', f: F1 });
+  ok('a pilot who flies nowhere takes a flight himself', !!a1 && orgView(a1).seat.w5.fl === F1);
+  const a2 = a1 && run(a1, 'w5', { t: 'as', uid: 'w5', f: F2 });
+  ok('and changes it, as he chose it himself', !!a2 && orgView(a2).seat.w5.fl === F2);
+  ok('he cannot put another pilot in', run(q, 'w5', { t: 'as', uid: 'w4', f: F1 }) === null);
+  const b1 = run(q, 'cmd1', { t: 'as', uid: 'w4', f: F1 });
+  ok(
+    'a pilot put there by the commander cannot choose another flight',
+    !!b1 && run(b1, 'w4', { t: 'as', uid: 'w4', f: F2 }) === null
+  );
+  ok('but he can take himself out', !!b1 && !orgView(run(b1, 'w4', { t: 'as', uid: 'w4', f: '' })).seat.w4);
+  const b2 = b1 && run(b1, 'mc1', { t: 'as', uid: 'w4', f: F2 });
+  ok('the commanders still move him', !!b2 && orgView(b2).seat.w4.fl === F2);
+  ok(
+    'the seat keeps who put the pilot there',
+    cleanOrg(b1.org).as.w4.by === 'cmd1' && cleanOrg(a1.org).as.w5.by === 'w5'
+  );
+}
 ok('commander places a pilot', (q = run(q, 'cmd1', { t: 'as', uid: 'w1', f: F1 })) && orgView(q).seat.w1.fl === F1);
 ok(
   'a flight lead needs to be in the flight',
@@ -329,7 +348,7 @@ ok(
   w = run(w, 'mc1', { t: 'as', uid: 'w1', f: F });
   const esc = x => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
   const html = (me, on = ['fl1', 'w1']) => orgHtml(w, orgView(w), me, new Set(on), esc, u => w.roster[u].callsign);
-  const h1 = html('mc1'),
+  const h1 = html('mc1', ['fl1', 'w1', 'pl1', 'cmd1']),
     h2 = html('fl1'),
     h3 = html('w1'),
     h4 = html('cmd1');
@@ -364,6 +383,10 @@ ok(
     /Send my mission to Viper \(1 online\)/.test(h2) && /Send my mission to Viper \(2 online\)/.test(h1)
   );
   ok('my flight is marked', /YOUR FLIGHT/.test(h2) && !/YOUR FLIGHT/.test(h1));
+  ok(
+    'pilots who fly nowhere and are offline are not shown',
+    !/data-pilot="x1"/.test(h1) && /data-pilot="pl1"/.test(h1)
+  );
   ok('the commander is called so, a flight lead too', /COMMANDER/.test(h1) && />LEAD</.test(h1));
   ok('pilots who fly nowhere are offered for the flight', /data-moveto="pl1"/.test(h1) && /STRIKE · Viper/.test(h1));
   ok(

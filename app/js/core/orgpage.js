@@ -78,7 +78,8 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
   }</div></div>`;
 
   // pilots who fly nowhere
-  const free = view.unassigned.slice().sort((a, b) => on(b) - on(a) || nameOf(a).localeCompare(nameOf(b)));
+  const leadsAny = view.packages.some(p => p.lead === me || p.flights.some(f => f.lead === me)),
+    free = view.unassigned.filter(on).sort((a, b) => on(b) - on(a) || nameOf(a).localeCompare(nameOf(b)));
   const flightOpts = view.packages.flatMap(p =>
     p.flights.filter(f => !f.full).map(f => `<option value="${esc(f.id)}">${esc(p.n)} · ${esc(f.n)}</option>`)
   );
@@ -87,13 +88,14 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
       ? free
           .map(u =>
             row(u, {
-              sel: flightOpts.length
-                ? `<select class="ogput" data-moveto="${esc(u)}" aria-label="Put ${esc(nameOf(u))} in a flight"><option value="">Put in…</option>${flightOpts.join('')}</select>`
-                : '',
+              sel:
+                flightOpts.length && (adm || u === me || leadsAny)
+                  ? `<select class="ogput" data-moveto="${esc(u)}" aria-label="Put ${esc(nameOf(u))} in a flight"><option value="">Put in…</option>${flightOpts.join('')}</select>`
+                  : '',
             })
           )
           .join('')
-      : '<div class="oghelp">Everybody has a flight.</div>'
+      : `<div class="oghelp">${view.unassigned.length ? 'Nobody online without a flight.' : 'Everybody has a flight.'}</div>`
   }<div class="oghelp ogfoot">Pilots left here do not receive any mission.</div></div>`;
 
   // packages
