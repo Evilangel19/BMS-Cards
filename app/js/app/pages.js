@@ -36,7 +36,7 @@ export const nearName = (x, y) => {
 import { ST } from './state.js';
 import { $, animOn, appToast, esc, jp } from './base.js';
 import { acFolder, misLoad, perfAcGet, terrain } from './gamefiles.js';
-import { G, S, dtcOverwrite, dtcRevert, lines, stpts } from './dtcfile.js';
+import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
 import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked } from './ato.js';
@@ -48,7 +48,17 @@ import { draw } from './cardview.js';
 import { dtcDir, wxWind } from './campaign.js';
 import { openSettings } from './settings.js';
 import { APP_VERSION } from '../core/version.js';
-import { msfIdent, msfBuild, msfLoad, msfSources, msfGroupsOf, msfForSend, msfStoreReceived } from './mission.js';
+import {
+  msfIdent,
+  msfBuild,
+  msfLoad,
+  msfSources,
+  msfGroupsOf,
+  msfForSend,
+  msfStoreReceived,
+  msfSave,
+  unsaved,
+} from './mission.js';
 
 export let mapV;
 const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
@@ -118,7 +128,7 @@ export async function init6() {
         dtcChanged('STPT', 'wpntarget_' + n);
       },
       fileName: () => ST.name,
-      dirty: () => lines.some(l => l.dirty),
+      dirty: () => lines.some(l => l.dirty) || MERGED.length > 0,
       open: () => $('open').click(),
       overwrite: () => dtcOverwrite(),
       revert: () => dtcRevert(),
@@ -126,6 +136,8 @@ export async function init6() {
       set: (g, slot, patch) => dtcSet(g, slot, patch, false),
       clear: (g, slot) => dtcClear(g, slot, false),
     },
+    saveMission: () => msfSave(),
+    missionDirty: () => unsaved(),
     satCfg: () => ST.CFG.map,
     loadPrefs: () => loadPrefs('mapprefs.json'),
     savePrefs: o => savePrefs('mapprefs.json', o),

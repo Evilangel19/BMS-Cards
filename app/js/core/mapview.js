@@ -942,7 +942,7 @@ export function createMap(host, deps) {
           <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
-      `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (a .bak of the original is kept once)">${ICON.save} DTC</button></div>`;
+      `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (a .bak of the original is kept once)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
     $('mpshotkb').innerHTML = ICON.cam + ' Screenshot for kneeboard';
     $('mpshot').innerHTML = ICON.cam + ' Screenshot for datacard';
     // closing the Filters macro switches every DTC filter off (the points disappear), opening it brings back what was on
@@ -987,6 +987,7 @@ export function createMap(host, deps) {
     mst();
     $('mpdopen').onclick = () => deps.dtc && deps.dtc.open();
     $('mpdsave').onclick = () => deps.dtc && deps.dtc.overwrite();
+    $('mpmsave').onclick = () => deps.saveMission && deps.saveMission();
     $('mpdrev').onclick = () => deps.dtc && deps.dtc.revert && deps.dtc.revert();
     $('mpdtgt').onclick = async () => {
       if (!EDIT) return;
@@ -2820,6 +2821,7 @@ export function createMap(host, deps) {
     $('mpdcol2').style.display = has ? '' : 'none';
     $('mpdsave').disabled = !has || !(deps.dtc.canOverwrite && deps.dtc.canOverwrite()) || !deps.dtc.dirty();
     $('mpdsave').classList.toggle('nil', $('mpdsave').disabled);
+    $('mpmsave').classList.toggle('nil', !(deps.missionDirty && deps.missionDirty()));
     if (ob) {
       ob.classList.toggle('g', !has);
       ob.style.display = has ? '' : 'none';

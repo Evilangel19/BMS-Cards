@@ -71,11 +71,11 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
         )
       : ''
   }</div>
-<div class="ogrole"><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${
+<div class="ogrole ogtoday"><div class="ogtd"><div><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${adm ? '' : '<div class="oghelp">Set up by the commanders</div>'}</div><button class="btn g gn sm" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send all${nOn ? ' (' + nOn + ')' : ''}</button></div>${
     adm
-      ? '<div class="ogtools"><div class="ogseg"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button></div><button class="btn g rd" data-clear>Clear all</button></div>'
-      : '<div class="oghelp">Set up by the commanders</div>'
-  }<div class="ogbtns one"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
+      ? '<div class="ogvert"><button class="btn g bl sm" data-savetpl>Save template</button><button class="btn g sm" data-loadtpl>Load template</button><button class="btn g rd sm" data-clear>Clear all</button></div>'
+      : ''
+  }</div></div>`;
 
   // pilots who fly nowhere
   const free = view.unassigned.slice().sort((a, b) => on(b) - on(a) || nameOf(a).localeCompare(nameOf(b)));

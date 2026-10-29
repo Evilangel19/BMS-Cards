@@ -641,3 +641,10 @@ dialog[open]::backdrop {
 .sqw .btn.g.bl:hover {
   background: #2574b8;
 }
+
+/* a button that cannot be used now (for example Send mission for a pilot who is not the mission leader) is dark */
+.btn:disabled {
+  opacity: 0.38;
+  filter: grayscale(0.7);
+  cursor: not-allowed;
+}

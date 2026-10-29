@@ -700,6 +700,8 @@ export async function init3() {
   setInterval(() => {
     const b = $('msfsave');
     if (b) b.classList.toggle('nil', !unsaved());
+    const mb = $('mpmsave');
+    if (mb) mb.classList.toggle('nil', !unsaved());
     if (document.body.classList.contains('onwp'))
       try {
         ST.wpPage.btn();

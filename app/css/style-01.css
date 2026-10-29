@@ -627,11 +627,16 @@ dialog::backdrop {
   background: #000a;
 }
 
-.rwok {
-  color: #4ade80;
+.wpg .tile b .rwok,
+.wpg .tile b .rwno {
+  font-size: inherit;
   font-weight: 700;
+  text-transform: none;
+  letter-spacing: 0;
 }
-.rwno {
+.wpg .tile b .rwok {
+  color: #4ade80;
+}
+.wpg .tile b .rwno {
   color: #f87171;
-  font-weight: 700;
 }

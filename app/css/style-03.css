@@ -1288,3 +1288,36 @@ body.og-dragging * {
 .oghelp.warn {
   color: #ff8a7a;
 }
+
+/* Organization, Today: the counts and Send all on the left, the template buttons small and one above the other on the right */
+.ogtoday {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ogtd {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.ogtd .btn {
+  margin: 0;
+  white-space: nowrap;
+}
+.ogvert {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+.ogvert .btn {
+  margin: 0;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  white-space: nowrap;
+}

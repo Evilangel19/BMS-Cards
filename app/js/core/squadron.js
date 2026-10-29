@@ -2869,22 +2869,25 @@ export function createSquadronPage(deps) {
     await ld(src[0].id);
     const go = await new Promise(res => {
       pop(
-        `<h3 style="margin:0 0 6px;font-size:15px">Send mission</h3><label class="hint">Mission</label><select data-src style="width:100%;margin:2px 0 10px">${src.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('')}</select><div class="hint" data-info style="margin-bottom:4px"></div><div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok>Send</button></div>`,
+        `<h3 style="margin:0 0 6px;font-size:15px">Send mission</h3><label class="hint">Mission</label><div data-srcs style="margin:4px 0 10px;max-height:34vh;overflow:auto;border:1px solid var(--line);border-radius:6px">${src.map((x, i) => `<label class="sqm" style="gap:8px;margin:0;padding:6px 8px;cursor:pointer"><span><input type="radio" name="sqsrc" data-src value="${i}"${i ? '' : ' checked'} style="width:auto"> ${esc(x.label)}</span></label>`).join('')}</div><div class="hint" data-info style="margin-bottom:4px"></div><div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Cancel</button><button class="btn g gn" data-ok>Send</button></div>`,
         (o, c) => {
           const show = () => {
             o.querySelector('[data-info]').textContent = info;
           };
           show();
-          o.querySelector('[data-src]').onchange = async e => {
-            await ld(src[+e.target.value].id);
-            show();
-          };
+          const pick = () => +(o.querySelector('[data-src]:checked') || o.querySelector('[data-src]')).value;
+          o.querySelectorAll('[data-src]').forEach(r => {
+            r.onchange = async () => {
+              await ld(src[pick()].id);
+              show();
+            };
+          });
           o.querySelector('[data-x]').onclick = () => {
             c();
             res(null);
           };
           o.querySelector('[data-ok]').onclick = () => {
-            const id = src[+o.querySelector('[data-src]').value].id;
+            const id = src[pick()].id;
             c();
             res({ id });
           };
