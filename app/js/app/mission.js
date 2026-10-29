@@ -712,7 +712,7 @@ export async function init3() {
   $('msfsave').onclick = msfSave;
   setInterval(() => {
     const b = $('msfsave');
-    if (b) b.classList.toggle('nil', !unsaved());
+    if (b) b.classList.toggle('nil', !missionToSave());
     const mb = $('mpmsave');
     if (mb) mb.classList.toggle('nil', !missionToSave());
     if (document.body.classList.contains('onwp'))

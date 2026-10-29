@@ -26,7 +26,7 @@ try:
         check('the Mission buttons are in the top bar', pg.locator('#msfsave').count() == 1 and pg.locator('#msfopen').count() == 1)
         pg.evaluate("()=>{__app.dtcSet?0:0;const l=__app.lines.find(l=>l.k=='target_83');}")
         pg.wait_for_timeout(900)
-        check('Save mission is dimmed while nothing changed', 'nil' in pg.get_attribute('#msfsave', 'class'))
+        check('Save mission is lit while a flight is chosen and the mission is not saved (dark with no flight)', ('nil' in pg.get_attribute('#msfsave', 'class')) == (not pg.evaluate("()=>document.getElementById('fsel').value")))
         # a manual change of the datacard and a change of the DTC
         pg.evaluate("()=>{__app.setField('ab0_4','ZZ99');}"); pg.wait_for_timeout(200)
         pg.evaluate("()=>{const l=__app.lines.find(l=>l.s=='STPT'&&l.k=='target_83');l.v='123456.000000, 234567.000000, -500.000000, 1, ';l.dirty=1}")

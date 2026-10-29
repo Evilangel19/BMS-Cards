@@ -2192,6 +2192,10 @@ export function createSquadronPage(deps) {
             touchMember(q, uid, r => {
               r[i.dataset.f] = i.value;
             });
+            // the labels of the pilot (his role and notes) are shown at once, in the row and in the roster
+            const tg = tr.querySelector('.sqtags');
+            if (tg) tg.innerHTML = pilotTags(ov, q, q.roster[uid] || { uid }).trim();
+            if (memCtx) drawList(memCtx.q, memCtx.list, memCtx.onUid, memCtx.m);
           })
       );
       const ld = tr.querySelector('[data-lead]');
@@ -3135,8 +3139,8 @@ export function createSquadronPage(deps) {
 <div class="sqc" id="sqlost" hidden></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
-</div><div class="sqpane" data-pane="missions"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
-<div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
+</div><div class="sqpane" data-pane="missions"><div class="sqtwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
+<div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div></div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
@@ -3463,8 +3467,10 @@ export function createSquadronPage(deps) {
       if (!q) return [];
       const seen = new Set();
       return live(q)
-        .filter(r => r.name && String(r.name).trim())
+        .filter(r => (r.name && String(r.name).trim()) || (r.callsign && String(r.callsign).trim()))
         .map(r => {
+          // the name with his rank; a pilot with no name is listed by his callsign
+          if (!(r.name && String(r.name).trim())) return String(r.callsign).trim();
           const rk = r.stats && r.stats.rk;
           const ab = RANK_AB[rk] || '';
           return (ab ? ab + ' ' : '') + String(r.name).trim();
