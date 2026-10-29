@@ -1336,20 +1336,40 @@ body.og-dragging * {
   border-radius: 4px;
   padding: 0 5px;
 }
-/* the mission leader mark is a label, not a button */
-button.sqleadtag {
+/* the labels of a pilot under his name, one after the other */
+.sqtags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 3px;
+}
+.sqtags:empty {
+  display: none;
+}
+/* the star of the mission leader, left of the avatar */
+.sqst {
+  width: 26px;
+  padding: 0 2px;
+  text-align: center;
+}
+.sqstar {
+  background: transparent;
+  border: 0;
+  color: var(--mu);
+  font-size: 17px;
+  line-height: 1;
+  padding: 2px;
   cursor: pointer;
-  font-family: inherit;
-  line-height: 1.5;
 }
-button.sqleadtag:not(.on) {
-  opacity: 0.55;
+.sqstar:hover:not(:disabled),
+.sqstar.on {
+  color: var(--og-amber, #f0b040);
 }
-button.sqleadtag:disabled {
+.sqstar:disabled {
   cursor: default;
 }
-button.sqleadtag:not(.on):disabled {
-  display: none;
+.sqstar:disabled:not(.on) {
+  visibility: hidden;
 }
 /* the fields of the roster (role, notes) and the description of the squadron take the colour of the section */
 #sqros input[data-f],
@@ -1357,4 +1377,11 @@ button.sqleadtag:not(.on):disabled {
   background: transparent;
   border: 1px solid var(--line);
   color: var(--tx);
+}
+
+/* the icons of the main menu, in the style of the Settings gear */
+.tab .tic {
+  vertical-align: -2px;
+  margin-right: 6px;
+  opacity: 0.85;
 }

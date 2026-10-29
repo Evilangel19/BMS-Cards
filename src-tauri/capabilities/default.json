@@ -232,6 +232,15 @@
       "allow": [
         {
           "path": "**/cardmemory/cards/*"
+        },
+        {
+          "path": "**/missions/*"
+        },
+        {
+          "path": "**/missions/*/*"
+        },
+        {
+          "path": "**/missions/*/*/*"
         }
       ]
     },
