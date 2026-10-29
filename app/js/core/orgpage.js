@@ -73,7 +73,7 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
   }</div>
 <div class="ogrole"><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${
     adm
-      ? '<div class="ogbtns"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button><button class="btn g rd" data-clear>Clear all</button></div>'
+      ? '<div class="ogtools"><div class="ogseg"><button class="btn g bl" data-savetpl>Save template</button><button class="btn g" data-loadtpl>Load template</button></div><button class="btn g rd" data-clear>Clear all</button></div>'
       : '<div class="oghelp">Set up by the commanders</div>'
   }<div class="ogbtns one"><button class="btn g gn" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send my mission to everybody online${nOn ? ' (' + nOn + ')' : ''}</button></div></div></div>`;
 
@@ -138,11 +138,7 @@ ${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disable
   const empty = !view.packages.length
     ? `<div class="oghelp ogempty">No packages yet.${adm ? ' Add a package, then its flights, and drag the pilots into them.' : ' The commander or the mission commander sets up the packages and flights.'}</div>`
     : '';
-  const leave =
-    q.owner === me && q.mc && q.roster[q.mc]
-      ? `<div class="bar" style="margin-top:6px"><button class="btn g rd" data-leave title="You leave the squadron and the mission commander becomes the commander">Leave the squadron and hand the command to ${esc(nameOf(q.mc))}</button></div>`
-      : '';
-  return `${top}${roles}<div class="ogbody">${side}<div class="ogmain">${empty}${packs}${addPk}${leave}</div></div>`;
+  return `${top}${roles}<div class="ogbody">${side}<div class="ogmain">${empty}${packs}${addPk}</div></div>`;
 }
 
 /** The box for a pilot who lost his program file (Members page). Empty when the viewer is not a commander. */

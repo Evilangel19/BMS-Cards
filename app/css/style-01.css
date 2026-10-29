@@ -626,3 +626,12 @@ dialog {
 dialog::backdrop {
   background: #000a;
 }
+
+.rwok {
+  color: #4ade80;
+  font-weight: 700;
+}
+.rwno {
+  color: #f87171;
+  font-weight: 700;
+}

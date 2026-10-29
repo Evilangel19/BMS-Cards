@@ -2515,7 +2515,7 @@ export function createSquadronPage(deps) {
           on = sw ? sw.online().length : 0,
           own = owns(q),
           mem = live(q).filter(r => r.uid != DB.uid);
-        return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g bl" data-inv title="Copy the invite code of this squadron">Invite</button><button class="btn g" data-open title="Show this squadron in Members and Organization">Open</button><button class="btn g rd" data-leave>${own ? 'Delete' : 'Leave'}</button></div>
+        return `<div class="sqsqr" data-sid="${esc(q.id)}"><div class="sqm"><span><b>${esc(q.name)}</b> <em>${own ? 'you created it' : 'member'} · ${live(q).length} pilot${live(q).length == 1 ? '' : 's'} · ${on} online</em></span><button class="btn g bl" data-inv title="Copy the invite code of this squadron">Invite</button><button class="btn g" data-open title="Show this squadron in Members and Organization">Open</button>${own && q.mc && q.roster[q.mc] ? `<button class="btn g rd sm" data-handleave title="You leave the squadron and the mission commander becomes the commander">Leave · hand to ${esc(label(q.roster[q.mc]))}</button>` : ''}<button class="btn g rd" data-leave>${own ? 'Delete' : 'Leave'}</button></div>
       ${own && mem.length ? `<details class="sqmod"><summary>Moderation</summary><div class="hint">Remove a pilot from this squadron (he can no longer join with the invite code).</div>${mem.map(r => `<div class="sqm" data-uid="${esc(r.uid)}"><i class="sqd ${sw && sw.byUid(r.uid) ? 'connected' : 'closed off'}"></i><span>${esc(label(r))}</span><button class="btn g rd" data-kick>Remove</button></div>`).join('')}</details>` : ''}</div>`;
       })
       .join('');
@@ -2531,6 +2531,8 @@ export function createSquadronPage(deps) {
         drawAll();
       };
       el.querySelector('[data-inv]').onclick = async () => copy(await squadInvite(q));
+      const hl = el.querySelector('[data-handleave]');
+      if (hl) hl.onclick = () => leaveHandover(q);
       el.querySelector('[data-leave]').onclick = async () => {
         if (owns(q)) {
           deleteSquad(q);
@@ -2789,9 +2791,9 @@ export function createSquadronPage(deps) {
       { check: m => flightWarning(f.n, m) }
     );
   };
-  const leaveHandover = async () => {
-    const q = cur();
-    if (!q || q.owner != DB.uid) return;
+  const leaveHandover = async (sq = cur()) => {
+    const q = sq && sq.id ? sq : cur();
+    if (!q || q.owner != DB.uid || !q.mc || !q.roster[q.mc]) return;
     const to = nameOfIn(q)(q.mc);
     if (!(await confirm('Leave "' + q.name + '" and hand the command to ' + to + '?'))) return;
     const r = orgAct(q, { t: 'leave' });
@@ -3180,7 +3182,7 @@ export function createSquadronPage(deps) {
           }
         );
       },
-      leave: leaveHandover,
+      leave: () => leaveHandover(),
       toast: t => (deps.toast ? deps.toast(t) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });

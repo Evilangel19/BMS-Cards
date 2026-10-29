@@ -441,7 +441,10 @@ ok(
     'no flag without an open mission',
     !/ogname bad/.test(orgHtml(w2, orgView(w2), 'mc1', new Set(), esc, u => String(w2.roster[u].callsign || '')))
   );
-  ok('the commander with a mission commander can leave and hand over', /data-leave/.test(h4) && !/data-leave/.test(h1));
+  ok(
+    'the leave-and-hand-over button is not in the organization page any more (it is in My squadrons)',
+    !/data-leave/.test(h4) && !/data-leave/.test(h1)
+  );
 }
 
 // ---- a template keeps the order of the night, whatever the (random) ids of the new items are

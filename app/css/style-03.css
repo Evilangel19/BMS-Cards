@@ -1247,6 +1247,33 @@ body.og-dragging * {
   width: 100%;
   margin-top: 4px;
 }
+.ogtools {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+.ogseg {
+  display: flex;
+}
+.ogseg .btn {
+  margin: 0;
+  white-space: nowrap;
+  border-radius: 0;
+}
+.ogseg .btn:first-child {
+  border-radius: 6px 0 0 6px;
+}
+.ogseg .btn:last-child {
+  border-radius: 0 6px 6px 0;
+  margin-left: -1px;
+}
+.ogtools > .btn {
+  margin: 0;
+  white-space: nowrap;
+}
 .ogbtns.one {
   grid-template-columns: 1fr;
 }

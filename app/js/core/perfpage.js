@@ -468,7 +468,8 @@ export function createPerfPage(deps) {
     const wl = empty() + st.stores + st.lfuel,
       l = P.landing(ac, { W: wl, elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, di: st.di }),
       rw = runwayFt();
-    const ok = (len, need) => (rw ? (need <= rw ? ' ✓' : ' ✗') : '');
+    const ok = (len, need) =>
+      rw ? (need <= rw ? ' <span class="rwok">✓</span>' : ' <span class="rwno">✗</span>') : '';
     const rf = P.refusal(ac, { ...o, rwy: rw }),
       rpm = P.milRpm(ac);
     const tTiles = t.stuck
