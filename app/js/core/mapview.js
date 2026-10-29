@@ -4,6 +4,7 @@ import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import { objState, featState } from '../parsers/cam.js';
+import { operational } from './objstatus.js';
 import { offsetRow } from './popup.js';
 import { OFF_KEYS, OFF_COLORS } from './mapoffs.js';
 import {
@@ -1841,6 +1842,43 @@ export function createMap(host, deps) {
       iconSize: [22, 22],
       iconAnchor: [11, 11],
     });
+  // the features (name, value) of the damaged objectives, read once from the objective files: the percentage "operational" needs their values
+  const FEATS = new Map();
+  let FEATQ = false;
+  // state of an objective (0 intact, 1 damaged, 2 destroyed = 0% operational) and its text; before the values are read the old rule is used (destroyed when every feature is)
+  const objInfo = (o, fs) => {
+    const base = objState(fs),
+      ft = FEATS.get(o.id);
+    if (!base || !ft) return { state: base, pct: null, txt: base ? (base == 2 ? ' · destroyed' : ' · damaged') : '' };
+    const pct = operational(ft, fs),
+      state = pct <= 0 ? 2 : 1;
+    return { state, pct, txt: (state == 2 ? ' · destroyed' : ' · damaged') + ' · ' + pct + '% operational' };
+  };
+  const featLoad = list => {
+    const todo = list.filter(o => !FEATS.has(o.id));
+    if (!todo.length || FEATQ || !deps.objects) return;
+    FEATQ = true;
+    (async () => {
+      for (let i = 0; i < todo.length; i += 30) {
+        await Promise.all(
+          todo.slice(i, i + 30).map(o =>
+            deps.objects
+              .features(o)
+              .then(f =>
+                FEATS.set(
+                  o.id,
+                  f.map(x => ({ name: x.name, value: x.value }))
+                )
+              )
+              .catch(() => FEATS.set(o.id, null))
+          )
+        );
+      }
+      FEATQ = false;
+      OBK = ''; // drawn again with the percentages
+      objDraw();
+    })();
+  };
   const NAMEZ = 13; // the names are written from this zoom (the maximum of the base maps); above it the sub-objectives get theirs too
   let ABV = null,
     OSL = [],
@@ -1943,7 +1981,8 @@ export function createMap(host, deps) {
       OBJB.add(t);
       OBL.filter(o => o.type == t).forEach(o => {
         const fs = C && C.objFeat ? C.objFeat.get(o.id) : null,
-          state = objState(fs),
+          info = objInfo(o, fs),
+          state = info.state,
           ll = toLL(o.e / FT_KM, o.n / FT_KM);
         const ow = C ? airbaseOwner(C, o.id) : null,
           side =
@@ -1951,14 +1990,12 @@ export function createMap(host, deps) {
           g = G['o' + t],
           own = ow ? ' · ' + teamName(C.D, ow) + (side == 'x' ? ' (neutral)' : '') : '';
         const am = (t == 1 || t == 2) && abv ? ABM.get(o.id) : null,
-          tip = deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''),
+          tip = deps.esc(o.name) + ' · ' + lab + own + info.txt,
           act = () => {
             if (OSEL === o.id)
               window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
                 .setLatLng(ll)
-                .setContent(
-                  objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)
-                )
+                .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
                 .openOn(map);
             else objOpen(o, ll, lab);
           };
@@ -1969,23 +2006,19 @@ export function createMap(host, deps) {
         } // an airfield: its own symbol is the clickable one, no dot over it
         OJ.push({ t, o, ll, g });
         L.marker(ll, { icon: dotIcon(state, false, side), keyboard: false, zIndexOffset: 100 })
-          .bindTooltip(
-            deps.esc(o.name) + ' · ' + lab + own + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''),
-            { direction: 'top', offset: [0, -6] }
-          )
+          .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + info.txt, { direction: 'top', offset: [0, -6] })
           .on('click', () => {
             if (OSEL === o.id)
               window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
                 .setLatLng(ll)
-                .setContent(
-                  objPopup(o.name, lab + (state ? (state == 2 ? ' · destroyed' : ' · damaged') : ''), o.n, o.e)
-                )
+                .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
                 .openOn(map);
             else objOpen(o, ll, lab);
           })
           .addTo(g); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
     });
+    if (C && C.objFeat) featLoad(OBL.filter(o => on.some(([t]) => t == o.type) && objState(C.objFeat.get(o.id))));
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
