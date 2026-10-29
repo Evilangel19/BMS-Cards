@@ -1904,13 +1904,18 @@ export function createSquadronPage(deps) {
     pushSync(q);
   };
   // one change of the organisation made by this pilot (see orgReduce for the rules); {ok:false, error} when it is not allowed
-  const orgAct = (q, a) => {
+  // what an action would do, asked to the rules with the same actor and clock as orgAct, without changing anything (the board asks it while a pilot is dragged)
+  const orgTry = (q, a) => {
     if (!q) return { ok: false, error: 'No squadron.' };
     const sw = swarms.get(q.id),
       online = new Set(sw ? sw.online().map(p => p.uid) : []);
     online.add(DB.uid);
     const ctx = { now: orgClock(q), rid: () => randHex(6), online };
-    const r = typeof a == 'function' ? a(q, DB.uid, ctx) : orgReduce(q, DB.uid, a, ctx);
+    return typeof a == 'function' ? a(q, DB.uid, ctx) : orgReduce(q, DB.uid, a, ctx);
+  };
+  const orgAct = (q, a) => {
+    const r = orgTry(q, a);
+    if (!q) return r;
     if (!r.ok || r.q === q) return r;
     Object.assign(q, { org: r.q.org, owner: r.q.owner, mc: r.q.mc, roster: r.q.roster, ts: r.q.ts });
     save();
@@ -3084,6 +3089,7 @@ export function createSquadronPage(deps) {
 <div class="sqc"><h3>Activity</h3><pre id="sqlog" class="sqlog"></pre></div></div></div></div></div>`;
     wireLost($('#sqlost'), {
       act: a => orgAct(cur(), a),
+      tryAct: a => orgTry(cur(), a),
       toast: t => (deps.toast ? deps.toast(t) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });
@@ -3094,6 +3100,7 @@ export function createSquadronPage(deps) {
       online: () => onlineSet(cur()),
       view: () => orgView(cur()),
       act: a => orgAct(cur(), a),
+      tryAct: a => orgTry(cur(), a),
       send: sendFlight,
       sendAll: () => {
         const q = cur(),

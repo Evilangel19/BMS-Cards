@@ -1,7 +1,7 @@
 // The Organization section of the Squadron page: packages and flights as a board, pilots dragged into the flights, who leads what, and the button that sends a
 // mission to one flight. orgHtml() only builds the text (checked by a test); wireOrg() connects it. The rules are in organization.js: the screen shows a control only
 // when orgReduce() would accept the change.
-import { orgReduce, isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './organization.js';
+import { isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './organization.js';
 
 /**
  * @param {any} q the squadron, @param {any} view orgView(q), @param {string} me my pilot id, @param {Set<string>} online pilot ids linked now
@@ -178,7 +178,7 @@ export function wireLost(box, h) {
 
 /**
  * Connects the buttons, the lists and the dragging of the board.
- * h: {q(): the squadron, view(): its organisation view, me: pilot id, online(): Set, act(a): {ok, error}, send(flightId), leave(), toast(text), confirm(text): Promise<boolean>}
+ * h: {q(): the squadron, tryAct(a): {ok} what an action would do (nothing changes), view(): its organisation view, me: pilot id, online(): Set, act(a): {ok, error}, send(flightId), leave(), toast(text), confirm(text): Promise<boolean>}
  */
 export function wireOrg(box, h) {
   const run = a => {
@@ -255,10 +255,7 @@ export function wireOrg(box, h) {
       ok = new Map();
       zones().forEach(z => {
         const f = z.dataset.drop,
-          r =
-            f == '@pk'
-              ? orgReduce(q, h.me, { t: 'pk+', name: 'x' }, { now: Date.now(), rid: () => 'x', online: h.online() })
-              : orgReduce(q, h.me, { t: 'as', uid, f }, { now: Date.now(), rid: () => 'x', online: h.online() });
+          r = h.tryAct(f == '@pk' ? { t: 'pk+', name: 'x' } : { t: 'as', uid, f });
         ok.set(f, r.ok);
         z.classList.toggle('okdrop', r.ok);
       });
