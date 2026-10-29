@@ -147,6 +147,13 @@ export function openEd(d, sel = true) {
       pl.className = 'pnl';
       pl.innerHTML = L.map(n => `<button type="button" class="pni">${esc(n)}</button>`).join('');
       pl.onmousedown = e => e.preventDefault();
+      // typing in the field narrows the list (a squadron of many pilots): the names that contain what is typed
+      i.addEventListener('input', () => {
+        const v = i.value.trim().toLowerCase();
+        pl.querySelectorAll('.pni').forEach(b => {
+          b.style.display = v && !b.textContent.toLowerCase().includes(v) ? 'none' : '';
+        });
+      });
       pl.onclick = e => {
         const b = e.target.closest('.pni');
         if (!b) return;

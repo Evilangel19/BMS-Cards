@@ -1,12 +1,20 @@
 // Kneeboard pages: 16 rows, each row = one 2048x2048 DDS (left page | right page, 1024x2048 each).
-// Row 1 is 7982.dds ... row 16 is 7997.dds. A page is 800x1200 "page units" stretched onto 1024x2048 (like the datacard).
-export const FIRST_ID = 7982,
-  ROWS = 16,
+// Row 1 is 7982.dds ... row 16 is 7997.dds for the F-16 (1403 ... 1418 for the F-15, see KB_SETS). A page is 800x1200 "page units" stretched onto 1024x2048 (like the datacard).
+export const ROWS = 16,
   PAGE_W = 1024,
   PAGE_H = 2048,
   UNIT_W = 800,
   UNIT_H = 1200;
-export const rowFile = i => FIRST_ID + i + '.dds';
+// The kneeboard files of each aircraft: the 16 rows are the pictures `first` ... `first` + 15 of the objects folder (KoreaObj). To support another aircraft add a line here:
+// id, name, number of the first file (the kneeboard texture of its cockpit), test = how the aircraft of the flight is written in the datacard ("4 F-16A-15").
+export const KB_SETS = [
+  { id: 'f16', name: 'F-16', first: 7982, test: /\bF-?16/i },
+  { id: 'f15', name: 'F-15', first: 1403, test: /\bF-?15/i },
+];
+export const DEFAULT_SET = KB_SETS[0];
+// the set of files of an aircraft (the F-16 one when the aircraft is not known or has no set of its own)
+export const setFor = ac => KB_SETS.find(x => x.test.test(String(ac || ''))) || DEFAULT_SET;
+export const rowFile = (i, set = DEFAULT_SET) => set.first + i + '.dds';
 export const DEFAULT_SLOTS = () =>
   Array.from({ length: ROWS }, (_, i) => ({
     left: { kind: i ? 'empty' : 'dcl', mode: 'fill' },

@@ -120,7 +120,8 @@ try:
         pg.click('[data-t=kn]'); pg.wait_for_timeout(300)
         pg.click('#kbldef'); pg.wait_for_timeout(300)
         got = []; pg.on('download', lambda d: got.append(d)); pg.click('#kbsave'); pg.wait_for_timeout(6000)
-        names = sorted(d.suggested_filename for d in got); check('files written %s' % names, names == ['7982.dds', '7989.dds', '7991.dds'])
+        names = sorted(d.suggested_filename for d in got); ac = pg.evaluate("()=>__app.F['pk0_1']||''"); base = 1403 if 'F-15' in ac else 7982
+        check('files written %s for %s' % (names, ac or 'no flight'), names == sorted('%d.dds' % (base + i) for i in (0, 7, 9)))
         gd = {d.suggested_filename: d.path() for d in got}; im = Image.open(gd['7989.dds']).convert('RGB'); px = im.getpixel((6, 1000))
         check('row 8 DDS holds the red-bordered JPG on its left page (pixel %s)' % (px,), px[0] > 180 and px[1] < 90 and px[2] < 90)
         check('DXT1 2048x2048 size', all(os.path.getsize(d.path()) == 128 + 2048 * 2048 // 2 for d in got))

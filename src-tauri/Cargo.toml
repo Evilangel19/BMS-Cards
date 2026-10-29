@@ -1,6 +1,6 @@
 [package]
 name = "bms-cards"
-version = "0.9.9-beta.64"
+version = "0.9.9-beta.65"
 description = "BMS Cards"
 edition = "2021"
 

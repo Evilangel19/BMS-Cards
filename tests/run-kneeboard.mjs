@@ -1,4 +1,14 @@
-import { parsePages, rowFile, fitRect, rowUsed, DEFAULT_SLOTS, autoDir, ROWS } from '../app/js/core/kneeboard.js';
+import {
+  KB_SETS,
+  setFor,
+  parsePages,
+  rowFile,
+  fitRect,
+  rowUsed,
+  DEFAULT_SLOTS,
+  autoDir,
+  ROWS,
+} from '../app/js/core/kneeboard.js';
 let bad = 0,
   n = 0;
 const ok = (m, c) => {
@@ -8,6 +18,24 @@ const ok = (m, c) => {
     console.log('FAIL', m);
   }
 };
+ok(
+  'F-16 files by default and for an F-16',
+  setFor('').first === 7982 && setFor('4 F-16C-52 ROK').first === 7982 && setFor('2 F-16A-15').id === 'f16'
+);
+ok(
+  'F-15 files 1403 to 1418',
+  setFor('4 F-15C').first === 1403 &&
+    rowFile(0, setFor('2 F-15E')) === '1403.dds' &&
+    rowFile(15, setFor('F-15C')) === '1418.dds'
+);
+ok(
+  'an aircraft without a set of its own gets the F-16 ones',
+  setFor('4 F/A-18C').id === 'f16' && setFor('2 AV-8B').id === 'f16'
+);
+ok(
+  'the sets do not overlap and each has 16 files',
+  KB_SETS.every((a, i) => KB_SETS.every((b, j) => i === j || a.first + 15 < b.first || b.first + 15 < a.first))
+);
 ok('first and last file', rowFile(0) === '7982.dds' && rowFile(15) === '7997.dds' && ROWS === 16);
 const f = fitRect(612, 792, 'fit');
 ok(

@@ -1,4 +1,15 @@
-import { DEFAULT_SLOTS, ROWS, autoDir, fitRect, rowFile, rowUsed, parsePages, cycleNext } from '../core/kneeboard.js';
+import {
+  DEFAULT_SLOTS,
+  ROWS,
+  KB_SETS,
+  setFor,
+  autoDir,
+  fitRect,
+  rowFile,
+  rowUsed,
+  parsePages,
+  cycleNext,
+} from '../core/kneeboard.js';
 import { createDocsPage } from '../core/docspage.js';
 import {
   listDir,
@@ -315,8 +326,11 @@ export function kbThumbs() {
       'Row ' +
       (KBSEL + 1) +
       ' → ' +
-      rowFile(KBSEL) +
+      rowFile(KBSEL, kbSet()) +
       (rowUsed(KBS[KBSEL], KBSEL) ? '' : ' (empty: not written)') +
+      ' · ' +
+      kbSet().name +
+      ' files' +
       ' · Left: ' +
       kbName(KBS[KBSEL].left) +
       ' · Right: ' +
@@ -992,13 +1006,14 @@ export async function kbRestore() {
   }
   const bk = await kbBackupFor(dir),
     have = [];
-  for (let i = 0; i < ROWS; i++) {
-    const f = rowFile(i),
-      a = joinPath(bk, f),
-      legacy = joinPath(dir, f) + '.orig';
-    if (await fileExists(a)) have.push([i, a]);
-    else if (await fileExists(legacy)) have.push([i, legacy]);
-  }
+  for (const set of KB_SETS)
+    for (let i = 0; i < ROWS; i++) {
+      const f = rowFile(i, set),
+        a = joinPath(bk, f),
+        legacy = joinPath(dir, f) + '.orig';
+      if (await fileExists(a)) have.push([f, a]);
+      else if (await fileExists(legacy)) have.push([f, legacy]);
+    }
   if (!have.length) {
     alert('No backups found in:\n' + bk);
     return;
@@ -1008,7 +1023,7 @@ export async function kbRestore() {
       'Restore ' +
         have.length +
         ' original file(s) (' +
-        have.map(h => rowFile(h[0])).join(', ') +
+        have.map(h => h[0]).join(', ') +
         ') in:\n' +
         dir +
         '\n\nThe current files will be replaced.'
@@ -1016,12 +1031,20 @@ export async function kbRestore() {
   )
     return;
   try {
-    for (const [i, a] of have) await writeBytes(joinPath(dir, rowFile(i)), await readBytes(a));
+    for (const [f, a] of have) await writeBytes(joinPath(dir, f), await readBytes(a));
     st.textContent = 'Restored ' + have.length + ' original file(s).';
   } catch (e) {
     alert('Could not restore: ' + ((e && e.message) || e));
   }
 }
+// the files to write: those of the aircraft of the flight (its type is read in the datacard: the first package that has one), the F-16 ones when there is no flight
+export const kbSet = () => {
+  for (let q = 0; q < 4; q++) {
+    const t = F['pk' + q + '_1'];
+    if (t && String(t).trim()) return setFor(t);
+  }
+  return setFor('');
+};
 // the datacard pages are on a kneeboard row that will be written, but the datacard holds nothing (no flight chosen, or every field empty)
 export const dcEmpty = () =>
   !FD.some(d => {
@@ -1033,7 +1056,8 @@ export const dcOnRows = rows =>
 export async function kbSave() {
   const dir = kbDir(),
     st = $('kbst'),
-    rows = KBS.map((s, i) => i).filter(i => rowUsed(KBS[i], i));
+    rows = KBS.map((s, i) => i).filter(i => rowUsed(KBS[i], i)),
+    set = kbSet();
   if (
     dcOnRows(rows) &&
     dcEmpty() &&
@@ -1051,8 +1075,10 @@ export async function kbSave() {
     !(await confirm(
       'Write ' +
         rows.length +
+        ' ' +
+        set.name +
         ' file(s) (' +
-        rows.map(rowFile).join(', ') +
+        rows.map(i => rowFile(i, set)).join(', ') +
         ') to:\n' +
         dir +
         '\n\nOriginal files are saved once in the program folder (backup\\kneeboard) before being replaced; nothing extra is created in the BMS folder.'
@@ -1065,21 +1091,21 @@ export async function kbSave() {
   await kbDecodeUsed();
   try {
     for (const i of rows) {
-      st.textContent = 'Writing ' + rowFile(i) + ' (' + (done + 1) + ' of ' + rows.length + ')…';
+      st.textContent = 'Writing ' + rowFile(i, set) + ' (' + (done + 1) + ' of ' + rows.length + ')…';
       $('kbprog').firstChild.style.width = (done / rows.length) * 100 + '%';
       await new Promise(r => setTimeout(r, 20));
       const dd = kbRow(i).getContext('2d').getImageData(0, 0, 2048, 2048).data,
         bytes = KBFMT == 'dxt5' ? toDDS5(2048, dd) : toDDS(2048, dd);
       if (isDesktop()) {
-        const path = joinPath(dir, rowFile(i)),
+        const path = joinPath(dir, rowFile(i, set)),
           bk = await kbBackupFor(dir),
-          orig = joinPath(bk, rowFile(i));
+          orig = joinPath(bk, rowFile(i, set));
         if ((await fileExists(path)) && !(await fileExists(orig))) {
           await makeDir(bk);
           await writeBytes(orig, await readBytes(path));
         }
         await writeBytes(path, bytes);
-      } else saveFile(new Blob([bytes]), rowFile(i));
+      } else saveFile(new Blob([bytes]), rowFile(i, set));
       done++;
     }
     $('kbprog').firstChild.style.width = '100%';
@@ -1097,7 +1123,7 @@ export async function kbSave() {
     st.textContent = '';
     alert(
       'Could not write ' +
-        (rows[done] !== undefined ? rowFile(rows[done]) : 'the files') +
+        (rows[done] !== undefined ? rowFile(rows[done], set) : 'the files') +
         ': ' +
         ((e && e.message) || e) +
         '\n\n' +
