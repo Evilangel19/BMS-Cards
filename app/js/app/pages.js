@@ -57,6 +57,8 @@ import {
   msfForSend,
   msfStoreReceived,
   msfSave,
+  msfList,
+  msfRemove,
   missionToSave,
 } from './mission.js';
 
@@ -375,6 +377,8 @@ export async function init11() {
     mission: {
       ident: () => msfIdent(),
       sources: () => msfSources(),
+      list: () => msfList(),
+      remove: id => msfRemove(id),
       groups: id => msfGroupsOf(id),
       forSend: (id, t) => msfForSend(id, t),
     },

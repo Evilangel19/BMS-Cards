@@ -58,8 +58,8 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br); B, eb = start(br)
-        check('the Squadron tab exists in the four sections Members, Organization, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 13)
-        check('the tabs Members, Organization, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
+        check('the Squadron tab exists in the five sections Members, Organization, Missions, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 14)
+        check('the tabs Members, Organization, Missions, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Missions', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
         for n, vis in (('org', '#sqorg'), ('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
             check('tab %s shows its section only' % n, A.is_visible(vis) and A.locator('.sqpane:visible').count() == 1)
@@ -277,6 +277,10 @@ try:
         A.click('#sqtabs [data-tab=settings]'); A.wait_for_timeout(200)
         check('the settings show the diagnostics and the TURN field', A.is_visible('#sqturn') and A.is_visible('#sqturnsave'))
         A.click('#sqnettest'); A.wait_for_function("()=>document.querySelector('#sqnet').textContent!=='Testing…'", timeout=15000); check('the network test gives an answer', len(A.inner_text('#sqnet')) > 20)
+        A.click('#sqtabs [data-tab=missions]'); A.wait_for_timeout(400)
+        check('the Missions tab has the saved and the received missions', A.is_visible('#sqmis') and A.is_visible('#sqrecv'))
+        A.click('#sqtabs [data-tab=members]'); A.wait_for_timeout(200)
+        check('the received missions are not in Members any more', A.locator('[data-pane=members] #sqrecv').count() == 0)
         check('no script errors', not ea and not eb)
         if ea or eb: print(ea, eb)
         br.close()

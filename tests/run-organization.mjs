@@ -14,6 +14,7 @@ import {
   orgToTemplate,
   orgFromTemplate,
   orgNewPackageWith,
+  orgNewFlightWith,
   orgClock,
 } from '../app/js/core/organization.js';
 import { orgHtml } from '../app/js/core/orgpage.js';
@@ -336,6 +337,45 @@ ok(
   'nothing to compare: no warning',
   flightWarning('', mis) === '' && flightWarning('Viper', null) === '' && flightWarning('Viper', {}) === ''
 );
+
+// ---- a pilot dropped on "Add flight", the order in the flight, the message of a pilot without authority
+{
+  let w = run(mkQ(), 'mc1', { t: 'pk+', name: 'STRIKE' });
+  const P = idOf(w, 'pk', 'STRIKE');
+  const r1 = orgNewFlightWith(w, 'mc1', 'w1', P, 'Viper', ctx());
+  ok(
+    'a pilot dropped on Add flight makes the flight and sits in it',
+    r1.ok && orgView(r1.q).packages[0].flights[0].members.join() === 'w1'
+  );
+  const r2 = orgNewFlightWith(r1.q, 'mc1', 'w2', P, 'Cobra', ctx());
+  ok('and the second flight too', r2.ok && orgView(r2.q).packages[0].flights.length === 2 && orgView(r2.q).seat.w2);
+  const r3 = orgNewFlightWith(w, 'w3', 'w1', P, 'Viper', ctx());
+  ok('a pilot without authority cannot', !r3.ok);
+  ok(
+    'and is told he has no authority to assign seats',
+    /authority to assign seats/.test(
+      orgReduce(r2.q, 'w3', { t: 'as', uid: 'w4', f: orgView(r2.q).packages[0].flights[0].id }, ctx()).error
+    )
+  );
+  ok(
+    'and a full package refuses',
+    (() => {
+      let z = w;
+      for (let i = 1; i <= MAX_FLIGHTS; i++)
+        z = orgNewFlightWith(z, 'mc1', 'w' + ((i % 5) + 1), P, 'F' + i, ctx()).q || z;
+      return !orgNewFlightWith(z, 'mc1', 'x1', P, 'Z', ctx()).ok;
+    })()
+  );
+  // order: the flight lead first, then the commander, the mission commander, the others as they came
+  let o = r1.q;
+  const FL = orgView(o).packages[0].flights[0].id;
+  for (const u of ['mc1', 'cmd1', 'fl1']) o = run(o, 'cmd1', { t: 'as', uid: u, f: FL });
+  o = run(o, 'cmd1', { t: 'fllead', id: FL, uid: 'fl1' });
+  ok(
+    'the lead is the first, the commanders after him, then the others',
+    orgView({ ...o, owner: 'cmd1', mc: 'mc1' }).packages[0].flights[0].members.join() === 'fl1,cmd1,mc1,w1'
+  );
+}
 
 // ---- the board: each role sees the controls it can use
 {

@@ -7,6 +7,7 @@
 import { medalSvg, rankSvg } from './medals.js';
 import {
   orgNewPackageWith,
+  orgNewFlightWith,
   orgToTemplate,
   orgFromTemplate,
   newOrg,
@@ -2223,7 +2224,7 @@ export function createSquadronPage(deps) {
           const isMe = r.uid == DB.uid,
             x = isMe ? m : r,
             o = isMe || onUid.has(r.uid);
-          return `<div class="sqrow" data-pick="${esc(r.uid)}">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span class="sqrn"><b>${esc(x.callsign || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(
+          return `<div class="sqrow" data-pick="${esc(r.uid)}">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span class="sqrn"><b>${esc(x.callsign || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}${r.role ? ` <span class="sqlab" title="Role">${esc(r.role)}</span>` : ''}${r.notes ? ` <span class="sqlab" title="Notes">${esc(r.notes)}</span>` : ''}<div class="hint" style="min-height:0">${esc(
             [
               x.name,
               (isMe ? m.st : r.stats)
@@ -2351,7 +2352,7 @@ export function createSquadronPage(deps) {
         ed = own || isMe;
       return `<tr data-uid="${esc(r.uid)}"><td><i class="sqd ${o ? 'connected' : 'closed off'}" title="${o ? 'Online' : 'Offline'}"></i></td><td class="sqpl">${okImg(isMe ? m.av : r.av) ? `<img class="sqav" src="${isMe ? m.av : r.av}" alt="">` : '<span class="sqav"></span>'}<span><b>${esc((isMe ? m.callsign : r.callsign) || '—')}</b>${isMe ? ' <em>(you)</em>' : ''}${q.owner == r.uid ? ' <span class="sqace" title="Created the squadron">COMMANDER</span>' : ''}<div class="hint" style="min-height:0">${esc(isMe ? m.name : r.name || '')}</div></span></td><td class="sqs">${flightCell(ov, q, r.uid)}</td><td class="sqs">${esc(statLine(isMe ? m.st : r.stats))}</td>
       <td><input data-f="role" value="${esc(r.role || '')}" placeholder="Role"${ed ? '' : ' disabled'}></td><td><input data-f="notes" value="${esc(r.notes || '')}" placeholder="Notes"${ed ? '' : ' disabled'}></td><td class="sqs">${o ? 'online' : esc(ago(r.lastSeen))}</td>
-      <td class="sqa">${flights ? '' : `<button class="btn g ${q.leader == r.uid ? 'gn' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ Mission leader' : '☆'}</button>`}${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
+      <td class="sqa">${flights ? '' : `<button type="button" class="ogtag fl sqleadtag${q.leader == r.uid ? ' on' : ''}" data-lead title="${own ? 'Mission leader: the pilot who sends the mission to the others' : 'Mission leader'}"${own ? '' : ' disabled'}>${q.leader == r.uid ? '★ LEAD' : '☆'}</button>`}${!isMe && o ? `<button class="btn g gn" data-send title="Send the mission to this pilot"${canSend ? '' : ' disabled'}>Send mission</button>` : ''}</td></tr>`;
     };
     const back = formKeep(box);
     box.innerHTML = `<div class="bar" style="margin-bottom:8px"><select id="sqsel" ${DB.squads.length > 1 ? '' : 'style="display:none"'}>${DB.squads.map(x => `<option value="${esc(x.id)}"${x.id == q.id ? ' selected' : ''}>${esc(x.name)}${owns(x) ? ' (yours)' : ''}</option>`).join('')}</select></div>
@@ -2434,6 +2435,53 @@ export function createSquadronPage(deps) {
           drawSession();
         })
     );
+  }
+
+  // ----- MISSIONS: the missions saved by this program (the received ones too); deleting removes the folder here, never the copies of the pilots who got it -----
+  let savedBusy = false;
+  async function drawSaved() {
+    const box = $('#sqmis');
+    if (!box || savedBusy) return;
+    if (!deps.mission || !deps.mission.list) {
+      box.innerHTML = '<div class="hint">Saved missions are kept by the desktop program.</div>';
+      return;
+    }
+    savedBusy = true;
+    try {
+      const list = await deps.mission.list();
+      box.innerHTML = list.length
+        ? list
+            .map(
+              (m, i) =>
+                `<div class="sqm"><span><b>${esc(m.label)}</b></span><button class="btn g rd sm" data-del="${i}" title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></div>`
+            )
+            .join('')
+        : '<div class="hint">No mission saved yet. Save one with Save mission, or receive one from a pilot.</div>';
+      box.querySelectorAll('[data-del]').forEach(
+        b =>
+          (b.onclick = async () => {
+            const m = list[+b.dataset.del];
+            if (
+              !(await confirm(
+                'Delete the mission "' +
+                  m.label +
+                  '" from this computer?\n\nThe folder of the mission is removed. The pilots who received it keep their copy.'
+              ))
+            )
+              return;
+            try {
+              if (!(await deps.mission.remove(m.id))) say('The mission "' + m.label + '" could not be deleted.');
+            } catch (e) {
+              say('The mission could not be deleted: ' + ((e && e.message) || e));
+            }
+            drawSaved();
+          })
+      );
+    } catch (e) {
+      box.innerHTML = '<div class="hint">The missions could not be listed: ' + esc((e && e.message) || e) + '</div>';
+    } finally {
+      savedBusy = false;
+    }
   }
 
   // ----- MEMBERS: the squadron of the player in the campaign -----
@@ -2681,6 +2729,7 @@ export function createSquadronPage(deps) {
   const TABS = [
     ['members', 'Members'],
     ['org', 'Organization'],
+    ['missions', 'Missions'],
     ['me', 'Me'],
     ['settings', 'Settings'],
   ];
@@ -2688,6 +2737,7 @@ export function createSquadronPage(deps) {
     const t = TABS.some(x => x[0] == DB.tab) ? DB.tab : 'members';
     root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t));
     root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t));
+    if (t == 'missions') drawSaved();
   };
   const drawAll = () => {
     showTab();
@@ -3067,10 +3117,11 @@ export function createSquadronPage(deps) {
 <div class="sqmain">
 <div class="sqc"><h3 id="sqhead3">Squadron</h3><div id="sqhead"></div></div>
 <div class="sqc"><h3>Members <small id="sqleg">☆ = mission leader</small></h3><div class="bar sqtool"><select id="sqflt" aria-label="Show"></select><select id="sqsrt" aria-label="Sort by"><option value="online">Online first</option><option value="callsign">Callsign</option><option value="flight">Flight</option><option value="seen">Last seen</option></select><span class="hint" id="sqshown" style="min-height:0"></span></div><div id="sqtabbox" style="overflow-x:auto"></div></div>
-<div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
 <div class="sqc" id="sqlost" hidden></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
+</div><div class="sqpane" data-pane="missions"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
+<div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
@@ -3113,6 +3164,7 @@ export function createSquadronPage(deps) {
         if (sw) sendFlow(() => sw.online().map(p => toTarget(q.id, p)));
       },
       canAll: () => canSendAll(cur()),
+      newFlight: (uid, pk, name) => orgAct(cur(), (q, actor, ctx) => orgNewFlightWith(q, actor, uid, pk, name, ctx)),
       newPack: uid =>
         orgAct(cur(), (q, actor, ctx) => orgNewPackageWith(q, actor, uid, { ...ctx, names: hintNames(q) })),
       hint,

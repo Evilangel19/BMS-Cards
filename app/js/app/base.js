@@ -1,7 +1,15 @@
 import { mergeConfig } from '../config/config.js';
 import { CAM } from '../core/cam-core.js';
 import { initWidgets } from '../core/widgets.js';
-import { fileExists, writeBytes, makeDir, appDir, removeFile, join as joinPath } from '../platform/desktop.js';
+import {
+  fileExists,
+  writeBytes,
+  makeDir,
+  appDir,
+  removeFile,
+  removeDir,
+  join as joinPath,
+} from '../platform/desktop.js';
 import { ST } from './state.js';
 import { atoHints, scrollKeep } from './ato.js';
 import { wxPage } from './campaign.js';
@@ -102,7 +110,7 @@ export function collapse(els, cb) {
     };
   });
 }
-export const IO = { fileExists, writeBytes, makeDir, appDir, removeFile }; // (replaceable by the tests)
+export const IO = { fileExists, writeBytes, makeDir, appDir, removeFile, removeDir }; // (replaceable by the tests)
 export const enc8 = t => new TextEncoder().encode(t);
 export const jclone = o => {
   try {

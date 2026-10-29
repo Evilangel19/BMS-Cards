@@ -228,6 +228,17 @@ export async function msfSources() {
   } catch (e) {}
   return out;
 }
+// the missions saved in the missions folder (the ones that were received too): [{id (the file), name}]
+export async function msfList() {
+  return (await msfSources()).filter(x => x.id);
+}
+// deletes the folder of a saved mission (never the ones sent to the other pilots); true when it is gone
+export async function msfRemove(id) {
+  const base = await missionsBase(),
+    dir = id.replace(/[\\/][^\\/]*$/, '');
+  if (!dir || dir === base || !dir.startsWith(base)) throw new Error('This is not a mission folder.');
+  return IO.removeDir(dir);
+}
 // a mission received from another pilot is kept in the missions folder (desktop app) under its own name; one that exists already is never overwritten: " (2)", " (3)"...; returns the folder or null
 export async function msfStoreReceived(text, name) {
   if (!isDesktop()) return null;

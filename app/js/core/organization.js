@@ -128,7 +128,7 @@ const byTs = (a, b) => a.c - b.c || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
 
 /**
  * What the squadron looks like: packages with their flights and pilots, and the pilots who fly nowhere.
- * @param {{org?:any, roster?:any}} q
+ * @param {{org?:any, roster?:any, owner?:string, mc?:string}} q
  */
 export function orgView(q) {
   const org = q.org || newOrg(),
@@ -148,7 +148,13 @@ export function orgView(q) {
             .filter(([u, a]) => a.f === f.id && live(u))
             .sort((x, y) => x[1].ts - y[1].ts || (x[0] < y[0] ? -1 : 1))
             .map(x => x[0]);
-          const members = cand.slice(0, MAX_PILOTS);
+          // the flight lead is the first, then the commander, the mission commander and the package lead (who may fly as wingmen), then the others in the order they came
+          const rank = u => (u === f.lead ? 0 : u === q.owner ? 1 : u === q.mc ? 2 : u === p.lead ? 3 : 4),
+            members = cand
+              .slice(0, MAX_PILOTS)
+              .map((u, i) => /** @type {[string, number]} */ ([u, i]))
+              .sort((x, y) => rank(x[0]) - rank(y[0]) || x[1] - y[1])
+              .map(x => x[0]);
           members.forEach(u => (seat[u] = { pk: p.id, fl: f.id }));
           return {
             id: f.id,
@@ -286,7 +292,12 @@ export function orgReduce(q, actor, a, ctx) {
       if (!allowed) allowed = (!!to && to.p.lead === actor) || (!!from && from.p.lead === actor);
       if (!allowed && to && !from) allowed = to.f.lead === actor; // a flight lead takes a pilot who flies nowhere
       if (!allowed && !to && from) allowed = from.f.lead === actor; // and lets him go
-      if (!allowed) return fail('You cannot move this pilot.');
+      if (!allowed)
+        return fail(
+          a.uid === actor
+            ? 'A lead put you in this flight: only the leads and the commanders can change it.'
+            : 'You do not have the authority to assign seats.'
+        );
       if (to && to.f.members.length >= MAX_PILOTS) return fail('This flight is full (' + MAX_PILOTS + ' pilots).');
       org.as[a.uid] = { f: a.f || '', ts: now, by: actor };
       break;
@@ -453,4 +464,17 @@ export function orgNewPackageWith(q, actor, uid, ctx) {
   if (!r.ok) return r;
   const fid = last;
   return step(r.q, { t: 'as', uid, f: fid });
+}
+
+/**
+ * A pilot dropped on "Add flight" of a package: a new flight in it with the pilot in it.
+ * ctx: as in orgReduce. @returns {{ok:true, q:any}|{ok:false, error:string}}
+ */
+export function orgNewFlightWith(q, actor, uid, pk, name, ctx) {
+  let last = '';
+  const rid = () => (last = ctx.rid());
+  const step = (cur, a) => orgReduce(cur, actor, a, { ...ctx, rid });
+  let r = step(q, { t: 'fl+', pk, name });
+  if (!r.ok) return r;
+  return step(r.q, { t: 'as', uid, f: last });
 }

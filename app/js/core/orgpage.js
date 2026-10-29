@@ -1,7 +1,7 @@
 // The Organization section of the Squadron page: packages and flights as a board, pilots dragged into the flights, who leads what, and the button that sends a
 // mission to one flight. orgHtml() only builds the text (checked by a test); wireOrg() connects it. The rules are in organization.js: the screen shows a control only
 // when orgReduce() would accept the change.
-import { isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './organization.js';
+import { orgNewFlightWith, isAdmin, MAX_FLIGHTS, MAX_PILOTS, MAX_PACKAGES } from './organization.js';
 
 /**
  * @param {any} q the squadron, @param {any} view orgView(q), @param {string} me my pilot id, @param {Set<string>} online pilot ids linked now
@@ -73,7 +73,7 @@ export function orgHtml(q, view, me, online, esc, nameOf, hint) {
   }</div>
 <div class="ogrole ogtoday"><div class="ogtd"><div><div class="oglab">Today</div><div class="ogval">${view.packages.length} package${view.packages.length == 1 ? '' : 's'} · ${nFlights} flight${nFlights == 1 ? '' : 's'}</div>${adm ? '' : '<div class="oghelp">Set up by the commanders</div>'}</div><button class="btn g gn sm" data-sendall${nOn && canAll ? '' : ' disabled'} title="${esc(canAll ? 'Send the mission to every pilot online' : 'Only the commanders send to everybody; the lead of your flight sends you the mission')}">Send all${nOn ? ' (' + nOn + ')' : ''}</button></div>${
     adm
-      ? '<div class="ogvert"><button class="btn g bl sm" data-savetpl>Save template</button><button class="btn g gn sm" data-loadtpl>Load template</button><button class="btn g rd sm" data-clear>Clear all</button></div>'
+      ? '<div class="ogvert"><button class="btn g sm" data-savetpl>Save template</button><button class="btn g sm" data-loadtpl>Load template</button><button class="btn g rd sm" data-clear>Clear all</button></div>'
       : ''
   }</div></div>`;
 
@@ -130,7 +130,7 @@ ${canSend ? `<button class="ogsend" data-send="${esc(f.id)}"${n ? '' : ' disable
       const canEdit = adm || pkLeadOf(p.id),
         pilots = p.flights.reduce((n, f) => n + f.members.length, 0);
       return `<div class="ogpack" style="--pc:${PAL[pi % PAL.length]}"><div class="oghead">${canEdit ? `<input class="ogname big" data-pkname="${esc(p.id)}" value="${esc(p.n)}" maxlength="24" aria-label="Package name">` : `<b class="ogtitle big">${esc(p.n)}</b>`}<span class="oglead">Package lead: ${adm ? pilotSel(`data-pklead="${esc(p.id)}"`, p.lead, allUids, '—') : `<b>${p.lead ? esc(nameOf(p.lead)) : '—'}</b>`}</span><span class="ogmu ogright">${p.flights.length} of ${MAX_FLIGHTS} flights · ${pilots} aircraft</span>${adm ? `<button class="ogx ogdel" data-delpk="${esc(p.id)}" title="Delete the package" aria-label="Delete the package ${esc(p.n)}">×</button>` : ''}</div>
-<div class="ogflights">${p.flights.map((f, fi) => flightCard(p, f, fi)).join('')}${canEdit && !p.full ? `<button class="ogadd" data-addfl="${esc(p.id)}">+ Add flight</button>` : ''}</div></div>`;
+<div class="ogflights">${p.flights.map((f, fi) => flightCard(p, f, fi)).join('')}${canEdit && !p.full ? `<button class="ogadd ogdrop" data-addfl="${esc(p.id)}" data-drop="@fl:${esc(p.id)}">+ Add flight</button>` : ''}</div></div>`;
     })
     .join('');
   const addPk =
@@ -156,7 +156,7 @@ export function lostHtml(q, view, me, online, esc, nameOf) {
     'data-seatnew',
     fresh.map(r => r.uid),
     'New pilot…'
-  )}<button class="btn g gn" data-seat>Give the seat back</button></div>`;
+  )}<button class="btn g" data-seat>Give the seat back</button></div>`;
 }
 
 /** Wires the box of lostHtml. h: {act(a): {ok, error}, toast(text), confirm(text): Promise<boolean>} */
@@ -246,14 +246,23 @@ export function wireOrg(box, h) {
       uid = c.dataset.pilot;
     let ghost = null,
       ok = null,
+      err = null,
       over = null;
     const zones = () => box.querySelectorAll('[data-drop]');
     const start = () => {
       ok = new Map();
+      err = new Map();
       zones().forEach(z => {
         const f = z.dataset.drop,
-          r = h.tryAct(f == '@pk' ? { t: 'pk+', name: 'x' } : { t: 'as', uid, f });
+          r = h.tryAct(
+            f == '@pk'
+              ? { t: 'pk+', name: 'x' }
+              : f.startsWith('@fl:')
+                ? (q2, actor, ctx) => orgNewFlightWith(q2, actor, uid, f.slice(4), 'x', ctx)
+                : { t: 'as', uid, f }
+          );
         ok.set(f, r.ok);
+        err.set(f, r.ok ? '' : r.error);
         z.classList.toggle('okdrop', r.ok);
       });
       ghost = c.cloneNode(true);
@@ -302,11 +311,17 @@ export function wireOrg(box, h) {
       box.addEventListener('click', swallow, { capture: true, once: true });
       setTimeout(() => box.removeEventListener('click', swallow, true), 0);
       if (z) {
-        if (!ok.get(z.dataset.drop)) h.toast('This pilot cannot go there.');
-        else if (z.dataset.drop == '@pk') {
+        const to = z.dataset.drop;
+        if (!ok.get(to)) h.toast(err.get(to) || 'This pilot cannot go there.');
+        else if (to == '@pk') {
           const r = h.newPack(uid);
           if (!r.ok) h.toast(r.error);
-        } else run({ t: 'as', uid, f: z.dataset.drop });
+        } else if (to.startsWith('@fl:')) {
+          const pk = to.slice(4),
+            p = view().packages.find(x => x.id === pk),
+            r = h.newFlight(uid, pk, prefName('fl', 'Flight', p ? p.flights.length : 0, p));
+          if (!r.ok) h.toast(r.error);
+        } else run({ t: 'as', uid, f: to });
       }
       box.dispatchEvent(new Event('dragend')); // the board is drawn again if something changed while he dragged
     };

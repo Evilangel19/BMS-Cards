@@ -257,6 +257,22 @@ export async function removeFile(path) {
     /* already gone */
   }
 }
+// a folder with what is in it (a saved mission); true when it is gone
+export async function removeDir(path) {
+  try {
+    await T().fs.remove(path, { recursive: true });
+  } catch (e) {
+    try {
+      for (const f of await T().fs.readDir(path)) await T().fs.remove(join(path, f.name), { recursive: true });
+      await T().fs.remove(path);
+    } catch (e2) {
+      /* checked below */
+    }
+  }
+  return !(await T()
+    .fs.exists(path)
+    .catch(() => false));
+}
 export async function fileExists(path) {
   try {
     return !!(await T().fs.exists(path));
