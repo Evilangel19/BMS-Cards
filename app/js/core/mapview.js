@@ -1267,6 +1267,10 @@ export function createMap(host, deps) {
     });
     if (added) {
       showLayer('dq');
+      setLayers(
+        secKeys('Selected flight').filter(k => k != 'fd'),
+        true
+      ); // flight plan and package on, not the labels and distances
       sync();
       dtc();
     }
