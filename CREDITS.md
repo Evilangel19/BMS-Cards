@@ -4,7 +4,7 @@ BMS Cards is a fan-made tool for Falcon BMS. It is not affiliated with or endors
 
 Inspiration and reference:
 - Weapon Delivery Planner (WDP) - original datacard planner and DDS reference.
-- Datacard blank: layout redrawn by the program (app/js/core/dctemplate.js); it is a reconstruction of the WDP card structure, no third-party image is included.
+- Datacard blank (MDC, the Docs-folder blank template of Falcon BMS): layout redrawn by the program (app/js/core/dctemplate.js), no third-party image or PDF is included. The author of the original template, mirv, has given his permission to recreate, modify and distribute it. The left side is based on an F-16 pilot's data card, the right side on an old Nellis coordination card.
 - Open Frequency (UOAF) - layout and design inspiration.
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
