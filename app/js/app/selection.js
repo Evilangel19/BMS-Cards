@@ -2,13 +2,14 @@ import { BMS_TESTED } from '../core/version.js';
 import { CAM } from '../core/cam-core.js';
 import { groupPackages } from '../core/ato.js';
 import { ST } from './state.js';
-import { F, FD, CYC, buildForm } from './datacard.js';
+import { F, FD, XD, dEl, CYC, buildForm } from './datacard.js';
 import { $, esc } from './base.js';
 import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch } from './ato.js';
 import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
-import { draw } from './cardview.js';
+import { mdcAuto } from './mdcfill.js';
+import { MFD, draw } from './cardview.js';
 import { perfFill } from './perf.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
@@ -28,7 +29,7 @@ export const flMan = f => {
 };
 export function markMan() {
   const df = manDiff();
-  FD.forEach(d => {
+  [...FD, ...MFD].forEach(d => {
     if (d.el) d.el.classList.toggle('man', d.k in df);
   });
   const r = $('rstf');
@@ -67,6 +68,7 @@ export function apply(i, mode) {
     ST.VIEW = PLAYER;
   }
   FD.forEach(d => (F[d.k] = ''));
+  XD.forEach(k => (F[k] = ''));
   {
     const lf = ST.CL[i].f,
       G = CAM.loadGroups(lf);
@@ -85,6 +87,8 @@ export function apply(i, mode) {
       const n = CAM.nAcf(f);
       for (let q = 0; q < n; q++)
         F['fl' + q + '_3'] = b.s + (q + 1) + (b.mc >= 0 ? ' MC ' + b.mc : '') + (b.fc >= 0 ? ' FC ' + b.fc : '');
+      F.dl0_fc = b.fc >= 0 ? String(b.fc) : '';
+      F.dl0_mc = b.mc >= 0 ? String(b.mc) : '';
     }
     CAM.els0(ST.C, f)
       .slice(0, 5)
@@ -94,6 +98,7 @@ export function apply(i, mode) {
       });
   }
   applyDTC(ST.CL[i].f);
+  mdcAuto();
   dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
   [
     ['ab', 3, 7],
@@ -116,6 +121,9 @@ export function apply(i, mode) {
     ST.AUTO = {};
     FD.forEach(d => {
       ST.AUTO[d.k] = F[d.k] || '';
+    });
+    XD.forEach(k => {
+      ST.AUTO[k] = F[k] || '';
     });
     ST.CURK = k;
     ST.MANK = new Set();
@@ -218,7 +226,7 @@ ST.ldSet = v => {
     F[k] = t;
     ST.AUTO[k] = t;
     ST.MANK.delete(k);
-    const d = FD.find(z => z.k == k);
+    const d = dEl(k);
     if (d && d.el) d.el.value = t;
   });
   markMan();

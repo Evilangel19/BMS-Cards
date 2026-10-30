@@ -18,6 +18,10 @@ import { wxAt } from './campaign.js';
 /* ---------- DATACARD ---------- */
 export const F = {};
 export const FD = [];
+// the keys of the cells that only the MDC format has (see cardview.js): not drawn on the datacard, but cleared, kept and saved with the other fields
+export const XD = [];
+// the field (with its input) of a key in the format that is on the screen
+export const dEl = k => (ST.MDCON ? MFD : FD).find(z => z.k == k);
 export const ML = ['roe', 'free', 'eph'];
 export const add = (k, lab, x, y, w, grp) => FD.push({ k, lab, x, y, w, grp });
 // Datacard <-> DTC. The DTC always fills the datacard (applyDTC). The other way round only for the groups switched on in the Data Cartridge page ("from Datacard").
@@ -93,13 +97,13 @@ export function mirrorToCard(sec, key, quiet) {
     F[k] = v;
     if (ST.AUTO) ST.AUTO[k] = v;
     ST.MANK.delete(k);
-    const d = FD.find(z => z.k == k);
+    const d = dEl(k);
     if (d && d.el) d.el.value = v;
     if (k == 'bingo') {
       F.joker = String(Math.round(+v) + 1000);
       if (ST.AUTO) ST.AUTO.joker = F.joker;
       ST.MANK.delete('joker');
-      const j = FD.find(z => z.k == 'joker');
+      const j = dEl('joker');
       if (j && j.el) j.el.value = F.joker;
     }
   });
@@ -219,7 +223,7 @@ export function bvRow(i, cls) {
     const kk = `bv${i}_${j + 1}`;
     F[kk] = x == null ? '' : String(Math.round(x));
     if (ST.AUTO) ST.MANK.add(kk);
-    const e = FD.find(z => z.k == kk);
+    const e = dEl(kk);
     if (e && e.el) e.el.value = F[kk];
   });
 }
@@ -236,11 +240,15 @@ export function setField(k, v, from) {
   }
   if (ST.AUTO) {
     ST.MANK.add(k);
-    if (k == 'ab0_4') ST.MANK.add('atis');
+    if (k == 'ab0_4') {
+      ST.MANK.add('atis');
+      ST.MANK.add('matis');
+    }
   }
   if (k == 'ab0_4' && wxAt(F.__dep && F.__dep[3]) && F.__dep) {
     F.atis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + (F.__taf ? '\n' + F.__taf : '');
-    const ea = FD.find(z => z.k == 'atis');
+    F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
+    const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
   }
   const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
@@ -328,7 +336,7 @@ export function buildForm() {
       lab.textContent = d.lab;
       const i = CYC[d.k]
         ? document.createElement('select')
-        : ML.includes(d.k) || d.k == 'atis'
+        : ML.includes(d.k) || d.k == 'atis' || d.multi
           ? document.createElement('textarea')
           : document.createElement('input');
       if (i.tagName == 'TEXTAREA') i.rows = d.k == 'atis' ? 2 : 4;

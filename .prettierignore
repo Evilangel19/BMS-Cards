@@ -7,3 +7,4 @@ app/js/data/local
 tests/fixtures
 tests/golden
 legacy
+app/js/data/mdcgeom.js

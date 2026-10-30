@@ -1,7 +1,7 @@
 import { SHOT, LAYOUT, paintBlank } from '../core/cardlayout.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
-import { F, FD, LOAD, ML, abTok, shortW, tpl } from './datacard.js';
+import { F, FD, XD, LOAD, ML, abTok, shortW, tpl } from './datacard.js';
 import { $ } from './base.js';
 import { apply, discardOk, manClear } from './selection.js';
 
@@ -224,8 +224,9 @@ export const blank = () => {
   }
   return BLK;
 };
-export const LEFTK =
-  /^(ews\d|wp\d_mode|atis|ab\d_0|fl\d_[03]|pk\d_[016]|su\d_0|sn\d|pri|sec|d1|d2|ll1|ll2|airsp|srv|ps\d|dl\d_(fl|tm|dn))$/;
+// the cells of the MDC format whose text is centred (numbers, times, frequencies, codes); the others are written from the left
+export const CENTERK =
+  /^(step|start|chkin|taxi|to_time|ld_time|aux|tk_\w+|m[1-4]|d1|joker|bingo|ps\d|nav\d_\d|fl\d_[12fios5]|fp\d+_(st|1|2|3|5|6|10|11)|dl\d_\w+|rc\d_[1-7]|gw|drag|rot|tospec|cfg_\w+|ref|t\d_[0-3]|u\d_[0-3])$/;
 export function mdcDraw(x) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   x.fillStyle = '#fff';
@@ -237,7 +238,7 @@ export function mdcDraw(x) {
   x.textAlign = 'left';
   MFD.forEach(d => {
     const v = F[d.k];
-    if (!v) return;
+    if (!v || (v === '---' && /^fl\d_/.test(d.k))) return;
     x.fillStyle = d.red ? '#c00000' : '#000';
     if (LOAD.includes(d.k)) {
       drawLoad(x, v, d);
@@ -276,16 +277,13 @@ export function mdcDraw(x) {
       x.fillStyle = '#000';
       return;
     }
-    const left = LEFTK.test(d.k) || d.inl,
-      x0 = d.x + (d.inl ? 24 : 4),
-      W = d.w - (d.inl ? 28 : 8);
+    const left = !CENTERK.test(d.k),
+      x0 = d.x + 4,
+      W = d.w - 8,
+      mx = Math.max(9, Math.min(15, d.h - 4));
     x.textAlign = left ? 'left' : 'center';
     let t = v,
-      fs = fitF(x, t, W, 15, 9);
-    if (/^fl\d_3$/.test(d.k) && x.measureText(t).width > W) {
-      t = v.split(/\s+/)[0];
-      fs = fitF(x, t, W, 15, 9);
-    }
+      fs = fitF(x, t, W, mx, 7);
     x.textBaseline = 'alphabetic';
     let yy = vy(d, fs);
     if (!/[A-Z0-9]/.test(t)) {
@@ -298,7 +296,12 @@ export function mdcDraw(x) {
     x.fillStyle = '#000';
   });
   if (ST.MAPSHOT) {
-    x.drawImage(ST.MAPSHOT, MSHOT[0], MSHOT[1], MSHOT[2], MSHOT[3]);
+    // the picture fills the box of the MDC without being stretched (a screenshot taken for the other card format is cut at the sides)
+    const im = ST.MAPSHOT,
+      k = Math.max(MSHOT[2] / im.width, MSHOT[3] / im.height),
+      sw = MSHOT[2] / k,
+      sh = MSHOT[3] / k;
+    x.drawImage(im, (im.width - sw) / 2, (im.height - sh) / 2, sw, sh, MSHOT[0], MSHOT[1], MSHOT[2], MSHOT[3]);
   }
   x.setTransform(1, 0, 0, 1, 0, 0);
 }
@@ -476,7 +479,7 @@ function draw0() {
   }
 }
 export function gapless() {
-  const cut = ST.MDCON ? [1010, 1103] : [1012, 1040],
+  const cut = ST.MDCON ? [1002, 1041] : [1012, 1040],
     c = $('cv'),
     o = document.createElement('canvas');
   o.width = o.height = 2048;
@@ -633,44 +636,28 @@ export async function init5() {
     ST.MDCON = localStorage.getItem('bmsmdc') === '1';
   } catch (e) {}
   {
-    const GR = k =>
-        /^(step|start|chkin|taxi|to_time|ld_time|aux|airsp|tk_\w+|m[1-4])$/.test(k)
-          ? 'Mission'
-          : /^ps\d$/.test(k)
-            ? 'Audio presets'
-            : /^nav/.test(k)
-              ? 'NAV'
-              : /^dl\d_/.test(k)
-                ? 'Data link'
-                : k == 'srv'
-                  ? 'Server'
-                  : k == 'contracts'
-                    ? 'Free text'
-                    : 'Other',
-      META = {};
-    FD.forEach(d => (META[d.k] = d));
     const kx = 1600 / LAYOUT.w,
-      ky = 1200 / LAYOUT.h;
+      ky = 1200 / LAYOUT.h,
+      inFD = new Set(FD.map(d => d.k));
     LAYOUT.fields.forEach(f => {
       if (f.img) return;
-      const m = META[f.k],
-        [x0, y0, x1, y1] = f.r,
+      const [x0, y0, x1, y1] = f.r,
         h = y1 - y0;
       MFD.push({
         k: f.k,
-        lab: m ? m.lab : f.lab,
-        grp: m ? m.grp : GR(f.k),
+        lab: f.lab,
+        grp: f.grp,
         x: x0 * kx,
         w: (x1 - x0) * kx,
         y0: y0 * ky,
         h: h * ky,
-        y: (f.lt ? y0 + (h + 9) / 2 : y0 + h / 2) * ky,
+        y: (y0 + h / 2) * ky,
         multi: f.multi,
-        lt: f.lt,
-        inl: f.inl,
         red: f.red,
         mdc: 1,
       });
+      // the cells that only the MDC has: they are cleared and kept per flight like the fields of the datacard
+      if (!inFD.has(f.k) && !XD.includes(f.k)) XD.push(f.k);
     });
   }
   ST.OVR = new Map();

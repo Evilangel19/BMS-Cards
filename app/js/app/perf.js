@@ -4,7 +4,7 @@ import { runwayLengths, parseRunways, describeRunways } from '../bmsdata/runways
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
 import { ST } from './state.js';
-import { F, FD, MIR, TOPOWER, pushOne } from './datacard.js';
+import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
 import { pfPage } from './pages.js';
 import { wxAt, wxWind } from './campaign.js';
@@ -201,7 +201,7 @@ export async function perfFill(i) {
     v = v == null ? '' : String(v);
     F[key] = v;
     ST.AUTO[key] = v;
-    const d = FD.find(z => z.k == key);
+    const d = dEl(key);
     if (d && d.el) d.el.value = v;
     if (MIR[key] && ST.DCS[MIR[key].grp] && lines.length) pushOne(key);
   };

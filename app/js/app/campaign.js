@@ -7,7 +7,7 @@ import { parseIff } from '../parsers/iff.js';
 import { parseTwx } from '../parsers/twx.js';
 import { ST } from './state.js';
 import { $, esc, jp, rememberLast } from './base.js';
-import { F, FD, MIR, pushOne } from './datacard.js';
+import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
 import { lines } from './dtcfile.js';
 import { mapV } from './pages.js';
@@ -96,7 +96,10 @@ export function wxApply(i, set) {
   const taf = wt ? CAM.tafText(ST.C, wt, f) : '';
   set('__taf', taf);
   const wd = wxAt(d && d[3]);
-  if (wd && d) set('atis', CAM.atisText(wd, d, F.ab0_4) + (taf ? '\n' + taf : ''));
+  if (wd && d) {
+    set('atis', CAM.atisText(wd, d, F.ab0_4) + (taf ? '\n' + taf : ''));
+    set('matis', CAM.atisText(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only
+  }
   (F.__ab || []).forEach((o, j) => {
     if (!o) return;
     const w = wxAt(j == 0 && d ? d[3] : landMs(f)),
@@ -120,7 +123,7 @@ export async function wxPrep(i) {
     if (ST.MANK.has(key)) return;
     F[key] = v;
     ST.AUTO[key] = v;
-    const e = FD.find(z => z.k == key);
+    const e = dEl(key);
     if (e && e.el) e.el.value = v;
     if (MIR[key] && ST.DCS[MIR[key].grp] && lines.length) pushOne(key);
   });
@@ -182,7 +185,7 @@ export function wxFill() {
     ST.MANK.delete(key);
     F[key] = v;
     if (ST.AUTO) ST.AUTO[key] = v;
-    const e = FD.find(z => z.k == key);
+    const e = dEl(key);
     if (e && e.el) e.el.value = v;
     if (MIR[key] && ST.DCS[MIR[key].grp] && lines.length) pushOne(key);
   });

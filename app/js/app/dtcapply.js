@@ -1,4 +1,5 @@
 import { navRow } from '../core/weaponspage.js';
+import { mdcAuto } from './mdcfill.js';
 import { CAM } from '../core/cam-core.js';
 import { dtcKey, dtcValue, dtcEmpty } from '../core/mapdtc.js';
 import { ST } from './state.js';
@@ -190,25 +191,38 @@ function applyDTC0(fl) {
       bs = [4, 24, 44].find(b => yy2 >= b && yy2 - b < 20),
       st2 = P && P.M2Setting !== undefined ? P.M2Setting : 0;
     const c3 = atAbs(tot, 'Mode3A Code');
+    const m2of = i => {
+      if (!(+g('IFF', 'Mode2 On') && a2)) return '';
+      if (st2 == 0) {
+        if (bs !== undefined && Math.floor((yy2 - bs) / 4) == fi)
+          return ((xx << 6) | (bs + fi * 4 + i)).toString(8).padStart(4, '0');
+      } else if (st2 == 1) return String(g('IFF', 'Mode2 Code')).padStart(4, '0');
+      return '';
+    };
+    const m3of = i => {
+      if (!c3) return '';
+      const o3 = parseInt(c3, 8),
+        y3 = o3 & 63,
+        x3 = o3 >> 6,
+        b3 = [4, 24, 44].find(b => y3 >= b && y3 - b < 20),
+        s3 = P && P.M3Setting !== undefined ? P.M3Setting : 0;
+      if (s3 == 0) {
+        if (b3 !== undefined && Math.floor((y3 - b3) / 4) == fi)
+          return ((x3 << 6) | (b3 + fi * 4 + i)).toString(8).padStart(4, '0');
+      } else if (s3 == 1) return c3.padStart(4, '0');
+      return '';
+    };
+    // the IFF cells of the MDC format (M1..M4) are the ones of the lead
+    F.m1 = +g('IFF', 'Mode1 On') ? atAbs(tot, 'Mode1 Code') : '';
+    F.m2 = m2of(0);
+    F.m3 = m3of(0);
+    F.m4 = K;
     for (let i = 0; i < CAM.nAcf(fl); i++) {
-      let m2 = '';
-      if (+g('IFF', 'Mode2 On') && a2) {
-        if (st2 == 0) {
-          if (bs !== undefined && Math.floor((yy2 - bs) / 4) == fi)
-            m2 = ((xx << 6) | (bs + fi * 4 + i)).toString(8).padStart(4, '0');
-        } else if (st2 == 1) m2 = String(g('IFF', 'Mode2 Code')).padStart(4, '0');
-      }
+      let m2 = m2of(i);
       if (m2) m2 = '2 ' + m2;
-      else if (c3) {
-        const o3 = parseInt(c3, 8),
-          y3 = o3 & 63,
-          x3 = o3 >> 6,
-          b3 = [4, 24, 44].find(b => y3 >= b && y3 - b < 20),
-          s3 = P && P.M3Setting !== undefined ? P.M3Setting : 0;
-        if (s3 == 0) {
-          if (b3 !== undefined && Math.floor((y3 - b3) / 4) == fi)
-            m2 = '3 ' + ((x3 << 6) | (b3 + fi * 4 + i)).toString(8).padStart(4, '0');
-        } else if (s3 == 1) m2 = '3 ' + c3.padStart(4, '0');
+      else {
+        const v3 = m3of(i);
+        if (v3) m2 = '3 ' + v3;
       }
       const tx = [m2, K].filter(Boolean).join(' ');
       if (tx) F['fl' + i + '_6'] = tx;
@@ -330,6 +344,7 @@ export function afterDtc(k, fromPage) {
         F[lk] = '';
       }
     });
+    mdcAuto();
     draw();
   }
 }

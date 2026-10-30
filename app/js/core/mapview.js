@@ -3635,7 +3635,7 @@ export function createMap(host, deps) {
     const fi = $('mpfi');
     const W = host.clientWidth,
       H = host.clientHeight,
-      ar = SHOTS[shotK].w / SHOTS[shotK].h,
+      ar = shotDim().w / shotDim().h,
       a = (shotAng * Math.PI) / 180,
       c = Math.abs(Math.cos(a)),
       sn = Math.abs(Math.sin(a));
@@ -3658,6 +3658,8 @@ export function createMap(host, deps) {
     fi.style.top = (BH - h) / 2 + 'px';
     fi.style.transform = `rotate(${shotAng}deg)`;
   }
+  // size of the picture of the screenshot: the free space of the datacard (the MDC format has a box of another shape)
+  const shotDim = () => (shotK == 'dc' && deps.mdcShot && deps.mdcShot()) || SHOTS[shotK];
   let shotAng = 0; // the frame is turned by this angle (degrees, clockwise): the picture is straightened into the card
   const onKey = e => {
     if (e.key == 'Escape') shotStop();
@@ -3743,7 +3745,7 @@ export function createMap(host, deps) {
           y: fb.top - mb.top,
           width: fw,
           height: fh,
-          scale: SHOTS[shotK].out / cw,
+          scale: shotDim().out / cw,
           useCORS: true,
           logging: false,
           backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
@@ -3769,7 +3771,12 @@ export function createMap(host, deps) {
             });
           },
         });
-      const to = shotK == 'kb' ? 'the kneeboard cards' : 'the datacard (page 2, bottom left)';
+      const to =
+        shotK == 'kb'
+          ? 'the kneeboard cards'
+          : deps.mdcShot && deps.mdcShot()
+            ? 'the datacard (MDC format, the big white box)'
+            : 'the datacard (page 2, bottom left)';
       let c,
         warn = '';
       // html2canvas leaves a picture it cannot read (cross-origin) blank without any error, so it is checked first
@@ -3805,8 +3812,8 @@ export function createMap(host, deps) {
       }
       if (shotAng && c) {
         // straighten: turn the picture back by the angle of the frame and keep the middle, of the proportions of the card
-        const ow = SHOTS[shotK].out,
-          oh = Math.round((ow * SHOTS[shotK].h) / SHOTS[shotK].w),
+        const ow = shotDim().out,
+          oh = Math.round((ow * shotDim().h) / shotDim().w),
           r = document.createElement('canvas');
         r.width = ow;
         r.height = oh;

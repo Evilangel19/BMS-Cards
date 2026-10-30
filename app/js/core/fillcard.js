@@ -18,6 +18,7 @@ import {
   tcnStr,
 } from './flight.js';
 import { tcnFor } from '../rules/airbase.js';
+import { geoLL } from '../rules/geo.js';
 import { pickTankers, svc } from '../rules/support.js';
 import { ephem } from '../rules/ephemerides.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
@@ -41,6 +42,7 @@ function fillCard(C, f, ld = 0) {
       C.D.el[o[0]] || '',
       '',
       a[7] ? (a[7] / 100).toFixed(2) : '',
+      f3(a[5]), // 7: tower (only the MDC format uses it, for its audio presets)
     ].forEach((v, j) => (F[`ab${i}_${j}`] = v));
   };
   const tk = w.find(p => p.act == 1),
@@ -100,7 +102,8 @@ function fillCard(C, f, ld = 0) {
   const P = C.byId[f.pkg.n + ':' + f.pkg.c],
     els = ((P && P.els) || []).map(e => C.byId[e.n + ':' + e.c]).filter(Boolean);
   els.slice(0, 5).forEach((e, i) => {
-    const n = nAcf(e);
+    const n = nAcf(e),
+      sv0 = svc(C, e);
     [
       csOf(C, e),
       `${n} ${acOf(C, e)}`,
@@ -109,11 +112,21 @@ function fillCard(C, f, ld = 0) {
       '',
       12 + i + 'Y',
       S[300 + e.omis] || '',
+      (sv0 && sv0.tm) || '', // 7: time on target of the element (only the MDC format shows it)
     ].forEach((v, j) => (F[`pk${i}_${j}`] = v));
   });
   w.forEach((p, i) => {
     if (i > 23) return;
     F[`fp${i}_0`] = actName(w, i, S[300 + f.omis] || '');
+    if (i < 15) {
+      // the MDC format: steerpoint number, position and leg time
+      F[`fp${i}_st`] = String(i + 1);
+      const m = /^([NS].*?')\s+([EW].*)$/.exec(geoLL(C, p.x, p.y));
+      if (m) {
+        F[`fp${i}_8`] = m[1];
+        F[`fp${i}_9`] = m[2];
+      }
+    }
     if (nAc > 1 && p.act != 4) {
       F[`fp${i}_7`] =
         p.act == 7
@@ -140,6 +153,10 @@ function fillCard(C, f, ld = 0) {
       F[`fp${i}_3`] = nm.toFixed(1);
       const dt = (p.arr - (q.dep || q.arr)) / 1000;
       if (dt > 0 && q.arr) {
+        if (i < 15) {
+          const q2 = Math.round(dt);
+          F[`fp${i}_10`] = String(Math.floor(q2 / 60)).padStart(2, '0') + ':' + String(q2 % 60).padStart(2, '0');
+        }
         const gs = Math.round(((nm / dt) * 3600) / 5) * 5;
         F[`fp${i}_4`] = `${Number(mach(gs, az).toFixed(2)).toString().replace(/^0\./, '.')} / ${gs}`;
       }

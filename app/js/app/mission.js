@@ -16,7 +16,7 @@ import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { $, IO, appToast, enc8, esc, jclone } from './base.js';
 import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
-import { F, FD } from './datacard.js';
+import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
 import { harmPage, mapV, pfPage, sqPage } from './pages.js';
 import { loadImg } from './cardview.js';
@@ -150,15 +150,11 @@ export async function msfBuild() {
   msfCardKeys().forEach(k => {
     final[k] = typeof F[k] == 'number' ? String(F[k]) : F[k]; // numbers (airfield elevations) travel as text like the other fields
   });
-  FD.forEach(d => {
-    const a = ST.AUTO && ST.AUTO[d.k];
-    auto[d.k] = a || a === 0 ? String(a) : '';
+  [...FD.map(d => d.k), ...XD].forEach(k => {
+    const a = ST.AUTO && ST.AUTO[k];
+    auto[k] = a || a === 0 ? String(a) : '';
   });
-  const manual = PJ.diffFields(
-    ST.AUTO || {},
-    F,
-    FD.map(d => d.k)
-  );
+  const manual = PJ.diffFields(ST.AUTO || {}, F, [...FD.map(d => d.k), ...XD]);
   let aircraft = null;
   try {
     const an = ST.C.D.ac[x.f.c.i],

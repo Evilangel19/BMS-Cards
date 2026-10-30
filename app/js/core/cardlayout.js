@@ -1,585 +1,340 @@
-// The card (Datacard + mission data card), drawn entirely in code: nothing of it is an image. Space 1584 x 1224 (the frame of the original MDC), two pages side by side.
-// The parts taken from the MDC (top block, M1-M4, audio presets, NAV, data link, fence in, in-flight report) keep the sizes of the original.
-const NAVY = '#1c2b4a',
-  INK = '#46556e',
-  BAND = '#fdf0c4',
-  LBL = '#e3e8ef',
-  TXT = '#34445e';
-const RH = 19.4,
-  BH = 19.6; // row pitch and header bar height of the original
+// The MDC format of the card, drawn entirely in code from the measures of the blank MDC (js/data/mdcgeom.js: the cells of the original blank, used with the
+// permission of its author, see CREDITS.md). Space 2048 x 2048 = the kneeboard picture of the game; the two pages sit side by side like in the original.
+// Every empty cell of the blank is a field that can be written by hand; the cells named below are also filled by the program (see core/mdcfill.js and the
+// autofill of the datacard). Nothing of the original is stored as an image.
+import GEO from '../data/mdcgeom.js';
+
+const W = 2048;
+const FS = 1.48; // point size of the sheet -> pixels of the picture
+const HX = 0.93; // the picture of the game is squeezed in width (same as the original): the texts are too
+const BW = [0, 2, 3, 5]; // thin, medium, thick border -> line width in pixels
+
+const colOf = a => {
+  let n = 0;
+  for (const ch of a.match(/^[A-Z]+/)[0]) n = n * 26 + ch.charCodeAt(0) - 64;
+  return n;
+};
+const rowOf = a => +a.match(/\d+$/)[0];
+const dark = f => !!f && parseInt(f.slice(1, 3), 16) + parseInt(f.slice(3, 5), 16) + parseInt(f.slice(5, 7), 16) < 330;
 
 export function buildLayout() {
-  const S = [],
-    F = [];
-  const bar = (x, y, w, text, h = BH) => S.push({ t: 'bar', r: [x, y, x + w, y + h], text });
-  const cell = (x, y, w, h, o = {}) => {
-    S.push({
-      t: 'cell',
-      r: [x, y, x + w, y + h],
-      fill: o.fill || '#fff',
-      lab: o.lab || '',
-      big: o.big,
-      txt: o.txt,
-      hint: o.hint,
-      white: o.white,
-      inl: o.inl,
-      red: o.red,
-    });
-    if (o.k)
-      F.push({
-        k: o.k,
-        lab: o.fl || o.lab || o.k,
-        r: [x, y, x + w, y + h],
-        multi: o.multi,
-        img: o.img,
-        lt: o.lt,
-        inl: o.inl,
-        red: o.red,
-      });
+  const shapes = GEO.map(g => ({
+    a: g[0],
+    r: [g[1], g[2], g[3], g[4]],
+    fill: g[5],
+    b: [g[6], g[7], g[8], g[9]],
+    t: g[10],
+    sz: g[11],
+    bold: !!g[12],
+    it: !!g[13],
+    ha: g[14],
+    va: g[15],
+    wrap: !!g[16],
+    rot: g[17],
+    col: g[18],
+  }));
+  const BY = new Map(shapes.map(s => [s.a, s]));
+  const F = [],
+    used = new Set();
+  const cell = a => {
+    const s = BY.get(a);
+    if (!s) throw new Error('MDC layout: no cell ' + a);
+    return s;
   };
-  const row = (x, y, ws, items, h = RH, fill = '#fff') => {
-    let cx = x;
-    ws.forEach((w, i) => {
-      const it = items[i];
-      if (it == null || it === '') cell(cx, y, w, h, { fill });
-      else if (typeof it == 'string') cell(cx, y, w, h, { fill: LBL, lab: it });
-      else cell(cx, y, w, h, { fill: it.fill || fill, ...it });
-      cx += w;
-    });
+  const rect = (a, b) => {
+    const p = cell(a).r,
+      q = cell(b || a).r;
+    return [Math.min(p[0], q[0]), Math.min(p[1], q[1]), Math.max(p[2], q[2]), Math.max(p[3], q[3])];
   };
-  const hdr = (x, y, segs, h = BH) => {
-    let cx = x;
-    segs.forEach(s => {
-      bar(cx, y, s[0], s[1], h);
-      cx += s[0];
-    });
+  const field = (a, k, lab, grp, o = {}) => {
+    const r = o.r || rect(a, o.to);
+    if (o.use !== false) (o.all || [a]).forEach(x => used.add(x));
+    F.push({ k, lab, grp, r, multi: o.multi, red: o.red, img: o.img, center: o.center });
   };
-  const band = i => (i % 2 ? BAND : '#fff');
-  // cells with the label in the top-left corner; xs = column boundaries
-  const lrow = (xs, y, h, items) =>
-    items.forEach((it, i) => {
-      if (it)
-        cell(xs[i], y, xs[i + 1] - xs[i], h, { lab: it.lab, k: it.k, fl: it.fl, multi: it.multi, lt: 1, red: it.red });
-    });
+  const L = (c, r) => {
+    // column letters of an index
+    let s = '';
+    for (let n = c; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+    return s + r;
+  };
 
-  // ================================================================ PAGE 1  x 26..779
-  const L = 26,
-    W = 753;
-  bar(L, 8, W, 'DATACARD  ·  PAGE 1', 19);
-  lrow([26, 172.8, 252.9, 337.2, 425.5, 513.8, 624.2, 734.7, 779], 27, 35, [
-    { lab: 'CALLSIGN', k: 'cs' },
-    { lab: 'STEP', k: 'step' },
-    { lab: 'START', k: 'start' },
-    { lab: 'CHECK IN', k: 'chkin' },
-    { lab: 'TAXI', k: 'taxi' },
-    { lab: 'TAKEOFF', k: 'to_time' },
-    { lab: 'LAND', k: 'ld_time' },
-    { lab: 'AUX', k: 'aux' },
-  ]);
-  lrow([26, 132.7, 252.9, 381.4, 447.6, 491.8, 535.9, 646.3, 779], 62, 39, [
-    { lab: 'MSN #', k: 'pkg' },
-    { lab: 'TANKER', k: 'su0_0' },
-    { lab: 'TRACK / ARCT', k: 'su0_3' },
-    { lab: 'TCN / MC', k: 'su0_1' },
-    { lab: 'ALT', k: 'tk_alt' },
-    { lab: 'OFF', k: 'tk_off' },
-    { lab: 'TANK J/B', k: 'tk_jb' },
-    { lab: 'BOOM / FREQ', k: 'su0_2' },
-  ]);
-  lrow([26, 447.6, 624.2], 101, 39, [
-    { lab: 'AIRSPACE / TGT', k: 'airsp' },
-    { lab: 'ATIS', k: 'atis', multi: 1 },
-  ]);
-  lrow([26, 92.7, 172.8, 252.9, 293.1, 491.8, 558, 624.2], 140, 38.6, [
-    { lab: 'M1', k: 'm1' },
-    { lab: 'M2', k: 'm2' },
-    { lab: 'M3', k: 'm3' },
-    { lab: 'M4', k: 'm4' },
-    { lab: 'TOT / VUL', k: 'd1' },
-    { lab: 'JOKER', k: 'joker' },
-    { lab: 'BINGO', k: 'bingo', red: 1 },
-  ]);
-  // audio presets (right column, from y 101)
-  const PX = [624.2, 668.4, 712.5, 778.8];
-  hdr(
-    PX[0],
-    101,
-    [
-      [PX[1] - PX[0], 'PRI'],
-      [PX[2] - PX[1], 'FREQ'],
-      [PX[3] - PX[2], 'AGENCY'],
-    ],
-    RH
-  );
-  [
-    ['1', 'OPS'],
-    ['2', 'GND'],
-    ['3', 'TWR'],
-    ['4', 'DEP/APR'],
-    ['5', 'CHKN'],
-    ['6', 'C2/TAC'],
-    ['13', 'TNKR'],
-    ['10', 'ALT A'],
-    ['11', 'ALT T'],
-    ['12', 'ALT G'],
-  ].forEach((p, i) =>
-    row(
-      PX[0],
-      101 + RH + i * RH,
-      [PX[1] - PX[0], PX[2] - PX[1], PX[3] - PX[2]],
-      [
-        { fill: LBL, lab: p[0], big: 1 },
-        { k: `ps${i}`, fl: 'Preset ' + p[0] + ' ' + p[1] },
-        { fill: LBL, lab: p[1], big: 1 },
-      ],
-      RH
-    )
-  );
-  // NAV (original block under the presets): header 1 2 3, two rows
-  const NY0 = 101 + 11 * RH + 1;
-  [
-    ['NAV', 624.2, 22.8],
-    ['1', 647, 44],
-    ['2', 691, 44],
-    ['3', 735, 44],
-  ].forEach(c => bar(c[1], NY0, c[2], c[0], 19.6));
-  [0, 1].forEach(i =>
-    row(
-      647,
-      NY0 + 19.6 + i * RH,
-      [44, 44, 44],
-      [0, 1, 2].map(j => ({ k: `nav${i}_${j}`, fl: `NAV ${i + 1}.${j + 1}` })),
-      RH
-    )
-  );
-  cell(624.2, NY0 + 19.6, 22.8, 2 * RH, { fill: NAVY });
-  // flight (left, width 598.6) and package
-  const FWs = [54, 170, 60, 60, 72, 91, 91.6],
-    FY0 = 179;
-  hdr(L, FY0, [
-    [54, 'POS'],
-    [170, 'NAME'],
-    [60, 'IDM'],
-    [60, 'TCN'],
-    [72, 'LINK 16'],
-    [91, 'CONF-LSR'],
-    [91.6, 'IFF 2/3 · 4'],
-  ]);
-  ['1 LEAD', '2 WING', '3 ELEMENT', '4 WING'].forEach((p, i) =>
-    row(
-      L,
-      FY0 + BH + i * RH,
-      FWs,
-      [
-        p,
-        { k: `fl${i}_0` },
-        { k: `fl${i}_1` },
-        { k: `fl${i}_2` },
-        { k: `fl${i}_3` },
-        { k: `fl${i}_5` },
-        { k: `fl${i}_6` },
-      ],
-      RH,
-      band(i)
-    )
-  );
-  const PKY = FY0 + BH + 4 * RH + 5;
-  hdr(L, PKY, [
-    [170, 'CALLSIGN PACK'],
-    [98, 'AIRCRAFT'],
-    [62, 'UHF'],
-    [62, 'VHF'],
-    [58, 'STN'],
-    [58, 'TCN'],
-    [90.6, 'TASK'],
-  ]);
-  for (let i = 0; i < 5; i++)
-    row(
-      L,
-      PKY + BH + i * RH,
-      [170, 98, 62, 62, 58, 58, 90.6],
-      [0, 1, 2, 3, 4, 5, 6].map(j => ({ k: `pk${i}_${j}` })),
-      RH,
-      band(i)
-    );
-  // airbase
-  const AY = Math.max(PKY + BH + 5 * RH, NY0 + 19.6 + 2 * RH) + 6;
-  hdr(L, AY, [
-    [56, 'AIRBASE'],
-    [184, 'NAME'],
-    [60, 'TCN'],
-    [80, 'GND'],
-    [80, 'APP'],
-    [70, 'ELEV'],
-    [90, 'RWY'],
-    [133, 'ILS'],
-  ]);
-  ['DEP', 'ARR', 'ALTN'].forEach((p, i) =>
-    row(
-      L,
-      AY + BH + i * RH,
-      [56, 184, 60, 80, 80, 70, 90, 133],
-      [p, ...[0, 1, 2, 3, 4, 5, 6].map(j => ({ k: `ab${i}_${j}` }))],
-      RH,
-      band(i)
-    )
-  );
-  // flight plan: 24 steerpoints
-  const FY = AY + BH + 3 * RH + 6;
-  hdr(L, FY, [
-    [44, 'STPT'],
-    [150, 'ACTION'],
-    [90, 'TOS'],
-    [60, 'HDG'],
-    [60, 'DIST'],
-    [80, 'MACH/GS'],
-    [80, 'ALT'],
-    [80, 'MIN FUEL'],
-    [109, 'FORMATION'],
-  ]);
-  for (let i = 0; i < 24; i++)
-    row(
-      L,
-      FY + BH + i * RH,
-      [44, 150, 90, 60, 60, 80, 80, 80, 109],
-      [String(i + 1), ...[0, 1, 2, 3, 4, 5, 6, 7].map(j => ({ k: `fp${i}_${j}` }))],
-      RH,
-      band(i)
-    );
-  // data link (columns of the original)
-  const DY = FY + BH + 24 * RH + 6,
-    DX = [26, 92.7, 172.8, 212.9, 252.9, 293.1, 337.2, 381.4, 447.6, 469.9, 535.9, 558.2, 624.2, 646.9, 778.8];
-  bar(L, DY, W, '', BH);
-  [
-    [26, 92.7, 'LINK'],
-    [92.7, 172.8, 'NDL'],
-    [172.8, 212.9, 'FC'],
-    [212.9, 252.9, 'MC'],
-    [252.9, 293.1, 'SC'],
-    [293.1, 337.2, 'XMIT'],
-    [337.2, 381.4, 'TIME'],
-    [381.4, 447.6, 'NTR'],
-    [447.6, 535.9, 'FLIGHT'],
-    [535.9, 624.2, 'TEAM'],
-    [624.2, 778.8, 'DONOR'],
-  ].forEach(c => S.push({ t: 'txt', r: [c[0], DY, c[1], DY + BH], text: c[2] }));
-  [0, 1].forEach(i => {
-    const y = DY + BH + i * RH,
-      k = n => `dl${i}_${n}`,
-      w = j => DX[j + 1] - DX[j];
-    cell(26, y, 66.7, RH, { fill: NAVY, lab: 'AB'[i], white: 1 });
-    [
-      [1, 'ndl'],
-      [2, 'fc'],
-      [3, 'mc'],
-      [4, 'sc'],
-    ].forEach(([j, n]) => cell(DX[j], y, w(j), RH, { k: k(n), fl: 'Link ' + n.toUpperCase() + ' ' + 'AB'[i] }));
-    [
-      [5, 'HI'],
-      [6, 'ON'],
-      [7, 'OFF'],
-    ].forEach(([j, t]) => cell(DX[j], y, w(j), RH, { fill: LBL, lab: t, big: 1 }));
-    [
-      [8, 'fl'],
-      [10, 'tm'],
-      [12, 'dn'],
-    ].forEach(([j, n]) => {
-      cell(DX[j], y, w(j), RH, { fill: NAVY });
-      const e = j == 12 ? 778.8 : DX[j + 2];
-      cell(DX[j + 1], y, e - DX[j + 1], RH, {
-        k: k(n),
-        fl: 'Link ' + { fl: 'flight', tm: 'team', dn: 'donor' }[n] + ' ' + 'AB'[i],
-      });
-    });
-  });
-  // notes, fence in, ephemerides, server ip
-  const NT = DY + BH + 2 * RH + 6,
-    FOOT = 1206 - 19.5,
-    EH = BH + 34,
-    EY = FOOT - 6 - EH;
-  hdr(
-    L,
-    NT,
-    [
-      [598.2, 'NOTES  /  AIRFIELD FREQUENCIES  /  BACKUP'],
-      [154.8, 'FENCE  IN'],
-    ],
-    BH
-  );
-  cell(L, NT + BH, 598.2, EY - 6 - NT - BH, { k: 'free', fl: 'Notes', multi: 1 });
-  const fence = [
-      'CH/FL, COMM, CAMERA',
-      'LINK, LIGHTS, NVG, ECM',
-      'SMS, HUD, HMCS, HSI, IFF',
-      'AIFF, EGI, RDR, RWR, TCN',
-      'TANK INERT, G-SUIT',
-    ],
-    fh = (FOOT - 6 - NT - BH) / 5;
-  fence.forEach((t, i) => cell(624.2, NT + BH + i * fh, 154.6, fh, { txt: t }));
-  bar(L, EY, 330, 'EPHEMERIDES  (SUN / MOON)', BH);
-  cell(L, EY + BH, 330, 34, { k: 'eph', fl: 'Ephemerides', multi: 1 });
-  row(
-    L,
-    FOOT,
-    [90, W - 90],
-    [
-      { fill: LBL, lab: 'SERVER IP:', big: 1 },
-      { k: 'srv', fl: 'Server IP' },
-    ],
-    19.5
-  );
-
-  // ================================================================ PAGE 2  x 854..1558
-  const R = 854,
-    W2 = 704;
-  bar(R, 8, W2, 'DATACARD  ·  PAGE 2', 19);
-  let y = 31;
-  row(
-    R,
-    y,
-    [70, 130, 70, 150, 70, 214],
-    ['CALLSIGN', { k: 'cs' }, 'PACKAGE', { k: 'pkg' }, 'MISSION', { k: 'mis' }],
-    RH
-  );
-  y += RH + 3;
-  bar(R, y, W2, 'LOADOUT  /  TAKE-OFF');
-  y += BH;
-  const LW = [58, 190, 78, 56, 78, 56, 78, 110];
-  [
-    ['A-A', 'aa', 'GROSS WGT', 'gw', 'ROTATION', 'rot', 'TO SPEC', 'tospec'],
-    ['A-G', 'ag', 'DRAG IDX', 'drag', 'REFUSAL', 'ref', 'TO FUEL', 'tof'],
-    ['ECM', 'ecm', 'ALOW', 'alow', 'MIL POWER', 'mp', 'SET FUEL', 'setf'],
-    ['TANKS', 'tanks', 'MSL', 'msl', 'MIL CLIMB', 'mc', 'FUEL', 'fuel'],
-  ].forEach(r => {
-    row(R, y, LW, [r[0], { k: r[1] }, r[2], { k: r[3] }, r[4], { k: r[5] }, r[6], { k: r[7] }], RH);
-    y += RH;
-  });
-  y += 3;
-  bar(R, y, W2, 'TARGET');
-  y += BH;
-  [
-    ['PRIMARY', 'pri', 'SECONDARY', 'sec'],
-    ['TOT', 'd1', 'TOT', 'd2'],
-    ['LAT / LONG', 'll1', 'LAT / LONG', 'll2'],
-  ].forEach(r => {
-    row(R, y, [76, 276, 76, 276], [r[0], { k: r[1] }, r[2], { k: r[3] }], RH);
-    y += RH;
-  });
-  y += 3;
-  bar(R, y, W2, 'EWS  THREAT  PROGRAMS');
-  y += BH;
-  row(
-    R,
-    y,
-    [54, 108.3, 108.3, 108.3, 108.3, 108.3, 108.5],
-    ['EWS', ...[0, 1, 2, 3, 4, 5].map(i => ({ k: `ews${i}`, lab: `${i + 1} =`, inl: 1 }))],
-    RH
-  );
-  y += RH;
-  y += 3;
-  hdr(R, y, [
-    [352, 'WEAPON  ·  PROFILE 1'],
-    [352, 'PROFILE 2'],
-  ]);
-  y += BH;
-  const pw = [58, 59, 58, 59, 58, 60];
-  const prof = (x, n) =>
-    [
-      [
-        ['MODE', 'mode'],
-        ['FUZE', 'fuze'],
-        ['SGL / PAIR', 'sgl'],
-      ],
-      [
-        ['AD', 'ad'],
-        ['RP', 'rp'],
-        ['BA', 'hb'],
-      ],
-      [
-        ['SPACING', 'spc'],
-        ['REL ANG', 'ang'],
-        ['B. CODE', 'bc'],
-      ],
-    ].forEach((r, i) =>
-      row(
-        x,
-        y + i * RH,
-        pw,
-        r.flatMap(p => [p[0], { k: `wp${n}_${p[1]}` }]),
-        RH
-      )
-    );
-  prof(R, 1);
-  prof(R + 352, 2);
-  y += 3 * RH;
-  y += 3;
-  bar(R, y, W2, 'DELIVERY');
-  y += BH;
-  const dy0 = y,
-    dw = [64, 84, 84, 84, 84];
-  row(R, y, dw, ['', 'VRP / VIP', 'PUP', 'OA 1', 'OA 2'], RH);
-  y += RH;
-  [
-    ['TBRG', 0],
-    ['RNG', 1],
-    ['ELV', 2],
-  ].forEach(r => {
-    row(R, y, dw, [r[0], { k: `dv${r[1]}` }, { k: `dp${r[1]}` }, { k: `oa${r[1]}` }, { k: `ob${r[1]}` }], RH);
-    y += RH;
-  });
-  row(R, y, [64, 132, 64, 132], ['MODE', { k: 'dmode' }, 'ATTACK', { k: 'dlab' }], RH);
-  y += RH;
-  [
-    ['PULL HDG', 'dl_ph', 'TGT IN HUD', 'dl_th'],
-    ['CLIMB', 'dl_cl', 'INGRESS ALT', 'dl_ia'],
-    ['PULL DOWN', 'dl_pd', 'INGRESS SPD', 'dl_is'],
-    ['TURN', 'dl_tn', 'REL HEIGHT', 'dl_rh'],
-    ['ATTACK HDG', 'dl_ah', 'REL SPD', 'dl_rs'],
-  ].forEach((r, i) => row(R + 400, dy0 + i * RH, [84, 52, 88, 80], [r[0], { k: r[1] }, r[2], { k: r[3] }], RH));
-  y += 3;
-  hdr(R, y, [
-    [66, 'SUPPORT'],
-    [138, 'TYPE'],
-    [66, 'TACAN'],
-    [66, 'UHF'],
-    [66, 'LOC'],
-    [302, 'NOTES / TIMES'],
-  ]);
-  y += BH;
-  ['TANKER 1', 'TANKER 2', 'AWACS', 'JSTAR', 'FAC'].forEach((p, i) => {
-    row(
-      R,
-      y,
-      [66, 138, 66, 66, 66, 302],
-      [p, { k: `su${i}_0` }, { k: `su${i}_1` }, { k: `su${i}_2` }, { k: `su${i}_3` }, { k: `sn${i}` }],
-      RH,
-      band(i)
-    );
-    y += RH;
-  });
-  // datacard screenshot box: the size of the one on the current Datacard (441 x 441), bottom left; BVR and ROE on its right
-  const SBY = 1070 - 6 - 441,
-    SBX = R,
-    BX = R + 441 + 6,
-    BW = W2 - 441 - 6;
-  bar(SBX, SBY - BH, 441, 'DATACARD  SCREENSHOT');
-  cell(SBX, SBY, 441, 441, { k: 'shot', fl: 'Screenshot', img: 1, hint: 'Map screenshot' });
-  const by = SBY - BH;
-  hdr(BX, by, [
-    [98, 'BVR  ·  CLASS'],
-    [32, 'MTR'],
-    [32, 'FR'],
-    [32, 'MAR'],
-    [32, 'DR'],
-    [32, 'DOR'],
-  ]);
-  [0, 1, 2, 3].forEach(i =>
-    row(
-      BX,
-      by + BH + i * RH,
-      [98, 32, 32, 32, 32, 32],
-      [{ k: `bv${i}_0` }, ...[1, 2, 3, 4, 5].map(j => ({ k: `bv${i}_${j}` }))],
-      RH,
-      band(i)
-    )
-  );
-  const ry = by + BH + 4 * RH + 6;
-  bar(BX, ry, BW, 'ROE');
-  cell(BX, ry + BH, BW, SBY + 441 - ry - BH, { k: 'roe', fl: 'ROE', multi: 1 });
-  // in-flight report block (original sizes): INFLT REP | EEI FORMAT | ON-SCENE CC | CONTRACTS
-  const IX = [854, 934, 1014.2, 1174.5, 1558];
-  hdr(
-    R,
-    1070,
-    [
-      [IX[1] - IX[0], 'INFLT REP'],
-      [IX[2] - IX[1], 'EEI FORMAT'],
-      [IX[3] - IX[2], 'ON-SCENE CC'],
-      [IX[4] - IX[3], 'CONTRACTS'],
-    ],
-    19.8
-  );
-  const T = [
-    ['1. Callsign', '2. Mission #', '3. Location', '4. TOT', '5. Results', '6. Remarks'],
-    ['1. Callsign', '2. Location', '3. Event', '4. Remarks', '', ''],
-    ['1. Authenticate', '2. Physical Condition', '3. Threats', '4. Location', '5. Pass data to AMC/relief', ''],
+  // ============================================================== PAGE 1
+  const top = [
+    ['A3', 'cs', 'Callsign'],
+    ['D3', 'step', 'Step'],
+    ['F3', 'start', 'Start'],
+    ['I3', 'chkin', 'Check in'],
+    ['M3', 'taxi', 'Taxi'],
+    ['Q3', 'to_time', 'Takeoff'],
+    ['V3', 'ld_time', 'Land'],
+    ['AA3', 'aux', 'Aux'],
+    ['A5', 'pkg', 'MSN #'],
+    ['C5', 'su0_0', 'Tanker'],
+    ['F5', 'su0_3', 'Track / ARCT'],
+    ['K5', 'su0_1', 'Tanker TCN / M3'],
+    ['N5', 'tk_alt', 'Tanker ALT'],
+    ['P5', 'tk_off', 'Tanker OFF'],
+    ['R5', 'tk_jb', 'Tanker J/B'],
+    ['W5', 'su0_2', 'Boom freq'],
+    ['A7', 'airsp', 'Airspace / TGT'],
+    ['A9', 'm1', 'M1 (IFF mode 1)'],
+    ['B9', 'm2', 'M2 (IFF mode 2)'],
+    ['D9', 'm3', 'M3 (IFF mode 3)'],
+    ['F9', 'm4', 'M4 (IFF mode 4)'],
+    ['G9', 'd1', 'TOT / VUL'],
   ];
-  for (let i = 0; i < 6; i++) {
-    const yy = 1090 + i * RH;
-    for (let c = 0; c < 3; c++) cell(IX[c], yy, IX[c + 1] - IX[c], RH, T[c][i] ? { txt: T[c][i] } : {});
+  top.forEach(([a, k, lab]) => field(a, k, lab, 'Mission'));
+  field('N7', 'matis', 'ATIS (METAR of the departure airbase)', 'Mission', { multi: 1 });
+  {
+    const r = cell('P9').r,
+      m = (r[0] + r[2]) / 2;
+    field('P9', 'joker', 'Joker', 'Mission', { r: [r[0], r[1], m, r[3]] });
+    field('P9', 'bingo', 'Bingo', 'Mission', { r: [m, r[1], r[2], r[3]], red: 1, use: false });
   }
-  cell(IX[3], 1090, IX[4] - IX[3], 6 * RH, { k: 'contracts', fl: 'Contracts', multi: 1 });
-  return { w: 1584, h: 1224, shapes: S, fields: F };
+  // audio presets: PRI / FREQ / AGENCY
+  ['1 OPS', '2 GND', '3 TWR', '4 DEP/APR', '5 CHKN', '6 C2/TAC', '13 TNKR', '10 ALT A', '11 ALT T', '12 ALT G'].forEach(
+    (p, i) => field('X' + (7 + i), `ps${i}`, 'Preset ' + p, 'Audio presets')
+  );
+  ['W18', 'Y18', 'AA18'].forEach((a, j) => field(a, `nav0_${j}`, 'NAV ' + (j + 1), 'NAV'));
+  // pilots (8 rows: the first four are the flight)
+  const PC = [
+    ['A', 'fl%_0', 'Pilot'],
+    ['D', 'fl%_c', 'Callsign'],
+    ['F', 'fl%_2', 'TCN'],
+    ['G', 'fl%_f', 'FCR'],
+    ['J', 'fl%_i', 'ID'],
+    ['K', 'fl%_1', 'IDM'],
+    ['M', 'fl%_o', 'OWN'],
+    ['O', 'fl%_s', 'STN'],
+    ['S', 'fl%_5', 'Laser (conf-lsr code)'],
+  ];
+  for (let r = 0; r < 8; r++)
+    PC.forEach(([c, k, lab]) => field(c + (11 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Pilots'));
+  // steerpoints (15 rows)
+  const SC = [
+    ['A', 'fp%_st', 'ST'],
+    ['B', 'fp%_0', 'Description'],
+    ['E', 'fp%_8', 'Lat'],
+    ['G', 'fp%_9', 'Long'],
+    ['K', 'fp%_5', 'Elev'],
+    ['N', 'fp%_1', 'TOS'],
+    ['R', 'fp%_10', 'Time'],
+    ['U', 'fp%_3', 'Dist'],
+    ['W', 'fp%_2', 'Hdg'],
+    ['Y', 'fp%_6', 'Fuel'],
+    ['AA', 'fp%_11', 'Cont'],
+  ];
+  for (let r = 0; r < 15; r++)
+    SC.forEach(([c, k, lab]) => field(c + (20 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Steerpoints'));
+  // second table: targets / points, two halves
+  const HA = [
+    ['A', 'ST'],
+    ['B', 'Lat'],
+    ['D', 'Long'],
+    ['F', 'Elev'],
+    ['H', 'Description'],
+  ];
+  const HB = [
+    ['M', 'ST'],
+    ['N', 'Lat'],
+    ['R', 'Long'],
+    ['V', 'Elev'],
+    ['X', 'Description'],
+  ];
+  for (let r = 0; r < 3; r++) {
+    HA.forEach(([c, lab], j) => field(c + (36 + r), `t${r}_${j}`, `Left ${lab} ${r + 1}`, 'Targets and points'));
+    HB.forEach(([c, lab], j) => field(c + (36 + r), `u${r}_${j}`, `Right ${lab} ${r + 1}`, 'Targets and points'));
+  }
+  // link
+  for (let i = 0; i < 2; i++) {
+    const y = 40 + i,
+      n = 'AB'[i];
+    [
+      ['B', 'ndl', 'NDL'],
+      ['D', 'fc', 'FC'],
+      ['E', 'mc', 'MC'],
+      ['F', 'sc', 'SC'],
+      ['O', 'fl', 'Flight'],
+      ['S', 'tm', 'Team'],
+      ['W', 'dn', 'Donor'],
+      ['Z', 'dn2', 'Donor 2'],
+    ].forEach(([c, k, lab]) => field(c + y, `dl${i}_${k}`, `${lab} (${n})`, 'Link'));
+  }
+  field('V43', 'ovw', 'Overview', 'Overview', {
+    to: 'V53',
+    multi: 1,
+    all: Array.from({ length: 11 }, (_, i) => 'V' + (43 + i)),
+  });
+  {
+    const all = [];
+    for (let r = 42; r <= 59; r++) for (let c = 1; c <= 21; c++) all.push(L(c, r));
+    const a = cell('A42').r,
+      z = cell('A59').r,
+      e = cell('U42').r;
+    field('A42', 'shot', 'Screenshot', 'Screenshot', { r: [a[0] + 3, a[1] + 3, e[2] - 2, z[3] - 3], img: 1, all });
+  }
+  [
+    ['E61', 'gw', 'GW'],
+    ['F61', 'drag', 'DI (drag index)'],
+    ['G61', 'rot', 'ROT'],
+    ['I61', 'tospec', 'TO'],
+    ['K61', 'cfg_dist', 'DIST'],
+    ['M61', 'ref', 'REF (D/W)'],
+    ['P61', 'cfg_ni', 'NRM / IMM'],
+    ['T61', 'cfg_nd', 'NRM / IMM DIST D/(W)'],
+  ].forEach(([a, k, lab]) => field(a, k, lab, 'Configuration'));
+  field('R62', 'srv', 'Server IP', 'Server', { to: 'Y62', all: 'RSTUVWXY'.split('').map(c => c + 62) });
+
+  // ============================================================== PAGE 2
+  const RC = [
+    ['AD', 'Callsign'],
+    ['AG', 'Aircraft'],
+    ['AH', 'Hold'],
+    ['AJ', 'Alt'],
+    ['AL', 'Freq'],
+    ['AN', 'Push'],
+    ['AP', 'Target'],
+    ['AS', 'TOT'],
+  ];
+  for (let r = 0; r < 10; r++)
+    RC.forEach(([c, lab], j) => field(c + (3 + 2 * r), `rc${r}_${j}`, `Roll call ${r + 1} ${lab}`, 'Roll call'));
+  // every other empty cell of the page: a field named after its address, labelled with the nearest heading above it
+  const heads = shapes.filter(s => s.t && colOf(s.a) >= 30);
+  const grpOf = s => {
+    const c = colOf(s.a),
+      r = rowOf(s.a);
+    if (r < 23) return 'Roll call';
+    if (r < 34) return c < 38 ? 'Known EOB' : 'AO update';
+    if (r < 50) return c < 35 ? 'Mission timeline' : c < 39 ? 'Airspace' : 'Mission codewords';
+    if (r < 56) return c < 39 ? 'Spins' : 'CSAR data';
+    return c < 38 ? 'In-flight report' : 'Contracts';
+  };
+  shapes.forEach(s => {
+    if (colOf(s.a) < 30 || s.t || used.has(s.a) || dark(s.fill) || s.r[2] - s.r[0] < 8) return;
+    const h = heads
+      .filter(q => q.r[3] <= s.r[1] + 3 && Math.min(q.r[2], s.r[2]) - Math.max(q.r[0], s.r[0]) > 6)
+      .sort((p, q) => q.r[3] - p.r[3])[0];
+    const hd = h ? h.t.replace(/\s+/g, ' ').trim() : '';
+    field(s.a, 'x' + s.a, `${hd || 'Cell'} ${s.a}`, grpOf(s), { multi: s.r[3] - s.r[1] > 80 ? 1 : 0 });
+  });
+  return { w: W, h: W, shapes, fields: F };
+}
+
+// the text of a cell, in the picture
+function paintText(x, s) {
+  if (!s.t || s.rot == 255) return;
+  const [a, b, c, d] = s.r,
+    fs = (s.sz || 10) * FS,
+    bg = s.fill && dark(s.fill);
+  x.fillStyle = s.col || (bg ? '#fff' : '#000');
+  const rot = s.rot == 90,
+    w = (rot ? d - b : c - a) - 6,
+    h = rot ? c - a : d - b;
+  x.save();
+  const mid = (a + c) / 2,
+    cy = (b + d) / 2;
+  if (rot) {
+    x.translate(mid, cy);
+    x.rotate(-Math.PI / 2);
+    x.scale(HX, 1);
+  } else x.translate(a + 3, b);
+  const font = k => `${s.bold ? 'bold ' : ''}${s.it ? 'italic ' : ''}${k}px Arial`;
+  let f = fs;
+  const lines = s.t.split('\n');
+  const fit = () => {
+    x.font = font(f);
+    return Math.max(...lines.map(t => x.measureText(t).width));
+  };
+  const avail = rot ? w : w / HX;
+  if (!s.wrap) while (f > 7 && fit() > avail) f -= 0.5;
+  x.font = font(f);
+  let out = lines;
+  if (s.wrap) {
+    out = [];
+    lines.forEach(t => {
+      let cur = '';
+      t.split(' ').forEach(wd => {
+        const q = cur ? cur + ' ' + wd : wd;
+        if (cur && x.measureText(q).width > avail) {
+          out.push(cur);
+          cur = wd;
+        } else cur = q;
+      });
+      out.push(cur);
+    });
+  }
+  const lh = f * 1.15,
+    th = out.length * lh;
+  const ha = s.ha || 'left',
+    va = s.va || 'bottom';
+  x.textBaseline = 'middle';
+  out.forEach((t, i) => {
+    const y0 = rot ? 0 : va == 'top' ? 2 : va == 'center' ? (h - th) / 2 : h - th - 2;
+    const yy = rot ? (i - (out.length - 1) / 2) * lh : y0 + lh * (i + 0.5);
+    const tw = x.measureText(t).width;
+    let xx;
+    if (rot) {
+      x.textAlign = 'center';
+      xx = 0;
+    } else if (ha == 'center' || ha == 'centerContinuous') {
+      x.textAlign = 'center';
+      xx = (c - a - 6) / (2 * HX);
+    } else if (ha == 'right') {
+      x.textAlign = 'right';
+      xx = (c - a - 6) / HX;
+    } else {
+      x.textAlign = 'left';
+      xx = 0;
+    }
+    if (!rot) {
+      x.save();
+      x.scale(HX, 1);
+      x.fillText(t, xx, yy);
+      x.restore();
+    } else x.fillText(t, xx, yy);
+    void tw;
+  });
+  x.restore();
 }
 
 export function paintBlank(x, lay) {
   x.fillStyle = '#fff';
   x.fillRect(0, 0, lay.w, lay.h);
   x.textBaseline = 'middle';
-  for (const s of lay.shapes) {
-    const [a, b, c, d] = s.r;
-    if (s.t == 'cell') {
+  lay.shapes.forEach(s => {
+    if (s.fill) {
       x.fillStyle = s.fill;
-      x.fillRect(a, b, c - a, d - b);
-      x.strokeStyle = INK;
-      x.lineWidth = 1;
-      x.strokeRect(a + 0.5, b + 0.5, c - a - 1, d - b - 1);
-      if (s.txt) {
-        x.fillStyle = TXT;
-        x.font = '11.5px Arial';
-        x.textAlign = 'left';
-        x.fillText(s.txt, a + 5, (b + d) / 2 + 1, c - a - 8);
-      }
-      if (s.hint) {
-        x.fillStyle = '#9aa7ba';
-        x.font = 'italic 14px Arial';
-        x.textAlign = 'center';
-        x.fillText(s.hint, (a + c) / 2, (b + d) / 2);
-      }
-      if (s.lab) {
-        x.fillStyle = s.white ? '#fff' : s.red ? '#c00000' : TXT;
-        if (s.big) {
-          x.font = '14px Arial';
-          x.textAlign = 'center';
-          x.fillText(s.lab, (a + c) / 2, (b + d) / 2 + 1);
-        } else if (s.white) {
-          x.font = 'bold 13px Arial';
-          x.textAlign = 'center';
-          x.fillText(s.lab, (a + c) / 2, (b + d) / 2);
-        } else if (s.inl) {
-          x.font = '11px Arial';
-          x.textAlign = 'left';
-          x.fillText(s.lab, a + 4, (b + d) / 2 + 1);
-        } else if (s.fill == LBL) {
-          x.font = '11.5px Arial';
-          x.textAlign = 'left';
-          x.fillText(s.lab, a + 4, (b + d) / 2 + 1, c - a - 6);
-        } else {
-          x.font = s.red ? 'bold 10px Arial' : '10px Arial';
-          x.textAlign = 'left';
-          x.fillText(s.lab, a + 3, b + 8, c - a - 4);
-        }
-      }
-    } else if (s.t == 'bar') {
-      x.fillStyle = NAVY;
-      x.fillRect(a, b, c - a, d - b);
-      x.fillStyle = '#fff';
-      x.font = 'bold 12px Arial';
-      x.textAlign = 'center';
-      x.fillText(s.text, (a + c) / 2, (b + d) / 2 + 1, c - a - 4);
-    } else if (s.t == 'txt') {
-      x.fillStyle = '#fff';
-      x.font = 'bold 12px Arial';
-      x.textAlign = 'center';
-      x.fillText(s.text, (a + c) / 2, (b + d) / 2 + 1, c - a - 4);
+      x.fillRect(s.r[0], s.r[1], s.r[2] - s.r[0], s.r[3] - s.r[1]);
     }
+  });
+  lay.shapes.forEach(s => paintText(x, s));
+  x.strokeStyle = '#000';
+  x.lineCap = 'butt';
+  lay.shapes.forEach(s => {
+    const [a, b, c, d] = s.r;
+    const seg = (i, x1, y1, x2, y2) => {
+      if (!s.b[i]) return;
+      x.lineWidth = BW[s.b[i]];
+      x.beginPath();
+      x.moveTo(x1, y1);
+      x.lineTo(x2, y2);
+      x.stroke();
+    };
+    seg(0, a, b, a, d);
+    seg(1, a, b, c, b);
+    seg(2, c, b, c, d);
+    seg(3, a, d, c, d);
+  });
+  // the "/" between Joker and Bingo (one cell of the blank)
+  const jb = lay.shapes.find(s => s.a == 'P9');
+  if (jb) {
+    x.fillStyle = '#000';
+    x.font = 'bold 22px Arial';
+    x.textAlign = 'center';
+    x.fillText('/', (jb.r[0] + jb.r[2]) / 2, (jb.r[1] + jb.r[3]) / 2 + 1);
   }
-  x.strokeStyle = NAVY;
-  x.lineWidth = 2;
-  x.strokeRect(25, 7, 755, 1199);
-  x.strokeRect(853, 7, 706, 1199);
 }
 
 export const LAYOUT = buildLayout();
-// the cell rectangles of the screenshot box (the map screenshot goes here)
+// the cell rectangle of the screenshot box (the map screenshot goes here)
 export const SHOT = LAYOUT.fields.find(f => f.img).r;

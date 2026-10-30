@@ -4,7 +4,8 @@ BMS Cards is a fan-made tool for Falcon BMS. It is not affiliated with or endors
 
 Inspiration and reference:
 - Weapon Delivery Planner (WDP) - original datacard planner and DDS reference.
-- Datacard blank (MDC, the Docs-folder blank template of Falcon BMS): layout redrawn by the program (app/js/core/dctemplate.js), no third-party image or PDF is included. The author of the original template, mirv, has given his permission to recreate, modify and distribute it.
+- Datacard blank (WDP card structure): layout redrawn by the program (app/js/core/dctemplate.js), no third-party image is included.
+- MDC blank (the blank mission data card of the Falcon BMS Docs folder): its author, mirv, has given his permission to recreate, modify and distribute it. The program redraws it in code (app/js/core/cardlayout.js) from the measures of its cells (app/js/data/mdcgeom.js, made by tools/mdc-geometry.py); neither the original file nor an image of it is included.
 - Open Frequency (UOAF) - layout and design inspiration.
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
@@ -39,4 +40,4 @@ Third-party code included:
 
 Airbase data: runway numbers and headings are read from the BMS ATC files, ILS frequencies and elevations from the BMS KTO AIP, always from the user's own installation at run time
 (the AIP forbids reproduction without permission of the BMS Docs team, so nothing of it is included).
-- MDC format: drawn by the program from its own layout (app/js/core/cardlayout.js); no third-party image or file is included or needed.
+- MDC format: drawn by the program from the measures of the blank MDC (see above); no third-party image or file is included or needed.

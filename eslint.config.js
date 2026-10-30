@@ -5,6 +5,7 @@ export default [
     ignores: [
       'app/vendor/**',
       'app/js/data/basemap.js',
+      'app/js/data/mdcgeom.js',
       'app/js/data/local/**',
       'src-tauri/**',
       'legacy/**',
