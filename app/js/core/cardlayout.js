@@ -49,7 +49,7 @@ export function buildLayout() {
   const field = (a, k, lab, grp, o = {}) => {
     const r = o.r || rect(a, o.to);
     if (o.use !== false) (o.all || [a]).forEach(x => used.add(x));
-    F.push({ k, lab, grp, r, multi: o.multi, red: o.red, img: o.img, center: o.center });
+    F.push({ k, lab, grp, r, multi: o.multi, lt: o.lt, red: o.red, img: o.img });
   };
   const L = (c, r) => {
     // column letters of an index
@@ -84,7 +84,7 @@ export function buildLayout() {
     ['G9', 'd1', 'TOT / VUL'],
   ];
   top.forEach(([a, k, lab]) => field(a, k, lab, 'Mission'));
-  field('N7', 'matis', 'ATIS (METAR of the departure airbase)', 'Mission', { multi: 1 });
+  field('N7', 'matis', 'ATIS (METAR of the departure airbase)', 'Mission', { multi: 1, lt: 1, r: rect('N6', 'N7') });
   {
     const r = cell('P9').r,
       m = (r[0] + r[2]) / 2;
@@ -173,6 +173,7 @@ export function buildLayout() {
       e = cell('U42').r;
     field('A42', 'shot', 'Screenshot', 'Screenshot', { r: [a[0] + 3, a[1] + 3, e[2] - 2, z[3] - 3], img: 1, all });
   }
+  field('A61', 'cfg', 'CFG / LMT (loadout)', 'Configuration');
   [
     ['E61', 'gw', 'GW'],
     ['F61', 'drag', 'DI (drag index)'],
@@ -197,25 +198,45 @@ export function buildLayout() {
     ['AS', 'TOT'],
   ];
   for (let r = 0; r < 10; r++)
-    RC.forEach(([c, lab], j) => field(c + (3 + 2 * r), `rc${r}_${j}`, `Roll call ${r + 1} ${lab}`, 'Roll call'));
+    RC.forEach(([c, lab], j) => field(c + (3 + 2 * r), `rc${r}_${j}`, `Roll call ${r + 1} ${lab}`, 'Mission timing'));
   // every other empty cell of the page: a field named after its address, labelled with the nearest heading above it
   const heads = shapes.filter(s => s.t && colOf(s.a) >= 30);
   const grpOf = s => {
     const c = colOf(s.a),
       r = rowOf(s.a);
-    if (r < 23) return 'Roll call';
+    if (r < 23) return 'Mission timing';
     if (r < 34) return c < 38 ? 'Known EOB' : 'AO update';
     if (r < 50) return c < 35 ? 'Mission timeline' : c < 39 ? 'Airspace' : 'Mission codewords';
     if (r < 56) return c < 39 ? 'Spins' : 'CSAR data';
     return c < 38 ? 'In-flight report' : 'Contracts';
   };
-  shapes.forEach(s => {
-    if (colOf(s.a) < 30 || s.t || used.has(s.a) || dark(s.fill) || s.r[2] - s.r[0] < 8) return;
+  // the empty cells of the page: neighbours with no line between them are one cell to write in (the blank has some cut in pieces by its merged cells)
+  const cand = shapes
+    .filter(s => colOf(s.a) >= 30 && !s.t && !used.has(s.a) && !dark(s.fill) && s.r[2] - s.r[0] >= 8)
+    .map(s => ({ a: s.a, r: s.r.slice(), fill: s.fill, b: s.b.slice() }));
+  const same = (p, q) => Math.abs(p - q) < 1.5;
+  for (let again = true; again;) {
+    again = false;
+    for (let x = 0; x < cand.length && !again; x++)
+      for (let y = 0; y < cand.length && !again; y++) {
+        const p = cand[x],
+          q = cand[y];
+        if (x == y || p.fill != q.fill) continue;
+        const hz = same(p.r[1], q.r[1]) && same(p.r[3], q.r[3]) && same(p.r[2], q.r[0]) && !p.b[2] && !q.b[0],
+          vt = same(p.r[0], q.r[0]) && same(p.r[2], q.r[2]) && same(p.r[3], q.r[1]) && !p.b[3] && !q.b[1];
+        if (!hz && !vt) continue;
+        p.r = [Math.min(p.r[0], q.r[0]), Math.min(p.r[1], q.r[1]), Math.max(p.r[2], q.r[2]), Math.max(p.r[3], q.r[3])];
+        p.b = hz ? [p.b[0], p.b[1], q.b[2], p.b[3]] : [p.b[0], p.b[1], p.b[2], q.b[3]];
+        cand.splice(y, 1);
+        again = true;
+      }
+  }
+  cand.forEach(s => {
     const h = heads
       .filter(q => q.r[3] <= s.r[1] + 3 && Math.min(q.r[2], s.r[2]) - Math.max(q.r[0], s.r[0]) > 6)
       .sort((p, q) => q.r[3] - p.r[3])[0];
     const hd = h ? h.t.replace(/\s+/g, ' ').trim() : '';
-    field(s.a, 'x' + s.a, `${hd || 'Cell'} ${s.a}`, grpOf(s), { multi: s.r[3] - s.r[1] > 80 ? 1 : 0 });
+    field(s.a, 'x' + s.a, `${hd || 'Cell'} ${s.a}`, grpOf(s), { r: s.r, multi: s.r[3] - s.r[1] > 80 ? 1 : 0 });
   });
   return { w: W, h: W, shapes, fields: F };
 }

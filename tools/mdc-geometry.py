@@ -16,7 +16,8 @@ NC, NR = 46, 62
 cx = [0]
 for i in range(1, NC + 1): cx.append(cx[-1] + cw.get(i, 9.1328125) * 7)
 cy = [0]
-for r in range(1, NR + 1): cy.append(cy[-1] + rh.get(r, 20.1) * 4 / 3)
+# the rows of the original have slightly different heights (15.95 .. 21.4): from the third row on they are all the same, so the cells of the two pages line up
+for r in range(1, NR + 1): cy.append(cy[-1] + (rh.get(r, 20.1) if r <= 2 else 20.1) * 4 / 3)
 # DDS box: page 1 = columns A..AB -> x 11..994, page 2 = AD..AT -> 1049..2035; rows 1..62 -> y 209..2044
 def X(c):  # c = column boundary index 0..46 (left edge of column c+1)
     if c <= 28: return 11 + (cx[c] - cx[0]) / (cx[28] - cx[0]) * (994 - 11)

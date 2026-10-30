@@ -102,8 +102,7 @@ function fillCard(C, f, ld = 0) {
   const P = C.byId[f.pkg.n + ':' + f.pkg.c],
     els = ((P && P.els) || []).map(e => C.byId[e.n + ':' + e.c]).filter(Boolean);
   els.slice(0, 5).forEach((e, i) => {
-    const n = nAcf(e),
-      sv0 = svc(C, e);
+    const n = nAcf(e);
     [
       csOf(C, e),
       `${n} ${acOf(C, e)}`,
@@ -112,8 +111,32 @@ function fillCard(C, f, ld = 0) {
       '',
       12 + i + 'Y',
       S[300 + e.omis] || '',
-      (sv0 && sv0.tm) || '', // 7: time on target of the element (only the MDC format shows it)
     ].forEach((v, j) => (F[`pk${i}_${j}`] = v));
+  });
+  // MDC format, mission timing: the flights of the package (callsign, aircraft, hold, altitude, frequency, push, target, time on target); the times and the altitude
+  // come from the steerpoints of the flight (Holding, Push, the action steerpoints)
+  els.slice(0, 10).forEach((e, i) => {
+    const hm = ms => {
+        const t = Math.floor(ms / 1000) % 86400;
+        return String((t / 3600) | 0).padStart(2, '0') + ':' + String(((t % 3600) / 60) | 0).padStart(2, '0');
+      },
+      wp = e.wps || [],
+      at = a => (wp.find(p => p.act == a && p.arr) || {}).arr,
+      act = wp.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)),
+      sv0 = svc(C, e),
+      ty = acOf(C, e)
+        .replace(/\s*ROK\w*$/, '')
+        .replace(/-\d+$/, '');
+    [
+      csOf(C, e),
+      `${nAcf(e)}x\n${ty}`,
+      at(8) ? hm(at(8)) : '',
+      act && act.z ? String(act.z * 10) : '',
+      rmf(C, csOf(C, e))[0],
+      at(2) ? hm(at(2)) : '',
+      (sv0 && sv0.tgt) || '',
+      (sv0 && sv0.tm) || (e.wps ? opWin(e) : ''),
+    ].forEach((v, j) => (F[`rc${i}_${j}`] = v));
   });
   w.forEach((p, i) => {
     if (i > 23) return;

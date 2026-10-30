@@ -312,6 +312,7 @@ export function dtcReloaded() {
   afterDtc('target_98', true);
   mirrorAll();
   applyDTC();
+  mdcAuto();
   draw();
 }
 export function afterDtc(k, fromPage) {
@@ -344,6 +345,9 @@ export function afterDtc(k, fromPage) {
         F[lk] = '';
       }
     });
+    mdcAuto();
+    draw();
+  } else if (/^ppt_\d+$/.test(k)) {
     mdcAuto();
     draw();
   }

@@ -1,77 +1,65 @@
 {
- "minReader": "0.9.9-beta.26",
- "shape": {
-  "aircraft": {
-   "name": "string",
-   "perf": "object"
-  },
-  "app": "string",
-  "appVersion": "string",
-  "created": "string",
-  "datacard": {
-   "auto": "object",
-   "final": "object",
-   "flight": "string",
-   "label": "string",
-   "manual": "object"
-  },
-  "dtc": {
-   "author": "object",
-   "bom": "boolean",
-   "edits": [
-    "list"
-   ],
-   "enc": "string",
-   "name": "string",
-   "original": "string",
-   "share": "object"
-  },
-  "format": "string",
-  "mapshot": "string",
-  "minReader": "string",
-  "name": "string",
-  "package": {
-   "bull": "object",
-   "flight": "string",
-   "name": "string",
-   "now": "number",
-   "objFeat": [
-    "list"
-   ],
-   "objKey": "string",
-   "objOwn": [
-    "list"
-   ],
-   "playerSq": "number",
-   "playerTeam": "number",
-   "radiusNm": "number",
-   "squads": "object",
-   "stance": [
-    "list"
-   ],
-   "units": [
-    "list"
-   ]
-  },
-  "saved": "string",
-  "settings": null,
-  "tanks": [
-   "list"
-  ],
-  "theater": {
-   "lat": "number",
-   "lon": "number",
-   "name": "string"
-  },
-  "version": "number",
-  "weapons": {
-   "bvr": "object",
-   "harm": "object",
-   "wp": "object"
-  },
-  "weather": {
-   "fmap": "string",
-   "series": "object"
+  "minReader": "0.9.9-beta.26",
+  "shape": {
+    "aircraft": {
+      "name": "string",
+      "perf": "object"
+    },
+    "app": "string",
+    "appVersion": "string",
+    "created": "string",
+    "datacard": {
+      "auto": "object",
+      "final": "object",
+      "flight": "string",
+      "label": "string",
+      "manual": "object"
+    },
+    "dtc": {
+      "author": "object",
+      "bom": "boolean",
+      "edits": ["list"],
+      "enc": "string",
+      "name": "string",
+      "original": "string",
+      "share": "object"
+    },
+    "format": "string",
+    "mapshot": "string",
+    "minReader": "string",
+    "name": "string",
+    "package": {
+      "bull": "object",
+      "flight": "string",
+      "name": "string",
+      "now": "number",
+      "objFeat": ["list"],
+      "objKey": "string",
+      "objOwn": ["list"],
+      "playerSq": "number",
+      "playerTeam": "number",
+      "radiusNm": "number",
+      "squads": "object",
+      "stance": ["list"],
+      "units": ["list"]
+    },
+    "saved": "string",
+    "settings": null,
+    "tanks": ["list"],
+    "theater": {
+      "lat": "number",
+      "lon": "number",
+      "name": "string"
+    },
+    "version": "number",
+    "weapons": {
+      "bvr": "object",
+      "harm": "object",
+      "wp": "object"
+    },
+    "weather": {
+      "fmap": "string",
+      "series": "object"
+    }
   }
- }
 }

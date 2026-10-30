@@ -226,7 +226,87 @@ export const blank = () => {
 };
 // the cells of the MDC format whose text is centred (numbers, times, frequencies, codes); the others are written from the left
 export const CENTERK =
-  /^(step|start|chkin|taxi|to_time|ld_time|aux|tk_\w+|m[1-4]|d1|joker|bingo|ps\d|nav\d_\d|fl\d_[12fios5]|fp\d+_(st|1|2|3|5|6|10|11)|dl\d_\w+|rc\d_[1-7]|gw|drag|rot|tospec|cfg_\w+|ref|t\d_[0-3]|u\d_[0-3])$/;
+  /^(step|start|chkin|taxi|to_time|ld_time|aux|tk_\w+|m[1-4]|d1|joker|bingo|ps\d|nav\d_\d|fl\d_[12fios5]|fp\d+_(st|1|2|3|5|6|10|11)|dl\d_\w+|rc\d_[1-7]|gw|drag|rot|tospec|cfg_\w+|ref|t\d_[0-3]|u\d_[0-3]|x(AD|AJ)(2[5-9]|3[0-3]))$/;
+// the text of a cell of the MDC format. Several lines (a text with line breaks, or a multi-line cell): broken at the words to the width of the cell, in the biggest size that
+// fits. One line: squeezed in width (down to 60%) before its size is reduced, so that a frequency in a narrow cell is still tall enough to read.
+function mdcText(x, v, d) {
+  const left = !CENTERK.test(d.k),
+    W = d.w - 8;
+  x.textBaseline = 'middle';
+  if (d.multi || v.includes('\n')) {
+    const SQ = 0.82,
+      top = d.y0 + (d.lt ? 13 : 3),
+      room = d.h - (d.lt ? 15 : 6),
+      L = v.split('\n');
+    const wrap = (t, fs) => {
+      x.font = fs + 'px Arial';
+      const out = [];
+      let cur = '';
+      t.split(' ').forEach(w => {
+        const q = cur ? cur + ' ' + w : w;
+        if (cur && x.measureText(q).width * SQ > W) {
+          out.push(cur);
+          cur = w;
+        } else cur = q;
+      });
+      out.push(cur);
+      return out;
+    };
+    let fs = Math.min(15, Math.max(7, Math.floor(room / L.length) - 1)),
+      rows = [];
+    for (; fs >= 7; fs--) {
+      rows = L.flatMap(t => (t === '' ? [''] : wrap(t, fs)));
+      if (rows.length * fs * 1.12 <= room) break;
+    }
+    const lh = Math.min(fs * 1.12, room / rows.length);
+    x.font = fs + 'px Arial';
+    x.textAlign = left ? 'left' : 'center';
+    rows.forEach((t, i) => {
+      const yy = top + lh * (i + 0.5);
+      if (t === '') {
+        x.save();
+        x.strokeStyle = '#777';
+        x.lineWidth = 0.8;
+        x.beginPath();
+        x.moveTo(d.x + 8, yy);
+        x.lineTo(d.x + d.w - 8, yy);
+        x.stroke();
+        x.restore();
+        return;
+      }
+      x.save();
+      x.translate(left ? d.x + 5 : d.x + d.w / 2, yy);
+      x.scale(SQ, 1);
+      x.fillText(t, 0, 0);
+      x.restore();
+    });
+  } else {
+    const mx = Math.max(9, Math.min(15, d.h - 4));
+    let fs = mx;
+    x.font = fs + 'px Arial';
+    let w = x.measureText(v).width;
+    while (fs > 7 && w * 0.6 > W) {
+      fs--;
+      x.font = fs + 'px Arial';
+      w = x.measureText(v).width;
+    }
+    x.textAlign = left ? 'left' : 'center';
+    x.textBaseline = 'alphabetic';
+    let yy = vy(d, fs);
+    if (!/[A-Z0-9]/.test(v)) {
+      const m = x.measureText(v);
+      yy = vy(d, 0) + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
+    }
+    x.save();
+    x.translate(left ? d.x + 4 : d.x + d.w / 2, yy);
+    x.scale(Math.min(1, W / w), 1);
+    x.fillText(v, 0, 0);
+    x.restore();
+  }
+  x.textBaseline = 'middle';
+  x.textAlign = 'left';
+  x.fillStyle = '#000';
+}
 export function mdcDraw(x) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   x.fillStyle = '#fff';
@@ -246,54 +326,7 @@ export function mdcDraw(x) {
       x.fillStyle = '#000';
       return;
     }
-    if (d.multi) {
-      const L = v.split('\n'),
-        top = d.y0 + (d.lt ? 12 : 3),
-        room = d.h - (d.lt ? 14 : 6);
-      let lh = d.k == 'free' ? 16 : 17;
-      if (L.length * lh > room) lh = room / L.length;
-      let fs = Math.min(15, Math.floor(lh) - 1);
-      L.forEach(t => {
-        if (t !== '') fs = Math.min(fs, fitF(x, t, d.w - 8, fs, 8));
-      });
-      x.font = fs + 'px Arial';
-      x.textAlign = 'left';
-      x.textBaseline = 'middle';
-      L.forEach((t, i) => {
-        const yy = top + lh * (i + 0.5);
-        if (t === '') {
-          x.save();
-          x.strokeStyle = '#777';
-          x.lineWidth = 0.8;
-          x.beginPath();
-          x.moveTo(d.x + 8, yy);
-          x.lineTo(d.x + d.w - 8, yy);
-          x.stroke();
-          x.restore();
-          return;
-        }
-        x.fillText(t, d.x + 5, yy, d.w - 8);
-      });
-      x.fillStyle = '#000';
-      return;
-    }
-    const left = !CENTERK.test(d.k),
-      x0 = d.x + 4,
-      W = d.w - 8,
-      mx = Math.max(9, Math.min(15, d.h - 4));
-    x.textAlign = left ? 'left' : 'center';
-    let t = v,
-      fs = fitF(x, t, W, mx, 7);
-    x.textBaseline = 'alphabetic';
-    let yy = vy(d, fs);
-    if (!/[A-Z0-9]/.test(t)) {
-      const m = x.measureText(t);
-      yy = vy(d, 0) + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
-    }
-    x.fillText(t, left ? x0 : d.x + d.w / 2, yy, W);
-    x.textBaseline = 'middle';
-    x.textAlign = 'left';
-    x.fillStyle = '#000';
+    mdcText(x, v, d);
   });
   if (ST.MAPSHOT) {
     // the picture fills the box of the MDC without being stretched (a screenshot taken for the other card format is cut at the sides)
@@ -653,6 +686,7 @@ export async function init5() {
         h: h * ky,
         y: (y0 + h / 2) * ky,
         multi: f.multi,
+        lt: f.lt,
         red: f.red,
         mdc: 1,
       });
