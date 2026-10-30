@@ -85,6 +85,7 @@ export function createMap(host, deps) {
     LNP = [],
     addM = null,
     PR = null,
+    PRM = null, // the line of the selected flight has a canvas of its own, above the one of the package mates
     CR = null,
     pal = PAL.dark,
     LUM = {},
@@ -178,6 +179,11 @@ export function createMap(host, deps) {
     EDIT = !!b;
     if (map) map.closePopup();
     if (!EDIT) addStop && addStop();
+    try {
+      offDraw(); // the offset points are drawn again: draggable only while the editing is on
+    } catch (x) {
+      /* the map is not ready */
+    }
     DT.forEach(e => {
       try {
         if (EDIT) e.mk.dragging.enable();
@@ -274,6 +280,8 @@ export function createMap(host, deps) {
     map.createPane('atkP').style.zIndex = 460; // the attack of the Weapons page (pop-up line ...): above the flight plan
     CR = L.canvas({ pane: 'coastP' });
     PR = L.canvas({ pane: 'planP' });
+    map.createPane('planM').style.zIndex = 452;
+    PRM = L.canvas({ pane: 'planM' });
     // offline bases (dark and light): land, borders, rivers and lakes over the sea-coloured container
     const mkCoast = c => {
       const sch = L.layerGroup(),
@@ -1256,7 +1264,6 @@ export function createMap(host, deps) {
     });
     if (added) {
       showLayer('dq');
-      setLayers(secKeys('Selected flight'), true);
       sync();
       dtc();
     }
@@ -2406,7 +2413,7 @@ export function createMap(host, deps) {
     parts2.forEach(([pl, dash]) => {
       if (pal.casing)
         L.polyline(pl, {
-          renderer: PR,
+          renderer: PRM,
           color: pal.casing,
           weight: 6,
           opacity: 1,
@@ -2414,7 +2421,7 @@ export function createMap(host, deps) {
           interactive: false,
         }).addTo(G.fp);
       L.polyline(pl, {
-        renderer: PR,
+        renderer: PRM,
         color: pal.plan,
         weight: 2.5,
         opacity: 0.95,
@@ -2576,7 +2583,7 @@ export function createMap(host, deps) {
             html: `<i style="background:${c}"></i><b>${lab} · ${n}</b>`,
             iconSize: [0, 0],
           }),
-          draggable: true,
+          draggable: EDIT, // not on the pages that only show the map (Weather, Weapons with the editing off)
           zIndexOffset: 900,
           keyboard: false,
         }).addTo(G.off);
@@ -2588,7 +2595,7 @@ export function createMap(host, deps) {
           offDraw();
           offElev(+n, at, k, np).then(offDraw);
         });
-        mk.bindTooltip(`${lab} of STPT ${n}: drag to move`, { direction: 'top', offset: [0, -6] });
+        mk.bindTooltip(`${lab} of STPT ${n}${EDIT ? ': drag to move' : ''}`, { direction: 'top', offset: [0, -6] });
       });
     });
   }
@@ -4115,7 +4122,8 @@ export function createMap(host, deps) {
     overlay: () => OV,
     // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the Weapons page as a background
     // the Weapons page borrows the Leaflet map (with the layer and flight plan chosen here) and gives it back with detach()
-    async attach(el) {
+    // view: the page does not edit anything (the Weather page): the points cannot be moved whatever the choice made on the Weapons pages
+    async attach(el, view) {
       if (!map) {
         try {
           await init();
@@ -4130,7 +4138,7 @@ export function createMap(host, deps) {
       mirror();
       MO = new MutationObserver(mirror);
       MO.observe(host, { attributes: true, attributeFilter: ['class', 'style'] });
-      setEdit(WEDIT);
+      setEdit(view ? false : WEDIT);
       map.invalidateSize();
       refresh();
       return { L: window.L, map };

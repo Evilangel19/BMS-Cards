@@ -414,7 +414,7 @@ export async function init14() {
     at: wxAt,
     fill: wxFill,
     fillState: wxFillState,
-    attach: el => mapV.attach(el),
+    attach: el => mapV.attach(el, true),
     detach: () => mapV.detach(),
     toLL: (x, y) => mToLL(x, y),
     fromLL: (a, b) => mFromLL(a, b),
