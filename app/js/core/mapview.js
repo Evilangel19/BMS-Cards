@@ -179,11 +179,14 @@ export function createMap(host, deps) {
     EDIT = !!b;
     if (map) map.closePopup();
     if (!EDIT) addStop && addStop();
-    try {
-      offDraw(); // the offset points are drawn again: draggable only while the editing is on
-    } catch (x) {
-      /* the map is not ready */
-    }
+    if (G.off)
+      G.off.eachLayer(l => {
+        try {
+          if (l.dragging) EDIT ? l.dragging.enable() : l.dragging.disable(); // the offset points move only while the editing is on
+        } catch (x) {
+          /* none */
+        }
+      });
     DT.forEach(e => {
       try {
         if (EDIT) e.mk.dragging.enable();
@@ -2595,7 +2598,10 @@ export function createMap(host, deps) {
           offDraw();
           offElev(+n, at, k, np).then(offDraw);
         });
-        mk.bindTooltip(`${lab} of STPT ${n}${EDIT ? ': drag to move' : ''}`, { direction: 'top', offset: [0, -6] });
+        mk.bindTooltip(() => `${lab} of STPT ${n}${EDIT ? ': drag to move' : ''}`, {
+          direction: 'top',
+          offset: [0, -6],
+        });
       });
     });
   }
