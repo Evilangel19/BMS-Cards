@@ -94,7 +94,7 @@ export function openMenu(d) {
 // the Primary / Secondary boxes: a menu of the points that can be shown there (see ptChoices)
 export function openPtMenu(d) {
   closeMenu();
-  const w = d.k == 'pri' ? 1 : 2,
+  const w = d.k == 'pri' || d.k[0] == 't' ? 1 : 2,
     L = ptChoices(w),
     m = $('chm'),
     c = $('cv'),
@@ -263,7 +263,7 @@ export async function init15() {
   });
   $('cv').addEventListener('click', ev => {
     const d = cellAt(ev);
-    if (d && (d.k == 'pri' || d.k == 'sec') && ST.C) {
+    if (d && (d.k == 'pri' || d.k == 'sec' || /^[tu]0_[04]$/.test(d.k)) && ST.C) {
       closeEd(true);
       openPtMenu(d);
     } else if (d && CYC[d.k]) {

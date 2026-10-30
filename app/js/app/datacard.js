@@ -14,6 +14,7 @@ import { MFD, draw } from './cardview.js';
 import { dtcBtns } from './dtcapply.js';
 import { mapV, sqPage } from './pages.js';
 import { wxAt } from './campaign.js';
+import { mdcAuto } from './mdcfill.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
@@ -153,7 +154,17 @@ export function ptChoices(w) {
         .filter(p => !p.empty)
         .forEach(p => {
           const nm = p.name || near(p.x, p.y) || 'STPT ' + p.stpt;
-          out.push({ grp, label: 'STPT ' + p.stpt + ' · ' + nm, v: { name: nm, tot, ll: CAM.geoLL(ST.C, p.x, p.y) } });
+          out.push({
+            grp,
+            label: 'STPT ' + p.stpt + ' · ' + nm,
+            v: {
+              name: nm,
+              tot,
+              ll: CAM.geoLL(ST.C, p.x, p.y),
+              st: String(p.stpt),
+              alt: p.altFt != null ? String(Math.round(p.altFt)) : '',
+            },
+          });
         })
     );
   }
@@ -165,7 +176,7 @@ export function ptChoices(w) {
     out.push({
       grp: 'Weapon targets (SPICE)',
       label: 'WPN TGT ' + (n + 1) + ' · ' + nm,
-      v: { name: nm, tot, ll: CAM.geoLL(ST.C, t.e / FT_KM, t.n / FT_KM) },
+      v: { name: nm, tot, ll: CAM.geoLL(ST.C, t.e / FT_KM, t.n / FT_KM), st: 'W' + (n + 1), alt: String(t.elv) },
     });
   }
   return out;
@@ -174,12 +185,14 @@ export function ptPick(w, c) {
   const K = w == 1 ? ['pri', 'd1', 'll1'] : ['sec', 'd2', 'll2'],
     A = ST.AUTO || {};
   if (c.auto) {
+    ['_0', '_1', '_2', '_3', '_4'].forEach(s => ST.MANK.delete((w == 1 ? 't0' : 'u0') + s));
     K.forEach(k => {
       ST.MANK.delete(k);
       F[k] = A[k] || '';
       const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
       if (d && d.el) d.el.value = F[k];
     });
+    mdcAuto();
     markMan();
     draw();
     return;
@@ -187,6 +200,12 @@ export function ptPick(w, c) {
   setField(K[0], c.v.name);
   setField(K[1], c.v.tot);
   setField(K[2], c.v.ll);
+  // the target row of the MDC format (ST / lat / long / elev / description) follows the choice
+  const R = w == 1 ? 't0' : 'u0',
+    m = /^([NS].*?')\s+([EW].*)$/.exec(c.v.ll || '');
+  [c.v.name ? c.v.st || '' : '', m ? m[1] : '', m ? m[2] : '', m ? c.v.alt || '' : '', c.v.name].forEach((v, j) =>
+    setField(R + '_' + j, v)
+  );
 }
 export function dtcChanged(sec, key, fromCard) {
   dtcBtns();

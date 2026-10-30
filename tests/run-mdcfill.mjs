@@ -69,6 +69,7 @@ const F = {
   su2_2: '290.125',
   pri: 'Hapgang Bridge1',
   ll1: "N 35° 54.040'  E 126° 36.809'",
+  pri_alt: '420',
   sec: '',
   ll2: '',
 };
@@ -116,7 +117,11 @@ ok(
 ok('PPT: the empty ones are left out; no coordinates without a campaign', rows.length == 4 && rows[0][2] == '');
 ok(
   'target: steerpoint 99, lat and long split, name',
-  o.t0_0 == '99' && o.t0_1 == "N 35° 54.040'" && o.t0_2 == "E 126° 36.809'" && o.t0_4 == 'Hapgang Bridge1'
+  o.t0_0 == '99' &&
+    o.t0_1 == "N 35° 54.040'" &&
+    o.t0_2 == "E 126° 36.809'" &&
+    o.t0_4 == 'Hapgang Bridge1' &&
+    o.t0_3 == '420'
 );
 ok('no secondary target: the right cells are empty', o.u0_0 == '' && o.u0_4 == '');
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);

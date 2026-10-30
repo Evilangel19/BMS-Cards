@@ -282,7 +282,7 @@ function applyDTC0(fl) {
     if (s.length >= 4 && (+s[0] || +s[1]) && ST.C) {
       F[fk] = s[4] && !/^not set$/i.test(s[4]) ? s[4] : dn;
       F[lk] = CAM.geoLL(ST.C, +s[1] / 3280.84, +s[0] / 3280.84);
-      F[fk + '_alt'] = +s[2] ? String(Math.round(+s[2])) : ''; // feet, for the ELEV cell of the MDC
+      F[fk + '_alt'] = +s[2] ? String(Math.round(-s[2])) : ''; // feet, for the ELEV cell of the MDC
     }
   });
 }
@@ -341,7 +341,7 @@ export function afterDtc(k, fromPage) {
       if (q.length >= 4 && (+q[0] || +q[1])) {
         F[fk] = q[4] && !/^not set$/i.test(q[4]) ? q[4] : dn;
         F[lk] = CAM.geoLL(ST.C, +q[1] / 3280.84, +q[0] / 3280.84);
-        F[fk + '_alt'] = +q[2] ? String(Math.round(+q[2])) : '';
+        F[fk + '_alt'] = +q[2] ? String(Math.round(-q[2])) : '';
       } else {
         F[fk] = '';
         F[lk] = '';
