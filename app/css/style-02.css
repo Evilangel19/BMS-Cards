@@ -123,6 +123,52 @@ canvas {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+/* roster menu of the datacard form (must exist before the Kneeboard page is ever drawn) */
+#pnmenu {
+  position: fixed;
+  z-index: 50;
+  width: 200px;
+  max-height: 260px;
+  overflow: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  box-shadow: 0 8px 24px #000a;
+  animation: popin 0.14s ease-out;
+}
+.pni {
+  background: none;
+  border: 0;
+  color: var(--tx);
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: inherit;
+}
+.pni:hover {
+  background: #ffffff14;
+}
+.pne {
+  padding: 8px;
+  color: var(--mut, #8b98a9);
+  font-size: 12px;
+}
+.pnrow {
+  display: flex;
+  gap: 4px;
+}
+.pnrow input {
+  flex: 1;
+  min-width: 0;
+}
+.pnb {
+  padding: 0 8px;
+}
 #pnmenu {
   background: #fff;
   border-color: #9aa5b1;
