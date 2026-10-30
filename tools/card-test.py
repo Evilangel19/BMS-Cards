@@ -30,7 +30,7 @@ try:
         check('the Datacard keeps its own cells (406 fields)', pg.evaluate("__app.FD.length") == 406)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
         need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl7_s', 'fl3_5', 'fp0_st', 'fp14_11',
-                't0_4', 'u2_4', 'dl0_fc', 'dl1_dn2', 'ovw', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc9_7', 'xAD25', 'xAL57']
+                't0_4', 'u2_4', 'dl0_fc', 'dl1_dn2', 'ovw', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']
         miss = [k for k in need if k not in mk]
         check('the cells of the MDC format that the program fills (and the free cells of page 2) exist %s' % miss, not miss)
         info = pg.evaluate("""async()=>{const m=await import('./js/core/cardlayout.js');const sh=m.SHOT,f=n=>m.LAYOUT.fields.find(d=>d.k==n).r;

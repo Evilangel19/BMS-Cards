@@ -115,7 +115,7 @@ function fillCard(C, f, ld = 0) {
   });
   // MDC format, mission timing: the flights of the package (callsign, aircraft, hold, altitude, frequency, push, target, time on target); the times and the altitude
   // come from the steerpoints of the flight (Holding, Push, the action steerpoints)
-  els.slice(0, 10).forEach((e, i) => {
+  els.slice(0, 8).forEach((e, i) => {
     const hm = ms => {
         const t = Math.floor(ms / 1000) % 86400;
         return String((t / 3600) | 0).padStart(2, '0') + ':' + String(((t % 3600) / 60) | 0).padStart(2, '0');

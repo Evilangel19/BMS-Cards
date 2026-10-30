@@ -35,12 +35,32 @@ export function buildLayout() {
   }));
   // changes of the measures of the blank, to gain room where the game's kneeboard needs it
   const near = (p, q) => Math.abs(p - q) < 1.5;
-  for (let i = shapes.length; i--;) if (shapes[i].a == 'Z60') shapes.splice(i, 1); // the empty square at the bottom right goes to the loadout
+  const at = a => shapes.find(s => s.a == a);
+  const page2 = sh => (sh.r[0] + sh.r[2]) / 2 >= 994;
+  // x of a cell: the cells of some rows are moved by a piecewise map [[from, to], ...] (the cells keep their order)
+  const xmap = (rows, pts) => {
+    const f = x => {
+      for (let i = 1; i < pts.length; i++)
+        if (x <= pts[i][0] + 0.01)
+          return pts[i - 1][1] + ((x - pts[i - 1][0]) * (pts[i][1] - pts[i - 1][1])) / (pts[i][0] - pts[i - 1][0]);
+      return x;
+    };
+    shapes.forEach(sh => {
+      const row = rowOf(sh.a);
+      if (!page2(sh) && row >= rows[0] && row <= rows[1]) sh.r = [f(sh.r[0]), sh.r[1], f(sh.r[2]), sh.r[3]];
+    });
+  };
+  // the empty square at the bottom right goes to the loadout; the roll call has 8 flights (rows 19-22 of page 2 go to the EOB tables)
+  for (let i = shapes.length; i--;) {
+    const sh = shapes[i],
+      row = rowOf(sh.a);
+    if (sh.a == 'Z60' || (page2(sh) && colOf(sh.a) >= 30 && row >= 19 && row <= 22)) shapes.splice(i, 1);
+  }
   shapes.forEach(sh => {
     const r = sh.r,
       row = rowOf(sh.a);
     if ((row == 61 || row == 60) && r[2] < 1000) {
-      // the loadout takes the square: the cells of its row move to the right, the loadout grows in width (and over the row below)
+      // the loadout grows in width (and over the row below), the cells of its row move to the right
       if (sh.a == 'A61') sh.r = [11, r[1], 340, 2044];
       else if (sh.a == 'A60') sh.r = [11, r[1], 340, r[3]];
       else if (r[0] >= 254) {
@@ -50,22 +70,81 @@ export function buildLayout() {
     }
     if (sh.a == 'A62') sh.r = [340, r[1], r[2], r[3]];
     // audio presets: narrower PRI column, wider FREQ
-    if (row >= 6 && row <= 16) {
+    if (row >= 6 && row <= 16 && !page2(sh)) {
       if (near(r[0], 792) && near(r[2], 850)) sh.r = [r[0], r[1], 830, r[3]];
       else if (near(r[0], 850) && near(r[2], 908)) sh.r = [830, r[1], r[2], r[3]];
     }
+    // ATIS: twice as wide, taken from Airspace / TGT
+    if ((row == 6 || row == 7) && !page2(sh)) {
+      if (near(r[2], 562) && near(r[0], 11)) sh.r = [r[0], r[1], 332, r[3]];
+      else if (near(r[0], 562) && near(r[2], 792)) sh.r = [332, r[1], r[2], r[3]];
+    }
     // mission timing: narrower callsign column, wider aircraft column
-    if (row <= 22) {
+    if (row <= 22 && page2(sh)) {
       if (near(r[2], 1217) && r[0] > 1040) sh.r = [r[0], r[1], 1180, r[3]];
       else if (near(r[0], 1217)) sh.r = [1180, r[1], r[2], r[3]];
     }
   });
-  // the white band above the tables: part of it is given to them
+  // flight plan: shorter Description, wider TOS
+  xmap(
+    [19, 34],
+    [
+      [11, 11],
+      [255, 215],
+      [562, 522],
+      [994, 994],
+    ]
+  );
+  // link: shorter NDL, wider Donor
+  xmap(
+    [39, 41],
+    [
+      [11, 11],
+      [98, 98],
+      [203, 153],
+      [792, 742],
+      [994, 994],
+    ]
+  );
+  // targets: the two ST columns of the same size
+  shapes.forEach(sh => {
+    const r = sh.r,
+      row = rowOf(sh.a);
+    if (row < 35 || row > 38 || page2(sh)) return;
+    if (near(r[2], 98) && near(r[0], 11)) sh.r = [r[0], r[1], 69, r[3]];
+    else if (near(r[0], 98) && near(r[2], 203)) sh.r = [69, r[1], r[2], r[3]];
+    else if (near(r[0], 533) && near(r[2], 562)) sh.r = [r[0], r[1], 591, r[3]];
+    else if (near(r[0], 562) && near(r[2], 677)) sh.r = [591, r[1], r[2], r[3]];
+  });
+  // heights. Page 2: the Known EOB / AO update tables take the room of the two roll call rows removed; then the whole page is scaled to the new top.
+  // Page 1: the white band above is smaller and the room goes to the rows of the flight plan.
   {
-    const T = 165,
-      k = (2044 - T) / (2044 - 209);
+    const top = n => Math.min(...shapes.filter(s => rowOf(s.a) == n && page2(s) && colOf(s.a) >= 30).map(s => s.r[1])),
+      y23 = top(23),
+      y25 = top(25),
+      y34 = top(34);
+    const R8 = Math.max(...shapes.filter(s => page2(s) && colOf(s.a) >= 30 && rowOf(s.a) == 17).map(s => s.r[3])),
+      h = y25 - y23;
+    const e = y =>
+      y < y23 - 0.5 ? y : y < y25 - 0.5 ? R8 + (y - y23) : R8 + h + ((y - y25) * (y34 - (R8 + h))) / (y34 - y25);
     shapes.forEach(sh => {
-      sh.r = [sh.r[0], T + (sh.r[1] - 209) * k, sh.r[2], T + (sh.r[3] - 209) * k];
+      if (page2(sh) && rowOf(sh.a) >= 23 && rowOf(sh.a) <= 33 && colOf(sh.a) >= 30)
+        sh.r = [sh.r[0], e(sh.r[1]), sh.r[2], e(sh.r[3])];
+    });
+    const T = 165,
+      T2 = 120,
+      k = (2044 - T) / (2044 - 209),
+      k2 = (2044 - T2) / (2044 - 209),
+      f0 = at('A20').r[1],
+      f1 = at('A34').r[3],
+      gain = T - T2;
+    const y1 = y => {
+      const b = T + (y - 209) * k;
+      return y <= f0 ? b - gain : y >= f1 ? b : b - gain + (gain * (y - f0)) / (f1 - f0);
+    };
+    shapes.forEach(sh => {
+      const fy = page2(sh) ? y => T2 + (y - 209) * k2 : y1;
+      sh.r = [sh.r[0], fy(sh.r[1]), sh.r[2], fy(sh.r[3])];
     });
   }
   const BY = new Map(shapes.map(s => [s.a, s]));
@@ -232,7 +311,7 @@ export function buildLayout() {
     ['AP', 'Target'],
     ['AS', 'TOT'],
   ];
-  for (let r = 0; r < 10; r++)
+  for (let r = 0; r < 8; r++)
     RC.forEach(([c, lab], j) => field(c + (3 + 2 * r), `rc${r}_${j}`, `Roll call ${r + 1} ${lab}`, 'Mission timing'));
   // every other empty cell of the page: a field named after its address, labelled with the nearest heading above it
   const heads = shapes.filter(s => s.t && colOf(s.a) >= 30);

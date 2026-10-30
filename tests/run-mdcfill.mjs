@@ -35,7 +35,7 @@ for (const k of [
   'dl1_dn2',
   'ovw',
   'srv',
-  'rc9_7',
+  'rc7_7',
   'xAD25',
 ])
   ok('cell ' + k, keys.includes(k));
