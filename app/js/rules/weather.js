@@ -87,4 +87,20 @@ function tafText(C, W, f) {
   }
   return o;
 }
-export { atisText, tafText };
+// NATO colour state of an airfield (from the ceiling = lowest BKN/OVC, and the visibility): BLU best .. RED worst
+function wxColour(W, d, elev) {
+  if (!W || !d) return '';
+  const k = wxCore(W, d[1], d[2], elev),
+    ceil = k.hasCu && k.cov !== 'FEW' && k.cov !== 'SCT' ? k.agl : 99999;
+  /** @type {(string|number)[][]} */
+  const L = [
+    ['BLU', 2500, 8000],
+    ['WHT', 1500, 5000],
+    ['GRN', 700, 3700],
+    ['YLO', 300, 1600],
+    ['AMB', 200, 800],
+  ];
+  const hit = L.find(x => ceil >= +x[1] && k.vm >= +x[2]);
+  return hit ? String(hit[0]) : 'RED';
+}
+export { atisText, tafText, wxColour };

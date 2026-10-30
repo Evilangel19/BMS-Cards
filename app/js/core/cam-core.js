@@ -5,7 +5,7 @@ import { parseFmap } from '../parsers/fmap.js';
 import { setBase } from '../rules/ephemerides.js';
 import { listFlights, loadGroups, nAcf, els0, fac, totMs, isHiFi, isHeli } from '../core/flight.js';
 import { fillCard } from '../core/fillcard.js';
-import { atisText, tafText } from '../rules/weather.js';
+import { atisText, tafText, wxColour } from '../rules/weather.js';
 import { pickRwy } from '../rules/airbase.js';
 import { geoLL } from '../rules/geo.js';
 import { jtac, svc } from '../rules/support.js';
@@ -51,6 +51,7 @@ export const CAM = {
   fillCard,
   parseFmap,
   atisText,
+  wxColour,
   pickRwy,
   geoLL,
   nAcf,

@@ -33,6 +33,41 @@ export function buildLayout() {
     rot: g[17],
     col: g[18],
   }));
+  // changes of the measures of the blank, to gain room where the game's kneeboard needs it
+  const near = (p, q) => Math.abs(p - q) < 1.5;
+  for (let i = shapes.length; i--;) if (shapes[i].a == 'Z60') shapes.splice(i, 1); // the empty square at the bottom right goes to the loadout
+  shapes.forEach(sh => {
+    const r = sh.r,
+      row = rowOf(sh.a);
+    if ((row == 61 || row == 60) && r[2] < 1000) {
+      // the loadout takes the square: the cells of its row move to the right, the loadout grows in width (and over the row below)
+      if (sh.a == 'A61') sh.r = [11, r[1], 340, 2044];
+      else if (sh.a == 'A60') sh.r = [11, r[1], 340, r[3]];
+      else if (r[0] >= 254) {
+        const m = x => 340 + ((x - 255) * (994 - 340)) / (908 - 255);
+        sh.r = [m(r[0]), r[1], m(r[2]), r[3]];
+      }
+    }
+    if (sh.a == 'A62') sh.r = [340, r[1], r[2], r[3]];
+    // audio presets: narrower PRI column, wider FREQ
+    if (row >= 6 && row <= 16) {
+      if (near(r[0], 792) && near(r[2], 850)) sh.r = [r[0], r[1], 830, r[3]];
+      else if (near(r[0], 850) && near(r[2], 908)) sh.r = [830, r[1], r[2], r[3]];
+    }
+    // mission timing: narrower callsign column, wider aircraft column
+    if (row <= 22) {
+      if (near(r[2], 1217) && r[0] > 1040) sh.r = [r[0], r[1], 1180, r[3]];
+      else if (near(r[0], 1217)) sh.r = [1180, r[1], r[2], r[3]];
+    }
+  });
+  // the white band above the tables: part of it is given to them
+  {
+    const T = 165,
+      k = (2044 - T) / (2044 - 209);
+    shapes.forEach(sh => {
+      sh.r = [sh.r[0], T + (sh.r[1] - 209) * k, sh.r[2], T + (sh.r[3] - 209) * k];
+    });
+  }
   const BY = new Map(shapes.map(s => [s.a, s]));
   const F = [],
     used = new Set();
@@ -173,7 +208,7 @@ export function buildLayout() {
       e = cell('U42').r;
     field('A42', 'shot', 'Screenshot', 'Screenshot', { r: [a[0] + 3, a[1] + 3, e[2] - 2, z[3] - 3], img: 1, all });
   }
-  field('A61', 'cfg', 'CFG / LMT (loadout)', 'Configuration');
+  field('A61', 'cfg', 'CFG / LMT (loadout)', 'Configuration', { multi: 1 });
   [
     ['E61', 'gw', 'GW'],
     ['F61', 'drag', 'DI (drag index)'],

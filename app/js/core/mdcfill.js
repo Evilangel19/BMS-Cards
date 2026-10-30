@@ -63,6 +63,7 @@ export function mdcDerive(F) {
     o[`${p}0_0`] = d || m ? st : '';
     o[`${p}0_1`] = m ? m[1] : '';
     o[`${p}0_2`] = m ? m[2] : '';
+    o[`${p}0_3`] = m ? n(k + '_alt') : '';
     o[`${p}0_4`] = d;
   });
   return o;

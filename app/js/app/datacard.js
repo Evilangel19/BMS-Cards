@@ -247,7 +247,7 @@ export function setField(k, v, from) {
   }
   if (k == 'ab0_4' && wxAt(F.__dep && F.__dep[3]) && F.__dep) {
     F.atis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + (F.__taf ? '\n' + F.__taf : '');
-    F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
+    F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + ' ' + CAM.wxColour(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
     const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
   }

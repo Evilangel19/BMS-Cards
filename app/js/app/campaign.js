@@ -98,7 +98,7 @@ export function wxApply(i, set) {
   const wd = wxAt(d && d[3]);
   if (wd && d) {
     set('atis', CAM.atisText(wd, d, F.ab0_4) + (taf ? '\n' + taf : ''));
-    set('matis', CAM.atisText(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only
+    set('matis', CAM.atisText(wd, d, F.ab0_4) + ' ' + CAM.wxColour(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only + its colour state
   }
   (F.__ab || []).forEach((o, j) => {
     if (!o) return;

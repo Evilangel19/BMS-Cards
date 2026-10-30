@@ -122,6 +122,7 @@ function fillCard(C, f, ld = 0) {
       },
       wp = e.wps || [],
       at = a => (wp.find(p => p.act == a && p.arr) || {}).arr,
+      hold = wp.find(p => p.act == 8 && p.arr),
       act = wp.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)),
       sv0 = svc(C, e),
       ty = acOf(C, e)
@@ -130,7 +131,7 @@ function fillCard(C, f, ld = 0) {
     [
       csOf(C, e),
       `${nAcf(e)}x\n${ty}`,
-      at(8) ? hm(at(8)) : '',
+      hold ? hm(hold.arr) + (hold.dep && hold.dep > hold.arr ? '-' + hm(hold.dep) : '') : '',
       act && act.z ? String(act.z * 10) : '',
       rmf(C, csOf(C, e))[0],
       at(2) ? hm(at(2)) : '',
@@ -299,6 +300,13 @@ function fillCard(C, f, ld = 0) {
       F[`su${i}_1`] = tcnStr(u.tcn && u.tcn[0], u.band && u.band[0]);
       F[`su${i}_2`] = rmf(C, csOf(C, u))[0];
       F[`su${i}_3`] = locBE(C, u, null);
+      if (i == 0) {
+        // altitude of the tanker at its action steerpoints (the track), in feet
+        const az =
+          u.wps.find(p => [24, 4].includes(p.act) && p.z) ||
+          u.wps.find(p => ![0, 1, 2, 3, 7, 8].includes(p.act) && p.z);
+        F.tk_alt = az ? String(az.z * 10) : '';
+      }
       F[`sn${i}`] = opWin(u);
     }
   };
