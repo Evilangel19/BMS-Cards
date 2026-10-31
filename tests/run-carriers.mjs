@@ -1,7 +1,7 @@
 // Aircraft carriers: the objective rows of the ships (position 0,0) are joined to the ship units that carry squadrons; flights that take off from a ship get the ship as their base.
 import fs from 'node:fs';
 import { CAM } from '../app/js/core/cam-core.js';
-import { carriers, carrierRadio, carrierNear } from '../app/js/core/carriers.js';
+import { carriers, carrierRadio, carrierNear, isShipBase } from '../app/js/core/carriers.js';
 import { nearAb } from '../app/js/core/flight.js';
 import { buildAto } from '../app/js/core/ato.js';
 import { mapUnits } from '../app/js/core/mapdata.js';
@@ -40,6 +40,10 @@ const a = nearAb(C, 773, 107);
 ok(
   a === by('USS Carl Vinson') && tcnFor(C, a, C.D.ab[a[0]]) == '10 X',
   'the datacard side: same row every time, TACAN from the airbase row'
+);
+ok(
+  isShipBase(a) && isShipBase(by('LHD-1 Wasp')) && !isShipBase(['1', 'Osan AB']) && !isShipBase(null),
+  'a ship base is told from an airfield (no refusal speed from a ship)'
 );
 const F = CAM.fillCard(C, fromV[0].f);
 ok(

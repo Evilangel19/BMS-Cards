@@ -36,6 +36,8 @@ export function carriers(C) {
   CACHE.set(C, out);
   return out;
 }
+// an airbase row of a ship (aircraft carrier, helicopter carrier, amphibious ship): the row of the ships of the campaign has the unit, the others are told by the name
+export const isShipBase = row => !!row && (!!row.unit || SHIP.test(String(row[1] || '')));
 // the carrier within `km` of a place (a steerpoint of take-off or recovery), nearest first; null when none
 export function carrierNear(C, x, y, km = 25) {
   let b = null,

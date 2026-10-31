@@ -121,6 +121,7 @@ export function parseAcPerf(text, name = '') {
   return {
     name,
     fm: o.fmtype || '',
+    hasAb: JSON.stringify(th.ab) !== JSON.stringify(th.mil), // an afterburner: its thrust table is not the military one
     ac: { type: (ax.aircraft || {}).type_ac || '', engine: (ax.engine || {}).type_engine || '' },
     af: {
       emptyLb: af.empty_weight_lbs,

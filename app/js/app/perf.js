@@ -5,6 +5,7 @@ import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsda
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
+import { isShipBase } from '../core/carriers.js';
 import { ST } from './state.js';
 import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
@@ -218,7 +219,8 @@ export async function perfCalc(i) {
     elev = E ? E.elev : 0,
     hw = E ? E.hw : 0,
     dIsa = E ? E.isa : 0;
-  const rwy = rwyFt(d),
+  const ship = isShipBase(F.__ab && F.__ab[0]), // no runway to stop on: a take-off from a ship cannot be aborted
+    rwy = rwyFt(d),
     to = PA.takeoff(ac, { W: gw, elev, dIsa, hw, power: TOPOWER, di }),
     alt = climbAltitude(f.wps);
   let taxi = 300;
@@ -231,7 +233,8 @@ export async function perfCalc(i) {
     to,
     taxi,
     rpm: PA.milRpm(ac),
-    refusal: rwy ? PA.refusal(ac, { W: gw, elev, dIsa, hw, power: TOPOWER, di, rwy }) : null,
+    ship,
+    refusal: rwy && !ship ? PA.refusal(ac, { W: gw, elev, dIsa, hw, power: TOPOWER, di, rwy }) : null,
     climb: PA.climbSchedule(ac, { W: gw, dIsa, di, to: alt }),
     plan: fuelPlan(ac, f.wps, {
       empty: ew,
@@ -276,11 +279,12 @@ export async function perfFill(i) {
   }
   if (!r || ST.CURK !== k || !ST.AUTO) return;
   if (!r.to.stuck) {
-    put('tospec', (TOPOWER == 'mil' ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
+    put('tospec', (TOPOWER == 'mil' || !r.ac.hasAb ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
     put('rot', Math.round(r.to.vr));
   }
   if (r.rpm) put('mp', r.rpm + '%');
-  if (r.refusal != null) put('ref', r.refusal >= 224.5 ? '225+' : Math.round(r.refusal));
+  if (r.ship) put('ref', '---');
+  else if (r.refusal != null) put('ref', r.refusal >= 224.5 ? '225+' : Math.round(r.refusal));
   if (r.climb) put('mc', r.climb.cas + '/.' + String(Math.round(r.climb.mach * 100)).padStart(2, '0'));
   {
     const pk = +F.fuel;
