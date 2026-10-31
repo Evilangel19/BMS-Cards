@@ -146,6 +146,16 @@ async function readGameData(reloadTheaters) {
           ? jp(inst, 'Data', ST.TH.objects)
           : '';
       ST.OBJCAMP = paths['CampObjData.XML'] || (ST.OBJDIR ? jp(ST.OBJDIR, 'CampObjData.XML') : '');
+      // CampObjData.XML and the ObjectiveRelatedData folder (runways, features) are side by side: an add-on theater that has its own CampObjData must not read the OCD folders of another theater
+      try {
+        const cd = paths['CampObjData.XML'] ? dn(paths['CampObjData.XML']) : '';
+        if (
+          cd &&
+          cd !== ST.OBJDIR &&
+          (await listDir(cd)).some(e => e.isDirectory && /^objectiverelateddata$/i.test(e.name))
+        )
+          ST.OBJDIR = cd;
+      } catch (e) {}
       TDATA.reset();
       try {
         mapV.objectsChanged(); // the objects drawn on the map are those of the new theater
@@ -182,8 +192,9 @@ async function readGameData(reloadTheaters) {
       else setGeo();
       ST.THGEO = g;
       const gk = g ? g.lat + ',' + g.lon : 'k';
-      if (gk !== ST.GEOKEY) {
-        ST.GEOKEY = gk;
+      const tk = (ST.TH ? ST.TH.name : '') + '|' + gk; // a theater whose centre is not read has the key of Korea: the theater name tells them apart
+      if (tk !== ST.GEOKEY && !(ST.GEOKEY === 'k' && gk === 'k')) {
+        ST.GEOKEY = tk;
         try {
           mapV.theaterChanged();
         } catch (e) {}

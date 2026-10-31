@@ -33,7 +33,7 @@ export function fmtLL(lat, lon) {
 }
 
 // Airbases of the theater: [{id, name, ll, kind, sub}] kind: 'ab' airbase, 'nav' navaid (sub: vortac / tacan / vor / vordme / dme / ndb), 'ship' carrier start spot
-const NAV = /\b(VOR|VORTAC|TACAN|NDB|DME)\b/,
+const NAV = /\b(VOR|VORTAC|TACAN|TCN|NDB|DME)\b/,
   SHIP = /^(USS|TAKR|CV-|CVN|LHD|LHA|HMS|JS )/;
 export function mapAirbases(D) {
   const nb = D.navOcd || []; // objective classes named like a navigation beacon in the OCD file ("Air Nav Beacon")
@@ -59,7 +59,7 @@ export function mapAirbases(D) {
     kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab',
     sub: /VORTAC/.test(o[1])
       ? 'vortac'
-      : /TACAN/.test(o[1])
+      : /TACAN|\bTCN\b/.test(o[1])
         ? 'tacan'
         : /VOR/.test(o[1])
           ? /DME/.test(o[1])

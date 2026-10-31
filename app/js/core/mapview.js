@@ -1599,7 +1599,7 @@ export function createMap(host, deps) {
     const L = window.L;
     if (!deps.localMap) throw new Error('Not available here.');
     const blob = await deps.localMap(),
-      sig = 'sky' + blob.size;
+      sig = 'sky' + (blob.name || '') + blob.size; // the picture of another theater is never taken for this one
     let bmp = null,
       sm = null,
       sw = 0,
