@@ -67,32 +67,26 @@ export async function loadRunways(atc) {
     ST.RL = runwayLengths(atc, rwl);
     let why = '';
     if (!Object.keys(ST.RL).length && objs.length) {
-      try {
-        const o = objs[0];
-        const ocdName = (/<Name>([^<]*)<\/Name>/.exec(
-          dec(await readBytes(jp(ST.OBJDIR, ...ocdPath(o.ocd).split('/'))))
-        ) || [])[1];
-        why =
-          '; first base ' +
-          o.id +
-          ' "' +
-          o.name +
-          '" (OCD ' +
-          o.ocd +
-          ' "' +
-          (ocdName || '?') +
-          '"; CampObjData ' +
-          (ST.OBJCAMP || jp(ST.OBJDIR, 'CampObjData.XML')) +
-          '; OCD folder ' +
-          ST.OBJDIR +
-          '): ' +
-          describeRunways(
-            dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
-            dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))))
+      // what the files of the bases hold: the airfields first (ICAO code in the name), at most 6, so the cause can be seen
+      const ap = objs.filter(o => /\([A-Z]{4}\)/.test(o.name)),
+        pick = [...ap, ...objs.filter(o => !ap.includes(o))].slice(0, 6),
+        out = [];
+      for (const o of pick) {
+        try {
+          const nm = (/<Name>([^<]*)<\/Name>/.exec(dec(await readBytes(jp(ST.OBJDIR, ...ocdPath(o.ocd).split('/'))))) ||
+            [])[1];
+          out.push(
+            `${o.id} "${o.name}" OCD ${o.ocd} "${nm || '?'}": ` +
+              describeRunways(
+                dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
+                dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))))
+              )
           );
-      } catch (e) {
-        why = '; first base: ' + ((e && e.message) || e);
+        } catch (e) {
+          out.push(`${o.id} "${o.name}" OCD ${o.ocd}: ${(e && e.message) || e}`);
+        }
       }
+      why = '; ' + out.join(' | ') + '; CampObjData ' + (ST.OBJCAMP || '') + '; OCD folder ' + ST.OBJDIR;
     }
     RLI =
       Object.keys(ST.RL).length +
