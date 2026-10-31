@@ -129,6 +129,27 @@ export async function openSettings() {
   rf.append(lf, cbf, tf);
   rf.style.gridTemplateColumns = '150px auto 1fr';
   dlg.append(rf);
+  const ro = document.createElement('div');
+  ro.className = 'cf';
+  const lo = document.createElement('label');
+  lo.textContent = 'Other factions';
+  const cbo = document.createElement('input');
+  cbo.type = 'checkbox';
+  cbo.checked = ST.OBSERVER;
+  cbo.style.width = 'auto';
+  cbo.onchange = () => {
+    ST.OBSERVER = cbo.checked;
+    try {
+      localStorage.setItem('bmsobs', ST.OBSERVER ? '1' : '0');
+    } catch (e) {}
+  };
+  const to = document.createElement('span');
+  to.className = 'hint';
+  to.textContent =
+    'Read the ATO and the map of the other factions (only without a squadron: in a squadron, only its commander can). Just for immersion: in BMS you can start the campaign as the other side.';
+  ro.append(lo, cbo, to);
+  ro.style.gridTemplateColumns = '150px auto 1fr';
+  dlg.append(ro);
   const r4 = document.createElement('div');
   r4.className = 'cf';
   const l4 = document.createElement('label');

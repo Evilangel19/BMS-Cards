@@ -396,6 +396,7 @@ export async function init11() {
       forSend: (id, t) => msfForSend(id, t),
     },
   });
+  ST.SQROLE = () => sqPage.role();
   beforeClose(() => sqPage.flush());
   KBX.send = it => sqPage.sendCard(it);
   KBX.can = () => sqPage.canSendCard();

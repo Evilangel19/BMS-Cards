@@ -96,8 +96,13 @@ export function atoSearch0() {
       ? ST.C.playerTeam
       : ((ATOL.find(e => e.hifi) || ATOL[0] || {}).team ?? null);
   if (ST.VIEW === null || !teams.some(t => t[0] == ST.VIEW)) ST.VIEW = PLAYER;
+  // the other factions can be read by the squadron commander (who created it) or, with no squadron, by who turned the option on in the Settings; for the others only their own faction is listed
+  const role = ST.SQROLE ? ST.SQROLE() : 'none',
+    seeAll = role == 'owner' || (role == 'none' && ST.OBSERVER);
+  if (!seeAll && ST.VIEW != PLAYER) ST.VIEW = PLAYER;
+  const shown = seeAll ? teams : teams.filter(t => t[0] == PLAYER);
   el.innerHTML = `<h3>Air Tasking Order</h3><div class="sr">
- <div class="w" style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-block"><button class="btn" id="aq_viewb" type="button" style="margin:0;border-radius:16px;padding:5px 14px;font-weight:600;color:#fff" title="Your faction comes from the campaign (player squadron). Click to choose another: other factions are read-only."></button><select id="aq_view" tabindex="-1" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none">${teams.map(([t, n]) => `<option value="${t}"${ST.VIEW == t ? ' selected' : ''} style="background:${t == PLAYER ? '#4cc38a' : allyOf(t, PLAYER) ? '#6b46b8' : '#a12b2b'};color:${t == PLAYER ? '#062014' : '#fff'}">${esc(n)}${t == PLAYER ? ' (you)' : ''}</option>`).join('')}</select></span><button class="btn g" id="aq_info" type="button" style="margin:0 0 0 auto;border-radius:16px;padding:4px 12px;font-size:12px" title="Click to show or hide the search filters"></button></div>
+ <div class="w" style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-block"><button class="btn" id="aq_viewb" type="button" style="margin:0;border-radius:16px;padding:5px 14px;font-weight:600;color:#fff" title="Your faction comes from the campaign (player squadron). Click to choose another: other factions are read-only."></button><select id="aq_view" tabindex="-1" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none">${shown.map(([t, n]) => `<option value="${t}"${ST.VIEW == t ? ' selected' : ''} style="background:${t == PLAYER ? '#4cc38a' : allyOf(t, PLAYER) ? '#6b46b8' : '#a12b2b'};color:${t == PLAYER ? '#062014' : '#fff'}">${esc(n)}${t == PLAYER ? ' (you)' : ''}</option>`).join('')}</select></span><button class="btn g" id="aq_info" type="button" style="margin:0 0 0 auto;border-radius:16px;padding:4px 12px;font-size:12px" title="Click to show or hide the search filters"></button></div>
  <div class="w" id="aq_sp"></div><div class="w" id="aq_flt" style="display:${ATOFLT ? 'grid' : 'none'};grid-template-columns:1fr 1fr;gap:8px 6px">
  <input id="aq_cs" placeholder="Callsign" value="${esc(q.cs)}"><input id="aq_pkg" placeholder="Package #" value="${esc(q.pkg)}">
  <input id="aq_ac" placeholder="Aircraft" value="${esc(q.ac)}"><input id="aq_mis" placeholder="Mission type" value="${esc(q.mis)}">
@@ -122,7 +127,7 @@ export function atoSearch0() {
     const n = (teams.find(t => t[0] == ST.VIEW) || [])[1];
     if (ST.VIEW != PLAYER)
       alert(
-        'You are not part of this faction (' +
+        'Taking a peek at the other side, commander? Fair play: this is for the briefing, not for the plan. Keep it in the spirit of the game, and do not pass what you see to your pilots.\n\nYou are not part of this faction (' +
           n +
           '): you can read its ATO, but its flights cannot be loaded on the datacard.'
       );

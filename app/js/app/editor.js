@@ -195,6 +195,7 @@ export function openEd(d, sel = true) {
     }, 0);
 }
 ST.FORMON = false;
+ST.OBSERVER = false; // Settings: with no squadron, the ATO of the other factions can be read
 export const applyFormToggle = () => {
   $('form').style.display = ST.FORMON ? '' : 'none';
   document.querySelector('.k').classList.toggle('noform', !ST.FORMON);
@@ -276,6 +277,7 @@ export async function init15() {
   window.addEventListener('resize', () => closeEd(true));
   try {
     ST.FORMON = localStorage.getItem('bmsform') === '1';
+    ST.OBSERVER = localStorage.getItem('bmsobs') === '1';
   } catch (e) {}
   $('mdctog').onclick = () => {
     closeEd(true);

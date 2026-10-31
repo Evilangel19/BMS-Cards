@@ -192,3 +192,4 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 - 0.9.9-beta.83 (2026-10-31): airbases of a theater without the AIP list (Balkans): the elevation of the field comes from the heights of the theater for every airbase that has none
 - 0.9.9-beta.84 (2026-10-31): offline coastlines (dark and light) for the Israel, Balkans and Hellas theaters: a second data file for the Eastern Mediterranean (tools/make-basemap.mjs med), loaded only when the theater is there
 - 0.9.9-beta.85 (2026-10-31): Squadron, Missions tab: a green Load button beside Delete opens a saved mission
+- 0.9.9-beta.86 (2026-10-31): the ATO and the map of the other factions can be read only by the creator of the squadron (the commander), with a friendly reminder of fair play; with no squadron an option in the Settings (Other factions) allows it; members of a squadron see their own faction only

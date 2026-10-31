@@ -25,7 +25,7 @@ DISMISS = [False]
 S = lambda side, r: '#kn div.kbt[data-s=%s][data-r="%d"]' % (side, r)
 cap = lambda pg: pg.inner_text('#kbcap')
 def start(br, motion):
-    pg = br.new_page(viewport={'width': 1700, 'height': 1800}, accept_downloads=True, reduced_motion=motion); errs = []
+    pg = br.new_page(viewport={'width': 1700, 'height': 1800}, accept_downloads=True, reduced_motion=motion); errs = []; pg.add_init_script("localStorage.setItem('bmsobs','1')");
     import dialogs; dialogs.install(pg)
     pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: (d.dismiss() if DISMISS[0] else d.accept())); pg.add_init_script('window.showOpenFilePicker=undefined')
     pg.goto('http://localhost:8769/app/index.html'); pg.wait_for_timeout(800)

@@ -3480,6 +3480,8 @@ export function createSquadronPage(deps) {
     received: () => recv,
     sendCard,
     canSendCard: () => !!cur(),
+    // 'owner': created a squadron (the commander); 'member': is in squadrons made by others; 'none': in no squadron
+    role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
     roster: () => {
       const q = cur();
       if (!q) return [];

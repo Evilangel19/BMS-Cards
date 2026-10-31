@@ -21,7 +21,7 @@ try:
     tmp = tempfile.mkdtemp(); theater_picture().save(tmp + '/theater.png')
     with sync_playwright() as p:
         br = p.chromium.launch(); errs = []; tiles = [0]; cdn = [0]
-        pg = br.new_page(viewport={'width': 1500, 'height': 900}); pg.on('pageerror', lambda e: errs.append(str(e)))
+        pg = br.new_page(viewport={'width': 1500, 'height': 900}); pg.add_init_script("localStorage.setItem('bmsobs','1')"); pg.on('pageerror', lambda e: errs.append(str(e)))
         import dialogs; dialogs.install(pg)
         # hamburgers close after a sub-button is used: before a click on a hidden sub-button its hamburgers are opened, outermost first
         CHAIN = "(sel)=>{const e=document.querySelector(sel);if(!e)return [];const f=e.closest('.fly');return f?[document.querySelector('[data-fly='+f.id+']').id]:[]}"
