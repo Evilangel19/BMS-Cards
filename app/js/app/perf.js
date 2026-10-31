@@ -1,7 +1,7 @@
 import { loadPrefs, readBytes, readRange, savePrefs } from '../platform/desktop.js';
 import { heightsAt } from '../bmsdata/heightmap.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
-import { runwayLengths, parseRunways, describeRunways } from '../bmsdata/runways.js';
+import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
@@ -66,29 +66,29 @@ export async function loadRunways(atc) {
     const isAb = o => (CAM.D.ab && CAM.D.ab[o.id]) || /air\s?(base|field|port|strip)|\([A-Z]{4}\)/i.test(o.name);
     const todo = allObjs.filter(o => !ST.RL[o.id] && isAb(o)),
       found = [],
+      byOrd = {},
       // the ILS of the Stations table: one for each runway end, in the order of the file (runway 1 .. 4)
       ilsOf = id => ((CAM.D.ab && CAM.D.ab[id]) || []).slice(7, 11);
     for (let i = 0; i < todo.length; i += 10)
       await Promise.all(
         todo.slice(i, i + 10).map(async o => {
           try {
-            if (!byOcd[o.ocd])
-              byOcd[o.ocd] = parseRunways(
-                dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
-                dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))))
-              );
-            const list = byOcd[o.ocd];
+            if (!byOrd[o.ocd]) {
+              const phd = dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
+                pdx = dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))));
+              byOrd[o.ocd] = { list: parseRunways(phd, pdx), order: ilsOrder(phd, pdx) };
+            }
+            const { list, order } = byOrd[o.ocd];
             if (!list.length) return;
             const ends = {},
               rw = [];
-            for (const r of list)
-              for (const d of [0, 18]) {
-                const q = String((((Math.round(r.hdg / 10) || 36) + d - 1) % 36) + 1).padStart(2, '0');
-                if (!ends[q]) {
-                  ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
-                  rw.push([q, +q * 10, ilsOf(o.id)[rw.length] || 0]);
-                }
-              }
+            // the ends in the order of the ILS of the Stations table (ILS 1..4); two parallel runways keep one entry each
+            order.forEach((e, k) => {
+              const q = String(e.n).padStart(2, '0'),
+                r = list.find(x => +x.id === e.rw) || list[0];
+              if (!ends[q]) ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
+              rw.push([q, e.n * 10, ilsOf(o.id)[k] || 0]);
+            });
             const big = list.reduce((m, r) => (r.len > m.len ? r : m), list[0]);
             ST.RL[o.id] = { ends, max: { ft: Math.round(big.len), w: Math.round(big.wid) } };
             found.push({ o, rw });

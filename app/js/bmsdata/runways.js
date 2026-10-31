@@ -35,6 +35,47 @@ export function parseRunways(phdXml, pdxXml) {
   return out;
 }
 
+// The order of the ILS of the Stations table (ILS 1..4 = runway 1 end 1, runway 1 end 2, runway 2 end 1, runway 2 end 2) for an airbase with no ATC file, from its objective files.
+// What the Israel theater shows (checked on five airbases against the navaids list of the theater): the landing paths (header Type 1) come in pairs, one pair for each runway; inside a
+// pair the ends are listed in the opposite order of the header file; two parallel runways are listed north one first, otherwise in the order of the file.
+// -> [{ n: end number (1-36), rw: RunwayNumber }]
+export function ilsOrder(phdXml, pdxXml) {
+  const pts = [...pdxXml.matchAll(/<PD Num="(\d+)">([\s\S]*?)<\/PD>/g)].map(m => ({
+    e: +tag(m[2], 'OffsetX'),
+    n: +tag(m[2], 'OffsetY'),
+    t: +tag(m[2], 'Type'),
+  }));
+  const H = [...phdXml.matchAll(/<PHD Num="(\d+)">([\s\S]*?)<\/PHD>/g)].map(m => ({
+    t: +tag(m[2], 'Type'),
+    rw: +tag(m[2], 'RunwayNumber'),
+    dir: +tag(m[2], 'Data'),
+    first: +tag(m[2], 'FirstPtIdx'),
+    count: +tag(m[2], 'PointCount'),
+  }));
+  const groups = [];
+  for (const h of H) {
+    if (h.t !== 1) continue;
+    let g = groups.find(x => x.rw === h.rw);
+    if (!g) groups.push((g = { rw: h.rw, ends: [], north: 0, dir: h.dir }));
+    g.ends.push(Math.round(h.dir / 10 + 0.01) % 36 || 36);
+  }
+  for (const g of groups) {
+    const r = H.find(h => h.t === 8 && h.rw === g.rw),
+      c = r ? pts.slice(r.first, r.first + r.count).filter(p => p.t === 8) : [];
+    g.north = c.length ? c.reduce((a, p) => a + p.n, 0) / c.length : 0;
+    g.ends.reverse();
+  }
+  const par = (a, b) => Math.abs(((((a.dir - b.dir) % 180) + 270) % 180) - 90) < 10;
+  const out = [];
+  groups.forEach((g, i) => {
+    // a runway goes after the ones that come before it in the file, except where it is parallel to one that is more to the north
+    let at = out.length;
+    while (at > 0 && par(out[at - 1], g) && g.north > out[at - 1].north) at--;
+    out.splice(at, 0, g);
+  });
+  return out.flatMap(g => g.ends.map(n => ({ n, rw: g.rw })));
+}
+
 // What a pair of files holds, for the message shown when no runway size could be read: "N runway header(s), corner points 4,4"
 export function describeRunways(phdXml, pdxXml) {
   const pts = [...pdxXml.matchAll(/<PD Num="(\d+)">([\s\S]*?)<\/PD>/g)].map(m => ({ t: +tag(m[2], 'Type') })),
