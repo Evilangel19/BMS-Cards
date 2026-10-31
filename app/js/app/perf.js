@@ -1,8 +1,9 @@
 import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
-import { parseObjectives, phdPath, pdxPath, ocdPath } from '../core/targets.js';
+import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
+import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
@@ -36,16 +37,11 @@ export async function loadRunways(atc) {
       RLI = 'Falcon4_CT.xml (objects folder) not found';
       return;
     }
-    if (!atc.length) {
-      RLI = 'no ATC files';
-      return;
-    }
     RLI = 'reading…';
     const dec = b => new TextDecoder('utf-8').decode(b),
       ids = new Set(atc.map(a => a.campId)),
-      objs = parseObjectives(dec(await readBytes(ST.OBJCAMP || jp(ST.OBJDIR, 'CampObjData.XML')))).filter(o =>
-        ids.has(String(o.id))
-      ),
+      allObjs = parseObjectives(dec(await readBytes(ST.OBJCAMP || jp(ST.OBJDIR, 'CampObjData.XML')))),
+      objs = allObjs.filter(o => ids.has(String(o.id))),
       byOcd = {},
       rwl = {};
     let err = '';
@@ -65,28 +61,50 @@ export async function loadRunways(atc) {
         })
       );
     ST.RL = runwayLengths(atc, rwl);
-    let why = '';
-    if (!Object.keys(ST.RL).length && objs.length) {
-      // what the files of the bases hold: the airfields first (ICAO code in the name), at most 6, so the cause can be seen
-      const ap = objs.filter(o => /\([A-Z]{4}\)/.test(o.name)),
-        pick = [...ap, ...objs.filter(o => !ap.includes(o))].slice(0, 6),
-        out = [];
-      for (const o of pick) {
-        try {
-          const nm = (/<Name>([^<]*)<\/Name>/.exec(dec(await readBytes(jp(ST.OBJDIR, ...ocdPath(o.ocd).split('/'))))) ||
-            [])[1];
-          out.push(
-            `${o.id} "${o.name}" OCD ${o.ocd} "${nm || '?'}": ` +
-              describeRunways(
+    // an airbase without an ATC file of its own (an add-on theater that brings none: ITO has the Korean ones): the size and the numbers of its runways come from its own objective files
+    const isAb = o => (CAM.D.ab && CAM.D.ab[o.id]) || /air\s?(base|field|port|strip)|\([A-Z]{4}\)/i.test(o.name);
+    const todo = allObjs.filter(o => !ST.RL[o.id] && isAb(o));
+    for (let i = 0; i < todo.length; i += 10)
+      await Promise.all(
+        todo.slice(i, i + 10).map(async o => {
+          try {
+            if (!byOcd[o.ocd])
+              byOcd[o.ocd] = parseRunways(
                 dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
                 dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))))
-              )
+              );
+            const list = byOcd[o.ocd];
+            if (!list.length) return;
+            const ends = {};
+            for (const r of list)
+              for (const d of [0, 18]) {
+                const q = String((((Math.round(r.hdg / 10) || 36) + d - 1) % 36) + 1).padStart(2, '0');
+                if (!ends[q]) ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
+              }
+            const big = list.reduce((m, r) => (r.len > m.len ? r : m), list[0]);
+            ST.RL[o.id] = { ends, max: { ft: Math.round(big.len), w: Math.round(big.wid) } };
+          } catch (e) {
+            /* no files for this base */
+          }
+        })
+      );
+    let why = '';
+    if (!Object.keys(ST.RL).length && objs.length) {
+      try {
+        const o = objs[0];
+        why =
+          '; first base ' +
+          o.id +
+          ' (OCD ' +
+          o.ocd +
+          '): ' +
+          describeRunways(
+            dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
+            dec(await readBytes(jp(ST.OBJDIR, ...pdxPath(o.ocd).split('/'))))
           );
-        } catch (e) {
-          out.push(`${o.id} "${o.name}" OCD ${o.ocd}: ${(e && e.message) || e}`);
-        }
+      } catch (e) {
+        why = '; first base: ' + ((e && e.message) || e);
       }
-      why = '; ' + out.join(' | ') + '; CampObjData ' + (ST.OBJCAMP || '') + '; OCD folder ' + ST.OBJDIR;
     }
     RLI =
       Object.keys(ST.RL).length +
