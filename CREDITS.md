@@ -25,7 +25,7 @@ Third-party code included:
 - Leaflet 1.9.4 (Vladimir Agafonkin and contributors), BSD-2-Clause - app/vendor/leaflet/ (unmodified build). Map page.
 - html2canvas 1.4.1 (Niklas von Hertzen), MIT - app/vendor/html2canvas/ (unmodified build). Map screenshot for the datacard.
 - Natural Earth (public domain) coast and border lines, taken from the npm package world-atlas 2.0.2 (ISC, Mike Bostock) and
-  clipped to the region with tools/make-basemap.mjs (topojson-client, ISC, used only at build time) - app/js/data/basemap.js.
+  clipped to the region with tools/make-basemap.mjs (topojson-client, ISC, used only at build time) - app/js/data/basemap.js (East Asia) and basemap-med.js (Eastern Mediterranean).
   The same file holds the Natural Earth 10m rivers and lakes (public domain, github.com/nvkelso/natural-earth-vector, geojson folder).
 - Satellite layer of the map (optional, needs internet): Sentinel-2 cloudless 2021 tiles by EOX IT Services GmbH
   (https://s2maps.eu, contains modified Copernicus Sentinel data 2021), CC BY-NC-SA 4.0. The tiles are loaded from the EOX server at

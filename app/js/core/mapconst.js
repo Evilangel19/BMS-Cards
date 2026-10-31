@@ -7,13 +7,20 @@ export const COAST = {
   dark: { sea: '#0d1b2a', land: '#27323d', coast: '#56687a', border: '#8b98a8', river: '#3f78ad' },
   light: { sea: '#cde2f0', land: '#f2efe4', coast: '#7d8a96', border: '#6b7580', river: '#3a86c4' },
 };
-// The coastlines (offline) and the official map are pictures of Korea: other theaters use the map picture of their Docs folder, the satellite, the topographic map or a picture of their own.
-export const KOREA_ONLY = ['coast', 'bms']; // the picture of the BMS folder (sky) exists for every theater that has one in its Docs\\ ... Maps folder
+// The official map is a picture of Korea: other theaters use the map picture of their Docs folder, the satellite, the topographic map or a picture of their own.
+export const KOREA_ONLY = ['bms']; // the picture of the BMS folder (sky) exists for every theater that has one in its Docs\\ ... Maps folder
 export const isKorea = () => {
   const g = getGeo();
   return g.lat === 38.5 && g.lon === 127.5;
 };
-export const baseOk = k => isKorea() || !KOREA_ONLY.includes(k);
+// The offline coastlines exist for two regions: East Asia (Korea) and the Eastern Mediterranean (Israel, Balkans and Hellas theaters).
+export const coastRegion = () => {
+  const g = getGeo();
+  if (g.lon >= 105 && g.lon <= 150 && g.lat >= 22 && g.lat <= 52) return 'asia';
+  if (g.lon >= 8 && g.lon <= 45 && g.lat >= 26 && g.lat <= 49) return 'med';
+  return '';
+};
+export const baseOk = k => (k == 'coast' ? !!coastRegion() : isKorea() || !KOREA_ONLY.includes(k));
 export const BASES = {
   coast: { label: 'Coastlines (offline)' },
   sat: {

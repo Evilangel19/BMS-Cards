@@ -61,6 +61,7 @@ import {
   SUPPORT,
   WT_SEP,
   baseOk,
+  coastRegion,
   clock,
   idb,
   loadLeaflet,
@@ -75,6 +76,8 @@ export function createMap(host, deps) {
     OV = null,
     OVC = {},
     baseTok = 0,
+    CREG = '',
+    mkCoastLayers = async () => {},
     curC = null,
     curView = null,
     imgName = '',
@@ -286,7 +289,7 @@ export function createMap(host, deps) {
     map.createPane('planM').style.zIndex = 452;
     PRM = L.canvas({ pane: 'planM' });
     // offline bases (dark and light): land, borders, rivers and lakes over the sea-coloured container
-    const mkCoast = c => {
+    const mkCoast = (c, basemap) => {
       const sch = L.layerGroup(),
         ll = rs => rs.map(r => r.map(p => [p[1], p[0]]));
       L.polygon(ll(basemap.land), {
@@ -323,9 +326,21 @@ export function createMap(host, deps) {
       }).addTo(sch);
       return sch;
     };
-    G.coastD = mkCoast(COAST.dark);
-    G.coastL = mkCoast(COAST.light);
+    mkCoastLayers = async () => {
+      const reg = coastRegion() || 'asia';
+      if (reg == CREG) return;
+      const data = reg == 'med' ? (await import('../data/basemap-med.js')).default : basemap;
+      if (G.coastD) map.removeLayer(G.coastD);
+      if (G.coastL) map.removeLayer(G.coastL);
+      G.coastD = mkCoast(COAST.dark, data);
+      G.coastL = mkCoast(COAST.light, data);
+      G.coast = st.cl ? G.coastL : G.coastD;
+      CREG = reg;
+    };
+    G.coastD = mkCoast(COAST.dark, basemap);
+    G.coastL = mkCoast(COAST.light, basemap);
     G.coast = G.coastD;
+    CREG = 'asia';
     MAP_LAYERS.forEach(([k]) => (G[k] = L.layerGroup()));
     G.off = L.layerGroup().addTo(map); // offsets placed on a route steerpoint
     G.su = L.layerGroup().addTo(map); // SAM units: shown with their unit layer or with their range layer
@@ -1788,6 +1803,10 @@ export function createMap(host, deps) {
     if (OV) {
       map.removeLayer(OV);
       OV = null;
+    }
+    if (st.base == 'coast') {
+      await mkCoastLayers();
+      if (tok != baseTok) return;
     }
     map.removeLayer(G.coastD);
     map.removeLayer(G.coastL);
