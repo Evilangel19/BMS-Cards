@@ -279,7 +279,7 @@ export async function perfFill(i) {
   }
   if (!r || ST.CURK !== k || !ST.AUTO) return;
   if (!r.to.stuck) {
-    put('tospec', (TOPOWER == 'mil' || !r.ac.hasAb ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
+    put('tospec', (TOPOWER == 'mil' || r.ac.hasAb === false ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
     put('rot', Math.round(r.to.vr));
   }
   if (r.rpm) put('mp', r.rpm + '%');
