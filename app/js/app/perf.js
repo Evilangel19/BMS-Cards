@@ -115,27 +115,32 @@ export async function loadRunways(atc) {
         why = '; first base: ' + ((e && e.message) || e);
       }
     }
-    // the same bases get their runway numbers (for the choice of the runway) and the elevation of the field from the heights of the theater
+    // the same bases get their runway numbers (for the choice of the runway)
     if (found.length) {
       found.forEach(({ o, rw }) => {
         CAM.D.ap[o.id] = { i: (o.name.match(/\(([A-Z]{4})\)/) || [])[1] || '', rw };
       });
-      try {
-        const tr = await terrain(),
-          h = tr
-            ? await heightsAt(
-                (off, len) => readRange(tr.path, off, len),
-                tr.spec,
-                found.map(({ o }) => ({ n: o.n, e: o.e }))
-              )
-            : null;
-        if (h)
-          found.forEach(({ o }, i) => {
-            if (h[i] !== null && h[i] !== undefined && !CAM.D.el[o.id]) CAM.D.el[o.id] = Math.round(h[i]);
-          });
-      } catch (e) {
-        /* no heights: the elevation stays empty */
-      }
+    }
+    // every airbase still without an elevation (no AIP list in this theater) gets the one from the heights of the theater
+    {
+      const need = allObjs.filter(o => isAb(o) && !CAM.D.el[o.id] && o.n !== undefined);
+      if (need.length)
+        try {
+          const tr = await terrain(),
+            h = tr
+              ? await heightsAt(
+                  (off, len) => readRange(tr.path, off, len),
+                  tr.spec,
+                  need.map(o => ({ n: o.n, e: o.e }))
+                )
+              : null;
+          if (h)
+            need.forEach((o, i) => {
+              if (h[i] !== null && h[i] !== undefined) CAM.D.el[o.id] = Math.round(h[i]);
+            });
+        } catch (e) {
+          /* no heights: the elevation stays empty */
+        }
     }
     RLI =
       Object.keys(ST.RL).length +
