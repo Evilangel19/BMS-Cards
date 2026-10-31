@@ -332,7 +332,7 @@ export function atoList0() {
     }
     const k = ST.CL.findIndex(x => x.f === e.f);
     if (k < 0) {
-      appToast('This flight has no flight plan to fill the datacard (it needs at least four steerpoints).');
+      appToast('This flight has no flight plan to fill the datacard (it needs at least two steerpoints).');
       return;
     }
     $('fsel').value = k;

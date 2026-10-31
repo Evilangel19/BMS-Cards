@@ -133,7 +133,7 @@ const hasAcData = (D, n) => !!(D && D.ew && (D.ew[n] != null || D.ew[n.replace(/
 const isHeli = n => /^(UH|AH|CH|MH|OH|HH|SH|MV|Mi-|Ka-|Z-\d|WZ-|MD-)/i.test(n);
 function listFlights(C, rx = /F-16/) {
   return C.units
-    .filter(x => x.kind == 'flight' && x.wps.length > 3 && (rx ? rx.test(acOf(C, x)) : !isHeli(acOf(C, x))))
+    .filter(x => x.kind == 'flight' && x.wps.length >= 2 && (rx ? rx.test(acOf(C, x)) : !isHeli(acOf(C, x))))
     .map(f => ({
       f,
       label: `${csOf(C, f)} · ${acOf(C, f)} x${nAcf(f)} · ${C.D.S[300 + f.omis] || '?'} · ${hms(f.wps[0].arr)}`,
