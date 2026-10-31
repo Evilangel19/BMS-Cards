@@ -2463,10 +2463,16 @@ export function createSquadronPage(deps) {
     savedBusy = true;
     try {
       const list = await deps.mission.list();
+      // grouped by the day the mission was created (the list comes newest first)
+      const day = m => (m.created ? new Date(m.created).toLocaleDateString('en-CA') : 'Date not known');
+      let last = null;
       box.innerHTML = list.length
         ? list
             .map(
               (m, i) =>
+                (day(m) !== last
+                  ? `<div class="hint" style="margin:8px 0 2px"><b>${esc((last = day(m)))}</b></div>`
+                  : '') +
                 `<div class="sqm"><span><b>${esc(m.label)}</b></span><button class="btn g rd sm" data-del="${i}" title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></div>`
             )
             .join('')

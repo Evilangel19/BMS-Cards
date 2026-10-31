@@ -43,12 +43,13 @@ export function msfIdent() {
   for (const y of list) (map[no(y)] = map[no(y)] || []).push(cs(y));
   return { pk: no(x), fl: cs(x), pks: uniq(list.map(no)), fls: uniq(list.map(cs)), map };
 }
-// default name of a mission: package number + callsign of the flight, e.g. "1301 Hawkeye 4"
+// default name of a mission (it is the name of the folder and of the file too): package number + callsign of the flight + its role, e.g. "1237 Hawkeye 5 Pre-planned CAS"
 export function msfName(x) {
   const p = x.label.split(' · '),
     P = ST.C && ST.C.byId && ST.C.byId[x.f.pkg.n + ':' + x.f.pkg.c],
-    no = (P && P.campId) || x.f.pkg.n;
-  return PJ.safeName(no + ' ' + (p[0] || ''));
+    no = (P && P.campId) || x.f.pkg.n,
+    role = (p[2] || '').trim();
+  return PJ.safeName(no + ' ' + (p[0] || '') + (role ? ' ' + role : ''));
 }
 export function msfCardKeys() {
   return Object.keys(F).filter(
@@ -225,8 +226,21 @@ export async function msfSources() {
   return out;
 }
 // the missions saved in the missions folder (the ones that were received too): [{id (the file), name}]
+// each one with the date it was created (read from the first bytes of the file: a mission can weigh several MB), newest first
 export async function msfList() {
-  return (await msfSources()).filter(x => x.id);
+  const L = (await msfSources()).filter(x => x.id);
+  for (const x of L) {
+    x.created = '';
+    try {
+      const h = await IO.readRange(x.id, 0, 600),
+        t = h ? new TextDecoder().decode(h) : '',
+        c = /"created"\s*:\s*"([^"]+)"/.exec(t);
+      if (c && !isNaN(Date.parse(c[1]))) x.created = c[1];
+    } catch (e) {
+      /* no date */
+    }
+  }
+  return L.sort((a, b) => (b.created || '').localeCompare(a.created || '') || a.label.localeCompare(b.label));
 }
 // deletes the folder of a saved mission (never the ones sent to the other pilots); true when it is gone
 export async function msfRemove(id) {

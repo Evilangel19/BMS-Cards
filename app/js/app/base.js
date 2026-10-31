@@ -8,6 +8,7 @@ import {
   appDir,
   removeFile,
   removeDir,
+  readRange,
   join as joinPath,
 } from '../platform/desktop.js';
 import { ST } from './state.js';
@@ -110,7 +111,7 @@ export function collapse(els, cb) {
     };
   });
 }
-export const IO = { fileExists, writeBytes, makeDir, appDir, removeFile, removeDir }; // (replaceable by the tests)
+export const IO = { fileExists, writeBytes, makeDir, appDir, removeFile, removeDir, readRange }; // (replaceable by the tests)
 export const enc8 = t => new TextEncoder().encode(t);
 export const jclone = o => {
   try {
