@@ -1,5 +1,5 @@
 import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
-import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
+import { parseObjectives, phdPath, pdxPath, ocdPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
@@ -69,11 +69,22 @@ export async function loadRunways(atc) {
     if (!Object.keys(ST.RL).length && objs.length) {
       try {
         const o = objs[0];
+        const ocdName = (/<Name>([^<]*)<\/Name>/.exec(
+          dec(await readBytes(jp(ST.OBJDIR, ...ocdPath(o.ocd).split('/'))))
+        ) || [])[1];
         why =
           '; first base ' +
           o.id +
-          ' (OCD ' +
+          ' "' +
+          o.name +
+          '" (OCD ' +
           o.ocd +
+          ' "' +
+          (ocdName || '?') +
+          '"; CampObjData ' +
+          (ST.OBJCAMP || jp(ST.OBJDIR, 'CampObjData.XML')) +
+          '; OCD folder ' +
+          ST.OBJDIR +
           '): ' +
           describeRunways(
             dec(await readBytes(jp(ST.OBJDIR, ...phdPath(o.ocd).split('/')))),
