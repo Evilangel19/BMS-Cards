@@ -254,6 +254,49 @@ const hp_text = t => {
   const i = t.indexOf('hardpoints {');
   return i < 0 ? '' : t.slice(i, i + 3000);
 };
+// The file of an aircraft of the campaign (its name in the class table of the game) among the files of the Acdata folder; `has(name)` tells whether a file of that name exists.
+// 1 the same name, 2 an alias of the Hellenic F-16 (Peace Xenia names), 3 the name without its last words ("F-16CM-52 TB" -> "F-16CM-52"),
+// 4 the shortest file that holds all the words of the name in the same order ("F-16D-52+ RSAF" -> "F-16D-52+ CFT RSAF"). null when there is none.
+export const AC_ALIAS = {
+  'F-16C-50 PXII': 'F-16C-50 HAF',
+  'F-16C-52 PXIII': 'F-16C-52+ HAF',
+  'F-16C-52+ PXIV': 'F-16C-52+ CFT HAF',
+};
+export function resolveAcName(name, has, all) {
+  if (!name) return null;
+  if (has(name)) return name;
+  if (AC_ALIAS[name] && has(AC_ALIAS[name])) return AC_ALIAS[name];
+  let q = name;
+  while (q.includes(' ')) {
+    q = q.replace(/\s+\S+$/, '');
+    if (has(q)) return q;
+  }
+  const w = name.split(/\s+/);
+  const hit = (all || [])
+    .filter(f => {
+      let i = 0;
+      for (const t of f.split(/\s+/)) if (t === w[i]) i++;
+      return i === w.length;
+    })
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+  return hit || null;
+}
+// the weights and hardpoints under the name each aircraft has in the class table too (so every lookup by that name finds them)
+export function aliasAircraft(a, names) {
+  const have = k => k in a.ew,
+    all = Object.keys(a.ew);
+  for (const n of new Set(names)) {
+    const k = resolveAcName(n, have, all);
+    if (!k) continue;
+    for (const t of [n, n.replace(/\s*ROK\w*$/, '')])
+      if (!(t in a.ew)) {
+        a.ew[t] = a.ew[k];
+        if (k in a.fi) a.fi[t] = a.fi[k];
+        if (k in a.hp) a.hp[t] = a.hp[k];
+      }
+  }
+  return a;
+}
 export function parseAircraftData(files) {
   const ew = {},
     fi = {},

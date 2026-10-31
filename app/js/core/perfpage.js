@@ -22,6 +22,8 @@ const SL = {
   mach: ['Mach', '', 0.3, 2, 0.01],
   lres: ['Landing reserve', ' lb', 500, 4000, 100],
   jok: ['Joker above bingo', ' lb', 0, 2000, 100],
+  ohalt: ['Overhead altitude', ' ft', 500, 5000, 100],
+  ohspd: ['Overhead speed', ' kt', 200, 450, 10],
   elev: ['Field elevation', ' ft', -500, 9000, 100],
   hw: ['Headwind', ' kt', -20, 40, 1],
   slope: ['Slope', ' %', -3, 3, 0.1],
@@ -47,6 +49,8 @@ const DEF = {
   rwy: 0,
   lres: 1500,
   jok: 1000,
+  ohalt: 1500,
+  ohspd: 300,
 };
 
 export function createPerfPage(deps) {
@@ -556,8 +560,8 @@ export function createPerfPage(deps) {
           ? s(['alt', 'reserve', 'mach']) +
             `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>`
           : st.mode == 'plan'
-            ? s(['lres', 'jok']) +
-              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker).</p>`
+            ? s(['lres', 'jok', 'ohalt', 'ohspd']) +
+              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker); the overhead altitude and speed fill the landing steerpoint of the flight plan.</p>`
             : `<div class="wrow"><label>Power</label>${seg(
                 'power',
                 [
@@ -654,7 +658,8 @@ export function createPerfPage(deps) {
   function wire(root, partial) {
     const upd = f => {
       save();
-      if (deps.prefs && (f == 'lres' || f == 'jok')) deps.prefs.set({ reserve: st.lres, joker: st.jok });
+      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd'))
+        deps.prefs.set({ reserve: st.lres, joker: st.jok, ohalt: st.ohalt, ohspd: st.ohspd });
       const g = root.querySelector('[data-gw]');
       if (g) g.textContent = fmt(gw()) + ' lb';
       draw(true);
@@ -754,6 +759,8 @@ export function createPerfPage(deps) {
         if (p) {
           if (p.reserve != null) st.lres = p.reserve;
           if (p.joker != null) st.jok = p.joker;
+          if (p.ohalt != null) st.ohalt = p.ohalt;
+          if (p.ohspd != null) st.ohspd = p.ohspd;
         }
       }
       draw(false);

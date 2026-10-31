@@ -17,7 +17,7 @@ import { lines } from './dtcfile.js';
 
 /* Datacard fields from the performance data: TO Spec, Rotation, Refusal, Mil Power, Mil Climb, TO Fuel, Joker, Bingo and the Min.Fuel of every steerpoint. Fields the user typed are left alone. */
 export const TAXIMIN = 10; // minutes of engine start and taxi at idle between the parking spot and the take-off roll (estimate)
-export let PERFP = { rwy: {}, reserve: 1500, joker: 1000 };
+export let PERFP = { rwy: {}, reserve: 1500, joker: 1000, ohalt: 1500, ohspd: 300 };
 ST.PFT = 0;
 ST.NOPERF = false;
 // Runway sizes read from the objective files of the airbases (RL: campId -> {ends: {'09': {ft, w}}, max}); the length typed on the Performance page wins over them
@@ -248,13 +248,6 @@ export async function perfCalc(i) {
 export async function perfFill(i) {
   if (ST.NOPERF || !ST.C || !ST.CL[i] || !ST.AUTO) return;
   const k = ST.CURK;
-  let r;
-  try {
-    r = await perfCalc(i);
-  } catch (e) {
-    return;
-  }
-  if (!r || ST.CURK !== k || !ST.AUTO) return;
   const put = (key, v) => {
     if (ST.MANK.has(key)) return;
     v = v == null ? '' : String(v);
@@ -264,6 +257,24 @@ export async function perfFill(i) {
     if (d && d.el) d.el.value = v;
     if (MIR[key] && ST.DCS[MIR[key].grp] && lines.length) pushOne(key);
   };
+  // the overhead pattern of the landing steerpoints: speed and altitude from the Fuel plan sliders (the Performance page)
+  {
+    const f = ST.CL[i].f;
+    if (CAM.isHiFi(ST.C.D.ac[f.c.i] || ''))
+      f.wps.forEach((p, j) => {
+        if (j < 24 && p.act == 7) {
+          put(`fp${j}_4`, '- / ' + PERFP.ohspd);
+          put(`fp${j}_5`, String(PERFP.ohalt));
+        }
+      });
+  }
+  let r;
+  try {
+    r = await perfCalc(i);
+  } catch (e) {
+    return;
+  }
+  if (!r || ST.CURK !== k || !ST.AUTO) return;
   if (!r.to.stuck) {
     put('tospec', (TOPOWER == 'mil' ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
     put('rot', Math.round(r.to.vr));

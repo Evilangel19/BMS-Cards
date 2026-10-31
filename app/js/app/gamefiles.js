@@ -3,6 +3,7 @@ import { heightSpec, parseTheaterValues } from '../bmsdata/heightmap.js';
 import { parseMisList, parseMissileDat, parseLoftTable } from '../bmsdata/missiledata.js';
 import { CAM } from '../core/cam-core.js';
 import { parseAcPerf } from '../bmsdata/acperf.js';
+import { resolveAcName } from '../bmsdata/bmsdata.js';
 import { ST } from './state.js';
 import { jp } from './base.js';
 
@@ -138,9 +139,10 @@ export async function perfAcGet(n) {
   if (acMemo.has(n)) return acMemo.get(n);
   let d = null;
   const f = await acFolder();
-  if (f && f.names.includes(n)) {
+  const fn = f && resolveAcName(n, k => f.names.includes(k), f.names);
+  if (fn) {
     try {
-      d = parseAcPerf(new TextDecoder('utf-8').decode(await readBytes(jp(f.dir, n + '.txtpb'))), n);
+      d = parseAcPerf(new TextDecoder('utf-8').decode(await readBytes(jp(f.dir, fn + '.txtpb'))), n);
     } catch (e) {
       d = null;
     }

@@ -22,6 +22,7 @@ import {
   pathFor,
   ENCODING,
   parseAircraftData,
+  aliasAircraft,
 } from '../bmsdata/bmsdata.js';
 import { CAM } from '../core/cam-core.js';
 import { setGeo } from '../rules/geo.js';
@@ -276,16 +277,23 @@ async function readGameData(reloadTheaters) {
           ents = await listDir(dir);
         }
       }
-      const fl = ents.filter(e => !e.isDirectory && /^F-1[56].*\.txtpb$/i.test(e.name));
+      const fl = ents.filter(e => !e.isDirectory && /\.txtpb$/i.test(e.name));
       const files = [];
-      for (const e of fl)
-        files.push({ name: e.name, text: new TextDecoder('utf-8').decode(await readBytes(jp(dir, e.name))) });
+      for (let i = 0; i < fl.length; i += 20)
+        files.push(
+          ...(await Promise.all(
+            fl.slice(i, i + 20).map(async e => ({
+              name: e.name,
+              text: new TextDecoder('utf-8').decode(await readBytes(jp(dir, e.name))),
+            }))
+          ))
+        );
       if (files.length) {
-        const a = parseAircraftData(files);
+        const a = aliasAircraft(parseAircraftData(files), Object.values(CAM.D.ac || {}));
         CAM.D.ew = a.ew;
         CAM.D.fi = a.fi;
         CAM.D.hp = a.hp;
-        acInfo += ' Aircraft data: ' + files.length + ' F-16/F-15 files.';
+        acInfo += ' Aircraft data: ' + files.length + ' aircraft files.';
       } else {
         acInfo += ' Aircraft data not found (Data\\Sim\\Acdata); the Performance page and the weights need it.';
         warn.push('Aircraft data not found (Data\\Sim\\Acdata): the Performance page and the weights need it.');

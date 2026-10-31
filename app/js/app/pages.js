@@ -452,10 +452,12 @@ export async function init11() {
       },
     },
     prefs: {
-      get: () => ({ reserve: PERFP.reserve, joker: PERFP.joker }),
+      get: () => ({ reserve: PERFP.reserve, joker: PERFP.joker, ohalt: PERFP.ohalt, ohspd: PERFP.ohspd }),
       set: o => {
         PERFP.reserve = o.reserve;
         PERFP.joker = o.joker;
+        PERFP.ohalt = o.ohalt;
+        PERFP.ohspd = o.ohspd;
         perfSave();
         clearTimeout(ST.PFT);
         ST.PFT = setTimeout(() => perfFill(+$('fsel').value || 0), 500);
