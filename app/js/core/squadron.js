@@ -2473,10 +2473,22 @@ export function createSquadronPage(deps) {
                 (day(m) !== last
                   ? `<div class="hint" style="margin:8px 0 2px"><b>${esc((last = day(m)))}</b></div>`
                   : '') +
-                `<div class="sqm"><span><b>${esc(m.label)}</b></span><button class="btn g rd sm" data-del="${i}" title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></div>`
+                `<div class="sqm"><span><b>${esc(m.label)}</b></span><span><button class="btn g gn sm" data-open="${i}" title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del="${i}" title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`
             )
             .join('')
         : '<div class="hint">No mission saved yet. Save one with Save mission, or receive one from a pilot.</div>';
+      box.querySelectorAll('[data-open]').forEach(
+        b =>
+          (b.onclick = async () => {
+            const m = list[+b.dataset.open];
+            try {
+              const ok = await deps.loadMission(await deps.mission.text(m.id));
+              toastMsg('Mission "' + m.label + '" ' + (ok === false ? 'not opened.' : 'loaded.'));
+            } catch (e) {
+              toastMsg('The mission could not be opened: ' + ((e && e.message) || e));
+            }
+          })
+      );
       box.querySelectorAll('[data-del]').forEach(
         b =>
           (b.onclick = async () => {

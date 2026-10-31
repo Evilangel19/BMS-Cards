@@ -242,6 +242,8 @@ export async function msfList() {
   }
   return L.sort((a, b) => (b.created || '').localeCompare(a.created || '') || a.label.localeCompare(b.label));
 }
+// the text of a saved mission file (to open it again)
+export const msfText = async id => new TextDecoder().decode(await readBytes(id));
 // deletes the folder of a saved mission (never the ones sent to the other pilots); true when it is gone
 export async function msfRemove(id) {
   const base = await missionsBase(),
