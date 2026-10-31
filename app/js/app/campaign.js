@@ -11,7 +11,7 @@ import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
 import { lines } from './dtcfile.js';
 import { mapV } from './pages.js';
-import { apply, discardOk, loadCam, manClear } from './selection.js';
+import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
 import { atoSearch } from './ato.js';
 import { msfLoad } from './mission.js';
 
@@ -256,12 +256,12 @@ export async function selectCampaign(name) {
   setSel(name);
   rememberLast('lastCamp', name);
   if (!name) {
-    manClear();
     ST.C = null;
     ST.CL = [];
     ST.WX = null;
     ST.L16 = null;
     ST.IFFP = null;
+    cardClear();
     atoSearch();
     $('fsel').innerHTML = '<option>— select a flight —</option>';
     $('cinfo').textContent = '';

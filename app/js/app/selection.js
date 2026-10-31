@@ -52,6 +52,17 @@ export function manClear() {
   ST.MANK = new Set();
   ST.XBASE = undefined;
 }
+// no campaign: the datacard goes back to empty as well (the map and the lists are empty already)
+export function cardClear() {
+  manClear();
+  ST.MAPSHOT = null;
+  ST.ATOSEL = null;
+  FD.forEach(d => (F[d.k] = ''));
+  XD.forEach(k => (F[k] = ''));
+  buildForm();
+  markMan();
+  draw();
+}
 export function apply(i, mode) {
   if (mode !== 'reset' && mode !== 'fresh' && ST.CURK !== null && ST.AUTO) {
     const df = manDiff();
