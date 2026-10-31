@@ -158,9 +158,13 @@ export async function init6() {
           mp = await sub(dd, /maps/i);
         dir = mp && jp(dd, mp.name);
         const ls = dir ? await listDir(dir) : [];
-        f = ls.find(e => pic(e) && /ui_map_16k/i.test(e.name)) || ls.find(e => pic(e) && /16k/i.test(e.name));
+        // the biggest picture of the folder: <theater>_UI_Map_16K (Hellas: HellasMap16K) or the 8K one (Israel: ITO_UI_Map_8K)
+        const kk = e => +((/(\d+)k(?![a-z0-9])/i.exec(e.name.replace(/\.[^.]+$/, '')) || [])[1] || 0);
+        f =
+          ls.filter(e => pic(e) && kk(e) >= 4).sort((a, b) => kk(b) - kk(a))[0] ||
+          ls.find(e => pic(e) && /map/i.test(e.name));
         if (!f)
-          throw new Error('The 16K map of ' + ST.TH.name + ' was not found (Docs\\...Maps folder of the theater).');
+          throw new Error('The map picture of ' + ST.TH.name + ' was not found (Docs\\...Maps folder of the theater).');
       } else {
         const docs = await sub(d, /^docs$/i),
           mp = docs && (await sub(jp(d, docs.name), /^05 maps$/i));

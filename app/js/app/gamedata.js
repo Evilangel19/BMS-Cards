@@ -147,6 +147,9 @@ async function readGameData(reloadTheaters) {
           : '';
       ST.OBJCAMP = paths['CampObjData.XML'] || (ST.OBJDIR ? jp(ST.OBJDIR, 'CampObjData.XML') : '');
       TDATA.reset();
+      try {
+        mapV.objectsChanged(); // the objects drawn on the map are those of the new theater
+      } catch (e) {}
     }
     {
       let g = null;

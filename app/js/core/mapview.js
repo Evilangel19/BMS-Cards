@@ -4174,6 +4174,21 @@ export function createMap(host, deps) {
     planMode: () => PLANMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
     // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
+    // the objects of the theater (list of the game data) were read again: the map asks for them anew
+    objectsChanged: () => {
+      OBL = null;
+      OBLP = null;
+      OBK = '';
+      if (!map) return;
+      try {
+        OBJ_LAYERS.forEach(([t]) => G['o' + t].clearLayers());
+        objClear();
+        OJ = [];
+        objDraw();
+      } catch (e) {
+        /* the map is not ready */
+      }
+    },
     theaterChanged: () => {
       OVC = { imgBlob: OVC.imgBlob };
       PREF.view = null;
