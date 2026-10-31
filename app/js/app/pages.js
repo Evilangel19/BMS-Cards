@@ -39,7 +39,7 @@ import { acFolder, misLoad, perfAcGet, terrain } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
 import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
-import { ATOL, PLAYER, msLocked } from './ato.js';
+import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
 import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
@@ -375,6 +375,10 @@ export async function init11() {
     swarm: window.__swarmTest,
     buildMission: () => msfBuild(),
     loadMission: t => msfLoad(t, null),
+    roleChanged: () => {
+      atoSearch();
+      if (mapV && mapV.isReady()) mapV.refresh();
+    },
     version: APP_VERSION,
     saveReceived: (t, n) => msfStoreReceived(t, n),
     receiveCard: async (c, from) => {

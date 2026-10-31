@@ -1550,7 +1550,20 @@ export function createSquadronPage(deps) {
       /* not saved */
     }
   };
+  // the ATO and the map list the factions by the role in the squadron: they are drawn again when it changes (a squadron created, deleted, left)
+  let lastRole = 'none';
+  const roleCheck = () => {
+    const r = DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none';
+    if (r === lastRole) return;
+    lastRole = r;
+    try {
+      deps.roleChanged && deps.roleChanged();
+    } catch (e) {
+      /* the lists stay as they are */
+    }
+  };
   const save = () => {
+    roleCheck();
     clearTimeout(saveT);
     savePending = true;
     saveT = setTimeout(writeNow, 300);
@@ -3447,6 +3460,7 @@ export function createSquadronPage(deps) {
       const o = deps.store && (await deps.store.load());
       if (o && o.uid) {
         DB = { ...DB, ...o, squads: o.squads || [] };
+        setTimeout(roleCheck, 0);
         if (o.squad && !DB.squads.length) {
           DB.squads = [{ ...o.squad, id: randHex(4), owner: DB.uid, leader: '', roster: o.roster || {} }];
           DB.cur = DB.squads[0].id;
