@@ -85,6 +85,20 @@ ok(
   bb[0][0] < se[0] && bb[1][0] > nw[0] && bb[0][1] < nw[1] && bb[1][1] > se[1],
   bb
 );
+// an entry with no TerrData folder: its own folders come before the tdf file
+ok(
+  'add-on entry with no TerrData: Hellas',
+  theaterDirs('Add-On Hellas\\Hellas.tdf', parseTdf('name HTO')).docs.join('/') === 'Add-On Hellas/Docs'
+);
+ok(
+  'add-on entry with TheaterDefinition only',
+  theaterDirs('Add-On Hellas\\TheaterDefinition\\HTO.tdf', parseTdf('name HTO')).base.join('/') === 'Add-On Hellas'
+);
+ok(
+  'Korea has no base',
+  theaterDirs('TheaterDefinition\\Korea.tdf', parseTdf('name KTO')).base.length === 0 &&
+    theaterDirs('Korea.tdf', parseTdf('name KTO')).base.length === 0
+);
 setGeo();
 ok('back to Korea', near(toLL(512, 512)[1], 127.5, 1e-6));
 console.log(bad ? `${bad} of ${n} theater checks failed` : `OK - ${n} theater checks`);

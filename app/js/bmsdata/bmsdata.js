@@ -395,7 +395,10 @@ const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);
 export function theaterDirs(entry, tdf) {
   const e = parts(entry),
     i = e.findIndex(x => x.toLowerCase() === 'terrdata'),
-    base = i > 0 ? e.slice(0, i) : [];
+    // an entry with no TerrData folder ("Add-On Hellas\\Hellas.tdf", "Add-On Hellas\\TheaterDefinition\\Hellas.tdf"): the folders before the tdf file (and before TheaterDefinition) are the theater's own
+    j = e.findIndex(x => /^(theaterdefinition|terrain)$/i.test(x)),
+    k = i >= 0 ? i : j >= 0 ? j : e.length - 1,
+    base = k > 0 ? e.slice(0, k) : [];
   // the folders of an add-on theater are written in full from the Data folder ("Add-On Balkans\\Campaign"): the base is added only when it is not there already
   const rel = v => {
     if (!v) return null;
