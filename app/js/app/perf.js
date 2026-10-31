@@ -1,4 +1,5 @@
-import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
+import { loadPrefs, readBytes, readRange, savePrefs } from '../platform/desktop.js';
+import { heightsAt } from '../bmsdata/heightmap.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
@@ -9,7 +10,7 @@ import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
 import { pfPage } from './pages.js';
 import { wxAt, wxWind } from './campaign.js';
-import { perfAcGet } from './gamefiles.js';
+import { perfAcGet, terrain } from './gamefiles.js';
 import { markMan } from './selection.js';
 import { draw } from './cardview.js';
 import { lines } from './dtcfile.js';
@@ -63,7 +64,13 @@ export async function loadRunways(atc) {
     ST.RL = runwayLengths(atc, rwl);
     // an airbase without an ATC file of its own (an add-on theater that brings none: ITO has the Korean ones): the size and the numbers of its runways come from its own objective files
     const isAb = o => (CAM.D.ab && CAM.D.ab[o.id]) || /air\s?(base|field|port|strip)|\([A-Z]{4}\)/i.test(o.name);
-    const todo = allObjs.filter(o => !ST.RL[o.id] && isAb(o));
+    const todo = allObjs.filter(o => !ST.RL[o.id] && isAb(o)),
+      found = [],
+      ilsOf = id => {
+        // the ILS of the Stations table when all the runways of the base have the same one (as for the airbases of the ATC files)
+        const f = [...new Set(((CAM.D.ab && CAM.D.ab[id]) || []).slice(7, 11).filter(Boolean))];
+        return f.length === 1 ? f[0] : 0;
+      };
     for (let i = 0; i < todo.length; i += 10)
       await Promise.all(
         todo.slice(i, i + 10).map(async o => {
@@ -75,14 +82,19 @@ export async function loadRunways(atc) {
               );
             const list = byOcd[o.ocd];
             if (!list.length) return;
-            const ends = {};
+            const ends = {},
+              rw = [];
             for (const r of list)
               for (const d of [0, 18]) {
                 const q = String((((Math.round(r.hdg / 10) || 36) + d - 1) % 36) + 1).padStart(2, '0');
-                if (!ends[q]) ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
+                if (!ends[q]) {
+                  ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
+                  rw.push([q, +q * 10, ilsOf(o.id)]);
+                }
               }
             const big = list.reduce((m, r) => (r.len > m.len ? r : m), list[0]);
             ST.RL[o.id] = { ends, max: { ft: Math.round(big.len), w: Math.round(big.wid) } };
+            found.push({ o, rw });
           } catch (e) {
             /* no files for this base */
           }
@@ -104,6 +116,28 @@ export async function loadRunways(atc) {
           );
       } catch (e) {
         why = '; first base: ' + ((e && e.message) || e);
+      }
+    }
+    // the same bases get their runway numbers (for the choice of the runway) and the elevation of the field from the heights of the theater
+    if (found.length) {
+      found.forEach(({ o, rw }) => {
+        CAM.D.ap[o.id] = { i: (o.name.match(/\(([A-Z]{4})\)/) || [])[1] || '', rw };
+      });
+      try {
+        const tr = await terrain(),
+          h = tr
+            ? await heightsAt(
+                (off, len) => readRange(tr.path, off, len),
+                tr.spec,
+                found.map(({ o }) => ({ n: o.n, e: o.e }))
+              )
+            : null;
+        if (h)
+          found.forEach(({ o }, i) => {
+            if (h[i] !== null && h[i] !== undefined && !CAM.D.el[o.id]) CAM.D.el[o.id] = Math.round(h[i]);
+          });
+      } catch (e) {
+        /* no heights: the elevation stays empty */
       }
     }
     RLI =

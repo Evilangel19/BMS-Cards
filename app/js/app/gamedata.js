@@ -256,7 +256,7 @@ async function readGameData(reloadTheaters) {
           ' ATC files, AIP ' +
           (aipList ? 'read' : 'not found') +
           ').';
-        loadRunways(atc);
+        await loadRunways(atc);
       } else {
         acInfo += ' Runways: no ATC files or AIP found.';
         warn.push('Runways: no ATC files or AIP found (runway lengths and airbase data will be missing).');
