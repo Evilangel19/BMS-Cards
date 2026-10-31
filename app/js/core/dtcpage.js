@@ -379,7 +379,7 @@ export function createDtcPage(deps) {
             const k = `PGM ${EWSP} ${tt} ${f}`,
               v = +val('EWS', k) || 0,
               [lb, mx, st] = SL[f];
-            return `<div class="slr"><label>${lb}</label><input type="range" data-s="EWS" data-k="${k}" data-t="int" data-sl="1" min="0" max="${Math.max(mx, v)}" step="${st}" value="${v}" oninput="this.nextElementSibling.value=this.value">${inp('EWS', k, { t: 'int', w: 62 }).replace('<input', '<input data-sl="1"')}</div>`;
+            return `<div class="slr"><label>${lb}</label><input type="range" data-s="EWS" data-k="${k}" data-t="int" data-sl="1" min="0" max="${Math.max(mx, v)}" step="${st}" value="${v}">${inp('EWS', k, { t: 'int', w: 62 }).replace('<input', '<input data-sl="1"')}</div>`;
           })
           .join('')}</div>`;
       const sl = `<div class="slv" style="min-height:${EWSH}px"><div class="slh"><span class="tgls">${[0, 1, 2, 3, 4, 5].map(n => `<button type="button" class="tgl${n == EWSP ? ' on' : ''}" data-sp="${n}">${n + 1}</button>`).join('')}</span><label class="slnote">Note ${inp('EWS', `PGM ${EWSP} Comment`, { w: 130 })}</label></div><div class="slg">${blk('Chaff', 'c')}${blk('Flare', 'f')}</div></div>`;
@@ -985,6 +985,12 @@ export function createDtcPage(deps) {
     if (s == 'EWS' && cur == 'ews') ewsRefresh();
   }
   function bind(root) {
+    // the sliders show their value in the box beside them while they move (no inline handler: the page has a Content Security Policy)
+    root.querySelectorAll('input[type=range][data-sl]').forEach(i => {
+      i.oninput = () => {
+        if (i.nextElementSibling) i.nextElementSibling.value = i.value;
+      };
+    });
     root.querySelectorAll('input[data-s]').forEach(
       i =>
         (i.onchange = () => {

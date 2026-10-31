@@ -2,7 +2,7 @@ import subprocess, sys, time, json, os, base64
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SH = sys.argv[1] if len(sys.argv) > 1 else '/tmp'
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8734', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8734', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok

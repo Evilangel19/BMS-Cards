@@ -9,7 +9,7 @@ AV = int(sys.argv[3]) if len(sys.argv) > 3 else 9000
 MIS = int(sys.argv[4]) if len(sys.argv) > 4 else 1000000
 R = sys.argv[5] if len(sys.argv) > 5 else os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PORT = 8761 + (hash(R) % 50)
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', str(PORT), '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', str(PORT), '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 def tracker():
     import websockets
     sw = {}

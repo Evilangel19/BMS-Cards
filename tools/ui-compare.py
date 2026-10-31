@@ -23,7 +23,7 @@ JS = """async([files,flight,legacy])=>{
  const h=async u=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',u))).map(b=>b.toString(16).padStart(2,'0')).join('');
  return {F:JSON.stringify(A.F),d1:document.getElementById('d1').value,dds1:await h(dds1),dds5:await h(dds5)}}"""
 
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8765', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8765', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 ok = True
 try:

@@ -2,7 +2,7 @@
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8770', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8770', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 INIT = """(()=>{const F=new Map();window.__F=F;F.set('C:\\\\kb\\\\7982.dds',new Uint8Array([79,76,68]));
 window.__TAURI__={core:{invoke:async c=>c==='app_dir'?'C:\\\\app':null},dialog:{open:async()=>null,save:async()=>null},
  fs:{readDir:async()=>[],readFile:async p=>{if(!F.has(p))throw new Error('missing');return F.get(p)},readTextFile:async p=>{const m=window.__TX;if(m&&m.has(p))return m.get(p);throw new Error('none')},writeTextFile:async(p,s)=>{(window.__TX=window.__TX||new Map()).set(p,s)},

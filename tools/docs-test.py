@@ -3,7 +3,7 @@ import subprocess, sys, time, os, io, base64, json
 from playwright.sync_api import sync_playwright
 from reportlab.pdfgen import canvas
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8733', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8733', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 def pdf(pages):
     b = io.BytesIO(); c = canvas.Canvas(b, pagesize=(595, 842))
     for t in pages:

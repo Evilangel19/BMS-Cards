@@ -3,7 +3,7 @@ Mocked Tauri API (in memory). Usage: python3 tools/folder-test.py"""
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8787', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8787', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 # ro: every write in C:\app fails (the folder of the program); text: only the small settings files fail (a full disk, a file in use)
 INIT = """(()=>{const MODE=%s,F=new Map(),TX=new Map();window.__F=F;const no=p=>{if(MODE=='ro'&&/^C:\\\\app/.test(p))throw new Error('Access is denied. (os error 5)')};
 window.__TAURI__={core:{invoke:async c=>c==='app_dir'?'C:\\\\app':null},dialog:{open:async()=>null,save:async()=>null},
