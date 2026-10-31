@@ -261,21 +261,45 @@ export const AC_ALIAS = {
   'F-16C-50 PXII': 'F-16C-50 HAF',
   'F-16C-52 PXIII': 'F-16C-52+ HAF',
   'F-16C-52+ PXIV': 'F-16C-52+ CFT HAF',
+  // names of the class table that are written in another way in the Acdata folder
+  Typhoon: 'EF-2000',
+  Eurofighter: 'EF-2000',
+  'Typhoon FGR4': 'EF-2000',
+  'E-3': 'E-3A',
+  'C-130H': 'C-130',
+  'C-141B': 'C-141',
+  'F-1': 'Mitsubishi F-1',
+  'T-2': 'Mitsubishi T-2',
+  MB339: 'MB-339',
+  'Mirage 2000-5F': 'Mirage 2000-5',
+  'J-7G': 'J-7',
+  'J-8I': 'J-8',
+  'Su-24M': 'Su-24',
+  'Tu-95MS': 'Tu-95',
+  'OV-10A': 'OV-10D',
+  'J-11B': 'J-11BSH',
+  'J-15': 'J-15T',
 };
 export function resolveAcName(name, has, all) {
   if (!name) return null;
-  if (has(name)) return name;
-  if (AC_ALIAS[name] && has(AC_ALIAS[name])) return AC_ALIAS[name];
-  let q = name;
+  // "F/A-18C" is the file "F-18C"; "Tornado GR.1" is "Tornado GR1"
+  const norm = name.replace(/^F\/A-/, 'F-').replace(/\./g, '');
+  for (const n of [name, norm]) {
+    if (has(n)) return n;
+    if (AC_ALIAS[n] && has(AC_ALIAS[n])) return AC_ALIAS[n];
+  }
+  let q = norm;
   while (q.includes(' ')) {
     q = q.replace(/\s+\S+$/, '');
     if (has(q)) return q;
+    if (AC_ALIAS[q] && has(AC_ALIAS[q])) return AC_ALIAS[q];
   }
-  const w = name.split(/\s+/);
+  const w = norm.split(/\s+/);
   const hit = (all || [])
     .filter(f => {
       let i = 0;
-      for (const t of f.split(/\s+/)) if (t === w[i]) i++;
+      for (const t of f.split(/\s+/))
+        if (t === w[i] || (i == w.length - 1 && w[i].length >= 3 && t.startsWith(w[i]))) i++;
       return i === w.length;
     })
     .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];

@@ -21,6 +21,14 @@ const files = [
   'F-15I IAF',
   'F-15K ROKAF',
   'F-15CJ JASDF',
+  'F-18C',
+  'F-18D',
+  'F-18A+ AGRS',
+  'F-4E ROKAF',
+  'AV-8B+',
+  'EA-6B',
+  'Tornado GR1',
+  'EF-2000',
 ];
 const has = k => files.includes(k),
   r = x => resolveAcName(x, has, files);
@@ -37,6 +45,15 @@ ok(
   r('F-16C-50 PXII') === 'F-16C-50 HAF' &&
     r('F-16C-52 PXIII') === 'F-16C-52+ HAF' &&
     r('F-16C-52+ PXIV') === 'F-16C-52+ CFT HAF'
+);
+ok('F/A-18 is F-18', r('F/A-18C') === 'F-18C' && r('F/A-18D') === 'F-18D' && r('F/A-18A+ AGRS') === 'F-18A+ AGRS');
+ok('a shortened air force name', r('F-4E ROK') === 'F-4E ROKAF' && r('F-4E ROKAF') === 'F-4E ROKAF');
+ok(
+  'the same aircraft written in another way',
+  r('Tornado GR.1') === 'Tornado GR1' &&
+    r('Typhoon') === 'EF-2000' &&
+    r('AV-8B+') === 'AV-8B+' &&
+    r('EA-6B') === 'EA-6B'
 );
 ok('an aircraft with no file stays without', r('Mi-8') === null && r('') === null);
 const a = aliasAircraft(

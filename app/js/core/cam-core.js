@@ -3,7 +3,7 @@ import D0 from '../data/index.js';
 import { openCam, camToc, objInitial, CAM_VER_MAX } from '../parsers/cam.js';
 import { parseFmap } from '../parsers/fmap.js';
 import { setBase } from '../rules/ephemerides.js';
-import { listFlights, loadGroups, nAcf, els0, fac, totMs, isHiFi, isHeli } from '../core/flight.js';
+import { listFlights, loadGroups, nAcf, els0, fac, totMs, isHiFi, hasAcData, isHeli } from '../core/flight.js';
 import { fillCard } from '../core/fillcard.js';
 import { atisText, tafText, wxColour } from '../rules/weather.js';
 import { pickRwy } from '../rules/airbase.js';
@@ -47,6 +47,7 @@ export const CAM = {
   CAM_VER_MAX,
   listFlights,
   isHiFi,
+  hasAcData,
   isHeli,
   fillCard,
   parseFmap,

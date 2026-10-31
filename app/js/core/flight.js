@@ -127,6 +127,8 @@ const tcnStr = (v, b) => {
 };
 // Aircraft the datacard calculations (weight, fuel, weapons, overhead speeds) are accurate for: F-16 and F-15 (not E/K/I, not JASDF).
 const isHiFi = n => /^F-16/.test(n) || (/^F-15/.test(n) && !/^F-15[EKI]/.test(n) && !/JASDF|^F-15[CD]J/.test(n));
+// An aircraft whose data file was read (weights, fuel, hardpoints): the datacard can calculate for it too, even if it is not one of the accurate ones above.
+const hasAcData = (D, n) => !!(D && D.ew && (D.ew[n] != null || D.ew[n.replace(/\s*ROK\w*$/, '')] != null));
 // BMS helicopters (and the MV-22) cannot be flown: no datacard for them.
 const isHeli = n => /^(UH|AH|CH|MH|OH|HH|SH|MV|Mi-|Ka-|Z-\d|WZ-|MD-)/i.test(n);
 function listFlights(C, rx = /F-16/) {
@@ -205,6 +207,7 @@ export {
   loadGroups,
   ord,
   isHiFi,
+  hasAcData,
   isHeli,
   locBE,
   fac,

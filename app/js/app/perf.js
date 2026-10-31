@@ -260,7 +260,7 @@ export async function perfFill(i) {
   // the overhead pattern of the landing steerpoints: speed and altitude from the Fuel plan sliders (the Performance page)
   {
     const f = ST.CL[i].f;
-    if (CAM.isHiFi(ST.C.D.ac[f.c.i] || ''))
+    if (CAM.isHiFi(ST.C.D.ac[f.c.i] || '') || CAM.hasAcData(ST.C.D, ST.C.D.ac[f.c.i] || ''))
       f.wps.forEach((p, j) => {
         if (j < 24 && p.act == 7) {
           put(`fp${j}_4`, '- / ' + PERFP.ohspd);

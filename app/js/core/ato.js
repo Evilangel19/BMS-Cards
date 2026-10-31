@@ -1,5 +1,20 @@
 // Air Tasking Order: every flight of the campaign, any faction, grouped by package.
-import { ord, isHiFi, isHeli, els0, acOf, csOf, nAcf, hms, rmf, clean, nearAb, nearObj, totMs } from './flight.js';
+import {
+  ord,
+  isHiFi,
+  hasAcData,
+  isHeli,
+  els0,
+  acOf,
+  csOf,
+  nAcf,
+  hms,
+  rmf,
+  clean,
+  nearAb,
+  nearObj,
+  totMs,
+} from './flight.js';
 const CAT = {
   'Offensive Counter Air': ['OCA STRIKE', 'SWEEP', 'ESCORT'],
   'Defensive Counter Air': ['DCA', 'BARCAP', 'HAVCAP', 'TARCAP', 'RESCORT', 'AMBUSHCAP', 'QRA', 'INTERCEPTION'],
@@ -59,6 +74,7 @@ export function buildAto(C, L16) {
         fc: l && l.fc >= 0 ? l.fc : '',
         mc: l && l.mc >= 0 ? l.mc : '',
         hifi: isHiFi(acOf(C, f)),
+        calc: hasAcData(D, acOf(C, f)),
         heli: isHeli(acOf(C, f)),
       });
     });

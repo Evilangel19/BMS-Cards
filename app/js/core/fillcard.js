@@ -2,6 +2,7 @@
 import {
   FORMS,
   isHiFi,
+  hasAcData,
   acOf,
   actName,
   clean,
@@ -188,7 +189,7 @@ function fillCard(C, f, ld = 0) {
   });
   {
     const ty0 = acOf(C, f);
-    if (isHiFi(ty0))
+    if (isHiFi(ty0) || hasAcData(D, ty0))
       w.forEach((p, i) => {
         if (i < 24 && p.act == 7) {
           F[`fp${i}_4`] = '- / 300';

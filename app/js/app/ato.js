@@ -276,6 +276,8 @@ export function atoList() {
   }
 }
 export function atoList0() {
+  // the list is built from the campaign and the Link 16 file now loaded: after another campaign it is drawn again from the start
+  if (ST.C && (ATOC !== ST.C || ATOL16 !== ST.L16)) return atoSearch0();
   ATORN++;
   atoTog();
   renderSel();
@@ -309,7 +311,7 @@ export function atoList0() {
       if (open)
         p.flights.forEach(e => {
           const i = ATOL.indexOf(e);
-          h += `<div class="fl${ATOFX.p.has(p.pkg) ? ' fxin' : ''}${e.team != ST.VIEW ? ' al' : ''}${e.hifi && !lock ? '' : ' nc'}${msLocked(e.f) ? ' ml' : ''}${ST.ATOSEL === e.f ? ' sel' : ''}${flMan(e.f) ? ' man' : ''}" data-i="${i}" title="${msLocked(e.f) ? 'This mission was made for another flight' : lock ? 'Not your faction' : e.heli ? 'Helicopters are not flyable in BMS' : e.hifi ? 'Click to fill the datacard' : 'Click to fill the datacard (weight, fuel and weapon values are not calculated for this aircraft)'}">${flInfo(e)}</div>`;
+          h += `<div class="fl${ATOFX.p.has(p.pkg) ? ' fxin' : ''}${e.team != ST.VIEW ? ' al' : ''}${(e.hifi || e.calc) && !lock ? '' : ' nc'}${msLocked(e.f) ? ' ml' : ''}${ST.ATOSEL === e.f ? ' sel' : ''}${flMan(e.f) ? ' man' : ''}" data-i="${i}" title="${msLocked(e.f) ? 'This mission was made for another flight' : lock ? 'Not your faction' : e.heli ? 'Helicopters are not flyable in BMS' : e.hifi || e.calc ? 'Click to fill the datacard' : 'Click to fill the datacard (weight, fuel and weapon values are not calculated for this aircraft)'}">${flInfo(e)}</div>`;
         });
       h += '</div>';
     });
@@ -319,13 +321,20 @@ export function atoList0() {
   ATOFX.c.clear();
   ATOFX.p.clear();
   const load = e => {
+    if (!e) {
+      atoSearch(); // the list on the screen is not the one of the campaign any more
+      return;
+    }
     if (lock || e.heli) return;
     if (msLocked(e.f)) {
       appToast('This mission was made for another flight: load a campaign to use the other flights.');
       return;
     }
     const k = ST.CL.findIndex(x => x.f === e.f);
-    if (k < 0) return;
+    if (k < 0) {
+      appToast('This flight has no flight plan to fill the datacard (it needs at least four steerpoints).');
+      return;
+    }
     $('fsel').value = k;
     apply(k);
   };
