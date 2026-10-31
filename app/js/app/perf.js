@@ -66,11 +66,8 @@ export async function loadRunways(atc) {
     const isAb = o => (CAM.D.ab && CAM.D.ab[o.id]) || /air\s?(base|field|port|strip)|\([A-Z]{4}\)/i.test(o.name);
     const todo = allObjs.filter(o => !ST.RL[o.id] && isAb(o)),
       found = [],
-      ilsOf = id => {
-        // the ILS of the Stations table when all the runways of the base have the same one (as for the airbases of the ATC files)
-        const f = [...new Set(((CAM.D.ab && CAM.D.ab[id]) || []).slice(7, 11).filter(Boolean))];
-        return f.length === 1 ? f[0] : 0;
-      };
+      // the ILS of the Stations table: one for each runway end, in the order of the file (runway 1 .. 4)
+      ilsOf = id => ((CAM.D.ab && CAM.D.ab[id]) || []).slice(7, 11);
     for (let i = 0; i < todo.length; i += 10)
       await Promise.all(
         todo.slice(i, i + 10).map(async o => {
@@ -89,7 +86,7 @@ export async function loadRunways(atc) {
                 const q = String((((Math.round(r.hdg / 10) || 36) + d - 1) % 36) + 1).padStart(2, '0');
                 if (!ends[q]) {
                   ends[q] = { ft: Math.round(r.len), w: Math.round(r.wid) };
-                  rw.push([q, +q * 10, ilsOf(o.id)]);
+                  rw.push([q, +q * 10, ilsOf(o.id)[rw.length] || 0]);
                 }
               }
             const big = list.reduce((m, r) => (r.len > m.len ? r : m), list[0]);
