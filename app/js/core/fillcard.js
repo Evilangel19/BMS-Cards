@@ -259,7 +259,7 @@ function fillCard(C, f, ld = 0) {
           }
         });
     }
-    if (ew && isHiFi(ty)) {
+    if (ew && (isHiFi(ty) || hasAcData(D, ty))) {
       F.drag = String(dg + 1);
       F.fuel = String(fu);
       F.gw = String(ew + fu + wl);

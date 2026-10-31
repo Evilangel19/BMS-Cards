@@ -1,6 +1,7 @@
 // Performance page: turn and energy (Ps), cruise and range, take-off and landing, from the BMS aircraft tables (bmsdata/acperf.js, maths in airperf.js).
 // deps: {root, esc, aircraft: {list() -> [names], get(name) -> Promise<perf data | null>}, loadout() -> {ac, gw, fuel, drag, label} | null, runway?() }
 import * as P from './airperf.js';
+import { resolveAcName } from '../bmsdata/bmsdata.js';
 import { fuelPlan, climbAltitude } from './fuelplan.js';
 
 const MODES = [
@@ -179,8 +180,7 @@ export function createPerfPage(deps) {
     if (!l) return false;
     ov.clear();
     note = '';
-    let cand = l.ac || '';
-    while (cand && !names.includes(cand)) cand = cand.includes(' ') ? cand.replace(/\s+\S+$/, '') : '';
+    const cand = resolveAcName(l.ac || '', k => names.includes(k), names) || '';
     if (cand) {
       st.ac = cand;
       if (cand != l.ac) note = 'No file for ' + l.ac + ': using ' + cand + '.';
