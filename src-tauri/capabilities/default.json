@@ -2,9 +2,7 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default permissions for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
@@ -25,7 +23,37 @@
       "identifier": "fs:allow-write-file",
       "allow": [
         {
-          "path": "**"
+          "path": "**/*.[jJ][sS][oO][nN]"
+        },
+        {
+          "path": "**/*.[iI][nN][iI]"
+        },
+        {
+          "path": "**/*.[dD][dD][sS]"
+        },
+        {
+          "path": "**/*.[pP][nN][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][eE][gG]"
+        },
+        {
+          "path": "**/*.[gG][iI][fF]"
+        },
+        {
+          "path": "**/*.[wW][eE][bB][pP]"
+        },
+        {
+          "path": "**/*.[bB][mM][pP]"
+        },
+        {
+          "path": "**/*.[bB][cC][rR][dD]"
+        },
+        {
+          "path": "**/*.[tT][mM][pP]"
         }
       ],
       "deny": [
@@ -124,7 +152,37 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [
         {
-          "path": "**"
+          "path": "**/*.[jJ][sS][oO][nN]"
+        },
+        {
+          "path": "**/*.[iI][nN][iI]"
+        },
+        {
+          "path": "**/*.[dD][dD][sS]"
+        },
+        {
+          "path": "**/*.[pP][nN][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][eE][gG]"
+        },
+        {
+          "path": "**/*.[gG][iI][fF]"
+        },
+        {
+          "path": "**/*.[wW][eE][bB][pP]"
+        },
+        {
+          "path": "**/*.[bB][mM][pP]"
+        },
+        {
+          "path": "**/*.[bB][cC][rR][dD]"
+        },
+        {
+          "path": "**/*.[tT][mM][pP]"
         }
       ],
       "deny": [
