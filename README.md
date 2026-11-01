@@ -1,47 +1,90 @@
-<img src="docs/logo.png" alt="BMS Cards logo" width="96" align="right">
+<img src="docs/logo.png" alt="BMS Cards logo" width="110" align="right">
 
 # BMS Cards
 
-Datacard and kneeboard planner for **Falcon BMS 4.38.1**.
+A mission-planning tool for **Falcon BMS 4.38.1**: it reads your campaign and your own BMS installation and prepares the datacard, the DTC and the kneeboard for the flight you pick.
 
-Reads campaign files (.cam, .fmap, .twx, Link16, IFF, DTC .ini) and fills the datacard of a chosen flight.
-Writes the kneeboard as BMS-compatible DDS files (DXT1, or DXT5 with mipmaps).
+![The datacard of a flight](docs/img/datacard.png)
+
+## Read this first
+
+- **I made this for myself.** BMS Cards began as a personal tool and I opened it to the community because it may be useful to others. Many features, and the way they work, follow my own habits and needs, so it may not suit everybody.
+- **It is vibe coded.** I'm not a programmer, I'm just a player: I cannot read or write code. The program was written with the help of an AI assistant (Claude, by Anthropic) and tested by me, in the game and on real campaign files. Expect bugs and behaviour I did not intend. Check anything important in the cockpit and in the game before you rely on it.
+- **You are free to change it.** The code is open (AGPL-3.0). If you want something different, make a **fork** (the _Fork_ button on GitHub) and bend it as you like. This repository stays my version.
 
 ## What it does
-Pick a campaign and a flight, and the program fills the paperwork for you. Each page is a tab:
 
-- **Datacard** - the flight card: steerpoints, times, fuel, take-off and landing performance, weights, radios, threats. Ready to print or to put in the kneeboard.
-- **Data Cartridge** - opens a DTC `.ini`, edits it and writes it back (the first original is kept once in the program folder).
-- **Kneeboard** - arranges the cards on the BMS kneeboard pages and writes them as DDS files.
-- **Map** - the campaign map with flights, threats and objects; offsets can be placed on the steerpoints.
-- **Weapons**, **BVR Timeline**, **Performance**, **Weather** - calculators and views that use the same flight.
-- **Squadron** - roster, missions sent from one pilot to the others, logbook and campaign results.
-- **Docs** - the reference documents.
+Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The program fills in what it can from the files, and you correct what you want: every value on the card can be changed by hand and brought back to automatic.
 
-Pages that edit something have an Edit switch; with it off they only show.
+- **Datacard and MDC** - steerpoints, times, fuel, weights, take-off and landing performance, radios, airbases, threats, IFF and Link 16.
+- **Data Cartridge** - opens a DTC `.ini`, edits it (steerpoints, targets, PPTs, lines, avionics settings) and writes it back. The first original of each file is kept in the program folder.
+- **Kneeboard** - arranges cards, imported pictures and PDF pages on the kneeboard pages and writes them as DDS files for the theater you fly. The previous files can be restored.
+- **Map** - the campaign on a map: flight plans, package, airbases, objectives, units, SAM rings and an estimate of the radar coverage. Offline coastlines for Korea, the Balkans and the Mediterranean theaters, the official BMS map, your own picture, or online satellite and topographic layers.
+- **Weapons** - pop-up, HADB, TOSS and HARM geometry, navigation offsets (OA1, OA2, VRP, VIP, pull-up points) that can be placed on the map and written into the DTC.
+- **BVR Timeline** - missile range, MAR and the engagement timeline against a target you describe.
+- **Performance** - turn and Ps charts, cruise, take-off and landing, fuel plan with joker and bingo.
+- **Weather** - the campaign weather drawn on the map, with wind and conditions by altitude.
+- **Docs** - the PDFs and charts of the Docs folder of your BMS, with pages you can send to the kneeboard.
+- **Squadron** - a squadron profile and roster, missions saved as `.bcrd` files and sent to the other pilots, packages and flights, logbook.
+
+![The map with a flight plan and SAM rings](docs/img/map.png)
+![The kneeboard organizer](docs/img/kneeboard.png)
+![The Weapons page](docs/img/weapons.png)
+![The Data Cartridge page](docs/img/dtc.png)
+
+## More screenshots
+
+![The Docs page with the charts of the BMS folder](docs/img/docs.png)
+![The BVR Timeline page](docs/img/bvr.png)
+![The Performance page](docs/img/performance.png)
+![The Weather page](docs/img/weather.png)
+![The Squadron page: members](docs/img/squadron-members.png)
+![The Squadron page: organization](docs/img/squadron-organization.png)
 
 ## Getting started
-1. Download the portable folder (see Build below) and put it in a folder you can write to (Documents, `C:\Games`), not in Program Files.
-2. Start `BMS Cards.exe`, open **Settings** and choose your Falcon BMS folder (it is found by itself in most cases). The game data is read from your own installation; none of it is shipped here.
-3. On the Datacard page choose a campaign, then a flight.
-4. Settings, config and your squadrons are kept in the same folder, so moving the folder moves everything.
 
-## Squadron and your network address
-Pilots of a squadron find each other through public trackers that only pass the connection offers; missions and messages then go **directly from pilot to pilot** (WebRTC). Nothing is stored on a server.
+1. Download the latest `BMS-Cards-portable` from the **Releases** page and unzip it into a folder you can write to (Documents, `C:\Games`), **not** Program Files.
+2. Start `BMS-Cards.exe`. In **Settings** choose the folder of your Falcon BMS (it is usually found by itself).
+3. Choose the theater, then a campaign, then a flight.
 
-To open that direct connection the other pilots' programs must learn how to reach you, so **the address of your computer on your local network (LAN) and your public IP address are visible to the pilots of the squadron you connect to**. Do not join a squadron you do not trust. Browsers and Windows may hide the LAN address behind a `.local` name; in that case pilots on the same virtual LAN cannot reach each other and the connection goes through the public address. The Squadron page has a connection test.
+There is no installer and no updater. Settings, squadrons and everything the program saves live in the same folder as the exe, so moving or deleting the folder moves or removes everything.
 
-## Safety
-The desktop program only loads its own scripts (Content Security Policy), reads files from your BMS folder and the program folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files). Programs, scripts and system folders are blocked for writing.
+**Requirements:** Windows and a Falcon BMS installation. Written and tested on **4.38.1**; the program warns when it sees another version.
 
-## Status
-- `app/` - the interface. The game data (aircraft, weapons, objects, airbases, radio, threats) is read from your own Falcon BMS installation (set its folder in Settings): none of it is included.
-- `src-tauri/` - Windows desktop shell (Tauri). Portable: one folder with the exe and `config.json`.
-- `tests/`, `tools/` - the tests. They need private copies of BMS data and of campaign files that are not in the repository, so they run only on the developer's computer.
-- `docs/ARCHITECTURE.md` - how the program is built now (short); `docs/archive/ARCHITECTURE-history.md` - the diary of every patch.
+## Limits and known problems
 
-## Build
-Windows builds are made by GitHub Actions (see `.github/workflows/build.yml`). Download the artifact
-`BMS-Cards-portable` from the Actions tab.
+- **Mostly tested on Korea.** The Balkans, the Israel and Hellas theaters work, but with far fewer campaigns and Tactical Engagements tried.
+- **Many numbers are estimates.** Missile ranges and MAR, weapon effects, radar coverage and the fuel plan are models of mine, not the game's own code. Performance uses the aircraft data of your BMS: the F-16 and the F-15 are the most carefully checked, the other aircraft are calculated the same way but less verified.
+- **Heavy pictures can make it stutter.** Large map pictures and the biggest coastlines can make the window freeze for a moment while the map is drawn. A loading bar is shown when it happens.
+- **Squadron was tested with few people.** Missions have been sent and received between a small number of pilots only. Connections depend on your network and firewall, and bugs are likely.
+- **Some things are not there.** The game's own briefing is not imported, and some squadron values (experience, morale, supply, mission rating) cannot be read from the files.
+- **Writing the DTC and the kneeboard changes your game files.** Keep your own backups too.
 
-Tests (Node 20+): `npm test`.
+## Your network address (Squadron)
+
+Pilots find each other through public trackers that only pass the connection offers; missions and messages then go straight from pilot to pilot (WebRTC), with nothing stored on a server. To make that connection possible the other pilots' programs learn how to reach you: **the address of your computer on your local network and your public IP address are visible to the pilots of the squadron you connect to.** Join squadrons you trust. The Squadron page has a connection test.
+
+## What the program touches
+
+The desktop program only runs its own scripts, reads your BMS folder and its own folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files). It never writes programs or scripts. The game data (aircraft, weapons, theaters, airbases, radio) is **read from your own installation at run time and is not part of this repository**.
+
+## For developers
+
+Tauri 2 desktop shell, plain JavaScript for the interface, independent modules for the BMS parsers and the calculations. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/ROADMAP.md](docs/ROADMAP.md).
+
+```
+npm ci
+npm run check
+```
+
+Tests that need BMS files skip themselves when the files are not there.
+
+## Thanks
+
+To the **Falcon BMS development team** for the simulator and for the data, manuals and charts that make a tool like this possible, and to the **Falcon BMS community**: the pilots, the tool makers and the people who test and report. Details of the projects that inspired this one and of the third-party components are in [CREDITS.md](CREDITS.md).
+
+BMS Cards is a fan-made project and is **not affiliated with or endorsed by Benchmark Sims**.
+
+## License
+
+GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE).
