@@ -1,5 +1,6 @@
 import { createMap } from '../core/mapview.js';
 import { createOffsets } from '../core/mapoffs.js';
+import { busyWrap } from '../core/busy.js';
 import { CAM } from '../core/cam-core.js';
 import { createMissilesPage } from '../core/missilespage.js';
 import { createWeaponsPage } from '../core/weaponspage.js';
@@ -80,12 +81,14 @@ export async function init6() {
     objects: {
       list: () => {
         const d = targetData();
-        return d ? d.objectives() : Promise.reject(new Error('Needs the BMS install folder (desktop app, Settings).'));
+        return d
+          ? busyWrap('Loading the map objects…', d.objectives())
+          : Promise.reject(new Error('Needs the BMS install folder (desktop app, Settings).'));
       },
       features: o => targetData().features(o),
       radars: () => {
         const d = targetData();
-        return d && d.radars ? d.radars() : Promise.resolve([]);
+        return d && d.radars ? busyWrap('Loading the radars…', d.radars()) : Promise.resolve([]);
       },
     },
     attack: () => {

@@ -14,6 +14,7 @@ import { mapV } from './pages.js';
 import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
 import { atoSearch } from './ato.js';
 import { msfLoad } from './mission.js';
+import { busyEnd, busyStart } from '../core/busy.js';
 
 /* Campaign list: every .cam in the BMS Campaign folder; selecting one also loads its weather (.fmap), Link16, IFF and date (.twx) files. */
 export const dtcDir = () =>
@@ -245,6 +246,14 @@ let CAMGEN = 0;
 // a campaign or a mission opened another way (Open menu): a choice of the menu still loading is dropped
 export const campCancel = () => ++CAMGEN;
 export async function selectCampaign(name) {
+  const bz = name ? busyStart('Loading the campaign…') : 0;
+  try {
+    return await selectCampaign0(name);
+  } finally {
+    if (bz) busyEnd(bz);
+  }
+}
+async function selectCampaign0(name) {
   const gen = ++CAMGEN,
     stale = () => gen !== CAMGEN;
   if (ST.C && !(await discardOk())) {

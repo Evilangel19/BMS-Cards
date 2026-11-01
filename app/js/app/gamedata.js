@@ -37,6 +37,7 @@ import { TDATA } from './dtctargets.js';
 import { mapV } from './pages.js';
 import { fillCampaigns, selectCampaign, wxPage } from './campaign.js';
 import { loadRunways } from './perf.js';
+import { busyEnd, busySet, busyStart } from '../core/busy.js';
 
 /* ---------- Game data from the BMS installation ---------- */
 export let GAMEDATA = {
@@ -76,11 +77,14 @@ let LOADGEN = 0,
   LOADING = Promise.resolve();
 export function loadGameData(reloadTheaters = true) {
   const gen = ++LOADGEN,
-    run = LOADING.then(() => (gen === LOADGEN ? readGameData(reloadTheaters) : undefined));
+    bz = busyStart('Loading the game data…'), // the loading bar (core/busy.js)
+    run = LOADING.then(() =>
+      gen === LOADGEN ? readGameData(reloadTheaters, p => busySet(bz, p[0], p[1])) : undefined
+    ).finally(() => busyEnd(bz));
   LOADING = run.catch(() => {});
   return run;
 }
-async function readGameData(reloadTheaters) {
+async function readGameData(reloadTheaters, stage = () => {}) {
   if (isDesktop() && !ST.CFG.paths.bmsInstall) {
     const d = await detectBms();
     if (d) {
@@ -90,7 +94,9 @@ async function readGameData(reloadTheaters) {
       } catch (e) {}
     }
   }
+  stage([4, 'Reading the theaters…']);
   if (reloadTheaters) await loadTheaters();
+  if (ST.TH) stage([8, 'Loading theater ' + ST.TH.name + '…']);
   try {
     kbSyncTheater(ST.TH && ST.TH.name);
   } catch (e) {}
@@ -107,6 +113,7 @@ async function readGameData(reloadTheaters) {
   }
   try {
     GAMEDATA = { status: 'Reading game data from the BMS folder…' };
+    stage([12, 'Looking for the game files…']);
     const inst = ST.CFG.paths.bmsInstall,
       names = [...allNames(), 'Airbase.lst', 'KTO_AIP.pdf'],
       paths = {};
@@ -206,12 +213,14 @@ async function readGameData(reloadTheaters) {
     }
     if (!ST.D_BASE) ST.D_BASE = { ...CAM.D };
     Object.assign(CAM.D, ST.D_BASE); // the tables of the theater left behind must not stay when the new one lacks a file
+    stage([30, 'Reading the tables…']);
     const r = await buildTables(async k => {
       const p = pathFor(paths, k);
       if (!p) return null;
       return new TextDecoder(ENCODING[k]).decode(await readBytes(p));
     });
     Object.assign(CAM.D, r.tables);
+    stage([55, 'Reading the objectives…']);
     CAM.D.navOcd = [];
     try {
       if (ST.OBJDIR && CAM.D.ob)
@@ -225,6 +234,7 @@ async function readGameData(reloadTheaters) {
     const warn = [];
     if (ST.GEOWARN) warn.push(ST.GEOWARN);
     try {
+      stage([70, 'Reading the airbases and runways…']);
       const tdir = p => p.replace(/[\\/][^\\/]*$/, '');
       const atcDir = paths['Airbase.lst'] ? tdir(paths['Airbase.lst']) : '';
       const atc = [];
@@ -268,6 +278,7 @@ async function readGameData(reloadTheaters) {
     }
     try {
       const data = jp(inst, 'Data');
+      stage([88, 'Reading the aircraft data…']);
       let dir = ST.TH && ST.TH.sim ? jp(data, ST.TH.sim, 'Acdata') : jp(data, 'Sim', 'Acdata');
       let ents = await listDir(dir);
       if (!ents.length) {

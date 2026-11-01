@@ -108,7 +108,7 @@ try:
         except Exception as e: print('map did not start', str(e)[:80])
         pg.wait_for_timeout(1000)
         bases = pg.eval_on_selector_all('input[name=mpbase]', 'o=>o.map(x=>x.value)')
-        check('Map: the Korea-only base maps are not offered for the Balkans', bases and not set(bases) & {'coast', 'bms'} and 'sat' in bases and 'sky' in bases)
+        check('Map: the Korea-only official BMS map is not offered for the Balkans (the offline coastlines are, since beta 84)', bases and 'bms' not in bases and 'coast' in bases and 'sat' in bases and 'sky' in bases)
         pg.click('#mpbaseb'); pg.wait_for_timeout(300); pg.check('#mpbase input[value=sky]'); pg.wait_for_timeout(3500)
         check('Map: the 16K map of the theater folder is drawn as the base', pg.evaluate('()=>!!window.__app.mapV.underlay()') or pg.locator('#mpmap canvas').count() > 0)
         pg.click('[data-t=kb]')

@@ -11,6 +11,7 @@ import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
 import { MFD, draw } from './cardview.js';
 import { perfFill } from './perf.js';
+import { busyEnd, busyStart } from '../core/busy.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
 export const fkey = f => (f && f.campId != null ? String(f.campId) : null);
@@ -173,6 +174,14 @@ export async function loadBaseOwners(C) {
 }
 // stale(): true when another campaign was chosen meanwhile (then this one is dropped before it replaces anything)
 export async function loadCam(file, stale) {
+  const bz = busyStart('Reading the campaign ' + (file && file.name ? file.name : '') + '…');
+  try {
+    return await loadCam0(file, stale);
+  } finally {
+    busyEnd(bz);
+  }
+}
+async function loadCam0(file, stale) {
   if (!CAM.D.ct.length)
     return alert(
       'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.'

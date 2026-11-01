@@ -7,6 +7,7 @@ import { objState, featState } from '../parsers/cam.js';
 import { operational } from './objstatus.js';
 import { offsetRow } from './popup.js';
 import { OFF_KEYS, OFF_COLORS } from './mapoffs.js';
+import { busyEnd, busyRun, busySet, busyStart } from './busy.js';
 import {
   STPT_RANGE,
   GROUPS,
@@ -330,7 +331,10 @@ export function createMap(host, deps) {
     mkCoastLayers = async () => {
       const reg = coastRegion() || 'asia';
       if (reg == CREG) return;
-      const data = reg == 'med' ? (await import('../data/basemap-med.js')).default : basemap;
+      const data =
+        reg == 'med'
+          ? (await busyRun('Loading the coastlines…', () => import('../data/basemap-med.js'))).default
+          : basemap;
       if (G.coastD) map.removeLayer(G.coastD);
       if (G.coastL) map.removeLayer(G.coastL);
       G.coastD = mkCoast(COAST.dark, data);
@@ -1606,7 +1610,16 @@ export function createMap(host, deps) {
         key == 'img' ? 'The picture could not be read.' : 'The official BMS map could not be loaded (internet?).'
       );
     });
-    const w = await warpImageAsync(img, undefined, undefined, undefined, p => note('Preparing the map picture…', p));
+    const bz = busyStart('Preparing the map picture…');
+    let w;
+    try {
+      w = await warpImageAsync(img, undefined, undefined, undefined, p => {
+        note('Preparing the map picture…', p);
+        busySet(bz, Math.round(p * 100));
+      });
+    } finally {
+      busyEnd(bz);
+    }
     if (obj) URL.revokeObjectURL(obj);
     LUM[key] = lumOf(w.canvas);
     return (OVC[key] = new L.CanvasOverlay(w.canvas, w.bounds, { interactive: false, opacity: 1, pane: 'tilePane' }));
@@ -3913,6 +3926,7 @@ export function createMap(host, deps) {
     if (RCBUSY) return;
     RCBUSY = true;
     RCK = key;
+    const rcb = busyStart('Computing the radar coverage…');
     try {
       const radars = alive.slice(),
         L = window.L,
@@ -3991,6 +4005,7 @@ export function createMap(host, deps) {
       toast('Radar coverage could not be drawn: ' + ((e && e.message) || e), true);
     } finally {
       RCBUSY = false;
+      busyEnd(rcb);
       note('');
       if (st.on.rc && RCK !== key) radarCov();
     }
