@@ -2,7 +2,7 @@
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8781', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8781', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
@@ -12,18 +12,31 @@ try:
         pg = br.new_page(viewport={'width': 1500, 'height': 1900}, reduced_motion='reduce')
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8781/app/index.html'); pg.wait_for_timeout(900)
+        pg.wait_for_selector('#boot', state='detached', timeout=30000)
+        check('the loading bar is gone once the program has started and the version is shown', pg.locator('#boot').count() == 0 and pg.inner_text('#appver').startswith('v0.'))
+        check('no yellow marks and no clickable cells while there is no card', pg.locator('#cvhl i').count() == 0)
+        import base64
+        FX = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/tests/fixtures/beartrap/'
+        pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_2_.ini', encoding='latin1').read())
+        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()); pg.wait_for_timeout(1200)
+        pg.evaluate("()=>{const s=document.querySelector('#fsel');if(s&&s.options.length>1){s.value=s.options[1].value;s.onchange&&s.onchange()}}"); pg.wait_for_timeout(1200)
+        check('the cells filled from a list or by automatic values carry a yellow mark over the card (an overlay, not drawn into the card)', pg.locator('#cvhl i').count() >= 5 and pg.evaluate("()=>getComputedStyle(document.querySelector('#cvhl i')).backgroundColor").startswith('rgba(255, 222, 0'))
+        def inside():
+            return pg.evaluate("()=>{const c=document.getElementById('cv').getBoundingClientRect();return [...document.querySelectorAll('#cvhl i')].every(i=>{const r=i.getBoundingClientRect();return r.left>=c.left-1&&r.right<=c.right+1&&r.top>=c.top-1&&r.bottom<=c.bottom+1})}")
+        check('every mark lies inside the card', inside())
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(500); pg.click('text=Datacard >> nth=0'); pg.wait_for_timeout(500)
+        check('after another page the marks are still inside the card', pg.locator('#cvhl i').count() >= 5 and inside())
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
-        check('the Datacard keeps its own cells (405 fields)', pg.evaluate("__app.FD.length") == 405)
+        check('the Datacard keeps its own cells (406 fields)', pg.evaluate("__app.FD.length") == 406)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
-        need = ['cs', 'pkg', 'mis', 'atis', 'ab0_0', 'ab2_6', 'fl0_0', 'fl3_6', 'pk4_6', 'fp0_0', 'fp23_7', 'aa', 'tanks', 'gw', 'bingo', 'joker', 'pri', 'll2', 'ews5', 'wp1_mode', 'wp2_bc', 'dmode', 'dv2', 'ob2', 'dl_rs', 'su4_3', 'sn4', 'bv3_5', 'roe', 'free', 'eph',
-                'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav1_2', 'dl0_ndl', 'dl1_dn', 'srv', 'contracts']
+        need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl7_s', 'fl3_5', 'fp0_st', 'fp14_11',
+                't0_4', 'u2_4', 'dl0_fc', 'dl1_dn2', 'ovw', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']
         miss = [k for k in need if k not in mk]
-        check('every field of the Datacard and the new MDC fields is a cell of the MDC format %s' % miss, not miss)
-        info = pg.evaluate("""async()=>{const m=await import('./js/core/cardlayout.js');const sh=m.SHOT;
-          const ab=m.LAYOUT.shapes.filter(s=>s.t=='cell'&&s.white&&(s.lab=='A'||s.lab=='B')).map(s=>s.lab+':'+Math.round(s.r[1]));
-          return {w:Math.round(sh[2]-sh[0]),h:Math.round(sh[3]-sh[1]),ab}}""")
-        check('screenshot box is 441 x 441 like the Datacard one', info['w'] == 441 and info['h'] == 441)
-        check('link 16 rows A and B are separate cells, one under the other', len(info['ab']) == 2 and info['ab'][0].startswith('A') and info['ab'][1].startswith('B'))
+        check('the cells of the MDC format that the program fills (and the free cells of page 2) exist %s' % miss, not miss)
+        info = pg.evaluate("""async()=>{const m=await import('./js/core/cardlayout.js');const sh=m.SHOT,f=n=>m.LAYOUT.fields.find(d=>d.k==n).r;
+          return {w:Math.round(sh[2]-sh[0]),h:Math.round(sh[3]-sh[1]),a:Math.round(f('dl0_fc')[1]),b:Math.round(f('dl1_fc')[1]),n:m.LAYOUT.fields.length}}""")
+        check('screenshot box is the big white box of the MDC (about 750 x 525) %s' % info, 700 < info['w'] < 800 and 480 < info['h'] < 560)
+        check('link rows A and B are separate cells, one under the other', info['b'] > info['a'] + 20)
         check('bingo is red', pg.evaluate("__app.MFD.find(d=>d.k=='bingo').red") in (1, True))
         pg.click('[data-t=kb]'); pg.click('#mdctog'); pg.wait_for_timeout(400)
         check('the MDC format button turns on', 'on' in (pg.get_attribute('#mdctog', 'class') or '').split())

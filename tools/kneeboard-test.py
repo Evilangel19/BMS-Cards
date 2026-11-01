@@ -5,7 +5,7 @@ from PIL import Image, ImageDraw
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 shots = sys.argv[1] if len(sys.argv) > 1 else None
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8769', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8769', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
@@ -25,7 +25,7 @@ DISMISS = [False]
 S = lambda side, r: '#kn div.kbt[data-s=%s][data-r="%d"]' % (side, r)
 cap = lambda pg: pg.inner_text('#kbcap')
 def start(br, motion):
-    pg = br.new_page(viewport={'width': 1700, 'height': 1800}, accept_downloads=True, reduced_motion=motion); errs = []
+    pg = br.new_page(viewport={'width': 1700, 'height': 1800}, accept_downloads=True, reduced_motion=motion); errs = []; pg.add_init_script("localStorage.setItem('bmsobs','1')");
     import dialogs; dialogs.install(pg)
     pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: (d.dismiss() if DISMISS[0] else d.accept())); pg.add_init_script('window.showOpenFilePicker=undefined')
     pg.goto('http://localhost:8769/app/index.html'); pg.wait_for_timeout(800)
@@ -59,10 +59,14 @@ try:
         drag(pg, S('left', 0), S('left', 2)); pg.click(S('left', 2)); check('datacard moves like any card', 'Left: Datacard Left' in cap(pg))
         drag(pg, S('left', 2), '#kbtrash'); check('datacard dropped on the bin only leaves the kneeboard (back to unused)', pg.locator('#kbtray div.kbtr').count() == 5)
         drag(pg, '#kbtray div.kbtr >> nth=0', S('left', 1)); pg.click(S('left', 1)); n1 = cap(pg); drag(pg, '#kbtray div.kbtr >> nth=0', S('left', 2)); pg.click(S('left', 2)); n2 = cap(pg)
-        ov = drag_edge(pg, '#kbtray div.kbtr >> nth=0', S('left', 1), 0.1); pg.click(S('left', 1)); a1 = cap(pg); pg.click(S('left', 2)); a2 = cap(pg); pg.click(S('left', 3)); a3 = cap(pg)
+        ov = drag_edge(pg, '#kbtray div.kbtr >> nth=0', S('left', 1), 0.1); pg.click(S('left', 0)); a0 = cap(pg); pg.click(S('left', 1)); a1 = cap(pg); pg.click(S('left', 2)); a2 = cap(pg)
         check('dropping on the left edge of a card shows the insert bar', 'ib' in (ov or '').split())
         L = lambda t: t.split('Left: ')[1].split(' ·')[0]
-        check('a card dropped between two others is inserted there and the next ones move on', L(a1) != L(n1) and L(a2) == L(n1) and L(a3) == L(n2))
+        check('with a free slot just above, the new card fills it and the others stay (nothing is pushed)', 'Empty' not in a0 and L(a1) == L(n1) and L(a2) == L(n2))
+        pg.evaluate("()=>{window.__kbAnim=0;const a=Element.prototype.animate;Element.prototype.animate=function(...x){if(this.classList&&this.classList.contains('kbt'))window.__kbAnim++;return a.apply(this,x)}}"); drag_edge(pg, '#kbtray div.kbtr >> nth=0', S('left', 1), 0.1); ia = pg.evaluate("()=>window.__kbAnim"); pg.click(S('left', 1)); b1 = cap(pg); pg.click(S('left', 2)); b2 = cap(pg); pg.click(S('left', 3)); b3 = cap(pg)
+        check('inserting a card animates the cards that move on and the new one', ia > 0)
+        check('with no free slot above, the cards below move on to the next free slot', L(b2) == L(n1) and L(b3) == L(n2) and L(b1) not in (L(n1), L(n2), L(a0)))
+        drag(pg, S('left', 0), '#kbtray')
         for r in (3, 2, 1): drag(pg, S('left', r), '#kbtray')
         with pg.expect_file_chooser() as fc: pg.click('#kbimp')
         fc.value.set_files([tmp + '/big.pdf']); pg.wait_for_timeout(1500)
@@ -116,7 +120,8 @@ try:
         pg.click('[data-t=kn]'); pg.wait_for_timeout(300)
         pg.click('#kbldef'); pg.wait_for_timeout(300)
         got = []; pg.on('download', lambda d: got.append(d)); pg.click('#kbsave'); pg.wait_for_timeout(6000)
-        names = sorted(d.suggested_filename for d in got); check('files written %s' % names, names == ['7982.dds', '7989.dds', '7991.dds'])
+        names = sorted(d.suggested_filename for d in got); ac = pg.evaluate("()=>__app.F['pk0_1']||''"); base = 1403 if 'F-15' in ac else 7982
+        check('files written %s for %s' % (names, ac or 'no flight'), names == sorted('%d.dds' % (base + i) for i in (0, 7, 9)))
         gd = {d.suggested_filename: d.path() for d in got}; im = Image.open(gd['7989.dds']).convert('RGB'); px = im.getpixel((6, 1000))
         check('row 8 DDS holds the red-bordered JPG on its left page (pixel %s)' % (px,), px[0] > 180 and px[1] < 90 and px[2] < 90)
         check('DXT1 2048x2048 size', all(os.path.getsize(d.path()) == 128 + 2048 * 2048 // 2 for d in got))

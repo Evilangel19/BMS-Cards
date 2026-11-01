@@ -3,10 +3,24 @@ name: build
 on:
   push:
     branches: [dev, main]
+  pull_request:
   workflow_dispatch:
 
 jobs:
-  # The tests need copies of Falcon BMS data and of campaign files that are not in the repository (see .gitignore): they run on the computer of the developer only.
+  # Quick checks on every push: lint, formatting, types of the pure modules, and the tests that need no BMS files (the others are skipped, see tests/FIXTURES.md).
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm run typecheck
+      - run: npm test
+  # The build only. The full tests need copies of Falcon BMS data and of campaign files that are not in the repository (see .gitignore): they run on the computer of the developer.
   windows:
     runs-on: windows-latest
     steps:

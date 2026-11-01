@@ -1,0 +1,59 @@
+#boot {
+  position: fixed;
+  inset: 0;
+  z-index: 5000;
+  background: var(--bg, #12161c);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--tx, #dde3ea);
+  font:
+    14px system-ui,
+    sans-serif;
+}
+#boot .bt {
+  width: min(420px, 80vw);
+  height: 8px;
+  border-radius: 6px;
+  background: var(--line, #2a3441);
+  overflow: hidden;
+}
+#boot .bt i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ac, #4aa3ff);
+  transition: width 0.15s;
+}
+
+/* loading bar for the slow loads (core/busy.js) */
+#busybar {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translate(-50%, -8px);
+  min-width: 260px;
+  max-width: 80vw;
+  padding: 8px 14px 9px;
+  background: #151b22f2;
+  border: 1px solid #ffffff2e;
+  border-radius: 8px;
+  box-shadow: 0 4px 18px #0008;
+  font-size: 12px;
+  color: #dfe6ee;
+  z-index: 100000;
+  pointer-events: none;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+#busybar.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+#busybar .ldb {
+  margin-top: 6px;
+}

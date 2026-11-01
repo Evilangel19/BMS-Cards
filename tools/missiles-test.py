@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 shots = sys.argv[1] if len(sys.argv) > 1 else None
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8785', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8785', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
@@ -81,6 +81,7 @@ try:
         pg.evaluate("()=>{const e=document.querySelector('#ms input[data-sl=tgtSpeed]');e.value=700;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(200)
         check('BVR: a faster aborting target has a shorter MAR', pg.inner_text('#ms #msr .wpt') != m1)
         check('BVR timeline: the table has a Missile column; a class that carries the selected missile shows it with a star', 'Missile' in pg.inner_text('#ms #mstl table.wtl tr') and pg.evaluate("()=>{const m=document.querySelector('#ms select[data-pick=msl]').value;return [...document.querySelectorAll('#ms #mstl table.wtl tr')].some(r=>r.lastElementChild.textContent.includes(m+' ★'))}") in (True, False))
+        check('BVR timeline: the table is kept in memory (the same rows come back, not worked out again)', pg.evaluate("()=>{const a=__app.msPage.rows(),b=__app.msPage.rows();return a.some(x=>x)&&a.every((x,i)=>x===b[i])&&__app.msPage.tlCache()>0}"))
         check('BVR timeline: the Banzai track has its aircraft triangle', pg.locator('#ms svg.wsch path[fill="#3b82f6"]').count() >= 4)
         def scale(row):
             pg.click('#ms #mstl tr[data-tlsel="%d"] td' % row); pg.wait_for_timeout(250)
@@ -107,8 +108,11 @@ try:
         pg.click('button[data-t=dtc]'); pg.wait_for_timeout(300)
         pg.click('[data-t=kb]'); pg.wait_for_timeout(500)
         box = pg.locator('#cv').bounding_box(); k = box['width'] / 2048
+        pg.evaluate("()=>[0,1,2,3].forEach(i=>__app.CYC['bv'+i+'_0'].push('<i id=\"xss\">x</i>'))")
         pg.mouse.click(box['x'] + 1325 * 1.28 * k, box['y'] + 833 * (2048 / 1200) * k); pg.wait_for_timeout(300)
         check('Datacard: a click on a Class cell opens a menu with the aircraft', pg.is_visible('#chm') and pg.locator('#chm button').count() > 10)
+        check('the menu shows a label with HTML as plain text (no element is created from it)', pg.locator('#xss').count() == 0 and '<i id' in pg.inner_text('#chm'))
+        pg.evaluate("()=>[0,1,2,3].forEach(i=>__app.CYC['bv'+i+'_0'].pop())")
         pg.click('#chm button:text-is("F-15C")'); pg.wait_for_timeout(300)
         rowv = pg.evaluate("()=>{const g=t=>{const l=[...document.querySelectorAll('#form label')].find(x=>x.textContent===t);return l?l.parentElement.querySelector('input,select').value:null};return [g('BVR 2 Class'),g('BVR 2 MTR'),g('BVR 2 MAR'),g('BVR 2 DR'),g('BVR 2 DOR')]}")
         check('Datacard: choosing the aircraft fills MTR, MAR, DR and DOR of that row', rowv[0] == 'F-15C' and all(x and x.isdigit() for x in rowv[1:]) and not pg.is_visible('#chm'))
@@ -129,6 +133,17 @@ try:
         if len(o) > 1:
             pg.select_option('select[data-pick=em]', o[1]); pg.wait_for_timeout(500)
             check('HARM: changing the emitter updates the page (the new STPT is on the map)', pg.evaluate("()=>document.querySelector('select[data-pick=em]').selectedOptions[0].textContent.split(' · ')[0]") in pg.inner_text('#wp'))
+        # the map layer and the objects switches of the horizontal envelope, as on the other three Weapons pages
+        tp = lambda: pg.evaluate("()=>{const p=document.querySelector('.leaflet-tile-pane');return p?+getComputedStyle(p).opacity:-1}")
+        check('HARM: Map layer (On/Off, Opacity) and Objects (On/Off) are there, like on Pop-up / HADB / TOSS', pg.locator('#wp .wpc .wmap [data-set=mapon]').all_inner_texts() == ['On', 'Off'] and pg.locator('#wp .wpc .wmap [data-set=objon]').all_inner_texts() == ['On', 'Off'] and pg.locator('#wp .wpc input[data-mop]').count() == 1)
+        pg.evaluate("()=>{const i=document.querySelector('#wp .wpc input[data-mop]');i.value=30;i.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
+        check('HARM: the Opacity slider fades the map layer (30%)', abs(tp() - 0.3) < 0.02 and '30%' in pg.inner_text('#wp .wpc .wmap'))
+        pg.click('#wp .wpc [data-set=mapon][data-v="0"]'); pg.wait_for_timeout(200)
+        check('HARM: Map layer Off hides it and the slider', tp() == 0 and not pg.is_visible('#wp .wpc .wmap .slr'))
+        pg.click('#wp .wpc [data-set=mapon][data-v="1"]'); pg.wait_for_timeout(200)
+        check('HARM: Map layer On brings it back at the chosen opacity', abs(tp() - 0.3) < 0.02 and pg.is_visible('#wp .wpc .wmap .slr'))
+        pg.click('#wp .wpc [data-set=objon][data-v="0"]'); pg.wait_for_timeout(300)
+        check('HARM: Objects Off switches the objects of the map off', pg.evaluate("()=>__app.mapV&&__app.mapV.objectsOn?__app.mapV.objectsOn():false") is False)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

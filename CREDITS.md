@@ -4,13 +4,16 @@ BMS Cards is a fan-made tool for Falcon BMS. It is not affiliated with or endors
 
 Inspiration and reference:
 - Weapon Delivery Planner (WDP) - original datacard planner and DDS reference.
-- Datacard blank: layout redrawn by the program (app/js/core/dctemplate.js); it is a reconstruction of the WDP card structure, no third-party image is included.
+- Datacard blank (WDP card structure): layout redrawn by the program (app/js/core/dctemplate.js), no third-party image is included.
+- MDC blank (the blank mission data card of the Falcon BMS Docs folder): its author, mirv, has given his permission to recreate, modify and distribute it. The program redraws it in code (app/js/core/cardlayout.js) from the measures of its cells (app/js/data/mdcgeom.js, made by tools/mdc-geometry.py); neither the original file nor an image of it is included.
 - Open Frequency (UOAF) - layout and design inspiration.
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
+- "Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan - the MAR model (cases I and II: uniform and variable missile deceleration, vMax and measured deceleration of the missiles) used on the BVR Timeline page and the datacard BVR timeline. Only the published method and numbers are used; no code.
+- TO 1F-16CMAM-34-1-1 BMS (the Falcon BMS manual), sections 4.2.15 and 4.2.16 and the lethality graphs of the general-purpose bombs - the three minimum release altitudes, the safe escape manoeuvres and the fragmentation area (radius, height, duration, read from the graphs) used on the Weapons page; the figures are estimates read from the graphs, not BMS code.
 
 Rule: code from other projects is reused only after checking its license. Each reused part is listed here with its
-source, license and author. (Nothing is reused yet.)
+source, license and author (see "Third-party code included" below).
 
 Falcon BMS data (Falcon4_*.xml, CampObjData.xml, RadioMap.dat, Strings.txt, Ppt.ini, the aircraft and weapon data files, the ATC files, the AIP, theater files, ...) is read at run time from
 the user's own Falcon BMS installation and is NOT part of this program or of this repository: no table, aircraft file, missile file or AIP value is included. Without the BMS folder
@@ -22,7 +25,7 @@ Third-party code included:
 - Leaflet 1.9.4 (Vladimir Agafonkin and contributors), BSD-2-Clause - app/vendor/leaflet/ (unmodified build). Map page.
 - html2canvas 1.4.1 (Niklas von Hertzen), MIT - app/vendor/html2canvas/ (unmodified build). Map screenshot for the datacard.
 - Natural Earth (public domain) coast and border lines, taken from the npm package world-atlas 2.0.2 (ISC, Mike Bostock) and
-  clipped to the region with tools/make-basemap.mjs (topojson-client, ISC, used only at build time) - app/js/data/basemap.js.
+  clipped to the region with tools/make-basemap.mjs (topojson-client, ISC, used only at build time) - app/js/data/basemap.js (East Asia: Korea) and basemap-med.js (Mediterranean and the Balkans: the theaters of Israel, Hellas and the Balkans).
   The same file holds the Natural Earth 10m rivers and lakes (public domain, github.com/nvkelso/natural-earth-vector, geojson folder).
 - Satellite layer of the map (optional, needs internet): Sentinel-2 cloudless 2021 tiles by EOX IT Services GmbH
   (https://s2maps.eu, contains modified Copernicus Sentinel data 2021), CC BY-NC-SA 4.0. The tiles are loaded from the EOX server at
@@ -33,8 +36,9 @@ Third-party code included:
   (https://maps.falcon-bms.com, picture at cdn.falcon-bms.com). It is loaded live from the BMS server, not redistributed or stored. Its
   position was measured from the public source of the site (github.com/BenchmarkSims/maps-website, GPL-3.0): only facts (airbase pixel
   positions, 4 px per km) were taken, no code. "Imported map picture" lets the user load their own copy of a BMS map picture.
+- Tauri 2 (Tauri contributors, MIT or Apache-2.0) with its dialog and file plugins (MIT or Apache-2.0): the Windows desktop shell, built into the program (src-tauri/). Its Rust dependencies carry their own permissive licenses (see src-tauri/Cargo.lock).
 - NATO-style unit symbols (map page) are drawn from scratch with simple SVG shapes following the APP-6 / MIL-STD-2525 look; no artwork copied.
 
 Airbase data: runway numbers and headings are read from the BMS ATC files, ILS frequencies and elevations from the BMS KTO AIP, always from the user's own installation at run time
 (the AIP forbids reproduction without permission of the BMS Docs team, so nothing of it is included).
-- MDC format: drawn by the program from its own layout (app/js/core/cardlayout.js); no third-party image or file is included or needed.
+- MDC format: drawn by the program from the measures of the blank MDC (see above); no third-party image or file is included or needed.

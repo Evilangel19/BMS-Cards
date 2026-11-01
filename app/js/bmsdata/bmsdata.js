@@ -2,36 +2,53 @@
 // Each parser takes the file text and returns a table in the same shape as the embedded fallback in ../data/.
 
 export const FILES = {
-  ct: 'Falcon4_CT.xml',   // entity types
+  ct: 'Falcon4_CT.xml', // entity types
   vcd: 'Falcon4_VCD.xml', // vehicles (aircraft names)
   ucd: 'Falcon4_UCD.xml', // unit classes (-> aircraft names)
   wcd: 'Falcon4_WCD.xml', // weapons
   ocd: 'CampObjData.XML', // campaign objects (name and position)
-  rm: 'RadioMap.dat',     // callsign radio presets
-  str: 'Strings.txt',     // text strings
-  ils: 'Stations+Ils.dat',// airbase TACAN, tower/ILS/ATC frequencies (campaign folder)
-  ppt: 'Ppt.ini',        // pre-planned threats: name written in the DTC, ring range (feet), label (campaign folder)
-  rack: 'BmsRack.dat',    // pylons and racks of every station (their weight and drag count in the loadout)
+  rm: 'RadioMap.dat', // callsign radio presets
+  str: 'Strings.txt', // text strings
+  ils: 'Stations+Ils.dat', // airbase TACAN, tower/ILS/ATC frequencies (campaign folder)
+  ppt: 'Ppt.ini', // pre-planned threats: name written in the DTC, ring range (feet), label (campaign folder)
+  rack: 'BmsRack.dat', // pylons and racks of every station (their weight and drag count in the loadout)
 };
 export const OPTIONAL = new Set();
 // Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 (a newer BMS may have changed it)
 export const EXPECT = {
   ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
-  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir'],
+  ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir', 'Det_Air'],
   vcd: ['Name', 'CtIdx'],
   wcd: ['Name', 'CtIdx', 'Weight', 'Drag', 'Strength', 'Flags'],
   ocd: ['CampName', 'OcdIndex', 'PositionX', 'PositionY'],
 };
 // names of the expected fields that the first part of an XML text does not contain
-export const missingFields = (key, text) => { const head = String(text).slice(0, 400000); return (EXPECT[key] || []).filter(f => !head.includes('<' + f + '>')); };
+export const missingFields = (key, text) => {
+  const head = String(text).slice(0, 400000);
+  return (EXPECT[key] || []).filter(f => !head.includes('<' + f + '>'));
+};
 // Other spellings of a file name (e.g. when a file was renamed by a download).
 export const ALIASES = { ils: ['Stations_Ils.dat'] };
 export const allNames = () => Object.entries(FILES).flatMap(([k, n]) => [n, ...(ALIASES[k] || [])]);
 // First of the file's names that is present in `paths` (a { name: fullPath } map)
 export const pathFor = (paths, k) => [FILES[k], ...(ALIASES[k] || [])].map(n => paths[n]).find(Boolean) || null;
-export const ENCODING = { rack: 'latin1', ct: 'utf-8', vcd: 'utf-8', ucd: 'utf-8', wcd: 'utf-8', ocd: 'utf-8', rm: 'latin1', str: 'latin1', ils: 'latin1', ppt: 'latin1' };
+export const ENCODING = {
+  rack: 'latin1',
+  ct: 'utf-8',
+  vcd: 'utf-8',
+  ucd: 'utf-8',
+  wcd: 'utf-8',
+  ocd: 'utf-8',
+  rm: 'latin1',
+  str: 'latin1',
+  ils: 'latin1',
+  ppt: 'latin1',
+};
 
-const tag = (b, k) => { const q = b.match(new RegExp('<' + k + '>([^<]*)<')); return q ? q[1] : ''; };
+const tag = (b, k) => {
+  const q = b.match(new RegExp('<' + k + '>([^<]*)<'));
+  return q ? q[1] : '';
+};
 const blocks = (x, name) => [...x.matchAll(new RegExp('<' + name + ' Num="(\\d+)">([\\s\\S]*?)</' + name + '>', 'g'))];
 
 // RadioMap.dat: "name, UHF1, VHF, UHF2" -> { name(no spaces): [UHF1, VHF, UHF2] } (blank = 0)
@@ -49,12 +66,22 @@ export function parseRadioMap(text) {
 // Ppt.ini: "name range label" per line -> [[name, range in feet (0.1 = no ring), label], ...] in file order (the first 26 are the weapon systems)
 export function parsePpt(text) {
   const out = [];
-  for (const l of text.split(/\r?\n/)) { const m = l.trim().match(/^(\S+)\s+(-?[\d.]+)\s+(.+)$/); if (m) out.push([m[1], +m[2], m[3].trim()]); }
+  for (const l of text.split(/\r?\n/)) {
+    const m = l.trim().match(/^(\S+)\s+(-?[\d.]+)\s+(.+)$/);
+    if (m) out.push([m[1], +m[2], m[3].trim()]);
+  }
   return out;
 }
 
 // Strings.txt: "id<TAB>text". Only the ranges the program uses (mission names 300-419, callsigns 2000-2999).
-export function parseStrings(text, ranges = [[40, 47], [300, 419], [2000, 2999]]) {
+export function parseStrings(
+  text,
+  ranges = [
+    [40, 47],
+    [300, 419],
+    [2000, 2999],
+  ]
+) {
   const S = {};
   for (const l of text.split(/\r?\n/)) {
     const m = l.match(/^(\d+)(?:\t| +)(.*)$/);
@@ -69,7 +96,10 @@ export function parseCt(xml) {
   xml.split('</CT>').forEach(b => {
     const m = b.match(/<CT Num="(\d+)">/);
     if (!m) return;
-    const g = k => { const q = b.match(new RegExp('<' + k + '>(-?\\d+)')); return q ? +q[1] : 0; };
+    const g = k => {
+      const q = b.match(new RegExp('<' + k + '>(-?\\d+)'));
+      return q ? +q[1] : 0;
+    };
     ct[+m[1]] = [g('Domain'), g('Class'), g('Type'), g('EntityType'), g('EntityIdx')];
   });
   return ct;
@@ -80,7 +110,10 @@ export function parseAircraftNames(ucdXml, vcdXml) {
   const byCt = {};
   for (const m of blocks(vcdXml, 'VCD')) byCt[tag(m[2], 'CtIdx')] = tag(m[2], 'Name');
   const ac = {};
-  for (const m of blocks(ucdXml, 'UCD')) { const n = byCt[tag(m[2], 'VehicleCtIdx_0')]; if (n !== undefined) ac[m[1]] = n; }
+  for (const m of blocks(ucdXml, 'UCD')) {
+    const n = byCt[tag(m[2], 'VehicleCtIdx_0')];
+    if (n !== undefined) ac[m[1]] = n;
+  }
   return ac;
 }
 
@@ -93,14 +126,20 @@ export function parseWeaponNames(wcdXml) {
 
 // Campaign objects -> [campId, name, north km, east km]
 export function parseCampObjects(xml) {
-  const r = n => Math.round(n / 3280.84 * 100) / 100;
-  return [...xml.matchAll(/<CampObj CampId="(\d+)">([\s\S]*?)<\/CampObj>/g)]
-    .map(m => [+m[1], tag(m[2], 'CampName'), r(+tag(m[2], 'PositionY')), r(+tag(m[2], 'PositionX')), +tag(m[2], 'OcdIndex')]);
+  const r = n => Math.round((n / 3280.84) * 100) / 100;
+  return [...xml.matchAll(/<CampObj CampId="(\d+)">([\s\S]*?)<\/CampObj>/g)].map(m => [
+    +m[1],
+    tag(m[2], 'CampName'),
+    r(+tag(m[2], 'PositionY')),
+    r(+tag(m[2], 'PositionX')),
+    +tag(m[2], 'OcdIndex'),
+  ]);
 }
 
 // Pilot names: Strings 2301..3099 -> array (index = pilot id - 1)
 export function parsePilotNames(text) {
-  const S = parseStrings(text, [[2301, 3100]]), a = [];
+  const S = parseStrings(text, [[2301, 3100]]),
+    a = [];
   for (let i = 2301; i <= 3100; i++) a.push(S[i] || '');
   return a;
 }
@@ -108,14 +147,21 @@ export function parsePilotNames(text) {
 // Weapon number -> [weight, drag]
 export function parseWeaponData(wcdXml) {
   const wt = {};
-  for (const m of blocks(wcdXml, 'WCD')) { const w = +tag(m[2], 'Weight'), d = +tag(m[2], 'Drag'); wt[m[1]] = [w || 0, d || 0]; }
+  for (const m of blocks(wcdXml, 'WCD')) {
+    const w = +tag(m[2], 'Weight'),
+      d = +tag(m[2], 'Drag');
+    wt[m[1]] = [w || 0, d || 0];
+  }
   return wt;
 }
 
 // Ground unit classes the program reports (UCD Name) -> { unit class number: category }
 export function parseGroundUnits(ucdXml, cats = ['Mech', 'Infantry', 'HQ', 'Airmobile', 'Marine']) {
   const gu = {};
-  for (const m of blocks(ucdXml, 'UCD')) { const n = tag(m[2], 'Name'); if (cats.includes(n)) gu[m[1]] = n; }
+  for (const m of blocks(ucdXml, 'UCD')) {
+    const n = tag(m[2], 'Name');
+    if (cats.includes(n)) gu[m[1]] = n;
+  }
   return gu;
 }
 
@@ -134,28 +180,44 @@ export function parseStationsIls(text) {
 // Tank fuel (lb) by weapon number: drop tanks are weapons named "Tank ..." with flag 2; "Strength" holds the fuel weight.
 export function parseTankFuel(wcdXml) {
   const tf = {};
-  for (const m of blocks(wcdXml, 'WCD')) if (/^Tank/i.test(tag(m[2], 'Name')) && tag(m[2], 'Flags') === '2') tf[m[1]] = +tag(m[2], 'Strength');
+  for (const m of blocks(wcdXml, 'WCD'))
+    if (/^Tank/i.test(tag(m[2], 'Name')) && tag(m[2], 'Flags') === '2') tf[m[1]] = +tag(m[2], 'Strength');
   return tf;
 }
 
 // BmsRack.dat -> the racks and the hardpoint groups, with the weight and drag of each pylon / rack (taken from the WCD by its CtIdx).
 // { racks: {name: {ct, wid: [ids], cls: [classes]}}, groups: {name: [{ct, racks: [names]}]}, ctw: {ct: [weight, drag]} }
 export function parseRacks(text, wcdXml) {
-  const racks = {}, groups = {}, ctw = {}; let r = null, g = null, p = null;
-  for (const m of blocks(wcdXml, 'WCD')) ctw[+tag(m[2], 'CtIdx')] = [+tag(m[2], 'Weight') || 0, +tag(m[2], 'Drag') || 0];
+  const racks = {},
+    groups = {},
+    ctw = {};
+  let r = null,
+    g = null,
+    p = null;
+  for (const m of blocks(wcdXml, 'WCD'))
+    ctw[+tag(m[2], 'CtIdx')] = [+tag(m[2], 'Weight') || 0, +tag(m[2], 'Drag') || 0];
   for (const raw of text.split(/\r?\n/)) {
-    const l = raw.replace(/#.*/, '').trim(); if (!l) continue;
-    const w = l.split(/[\s,]+/).filter(Boolean), k = w[0].toLowerCase(), v = w.slice(1);
-    if (k == 'definerack') { r = racks[v[0]] = {ct: 0, wid: [], cls: []}; g = p = null; }
-    else if (k == 'definegroup') { g = groups[v[0]] = []; r = p = null; }
-    else if (r && k == 'rackct') r.ct = +v[0] || 0;
+    const l = raw.replace(/#.*/, '').trim();
+    if (!l) continue;
+    const w = l.split(/[\s,]+/).filter(Boolean),
+      k = w[0].toLowerCase(),
+      v = w.slice(1);
+    if (k == 'definerack') {
+      r = racks[v[0]] = { ct: 0, wid: [], cls: [] };
+      g = p = null;
+    } else if (k == 'definegroup') {
+      g = groups[v[0]] = [];
+      r = p = null;
+    } else if (r && k == 'rackct') r.ct = +v[0] || 0;
     else if (r && k == 'addwid') r.wid.push(...v.map(Number).filter(n => !isNaN(n)));
     else if (r && k == 'addwclass') r.cls.push(...v.map(s => s.toLowerCase()));
-    else if (g && k == 'addpylon') { p = {ct: 0, racks: []}; g.push(p); }
-    else if (p && k == 'pylonct') p.ct = +v[0] || 0;
+    else if (g && k == 'addpylon') {
+      p = { ct: 0, racks: [] };
+      g.push(p);
+    } else if (p && k == 'pylonct') p.ct = +v[0] || 0;
     else if (p && k == 'addrack') p.racks.push(v[0]);
   }
-  return {racks, groups, ctw};
+  return { racks, groups, ctw };
 }
 // the class BmsRack.dat uses for a weapon (from its name; a tank is known from its fuel)
 export function weaponClass(name, isTank) {
@@ -173,55 +235,163 @@ export function weaponClass(name, isTank) {
 // weight and drag of the pylon and the rack that carry a weapon on a station of a hardpoint group: the first pylon of the group that has a rack for it
 // (a rack that names the weapon wins over one that names only its class)
 export function rackLoad(rk, group, id, cls) {
-  const g = rk && rk.groups[group]; if (!g) return null;
+  const g = rk && rk.groups[group];
+  if (!g) return null;
   for (const p of g) {
-    const rs = p.racks.map(n => rk.racks[n]).filter(Boolean), m = rs.find(x => x.wid.includes(id)) || rs.find(x => x.cls.includes(cls));
+    const rs = p.racks.map(n => rk.racks[n]).filter(Boolean),
+      m = rs.find(x => x.wid.includes(id)) || rs.find(x => x.cls.includes(cls));
     if (!m) continue;
-    const a = rk.ctw[p.ct] || [0, 0], b = rk.ctw[m.ct] || [0, 0];
-    return {w: (p.ct ? a[0] : 0) + (m.ct ? b[0] : 0), d: (p.ct ? a[1] : 0) + (m.ct ? b[1] : 0)};
+    const a = rk.ctw[p.ct] || [0, 0],
+      b = rk.ctw[m.ct] || [0, 0];
+    return { w: (p.ct ? a[0] : 0) + (m.ct ? b[0] : 0), d: (p.ct ? a[1] : 0) + (m.ct ? b[1] : 0) };
   }
   return null;
 }
 
 // Aircraft data files (Data\Sim\Acdata\*.txtpb) -> empty weight and internal fuel by aircraft name.
 // `files` = [{ name: 'F-16CM-52.txtpb', text }]. A name ending in " ROKAF" is also stored without it (the program uses that spelling).
-const hp_text = t => { const i = t.indexOf('hardpoints {'); return i < 0 ? '' : t.slice(i, i + 3000); };
+const hp_text = t => {
+  const i = t.indexOf('hardpoints {');
+  return i < 0 ? '' : t.slice(i, i + 3000);
+};
+// The file of an aircraft of the campaign (its name in the class table of the game) among the files of the Acdata folder; `has(name)` tells whether a file of that name exists.
+// 1 the same name, 2 an alias of the Hellenic F-16 (Peace Xenia names), 3 the name without its last words ("F-16CM-52 TB" -> "F-16CM-52"),
+// 4 the shortest file that holds all the words of the name in the same order ("F-16D-52+ RSAF" -> "F-16D-52+ CFT RSAF"). null when there is none.
+export const AC_ALIAS = {
+  'F-16C-50 PXII': 'F-16C-50 HAF',
+  'F-16C-52 PXIII': 'F-16C-52+ HAF',
+  'F-16C-52+ PXIV': 'F-16C-52+ CFT HAF',
+  // names of the class table that are written in another way in the Acdata folder
+  Typhoon: 'EF-2000',
+  Eurofighter: 'EF-2000',
+  'Typhoon FGR4': 'EF-2000',
+  'E-3': 'E-3A',
+  'C-130H': 'C-130',
+  'C-141B': 'C-141',
+  'F-1': 'Mitsubishi F-1',
+  'T-2': 'Mitsubishi T-2',
+  MB339: 'MB-339',
+  'Mirage 2000-5F': 'Mirage 2000-5',
+  'J-7G': 'J-7',
+  'J-8I': 'J-8',
+  'Su-24M': 'Su-24',
+  'Tu-95MS': 'Tu-95',
+  'OV-10A': 'OV-10D',
+  'J-11B': 'J-11BSH',
+  'J-15': 'J-15T',
+};
+export function resolveAcName(name, has, all) {
+  if (!name) return null;
+  // "F/A-18C" is the file "F-18C"; "Tornado GR.1" is "Tornado GR1"
+  const norm = name.replace(/^F\/A-/, 'F-').replace(/\./g, '');
+  for (const n of [name, norm]) {
+    if (has(n)) return n;
+    if (AC_ALIAS[n] && has(AC_ALIAS[n])) return AC_ALIAS[n];
+  }
+  let q = norm;
+  while (q.includes(' ')) {
+    q = q.replace(/\s+\S+$/, '');
+    if (has(q)) return q;
+    if (AC_ALIAS[q] && has(AC_ALIAS[q])) return AC_ALIAS[q];
+  }
+  const w = norm.split(/\s+/);
+  const hit = (all || [])
+    .filter(f => {
+      let i = 0;
+      for (const t of f.split(/\s+/))
+        if (t === w[i] || (i == w.length - 1 && w[i].length >= 3 && t.startsWith(w[i]))) i++;
+      return i === w.length;
+    })
+    .sort((a, b) => a.length - b.length || a.localeCompare(b))[0];
+  return hit || null;
+}
+// the weights and hardpoints under the name each aircraft has in the class table too (so every lookup by that name finds them)
+export function aliasAircraft(a, names) {
+  const have = k => k in a.ew,
+    all = Object.keys(a.ew);
+  for (const n of new Set(names)) {
+    const k = resolveAcName(n, have, all);
+    if (!k) continue;
+    for (const t of [n, n.replace(/\s*ROK\w*$/, '')])
+      if (!(t in a.ew)) {
+        a.ew[t] = a.ew[k];
+        if (k in a.fi) a.fi[t] = a.fi[k];
+        if (k in a.hp) a.hp[t] = a.hp[k];
+      }
+  }
+  return a;
+}
 export function parseAircraftData(files) {
-  const ew = {}, fi = {}, hp = {};
+  const ew = {},
+    fi = {},
+    hp = {};
   for (const { name, text } of files) {
-    const w = text.match(/empty_weight_lbs:\s*(\d+)/), f = text.match(/internal_fuel_lbs:\s*(\d+)/);
+    const w = text.match(/empty_weight_lbs:\s*(\d+)/),
+      f = text.match(/internal_fuel_lbs:\s*(\d+)/);
     if (!w) continue;
     const k = name.replace(/\.txtpb$/i, '');
-    ew[k] = +w[1]; if (f) fi[k] = +f[1];
-    const h = [...(hp_text(text)).matchAll(/hardpoint_grp:\s*"([^"]*)"/g)].map(q => q[1]); if (h.length) hp[k] = h;   // the hardpoint group of every station (0 = the gun)
+    ew[k] = +w[1];
+    if (f) fi[k] = +f[1];
+    const h = [...hp_text(text).matchAll(/hardpoint_grp:\s*"([^"]*)"/g)].map(q => q[1]);
+    if (h.length) hp[k] = h; // the hardpoint group of every station (0 = the gun)
   }
   for (const k of Object.keys(ew)) {
     const b = k.replace(/\s+ROKAF$/, '');
-    if (b !== k && !(b in ew)) { ew[b] = ew[k]; if (k in fi) fi[b] = fi[k]; if (k in hp) hp[b] = hp[k]; }
+    if (b !== k && !(b in ew)) {
+      ew[b] = ew[k];
+      if (k in fi) fi[b] = fi[k];
+      if (k in hp) hp[b] = hp[k];
+    }
   }
   return { ew, fi, hp };
 }
 
 // Build every table that can be read. `readText(key)` returns the file text or null if the file is missing.
-// Unit class number -> [category (UCD Name), air range km, low-altitude air range km, slot of the radar vehicle (fire control radar, FCR) or -1, low-altitude detection range km]: air defense units draw their SAM rings from it
+// Unit class number -> [category (UCD Name), air range km, low-altitude air range km, slot of the radar vehicle (fire control radar, FCR) or -1, low-altitude detection range km, detection range km above 5,000 ft]: air defense units draw their SAM rings from it
 export function parseUnitInfo(ucdXml) {
   const un = {};
   for (const m of blocks(ucdXml, 'UCD')) {
     const n = tag(m[2], 'Name').trim();
     const rv = tag(m[2], 'RadarVehicle');
-    if (n) un[m[1]] = [n, +tag(m[2], 'Rng_Air') || 0, +tag(m[2], 'Rng_LowAir') || 0, rv !== '' && +rv >= 0 && +rv < 16 ? +rv : -1, +tag(m[2], 'Det_LowAir') || 0];
+    if (n)
+      un[m[1]] = [
+        n,
+        +tag(m[2], 'Rng_Air') || 0,
+        +tag(m[2], 'Rng_LowAir') || 0,
+        rv !== '' && +rv >= 0 && +rv < 16 ? +rv : -1,
+        +tag(m[2], 'Det_LowAir') || 0,
+        +tag(m[2], 'Det_Air') || 0,
+      ];
   }
   return un;
 }
 
 export async function buildTables(readText) {
-  const t = {}, found = [], missing = [], errors = [], changed = [];
+  const t = {},
+    found = [],
+    missing = [],
+    errors = [],
+    changed = [];
   const get = async k => {
     const x = await readText(k);
-    if (x == null) { if (!OPTIONAL.has(k)) missing.push(FILES[k]); return null; }
-    found.push(FILES[k]); const mf = missingFields(k, x); if (mf.length) changed.push(FILES[k] + ': ' + mf.join(', ')); return x;
+    if (x == null) {
+      if (!OPTIONAL.has(k)) missing.push(FILES[k]);
+      return null;
+    }
+    found.push(FILES[k]);
+    const mf = missingFields(k, x);
+    if (mf.length) changed.push(FILES[k] + ': ' + mf.join(', '));
+    return x;
   };
-  const run = (name, fn) => { try { const v = fn(); if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) t[name] = v; else errors.push(name + ': empty result'); } catch (e) { errors.push(name + ': ' + e.message); } };
+  const run = (name, fn) => {
+    try {
+      const v = fn();
+      if (v && (Array.isArray(v) ? v.length : Object.keys(v).length)) t[name] = v;
+      else errors.push(name + ': empty result');
+    } catch (e) {
+      errors.push(name + ': ' + e.message);
+    }
+  };
   const x = {};
   for (const k of Object.keys(FILES)) x[k] = await get(k);
   if (x.ct) run('ct', () => parseCt(x.ct));
@@ -244,7 +414,10 @@ export async function buildTables(readText) {
 // ---- Theaters -------------------------------------------------------------------------------
 // Data\Theater.lst: one .tdf path per line, relative to the Data folder (add-on theaters live in their own subfolder).
 export function parseTheaterList(text) {
-  return text.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
+  return text
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l && !l.startsWith('#') && !l.startsWith('//'));
 }
 
 // .tdf file: "key value" lines (# = comment)
@@ -253,7 +426,10 @@ export function parseTdf(text) {
   for (const l of text.split(/\r?\n/)) {
     const m = l.match(/^\s*([A-Za-z0-9_]+)\s+(.*?)\s*$/);
     if (m && !l.trim().startsWith('#')) t[m[1].toLowerCase()] = m[2];
-    else { const k = l.match(/^\s*([A-Za-z0-9_]+)\s*$/); if (k && !l.trim().startsWith('#')) t[k[1].toLowerCase()] = ''; }
+    else {
+      const k = l.match(/^\s*([A-Za-z0-9_]+)\s*$/);
+      if (k && !l.trim().startsWith('#')) t[k[1].toLowerCase()] = '';
+    }
   }
   return t;
 }
@@ -261,9 +437,21 @@ export function parseTdf(text) {
 // Theater.txt (terrain folder): "key=value" lines: size in km, map size in pixels, centre latitude / longitude of the theater.
 export function parseTheaterTxt(text) {
   const t = {};
-  for (const l of String(text).split(/\r?\n/)) { const m = l.match(/^\s*([^=#]+?)\s*=\s*(.*?)\s*$/); if (m) t[m[1].toLowerCase()] = m[2]; }
-  const n = k => { const v = parseFloat(t[k]); return isFinite(v) ? v : null; };
-  const r = { name: t['theater name'] || '', sizeKm: n('theater size in km'), mapPx: n('map size in pixels'), lat: n('center latitude'), lon: n('center longitude') };
+  for (const l of String(text).split(/\r?\n/)) {
+    const m = l.match(/^\s*([^=#]+?)\s*=\s*(.*?)\s*$/);
+    if (m) t[m[1].toLowerCase()] = m[2];
+  }
+  const n = k => {
+    const v = parseFloat(t[k]);
+    return isFinite(v) ? v : null;
+  };
+  const r = {
+    name: t['theater name'] || '',
+    sizeKm: n('theater size in km'),
+    mapPx: n('map size in pixels'),
+    lat: n('center latitude'),
+    lon: n('center longitude'),
+  };
   return r.lat != null && r.lon != null ? r : null;
 }
 
@@ -272,9 +460,27 @@ const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);
 // Folders of a theater, as path parts relative to the Data folder.
 // `entry` is the path from Theater.lst; the theater's own folder is what comes before its "TerrData" folder.
 export function theaterDirs(entry, tdf) {
-  const e = parts(entry), i = e.findIndex(x => x.toLowerCase() === 'terrdata'), base = i > 0 ? e.slice(0, i) : [];
+  const e = parts(entry),
+    i = e.findIndex(x => x.toLowerCase() === 'terrdata'),
+    // an entry with no TerrData folder ("Add-On Hellas\\Hellas.tdf", "Add-On Hellas\\TheaterDefinition\\Hellas.tdf"): the folders before the tdf file (and before TheaterDefinition) are the theater's own
+    j = e.findIndex(x => /^(theaterdefinition|terrain)$/i.test(x)),
+    k = i >= 0 ? i : j >= 0 ? j : e.length - 1,
+    base = k > 0 ? e.slice(0, k) : [];
   // the folders of an add-on theater are written in full from the Data folder ("Add-On Balkans\\Campaign"): the base is added only when it is not there already
-  const rel = v => { if (!v) return null; const p = parts(v); return base.length && base.every((b, i) => (p[i] || '').toLowerCase() === b.toLowerCase()) ? p : [...base, ...p]; };
-  return { name: tdf.name || e[e.length - 1].replace(/\.tdf$/i, ''), base, campaign: rel(tdf.campaigndir || 'Campaign'), sim: rel(tdf.simdatadir || 'Sim'),
-    objects: rel(tdf.objectdir), terrain: rel(tdf.terraindir), newterrain: rel(tdf.newterraindir), docs: base.length ? [...base, 'Docs'] : null, tdfEntry: entry };
+  const rel = v => {
+    if (!v) return null;
+    const p = parts(v);
+    return base.length && base.every((b, i) => (p[i] || '').toLowerCase() === b.toLowerCase()) ? p : [...base, ...p];
+  };
+  return {
+    name: tdf.name || e[e.length - 1].replace(/\.tdf$/i, ''),
+    base,
+    campaign: rel(tdf.campaigndir || 'Campaign'),
+    sim: rel(tdf.simdatadir || 'Sim'),
+    objects: rel(tdf.objectdir),
+    terrain: rel(tdf.terraindir),
+    newterrain: rel(tdf.newterraindir),
+    docs: base.length ? [...base, 'Docs'] : null,
+    tdfEntry: entry,
+  };
 }

@@ -4,16 +4,15 @@
     "bmsInstall": "",
     "campaigns": "",
     "dtc": "",
-    "exportDir": "",
     "kneeboardDir": "",
     "missions": ""
   },
-  "export": {
-    "fileName": "kneeboard"
-  },
   "ui": {
     "animations": true,
-    "showMfd34": false
+    "showMfd34": false,
+    "autoLoad": false,
+    "lastDtc": "",
+    "lastCamp": ""
   },
   "mission": {
     "radiusNm": 60

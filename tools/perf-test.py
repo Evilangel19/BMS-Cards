@@ -1,7 +1,7 @@
 import subprocess, sys, time, json, os
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8798', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8732', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok
@@ -11,10 +11,16 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1500, 'height': 1000}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.goto('http://localhost:8798/app/index.html'); pg.wait_for_timeout(800)
+        pg.goto('http://localhost:8732/app/index.html'); pg.wait_for_timeout(800)
         check('the Performance tab exists', pg.locator('[data-t=pf]').count() == 1)
         pg.click('[data-t=pf]'); pg.wait_for_timeout(1200)
         check('the page shows the aircraft (built-in F-16CM-50)', 'F-16CM-50' in pg.inner_text('#pf'))
+        # the aircraft tables of one installation / theater are not kept for another one
+        pg.evaluate("async()=>{await __app.perfAcGet('F-16CM-50');__app.acMemo.set('ZZ-TEST',{x:1});__app.ST.CFG.paths.bmsInstall='Z:/Another BMS';await __app.perfAcGet('F-16CM-50')}")
+        check('another BMS folder: the aircraft tables kept from the first one are dropped', not pg.evaluate("__app.acMemo.has('ZZ-TEST')"))
+        pg.evaluate("()=>{__app.ST.CFG.paths.bmsInstall=''}")
+        check('the first tab, Take-off & landing, is the one open by default', pg.locator('#pf [data-mode=field].on').count() == 1 and pg.locator('#pf .wtabs button').first.get_attribute('data-mode') == 'field')
+        pg.click('#pf [data-mode=turn]'); pg.wait_for_timeout(600)
         check('turn tab: corner speed tile and three charts', 'corner speed' in pg.inner_text('#pf').lower() and pg.locator('#pf svg').count() >= 3)
         txt = pg.inner_text('#pf'); print('  ', txt[:200].replace('\n', ' | '))
         s0 = pg.inner_html('#pfr')
@@ -91,6 +97,7 @@ try:
         check('Turn: the specific excess power card is in the third column', pg.locator('#pfr2').count() == 1 and 'specific excess power' in pg.inner_text('#pfr2').lower())
         pg.screenshot(path='/tmp/pf6.png')
         pg.click('#pf [data-mode=field]'); pg.wait_for_timeout(500); check('Take-off: no third column', pg.locator('#pfr2').count() == 0)
+        check('Take-off & landing: the runway drawing holds the take-off and the landing distances', pg.locator('#pf svg[aria-label*=runway]').count() == 1 and pg.locator('#pf svg[aria-label*=runway] rect[rx="3"]').count() == 6)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

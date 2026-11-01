@@ -2,12 +2,13 @@
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
   "description": "Default permissions for the main window",
-  "windows": [
-    "main"
-  ],
+  "windows": ["main"],
   "permissions": [
     "core:default",
     "core:window:allow-destroy",
+    "core:window:allow-maximize",
+    "core:window:allow-unmaximize",
+    "core:window:allow-is-maximized",
     "core:window:allow-close",
     "dialog:default",
     {
@@ -22,7 +23,126 @@
       "identifier": "fs:allow-write-file",
       "allow": [
         {
-          "path": "**"
+          "path": "**/*.[jJ][sS][oO][nN]"
+        },
+        {
+          "path": "**/*.[iI][nN][iI]"
+        },
+        {
+          "path": "**/*.[dD][dD][sS]"
+        },
+        {
+          "path": "**/*.[pP][nN][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][eE][gG]"
+        },
+        {
+          "path": "**/*.[gG][iI][fF]"
+        },
+        {
+          "path": "**/*.[wW][eE][bB][pP]"
+        },
+        {
+          "path": "**/*.[bB][mM][pP]"
+        },
+        {
+          "path": "**/*.[bB][cC][rR][dD]"
+        },
+        {
+          "path": "**/*.[tT][mM][pP]"
+        },
+        {
+          "path": "**/*.[nN][eE][wW]"
+        },
+        {
+          "path": "**/*.[bB][aA][dD]"
+        }
+      ],
+      "deny": [
+        {
+          "path": "**/*.[eE][xX][eE]"
+        },
+        {
+          "path": "**/*.[dD][lL][lL]"
+        },
+        {
+          "path": "**/*.[bB][aA][tT]"
+        },
+        {
+          "path": "**/*.[cC][mM][dD]"
+        },
+        {
+          "path": "**/*.[pP][sS]1"
+        },
+        {
+          "path": "**/*.[vV][bB][sS]"
+        },
+        {
+          "path": "**/*.[vV][bB][eE]"
+        },
+        {
+          "path": "**/*.[jJ][sS]"
+        },
+        {
+          "path": "**/*.[jJ][sS][eE]"
+        },
+        {
+          "path": "**/*.[wW][sS][fF]"
+        },
+        {
+          "path": "**/*.[wW][sS][hH]"
+        },
+        {
+          "path": "**/*.[lL][nN][kK]"
+        },
+        {
+          "path": "**/*.[mM][sS][iI]"
+        },
+        {
+          "path": "**/*.[sS][cC][rR]"
+        },
+        {
+          "path": "**/*.[cC][oO][mM]"
+        },
+        {
+          "path": "**/*.[cC][pP][lL]"
+        },
+        {
+          "path": "**/*.[jJ][aA][rR]"
+        },
+        {
+          "path": "**/*.[rR][eE][gG]"
+        },
+        {
+          "path": "**/*.[hH][tT][aA]"
+        },
+        {
+          "path": "**/*.[sS][yY][sS]"
+        },
+        {
+          "path": "**/*.[uU][rR][lL]"
+        },
+        {
+          "path": "**/*.[pP][iI][fF]"
+        },
+        {
+          "path": "**/Windows/System32/**"
+        },
+        {
+          "path": "**/Windows/SysWOW64/**"
+        },
+        {
+          "path": "**/[Ss]tart [Mm]enu/**"
+        },
+        {
+          "path": "**/[Ss]tartup/**"
+        },
+        {
+          "path": "**/.ssh/**"
         }
       ]
     },
@@ -38,7 +158,126 @@
       "identifier": "fs:allow-write-text-file",
       "allow": [
         {
-          "path": "**"
+          "path": "**/*.[jJ][sS][oO][nN]"
+        },
+        {
+          "path": "**/*.[iI][nN][iI]"
+        },
+        {
+          "path": "**/*.[dD][dD][sS]"
+        },
+        {
+          "path": "**/*.[pP][nN][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][gG]"
+        },
+        {
+          "path": "**/*.[jJ][pP][eE][gG]"
+        },
+        {
+          "path": "**/*.[gG][iI][fF]"
+        },
+        {
+          "path": "**/*.[wW][eE][bB][pP]"
+        },
+        {
+          "path": "**/*.[bB][mM][pP]"
+        },
+        {
+          "path": "**/*.[bB][cC][rR][dD]"
+        },
+        {
+          "path": "**/*.[tT][mM][pP]"
+        },
+        {
+          "path": "**/*.[nN][eE][wW]"
+        },
+        {
+          "path": "**/*.[bB][aA][dD]"
+        }
+      ],
+      "deny": [
+        {
+          "path": "**/*.[eE][xX][eE]"
+        },
+        {
+          "path": "**/*.[dD][lL][lL]"
+        },
+        {
+          "path": "**/*.[bB][aA][tT]"
+        },
+        {
+          "path": "**/*.[cC][mM][dD]"
+        },
+        {
+          "path": "**/*.[pP][sS]1"
+        },
+        {
+          "path": "**/*.[vV][bB][sS]"
+        },
+        {
+          "path": "**/*.[vV][bB][eE]"
+        },
+        {
+          "path": "**/*.[jJ][sS]"
+        },
+        {
+          "path": "**/*.[jJ][sS][eE]"
+        },
+        {
+          "path": "**/*.[wW][sS][fF]"
+        },
+        {
+          "path": "**/*.[wW][sS][hH]"
+        },
+        {
+          "path": "**/*.[lL][nN][kK]"
+        },
+        {
+          "path": "**/*.[mM][sS][iI]"
+        },
+        {
+          "path": "**/*.[sS][cC][rR]"
+        },
+        {
+          "path": "**/*.[cC][oO][mM]"
+        },
+        {
+          "path": "**/*.[cC][pP][lL]"
+        },
+        {
+          "path": "**/*.[jJ][aA][rR]"
+        },
+        {
+          "path": "**/*.[rR][eE][gG]"
+        },
+        {
+          "path": "**/*.[hH][tT][aA]"
+        },
+        {
+          "path": "**/*.[sS][yY][sS]"
+        },
+        {
+          "path": "**/*.[uU][rR][lL]"
+        },
+        {
+          "path": "**/*.[pP][iI][fF]"
+        },
+        {
+          "path": "**/Windows/System32/**"
+        },
+        {
+          "path": "**/Windows/SysWOW64/**"
+        },
+        {
+          "path": "**/[Ss]tart [Mm]enu/**"
+        },
+        {
+          "path": "**/[Ss]tartup/**"
+        },
+        {
+          "path": "**/.ssh/**"
         }
       ]
     },
@@ -63,6 +302,15 @@
       "allow": [
         {
           "path": "**/cardmemory/cards/*"
+        },
+        {
+          "path": "**/missions/*"
+        },
+        {
+          "path": "**/missions/*/*"
+        },
+        {
+          "path": "**/missions/*/*/*"
         }
       ]
     },
@@ -71,6 +319,89 @@
       "allow": [
         {
           "path": "**"
+        }
+      ],
+      "deny": [
+        {
+          "path": "**/*.[eE][xX][eE]"
+        },
+        {
+          "path": "**/*.[dD][lL][lL]"
+        },
+        {
+          "path": "**/*.[bB][aA][tT]"
+        },
+        {
+          "path": "**/*.[cC][mM][dD]"
+        },
+        {
+          "path": "**/*.[pP][sS]1"
+        },
+        {
+          "path": "**/*.[vV][bB][sS]"
+        },
+        {
+          "path": "**/*.[vV][bB][eE]"
+        },
+        {
+          "path": "**/*.[jJ][sS]"
+        },
+        {
+          "path": "**/*.[jJ][sS][eE]"
+        },
+        {
+          "path": "**/*.[wW][sS][fF]"
+        },
+        {
+          "path": "**/*.[wW][sS][hH]"
+        },
+        {
+          "path": "**/*.[lL][nN][kK]"
+        },
+        {
+          "path": "**/*.[mM][sS][iI]"
+        },
+        {
+          "path": "**/*.[sS][cC][rR]"
+        },
+        {
+          "path": "**/*.[cC][oO][mM]"
+        },
+        {
+          "path": "**/*.[cC][pP][lL]"
+        },
+        {
+          "path": "**/*.[jJ][aA][rR]"
+        },
+        {
+          "path": "**/*.[rR][eE][gG]"
+        },
+        {
+          "path": "**/*.[hH][tT][aA]"
+        },
+        {
+          "path": "**/*.[sS][yY][sS]"
+        },
+        {
+          "path": "**/*.[uU][rR][lL]"
+        },
+        {
+          "path": "**/*.[pP][iI][fF]"
+        },
+        {
+          "path": "**/Windows/System32/**"
+        },
+        {
+          "path": "**/Windows/SysWOW64/**"
+        },
+        {
+          "path": "**/[Ss]tart [Mm]enu/**"
+        },
+        {
+          "path": "**/[Ss]tartup/**"
+        },
+        {
+          "path": "**/.ssh/**"
         }
       ]
     },

@@ -3,7 +3,7 @@ import subprocess, sys, time, os, io, base64, json
 from playwright.sync_api import sync_playwright
 from reportlab.pdfgen import canvas
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8799', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8733', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 def pdf(pages):
     b = io.BytesIO(); c = canvas.Canvas(b, pagesize=(595, 842))
     for t in pages:
@@ -23,7 +23,7 @@ files = {
 INIT = """(()=>{const F=new Map(Object.entries(%s).map(([k,v])=>[k,Uint8Array.from(atob(v),c=>c.charCodeAt(0))]));window.__F=F;
 const ls=p=>{p=p.replace(/\\\\+$/,'');const o=new Map();for(const k of F.keys()){if(!k.startsWith(p+'\\\\'))continue;const r=k.slice(p.length+1).split('\\\\');o.set(r[0],r.length>1)}return [...o].map(([name,d])=>({name,isDirectory:d,isFile:!d,isSymlink:false}))};
 window.__TAURI__={core:{invoke:async c=>c==='app_dir'?'C:\\\\app':null},dialog:{open:async()=>null,save:async()=>null},
- fs:{readDir:async p=>ls(p),readFile:async p=>{if(!F.has(p))throw new Error('missing');return F.get(p)},readTextFile:async()=>{throw new Error('none')},writeTextFile:async()=>{},
+ fs:{readDir:async p=>ls(p),readFile:async p=>{if(!F.has(p))throw new Error('missing');return F.get(p)},readTextFile:async p=>{const m=window.__TX;if(m&&m.has(p))return m.get(p);throw new Error('none')},writeTextFile:async(p,s)=>{(window.__TX=window.__TX||new Map()).set(p,s)},
   writeFile:async(p,b)=>{F.set(p,new Uint8Array(b))},exists:async p=>F.has(p),mkdir:async()=>{}}};})();""" % json.dumps(files)
 ok = True
 def check(n, c):
@@ -32,7 +32,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1700, 'height': 1000}); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept()); pg.add_init_script(INIT)
-        pg.goto('http://localhost:8799/app/index.html'); pg.wait_for_timeout(1000)
+        pg.goto('http://localhost:8733/app/index.html'); pg.wait_for_timeout(1000)
         pg.evaluate("()=>{__app.CFG.paths.bmsInstall='C:\\\\bms'; __app.F.__dep=['RKJK',0,0,0]; __app.F.__ab=[null,[1,'Osan AB (RKSO)']]}")
         check('the Docs tab exists', pg.locator('.tab[data-t=dc]').inner_text() == 'Docs')
         pg.click('[data-t=dc]'); pg.wait_for_timeout(1200)

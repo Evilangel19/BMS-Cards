@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 shots = sys.argv[1] if len(sys.argv) > 1 else None
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8773', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8773', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
@@ -66,9 +66,13 @@ try:
         # datacard <-> DTC
         pg.once('dialog', lambda d: d.accept()); pg.click('#dtcrev'); pg.wait_for_timeout(500)
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", cam); pg.wait_for_timeout(800)
+        # STPT 99 / 98 set by coordinates only (feature index -1, the way the map and the DTC write them) are the Primary / Secondary of the datacard
+        pg.evaluate("()=>{const f=(k,v)=>{const l=__app.lines.find(l=>l.k==k);l.v=v;l.dirty=1};f('target_98','1000000.000000, 2000000.000000, -50.000000, -1, Test primary');f('target_97','1100000.000000, 2100000.000000, -60.000000, -1, Test secondary');const s=document.querySelector('#fsel');s.dispatchEvent(new Event('change'))}"); pg.wait_for_timeout(2500)
+        check('STPT 99 / 98 with coordinates and no feature (-1) fill Primary and Secondary of the datacard', pg.evaluate("__app.F.pri") == 'Test primary' and pg.evaluate("__app.F.sec") == 'Test secondary' and bool(pg.evaluate("__app.F.ll1")) and bool(pg.evaluate("__app.F.ll2")))
         card = lambda lab: "[...document.querySelectorAll('#form label')].find(l=>l.textContent=='%s').nextSibling" % lab
         setcard = lambda lab, v: pg.evaluate("v=>{const e=%s;e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}" % card(lab), v)
-        go('sys'); check('the "from Datacard" switch is off by default', not pg.evaluate("document.querySelector('[data-sync=icp]').classList.contains('on')"))
+        go('sys'); check('the "from Datacard" switch is on by default (ICP, EWS and Weapons)', pg.evaluate("document.querySelector('[data-sync=icp]').classList.contains('on')") and pg.evaluate("()=>{const d=__app.ST.DCS;return d.icp&&d.ews&&d.wpn}"))
+        pg.click('[data-card=icp] [data-sync]'); pg.wait_for_timeout(300)
         b0 = ln('Bingo_Fuel'); setcard('Bingo', '4100'); pg.wait_for_timeout(200)
         check('switch off: the Datacard does not touch the DTC', ln('Bingo_Fuel') == b0)
         pg.click('[data-card=icp] [data-sync]'); pg.wait_for_timeout(1200)
@@ -82,6 +86,11 @@ try:
         check('...and the Datacard field is not a "manual change" any more', not pg.evaluate("(()=>{const e=%s;return e.classList.contains('man')})()" % card('Bingo')))
         go('wpn'); unlock('p1'); pg.locator('[data-card=p1] button[data-k=Profile1_Fuze][data-v="2"]').click(); pg.wait_for_timeout(250)
         check('a bomb profile changed on the page shows on the Datacard (fuze TAIL)', pg.evaluate("()=>__app.F.wp1_fuze") == 'TAIL')
+        # Reset of the DTC: the datacard shows the restored values again (bingo / fuze), with the switches on
+        pg.once('dialog', lambda d: d.accept()); pg.click('#dtcrev'); pg.wait_for_timeout(600)
+        check('Reset of the DTC puts the Datacard back in step (bingo, fuze)', pg.evaluate("()=>__app.F.bingo") == str(round(float(ln('Bingo_Fuel')))) and pg.evaluate("()=>__app.F.wp1_fuze") != 'TAIL')
+        setcard('Bingo', '4300'); pg.wait_for_timeout(200)
+        check('after the Reset the Datacard still writes the DTC (switch stays on)', ln('Bingo_Fuel') == '4300.000000')
         # frequency owners
         go('com'); pk = pg.evaluate("()=>{for(let i=0;i<5;i++){const f=__app.F['pk'+i+'_2'],c=__app.F['pk'+i+'_0'];if(f&&c)return [f,c]}return null}")
         if pk:
@@ -230,8 +239,11 @@ try:
         check('Apply is dimmed until something is chosen', 'nil' in pg.get_attribute('.tpk .tpok', 'class'))
         pg.locator('.tpk .tpfeat button', has_text='Transformer').click(); check('the picker has no manual elevation field', pg.locator('.tpk .tpel').count() == 0); pg.click('.tpk .tpok'); pg.wait_for_timeout(400)
         check('Apply writes the wpntarget line like WDP', ln('wpntarget_0') == '2876619.703000, 2292670.845000, 0.000000, -1, Chongjin Thermal Power Plant Transformer')
-        F0 = pg.evaluate("()=>[__app.F.pri,__app.F.ll1,(__app.F.pri||'')]")
-        check('with a weapon target the datacard Primary shows it (name and Lat&Long) %s' % F0[:2], F0[0] == 'Chongjin Thermal Power Plant Transformer' and re.search(r"^N 4\d\u00b0 \d\d\.\d{3}'  E 12\d\u00b0", F0[1]))
+        W0 = pg.evaluate("()=>__app.ptChoices(1).filter(x=>x.grp.startsWith('Weapon')).map(x=>x.label)")
+        check('a weapon target is offered in the Primary menu (no automatic rule any more) %s' % W0, len(W0) == 1 and 'Chongjin Thermal Power Plant Transformer' in W0[0] and pg.evaluate("()=>__app.F.pri")!='Chongjin Thermal Power Plant Transformer')
+        pg.evaluate("()=>__app.ptPick(1,__app.ptChoices(1).find(x=>x.grp.startsWith('Weapon')))"); pg.wait_for_timeout(200)
+        F0 = pg.evaluate("()=>[__app.F.pri,__app.F.ll1]")
+        check('picking it shows name and Lat&Long on the datacard Primary %s' % F0[:2], F0[0] == 'Chongjin Thermal Power Plant Transformer' and re.search(r"^N 4\d\u00b0 \d\d\.\d{3}'  E 12\d\u00b0", F0[1]))
         vt = pg.inner_text('[data-card=tgtl]')
         check('the row shows number 1, name, position and elevation', 'Chongjin Thermal Power Plant Transformer' in vt and re.search(r"N 4\d\u00b0 \d\d\.\d{3}' E 12\d\u00b0", vt) and '\t0' in vt)
         check('the first column is called Wpn TGT', pg.locator('[data-card=tgtl] th').first.inner_text().strip().lower() == 'wpn tgt')
@@ -243,7 +255,6 @@ try:
         go('tgt'); unlock('tgtl')
         pg.once('dialog', lambda d: d.accept()); pg.click('[data-tdel="0"]'); pg.wait_for_timeout(300)
         check('Clear puts the slot back to Not set', ln('wpntarget_0') == '0.000000, 0.000000, 0.000000, -1, Not set')
-        F1 = pg.evaluate("()=>__app.F.pri"); check('cleared, the Primary is not the weapon target any more (%s)' % F1, F1 != 'Chongjin Thermal Power Plant Transformer')
         pg.click('[data-tpick]'); pg.wait_for_timeout(300); pg.select_option('.tpk .tpcat', '1'); pg.locator('.tpk .tpobj button').click(); pg.wait_for_timeout(200)
         check('an objective without features selects its centre by itself, so it can be applied', 'nil' not in pg.get_attribute('.tpk .tpok', 'class')); pg.click('.tpk .tpok'); pg.wait_for_timeout(300)
         check('and is written with its centre', (ln('wpntarget_0') or '').startswith('1000000.000000, 1000000.000000, 0.000000, -1, Kunsan Airbase'))

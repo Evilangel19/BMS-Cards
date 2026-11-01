@@ -5,13 +5,13 @@ R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 b64 = lambda n: base64.b64encode(open(FX + n, 'rb').read()).decode()
 shots = sys.argv[1] if len(sys.argv) > 1 else None
-srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8768', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8768', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True
 def check(name, cond):
     global ok; ok &= bool(cond); print('OK  ' if cond else 'FAIL', name)
 try:
     with sync_playwright() as p:
-        br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1700, 'height': 1300}, reduced_motion='reduce'); errs = []
+        br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1700, 'height': 1300}, reduced_motion='reduce'); errs = []; pg.add_init_script("if(sessionStorage.getItem('noobs')!=='1')localStorage.setItem('bmsobs','1')");
         import dialogs; dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8768/app/index.html'); pg.wait_for_timeout(800)
@@ -35,6 +35,11 @@ try:
         after = pg.evaluate(per)
         check('selecting a flight in another mission leaves the first mission restricted to its package (%s)' % sel_cat, sel_cat and after.get(sel_cat) == before.get(sel_cat) == 1)
         pg.wait_for_timeout(500)
+        pg.evaluate("sessionStorage.setItem('noobs','1');localStorage.setItem('bmsobs','0')"); pg.reload(); pg.wait_for_timeout(800); pg.click('[data-t=kb]')
+        pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b64('PSI_BEAR_TRAP_26.cam')); pg.wait_for_timeout(600)
+        check('with no squadron and the option off only the own faction can be chosen', pg.locator('#aq_view option').count() == 1)
+        pg.evaluate("sessionStorage.removeItem('noobs')"); pg.reload(); pg.wait_for_timeout(800); pg.click('[data-t=kb]')
+        pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b64('PSI_BEAR_TRAP_26.cam')); pg.wait_for_timeout(600)
         check('player faction preselected and marked', '(you)' in pg.inner_text('#aq_view option:checked'))
         check('no all-factions / category selects', pg.locator('#aq_team,#aq_cat,#aq_me').count() == 0)
         check('theater selector and calendar moved to the top bar', pg.locator('#kbtop #d1').count() == 1 and pg.locator('#kbtop #tsel').count() == 1 and pg.is_visible('#kbtop'))
@@ -70,7 +75,7 @@ try:
         n = pg.locator('#ato .ph').count()
         dl = []; pg.on('dialog', lambda d: (dl.append(d.message), d.accept()))
         other = pg.evaluate("()=>[...document.querySelectorAll('#aq_view option')].find(o=>!o.textContent.includes('(you)')).value")
-        pg.select_option('#aq_view', other); check('other faction shows the warning', len(dl) == 1 and 'not part of this faction' in dl[0])
+        pg.select_option('#aq_view', other); check('other faction shows the warning', len(dl) == 1 and 'not part of this faction' in dl[0] and 'peek' in dl[0])
         check('other faction list is red/locked', pg.locator('#ato .lkw').count() == 1)
         pg.locator('#ato .ct').first.click(); pg.locator('#ato .ph').first.click()
         check('locked flights are not selectable', pg.locator('#ato .fl:not(.nc)').count() == 0 and pg.locator('#ato .fl.sel').count() == 0)
