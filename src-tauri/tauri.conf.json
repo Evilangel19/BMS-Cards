@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "BMS Cards",
-  "version": "0.9.9-beta.100",
-  "identifier": "com.ciga10.bmscards",
+  "version": "0.9.9-beta.101",
+  "identifier": "com.evilangel19.bmscards",
   "build": {
     "frontendDist": "../app"
   },
