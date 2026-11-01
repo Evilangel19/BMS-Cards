@@ -182,6 +182,7 @@ export function createMap(host, deps) {
     EDIT = !!b;
     if (map) map.closePopup();
     if (!EDIT) addStop && addStop();
+    if (!EDIT && OFFP) offCancel(); // a point being placed is dropped when the editing goes off
     if (G.off)
       G.off.eachLayer(l => {
         try {
@@ -2686,9 +2687,9 @@ export function createMap(host, deps) {
       });
     if (OFFRE === p.n) {
       OFFRE = 0;
-      offPanel(d, p, mk);
+      if (EDIT) offPanel(d, p, mk);
     }
-    return d;
+    return ro(d); // with the editing off the offsets can only be looked at
   }
   function offPanel(d, p, mk) {
     const at = neOf(p.ll),

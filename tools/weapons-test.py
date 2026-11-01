@@ -352,6 +352,7 @@ try:
         pg.click('#wp [data-set=src][data-v=dtc]'); pg.wait_for_timeout(300)
         # offsets placed on the map (0.9.9)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(300)
+        if pg.inner_text('#wp [data-edit]').endswith('Off'): pg.click('#wp [data-edit]'); pg.wait_for_timeout(250)   # placing offsets needs Edit points On
         pg.select_option('select[data-pick=tgt]', 'r:4'); pg.wait_for_timeout(500)
         pg.locator('#wph .wps').nth(3).evaluate('e=>e.click()'); pg.wait_for_timeout(300)
         check('map: a route steerpoint popup has an Offsets button', pg.locator('.leaflet-popup [data-a=offs]').count() == 1)
@@ -378,6 +379,13 @@ try:
         pg.click('.leaflet-popup [data-a=offdel]'); pg.wait_for_timeout(500)
         check('map: Delete offsets removes them all, the points leave the map and the button goes dark', pg.locator('#wph .offp').count() == 0 and pg.evaluate("()=>Object.keys(JSON.parse(sessionStorage.getItem('mapoffs1')||'{}')).length") == 0 and 'nil' in (pg.get_attribute('.leaflet-popup [data-a=offdel]', 'class') or '').split())
         check('map: Delete offsets also zeroes the row in the DTC', (ln('OA1-4') or '0').replace('0', '').replace(',', '') == '')
+        # with Edit points Off the offsets of a route steerpoint cannot be placed or deleted (popup read-only)
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
+        was = pg.inner_text('#wp [data-edit]').endswith('On')
+        if was: pg.click('#wp [data-edit]'); pg.wait_for_timeout(250)
+        pg.locator('#wph .wps').nth(3).evaluate('e=>e.click()'); pg.wait_for_timeout(300)
+        check('map: with Edit points Off the Offsets / Delete offsets buttons of a route steerpoint are disabled', pg.locator('.leaflet-popup [data-a=offs]').count() == 1 and pg.evaluate("()=>[...document.querySelectorAll('.leaflet-popup [data-a=offs],.leaflet-popup [data-a=offdel]')].every(b=>b.disabled)"))
+        if was: pg.click('#wp [data-edit]'); pg.wait_for_timeout(250)
         pg.click('#wpclear'); pg.wait_for_timeout(400)
         check('Clear offsets zeroes the DTC offsets and goes dark', ln('OA1-4').replace('0', '').replace(',', '') == '' and 'nil' in (pg.get_attribute('#wpclear', 'class') or '').split())
         # Clear offsets also removes the points placed on the map
