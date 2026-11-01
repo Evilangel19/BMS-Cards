@@ -38,6 +38,8 @@ for (const id of ['fs:allow-write-file', 'fs:allow-write-text-file']) {
     'D:/app/cardmemory/cards/01_x.png',
     'D:/app/missions/m/m.bcrd',
     'D:/app/write-test.tmp',
+    'F:/BMS-Cards-portable/squadron.json.new',
+    'F:/BMS-Cards-portable/squadron.json.bad',
   ])
     ok(id + ' allows ' + f, can(f));
   for (const f of [
