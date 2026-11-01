@@ -4,10 +4,22 @@
 const TASKS = new Map(),
   DELAY = 300;
 let seq = 0,
+  sink = null,
   box = null,
   timer = 0,
   shown = 0;
+// While the program starts, the big bar of the start-up window shows the tasks instead of the small one: busySink((label, percent or -1) => ...), busySink(null) at the end
+export function busySink(f) {
+  sink = f || null;
+  if (sink && TASKS.size) draw();
+}
 function draw() {
+  if (sink) {
+    const t = [...TASKS.values()].pop();
+    if (t) sink(t.label, t.pct < 0 ? -1 : Math.min(97, Math.max(shown, t.pct)));
+    if (box) box.classList.remove('on');
+    return;
+  }
   if (!TASKS.size) {
     clearInterval(timer);
     timer = 0;
@@ -40,14 +52,15 @@ function tick() {
   if (t && t.pct >= 0 && Date.now() - t.t0 >= DELAY) shown += Math.max(0, Math.min(97, t.pct + 12) - shown) * 0.06;
   draw();
 }
-export function busyStart(label) {
-  const id = ++seq;
+export function busyStart(label, now) {
+  const id = ++seq; // now: the bar is there at once (the work that follows may freeze the window)
   if (!TASKS.size) shown = 0;
-  TASKS.set(id, { label, pct: -1, t0: Date.now() });
+  TASKS.set(id, { label, pct: -1, t0: Date.now() - (now || sink ? DELAY : 0) });
   if (!timer)
     timer = setInterval(() => {
       if ([...TASKS.values()].some(t => Date.now() - t.t0 >= DELAY)) tick();
     }, 100);
+  if (now || sink) draw();
   return id;
 }
 export function busySet(id, pct, label) {

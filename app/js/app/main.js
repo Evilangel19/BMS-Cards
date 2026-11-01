@@ -1,5 +1,6 @@
 // Entry point of the program: the modules (js/app) hold the code that used to sit in index.html; this runs their start-up statements in the original order.
 import { init1 } from './base.js';
+import { busySink } from '../core/busy.js';
 import { init2 } from './dtcfile.js';
 import { init3 } from './mission.js';
 import { init4 } from './datacard.js';
@@ -53,12 +54,23 @@ for (const id of ['bootver', 'appver']) {
 }
 show(0);
 restoreWindow(); // desktop: maximized again when it was left maximized
+let cur = 0;
+// the slow loads of the start (game data, campaigns) show what they are doing on this bar, inside the part of the bar of the step they belong to
+busySink((label, pct) => {
+  const lo = cur / steps.length,
+    w = lo + (pct < 0 ? 0 : (pct / 100) * (1 / steps.length));
+  if (bar && pct >= 0) bar.style.width = Math.round(w * 100) + '%';
+  if (msg) msg.textContent = label + (pct >= 0 ? ' ' + Math.round(w * 100) + '%' : '');
+});
 try {
   for (let i = 0; i < steps.length; i++) {
+    cur = i;
     await steps[i]();
     show(i + 1);
   }
+  busySink(null);
 } catch (e) {
+  busySink(null);
   if (msg) {
     msg.textContent = 'The program could not start: ' + ((e && e.message) || e);
     msg.style.color = '#e55';

@@ -80,12 +80,13 @@
   width: 40% !important;
   animation: ldind 1s ease-in-out infinite alternate;
 }
+/* a transform runs on the compositor: the bar keeps moving while the page is busy */
 @keyframes ldind {
   from {
-    margin-left: 0;
+    transform: translateX(0);
   }
   to {
-    margin-left: 60%;
+    transform: translateX(150%);
   }
 }
 :is(#mpbody, .mpx).game .nsym svg.u-friend {

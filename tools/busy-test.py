@@ -31,6 +31,21 @@ try:
         pg.evaluate("()=>B.busyEnd(q)"); pg.wait_for_timeout(700)
         check('the bar goes away when the last task is over', not on())
         check('the bar does not take the mouse', pg.evaluate("()=>getComputedStyle(document.getElementById('busybar')).pointerEvents")=='none')
+        # the start-up window takes the tasks while it is there
+        pg.evaluate("()=>{window.S=[];B.busySink((l,p)=>S.push([l,p]));window.q=B.busyStart('Reading the tables…');B.busySet(q,50)}")
+        check('with a sink the tasks go to the start-up bar, not to the small one', pg.evaluate("()=>S.length>=2&&S[S.length-1][1]==50")  and not on())
+        pg.evaluate("()=>{B.busyEnd(q);B.busySink(null)}")
+        # a heavy map shows the bar at once when it is moved, and the bar goes away after
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(2000)
+        pg.evaluate("()=>__app.mapV.heavy(true)")
+        bx = pg.locator('#mpmap').bounding_box(); pg.mouse.move(bx['x'] + 400, bx['y'] + 300)
+        pg.mouse.wheel(0, -200); pg.wait_for_timeout(150)
+        check('a heavy map shows the bar at the first wheel turn', on() and 'map' in txt())
+        pg.wait_for_timeout(1800)
+        check('...and it goes away when the drawing is over', not on())
+        pg.evaluate("()=>__app.mapV.heavy(false)")
+        pg.mouse.wheel(0, 200); pg.wait_for_timeout(300)
+        check('a light map shows no bar', not on())
         check('no script errors', not errs)
         br.close()
 finally:

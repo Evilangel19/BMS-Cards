@@ -221,6 +221,41 @@ export function createMap(host, deps) {
     bgOp();
     map.invalidateSize();
   }
+  // Moving or zooming a heavy map (the picture of the game, the big offline coastlines, or any map the computer was seen to struggle with) can freeze the window
+  // while the new part is drawn: the bar is shown at the first sign of the movement (before the freeze) and goes away when the drawing is over.
+  let HEAVY = false,
+    HB = 0,
+    HT = 0,
+    HLAST = 0;
+  function heavyMap() {
+    const hv = () =>
+      HEAVY || st.base == 'bms' || st.base == 'img' || st.base == 'sky' || (st.base == 'coast' && CREG == 'med');
+    const off = () => {
+      HT = 0;
+      if (HB) busyEnd(HB);
+      HB = 0;
+    };
+    const on = ms => {
+      HLAST = Date.now();
+      if (!hv()) return;
+      if (!HB) HB = busyStart('Drawing the map…', true);
+      clearTimeout(HT);
+      HT = setTimeout(off, ms); // a timer runs only when the window is free again: the bar stays as long as the freeze lasts
+    };
+    const c = map.getContainer();
+    c.addEventListener('wheel', () => on(700), { passive: true });
+    c.addEventListener('pointerdown', () => on(1500), { passive: true });
+    map.on('movestart zoomstart', () => on(1500));
+    map.on('moveend zoomend', () => on(250));
+    try {
+      // a movement that froze the window for a quarter of a second marks this map as heavy for the rest of the session
+      new PerformanceObserver(l => {
+        if (!HEAVY && Date.now() - HLAST < 2500 && l.getEntries().some(e => e.duration > 250)) HEAVY = true;
+      }).observe({ entryTypes: ['longtask'] });
+    } catch (e) {
+      /* none */
+    }
+  }
   async function init() {
     const L = await loadLeaflet();
     if (deps.loadPrefs) {
@@ -349,6 +384,7 @@ export function createMap(host, deps) {
     MAP_LAYERS.forEach(([k]) => (G[k] = L.layerGroup()));
     G.off = L.layerGroup().addTo(map); // offsets placed on a route steerpoint
     G.su = L.layerGroup().addTo(map); // SAM units: shown with their unit layer or with their range layer
+    heavyMap();
     map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
     map.on('moveend', () => {
       placeLabels();
@@ -4205,6 +4241,8 @@ export function createMap(host, deps) {
       return r;
     },
     isEdit: () => EDIT,
+    // the map is taken for a heavy one (the bar shows while it is moved); the tests use it
+    heavy: b => (HEAVY = !!b),
     cyclePlan,
     planMode: () => PLANMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
