@@ -733,6 +733,9 @@ canvas {
 }
 .msal span {
   color: #ff7b7b;
+  background: #0d1b2aaa; /* like the length of a leg */
+  padding: 0 4px;
+  border-radius: 4px;
 }
 .msae span {
   transform: translate(-50%, -50%);

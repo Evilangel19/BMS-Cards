@@ -5,13 +5,12 @@ import {
   vfrMsa,
   eraaAlt,
   ifrMsa,
-  strip,
-  relief,
   routeMsa,
   sectors,
   NB,
-  ringPoints,
-  binMax,
+  baseBins,
+  loadCells,
+  CELL,
   baseMsa,
   inbound,
 } from '../app/js/core/msa.js';
@@ -34,59 +33,98 @@ ck(
   eraaAlt(5000, false) === 6000 && eraaAlt(5000, true) === 7000
 );
 ck('airbase MSA = highest + 1,000 ft', ifrMsa(3150) === 4200);
-// strips
+// cells of the grid: only what is not in the cache is read, in the order of the rows, and a cell holds the highest of its samples
 {
-  const s = strip({ n: 0, e: 0 }, { n: 10 * NMFT, e: 0 }, 5, 0.5, 0.5);
-  ck('strip: 21 points across, 21 along 10 NM every 0.5 NM', s.nC === 21 && s.nA === 21 && s.pts.length === 441);
-  const q = s.pts.filter(p => Math.abs(p.n) < 1);
+  const cache = new Map(),
+    seen = [];
+  const elev = async pts => {
+    seen.push(pts.length);
+    return pts.map(p => (Math.abs(p.e - 5 * CELL) < 1 ? 700 : 100)); // one of the four samples of the cell (5, 0) is high
+  };
   ck(
-    'strip: spans 5 NM each side of the centreline',
-    Math.abs(Math.min(...q.map(p => p.e)) + 5 * NMFT) < 1 && Math.abs(Math.max(...q.map(p => p.e)) - 5 * NMFT) < 1
+    'cells: loadCells reads them',
+    (await loadCells(
+      elev,
+      [
+        [5, 0],
+        [4, 0],
+        [4, 3],
+      ],
+      cache
+    )) === true && cache.size === 3
   );
-  const d = strip({ n: 0, e: 0 }, { n: 0, e: 0 }, 5, 0.5, 0.5);
-  ck('strip: a leg of length 0 still gives points', d.pts.length > 0);
-}
-// relief: 500 ft between neighbours counts, 499 not
-{
-  const flat = new Array(9).fill(100),
-    r0 = relief(flat, 3, 3);
-  ck('relief: flat ground has no steep pair', r0.steep === 0 && r0.pairs === 12);
-  const h = flat.slice();
-  h[4] = 600;
-  ck('relief: 500 ft counts', relief(h, 3, 3).steep === 4);
-  h[4] = 599;
-  ck('relief: 499 ft does not', relief(h, 3, 3).steep === 0);
-  ck('relief: missing samples are skipped', relief([null, 1, 2, 3], 2, 2).pairs === 2);
+  ck('cells: four samples per cell, the highest counts', seen[0] === 12 && cache.get('4,0') === 100);
+  seen.length = 0;
+  await loadCells(
+    elev,
+    [
+      [5, 0],
+      [4, 0],
+      [9, 9],
+    ],
+    cache
+  );
+  ck('cells: the cells already read are not read again', seen.length === 1 && seen[0] === 4 && cache.size === 4);
+  ck(
+    'cells: no terrain data (reader gives null) = false',
+    (await loadCells(async () => null, [[1, 1]], new Map())) === false
+  );
+  const order = [];
+  await loadCells(
+    async pts => (order.push(...pts.map(p => p.n)), pts.map(() => 1)),
+    [
+      [0, 5],
+      [0, 1],
+      [3, 1],
+      [0, 3],
+    ],
+    new Map()
+  );
+  ck(
+    'cells: asked row by row (order of j)',
+    order.every((v, i) => i == 0 || v >= order[i - 1])
+  );
 }
 // a route over synthetic terrain: a 3,000 ft block east of the first leg only touches its 22 NM band
 {
   const terr = p => (p.e > 8 * NMFT && p.e < 12 * NMFT && p.n > 2 * NMFT && p.n < 6 * NMFT ? 3000 : 100);
-  const elev = async pts => pts.map(terr);
+  let reads = 0;
+  const elev = async pts => (reads++, pts.map(terr));
   const route = [
     { n: 0, e: 0 },
     { n: 10 * NMFT, e: 0 },
     { n: 10 * NMFT, e: -20 * NMFT },
   ];
-  const r = await routeMsa(elev, route);
+  const cache = new Map();
+  const r = await routeMsa(elev, route, { cache });
   ck('route: first leg outside 5 NM of the block = 100 + 500', r.legs[1] === 600);
   ck('route: the leg has no value before the first steerpoint', r.legs[0] === null && r.legs.length === 3);
   ck('route: ERAA sees the block inside 22 NM (3,000 + 1,000)', r.eraa === 4000);
-  ck('route: the block is flat on top, no steep pair inside 5 NM', r.mountainous === false);
+  ck('route: the block is flat on top, no mountainous area', r.mountainous === false);
+  const n0 = reads;
+  await routeMsa(elev, route, { cache });
+  ck('route: the same route again reads nothing (cache)', reads === n0);
   const near = async pts => pts.map(p => (p.e > 3 * NMFT && p.e < 4 * NMFT ? 2000 : 100));
   const r2 = await routeMsa(near, route);
   ck('route: terrain within 5 NM raises the MSA (2,000 + 500)', r2.legs[1] === 2500);
-  ck(
-    'route: one ridge is not a mountainous area (a few steep pairs only)',
-    r2.mountainous === false && r2.eraa === 3000
-  );
-  const rough = async pts => pts.map(p => (Math.round((p.n + p.e) / (0.5 * NMFT)) % 2 ? 2000 : 100));
+  const rough = async pts => pts.map(p => (Math.round(p.e / CELL + p.n / CELL) % 2 ? 2000 : 100));
   const r3 = await routeMsa(rough, route);
   ck(
-    'route: rough terrain (500 ft or more in 0.5 NM, all over) is mountainous: ERAA + 2,000',
+    'route: rough terrain (500 ft or more between neighbours, all over) is mountainous: ERAA + 2,000',
     r3.mountainous === true && r3.eraa === 4000
   );
   ck('route without terrain data is null', (await routeMsa(async () => null, route)) === null);
   ck('route of one steerpoint is null', (await routeMsa(elev, [route[0]])) === null);
+  // the points asked are on the rows of the grid: a few hundred rows for a long leg, not thousands
+  const rows = new Set();
+  await routeMsa(
+    async pts => (pts.forEach(p => rows.add(Math.round(p.n / CELL))), pts.map(() => 100)),
+    [
+      { n: 0, e: 0 },
+      { n: 200 * NMFT, e: 150 * NMFT },
+    ]
+  );
+  ck('route: a 250 NM leg is read in a few hundred rows of the grid', rows.size > 100 && rows.size < 600);
 }
 // sectors
 {
@@ -135,18 +173,27 @@ ck('airbase MSA = highest + 1,000 ft', ifrMsa(3150) === 4200);
   const r = await baseMsa(async pts => pts.map(() => 1234), { n: 0, e: 0 }, 0);
   ck('baseMsa: one sector for even terrain', r.length === 1 && r[0].msa === 2300);
   ck('baseMsa without terrain is null', (await baseMsa(async () => null, { n: 0, e: 0 }, 0)) === null);
-  ck('ring points: 72 bins x 25 NM', ringPoints({ n: 0, e: 0 }).length === 72 * 25);
-  const ring = ringPoints({ n: 0, e: 0 }),
-    hh = ring.map(p => (p.n > 0 ? 4000 : 100)),
-    bm2 = binMax(hh, 0);
-  ck('binMax: the north half is high, the south low', bm2[0] === 4000 && bm2[36] === 100);
+  const north = async pts => pts.map(p => (p.n > 2 * CELL ? 4000 : 100));
+  const bb = await baseBins(north, { n: 0, e: 0 }, 0);
+  ck('baseBins: the north half is high, the south low', bb[0] === 4000 && bb[36] === 100 && bb.length === NB);
   ck(
-    'binMax: the height of the airbase itself counts',
-    binMax(
-      ring.map(() => 100),
-      900
-    )[5] === 900
+    'baseBins: the height of the airbase itself counts in every bin',
+    (await baseBins(async pts => pts.map(() => 100), { n: 0, e: 0 }, 900)).every(v => v === 900)
   );
+  const wedge = await baseBins(
+    async pts => pts.map(p => (p.e > 3 * CELL && Math.abs(p.n) < 3 * CELL ? 5000 : 100)),
+    { n: 0, e: 0 },
+    0
+  );
+  ck(
+    'baseBins: a hill to the east is in the bins around 90 degrees only',
+    wedge[18] === 5000 && wedge[54] === 100 && wedge[0] === 100
+  );
+  let rd = 0;
+  const cch = new Map();
+  await baseBins(async pts => (rd++, pts.map(() => 100)), { n: 0, e: 0 }, 0, { cache: cch });
+  await baseBins(async pts => (rd++, pts.map(() => 100)), { n: 3000, e: 2000 }, 0, { cache: cch });
+  ck('baseBins: an airbase on the same ground reads only the cells that are new', rd === 3 && cch.size < 7000);
 }
 ck(
   'inbound bearing: reciprocal of the edge, magnetic = true - variation',
@@ -170,12 +217,19 @@ ck(
       /6000/.test(sy(two, 9)) &&
       /1800/.test(sy(two, 9))
   );
+  ck(
+    'symbol: the disc hangs below the point (a line from the point at the top to the disc)',
+    /<line x1="[0-9.]+" y1="6"/.test(sy(two, 9))
+  );
   ck('symbol: no bearings when it is small, bearings when it is big', !/°/.test(sy(two, 8)) && /°/.test(sy(two, 11)));
   ck(
     'symbol: the bearings are inbound (edge 50 -> 230, 150 -> 330)',
     /230°/.test(sy(two, 11)) && /330°/.test(sy(two, 11))
   );
-  ck('symbol: one sector has no edge lines', !/<line/.test(sy([{ from: 0, to: 360, msa: 1800 }], 9)));
+  ck(
+    'symbol: one sector has no edge lines (only the line to the point)',
+    (sy([{ from: 0, to: 360, msa: 1800 }], 9).match(/<line/g) || []).length === 1
+  );
 }
 // flight plan columns of the datacard: contiguous, the same total width, MSA after Alt
 ck(

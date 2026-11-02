@@ -9,7 +9,7 @@ ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
 STUB = """async()=>{const m=await import('/app/js/app/msafill.js');window.__MSA=m;window.__calls=0;
- m.MSA_IO.elev=async pts=>{window.__calls++;return pts.map(p=>{const e=p.e/3280.84,n=p.n/3280.84;return Math.max(0,Math.round(300+900*Math.sin(e/9)*Math.cos(n/11)+2500*Math.exp(-(((e-520)**2)/60+((n-585)**2)/40))))})}}"""
+ window.__rows=new Set();window.__n=0;m.MSA_IO.elev=async pts=>{window.__calls++;window.__n+=pts.length;pts.forEach(p=>window.__rows.add(Math.floor((1-p.n/(1024000/0.3048))*32767)));return pts.map(p=>{const e=p.e/3280.84,n=p.n/3280.84;return Math.max(0,Math.round(300+900*Math.sin(e/9)*Math.cos(n/11)+2500*Math.exp(-(((e-520)**2)/60+((n-585)**2)/40))))})}}"""
 try:
     with sync_playwright() as p:
         br = p.chromium.launch(); errs = []
@@ -34,6 +34,7 @@ try:
         check('MSA is at least 500 ft above the ground (terrain >= 300 ft)', all(int(v) >= 800 for v in vals[1:]))
         check('ERAA in the MDC cell (aux) is a multiple of 100, not lower than the highest MSA', F.get('aux', '').isdigit() and int(F['aux']) % 100 == 0 and int(F['aux']) >= max(int(v) for v in vals[1:]) + 500)
         check('the terrain is read once for the datacard (cache)', pg.evaluate("()=>__calls") > 0)
+        check('the terrain is read in a few hundred rows of the file, not thousands (grid of 1 km)', pg.evaluate("()=>__rows.size") < 500)
         c0 = pg.evaluate("()=>__calls"); sel(fl); pg.wait_for_timeout(1000)
         check('selecting the same flight again does not read the terrain again', pg.evaluate("()=>__calls") == c0)
         # the datacard keeps the field when the pilot types over it
@@ -71,6 +72,7 @@ try:
         pg.evaluate("()=>{__M.setView(__LL[0],11,{animate:false})}"); pg.wait_for_timeout(1000)
         w11 = pg.evaluate("()=>parseFloat(document.querySelector('.msas svg').getAttribute('width'))")
         check('the symbol grows with the zoom', w11 > w8 * 2)
+        check('the disc hangs below the point (the svg starts 6 px above it)', pg.evaluate("()=>document.querySelector('.msas svg').style.top") == '-6px')
         check('close up the symbol shows the bearings', pg.evaluate("()=>/°/.test(document.querySelector('.msas').innerHTML)"))
         # the mouse on another airbase
         pg.evaluate("()=>{__M.setView(__LL[0],10,{animate:false})}"); pg.wait_for_timeout(1000)

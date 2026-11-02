@@ -15,23 +15,30 @@ export function msaSymbol(secs, zoom, magvar) {
     big = S >= 90,
     W = S + (big ? 96 : 8),
     C = W / 2,
+    TOP = 6, // the point of the airbase is at the top of the picture, the disc hangs below it (it does not cover the label of the steerpoint)
+    GAP = 14,
+    CY = TOP + GAP + R,
+    H = Math.ceil(CY + R + (big ? 42 : 6)),
     fs = Math.max(8, S / 9.5),
     pt = (deg, r) => {
       const t = (deg * Math.PI) / 180;
-      return [C + Math.sin(t) * r, C - Math.cos(t) * r];
+      return [C + Math.sin(t) * r, CY - Math.cos(t) * r];
     },
     EDGE = '#dfe7f0';
-  let g = `<circle cx="${C}" cy="${C}" r="${R}" fill="#000" fill-opacity=".9" stroke="${EDGE}" stroke-width="1.1"/>`;
+  let g =
+    `<line x1="${C}" y1="${TOP}" x2="${C}" y2="${TOP + GAP}" stroke="${EDGE}" stroke-width="1"/><circle cx="${C}" cy="${TOP}" r="2.5" fill="#fff" stroke="#000" stroke-width=".8"/>` +
+    `<circle cx="${C}" cy="${CY}" r="${R}" fill="#000" fill-opacity=".9" stroke="${EDGE}" stroke-width="1.1"/>`;
   const box = (x, y, txt) =>
     `<rect x="${x - fs * 1.5}" y="${y - fs * 0.85}" width="${fs * 3}" height="${fs * 1.55}" rx="2" fill="#000" stroke="${EDGE}" stroke-width=".8"/>` +
     `<text x="${x}" y="${y + fs * 0.34}" font-size="${fs}" font-weight="700" fill="#fff" text-anchor="middle" font-family="system-ui,Arial,sans-serif">${txt}</text>`;
-  if (secs.length == 1) g += box(C, C - R * 0.5, f0(secs[0].msa));
+  if (secs.length == 1) g += box(C, CY - R * 0.5, f0(secs[0].msa));
   else
     secs.forEach((s, i) => {
       const [x0, y0] = pt(s.from, R),
         [mx, my] = pt((s.from + s.to) / 2, R * 0.58);
       g +=
-        `<line x1="${C}" y1="${C}" x2="${x0}" y2="${y0}" stroke="${EDGE}" stroke-width=".9"/>` + box(mx, my, f0(s.msa));
+        `<line x1="${C}" y1="${CY}" x2="${x0}" y2="${y0}" stroke="${EDGE}" stroke-width=".9"/>` +
+        box(mx, my, f0(s.msa));
       if (big) {
         const [ax, ay] = pt(s.from, R + 22),
           [bx, by] = pt(s.from, R * 0.64),
@@ -41,12 +48,12 @@ export function msaSymbol(secs, zoom, magvar) {
           `<text x="${tx}" y="${ty + 4}" font-size="11" font-weight="700" font-style="italic" fill="#fff" text-anchor="middle" font-family="system-ui,Arial,sans-serif" style="paint-order:stroke" stroke="#000" stroke-width="3">${pad3(inbound(s.from, magvar))}°</text>`;
       }
     });
-  g += `<polygon points="${C},${C - 5} ${C + 4.5},${C - 2.5} ${C + 4.5},${C + 2.5} ${C},${C + 5} ${C - 4.5},${C + 2.5} ${C - 4.5},${C - 2.5}" fill="#fff" stroke="#000" stroke-width="1"/>`;
+  g += `<polygon points="${C},${CY - 5} ${C + 4.5},${CY - 2.5} ${C + 4.5},${CY + 2.5} ${C},${CY + 5} ${C - 4.5},${CY + 2.5} ${C - 4.5},${CY - 2.5}" fill="#fff" stroke="#000" stroke-width="1"/>`;
   const defs = big
     ? '<defs><marker id="ar" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto"><path d="M0,0L6,3L0,6z" fill="#fff"/></marker></defs>'
     : '';
   return {
     size: S,
-    html: `<svg width="${W}" height="${W}" style="position:absolute;left:${-C}px;top:${-C}px;overflow:visible;pointer-events:none">${defs}${g}</svg>`,
+    html: `<svg width="${W}" height="${H}" style="position:absolute;left:${-C}px;top:${-TOP}px;overflow:visible;pointer-events:none">${defs}${g}</svg>`,
   };
 }
