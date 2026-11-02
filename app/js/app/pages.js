@@ -118,6 +118,13 @@ export async function init6() {
     },
     getSel: () => ST.ATOSEL,
     msa: { route: msaOfFlight, base: msaOfBase },
+    // speed (Mach/TAS), MSA and minimum fuel of steerpoint i of flight f, as the datacard holds them (only for the flight selected there)
+    stp: (f, i) => {
+      const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0];
+      if (!x || x.f !== f) return null;
+      const g = j => String(F[`fp${i}_${j}`] == null ? '' : F[`fp${i}_${j}`]).trim();
+      return { speed: g(4), msa: g(11), fuel: g(6) };
+    },
     dtc: {
       points: () => dtcPoints(lines),
       wtargets: () => wtList(),

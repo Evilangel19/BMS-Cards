@@ -2614,6 +2614,18 @@ export function createMap(host, deps) {
       }).addTo(G.msa);
     }
   }
+  // speed, MSA and minimum fuel of the steerpoint (the flight-plan cells of the datacard)
+  function stpExtra(f, i) {
+    const v = deps.stp ? deps.stp(f, i) : null,
+      a = v
+        ? [
+            v.speed && 'Speed ' + v.speed,
+            v.msa && v.msa !== '---' && 'MSA ' + v.msa + ' ft',
+            v.fuel && v.fuel !== '---' && 'Fuel ' + v.fuel,
+          ].filter(Boolean)
+        : [];
+    return a.length ? '<br>' + a.map(deps.esc).join(' · ') : '';
+  }
   function plan(C, f) {
     const L = window.L;
     ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers());
@@ -2678,7 +2690,7 @@ export function createMap(host, deps) {
       mk.bindPopup(
         () =>
           stpPopup(
-            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}`,
+            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
             p,
             mk
           ),

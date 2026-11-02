@@ -62,6 +62,12 @@ try:
         check('the two bands are drawn (red 5 NM, blue 22 NM)', nb('#ff5d5d') == 1 and nb('#4f8cff') == 1)
         pg.wait_for_timeout(500)
         check('the airbase of the flight has its symbol', cnt('.msas') == 1)
+        # steerpoint popup: speed, MSA and fuel of the datacard
+        pg.evaluate("()=>__app.setField('fp1_6','5.2')"); pg.wait_for_timeout(300)
+        pg.evaluate("()=>{const e=[...document.querySelectorAll('.wps')].find(x=>x.textContent.trim()=='2');e.dispatchEvent(new MouseEvent('click',{bubbles:true}))}"); pg.wait_for_timeout(600)
+        pp = pg.evaluate("()=>(document.querySelector('.mpop')||{}).textContent||''")
+        check('steerpoint popup: speed, MSA and fuel', 'Speed' in pp and 'MSA ' + pg.evaluate("()=>__app.F.fp1_11") in pp and 'Fuel' in pp)
+        pg.evaluate("()=>{__M.closePopup()}")
         # slider of the opacity: 0 = no bands, labels stay
         pg.evaluate("()=>{const s=document.getElementById('mpmsao');s.value=0;s.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(1500)
         check('opacity 0: no bands, the labels stay', nb('#ff5d5d') + nb('#4f8cff') == 0 and cnt('.msal') == n - 1)
