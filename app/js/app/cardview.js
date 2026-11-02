@@ -1,4 +1,5 @@
 import { SHOT, LAYOUT, paintBlank } from '../core/cardlayout.js';
+import { FP_NAMES, fpCx, fpTextX } from '../core/fpcols.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { F, FD, XD, LOAD, ML, abTok, shortW, tpl } from './datacard.js';
@@ -390,13 +391,14 @@ function draw0() {
   x.fillStyle = '#000';
   x.font = '15px Arial';
   x.textBaseline = 'middle';
-  x.fillText('Formation', 714, 514, 70);
-  x.drawImage(tpl, 476, 503, 3, 23, 475, 503, 37, 23);
-  x.drawImage(tpl, 545, 503, 3, 23, 511, 503, 37, 23);
+  x.fillText('Formation', 714 + fpTextX(749) - 749, 514, 70);
+  const dm = fpTextX(512) - 512; // the Mach/TAS column moved
+  x.drawImage(tpl, 476 + dm, 503, 3, 23, 475 + dm, 503, 37, 23);
+  x.drawImage(tpl, 545 + dm, 503, 3, 23, 511 + dm, 503, 37, 23);
   x.textAlign = 'center';
   x.font = '14px Arial';
   x.fillStyle = '#333';
-  x.fillText('Mach/TAS', 511, 514, 68);
+  x.fillText('Mach/TAS', 511 + dm, 514, 68);
   x.fillStyle = '#000';
   x.font = '15px Arial';
   x.textAlign = 'left';
@@ -572,18 +574,8 @@ export async function init5() {
       ['TCN', 590],
       ['Task', 710],
     ].forEach(([t, x]) => a(t, x, 347));
-    [
-      ['STPT', 51],
-      ['Action', 128],
-      ['TOS', 248],
-      ['HDG', 355],
-      ['Dist', 433],
-      ['Mach/TAS', 511],
-      ['Alt', 590],
-      ['Min.Fuel', 669],
-      ['Formation', 749],
-    ].forEach(([t, x]) => a(t, x, 514));
-    for (let i = 0; i < 24; i++) a(String(i + 1), 51, 542 + 28 * i);
+    FP_NAMES.forEach((t, j) => a(t, fpCx(j) + 0.5, 514));
+    for (let i = 0; i < 24; i++) a(String(i + 1), fpCx(0) + 0.5, 542 + 28 * i);
     a('Page 2', 860, 14);
     a('DATACARD', 1260, 14, { b: 1 });
     a('Callsign', 948, 39);

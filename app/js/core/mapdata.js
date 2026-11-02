@@ -56,6 +56,8 @@ export function mapAirbases(D) {
     id: o[0],
     name: clean(o[1]),
     ll: toLL(o[2], o[3]),
+    x: o[2],
+    y: o[3],
     kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab',
     sub: /VORTAC/.test(o[1])
       ? 'vortac'

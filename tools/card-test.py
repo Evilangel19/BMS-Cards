@@ -13,7 +13,7 @@ try:
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8781/app/index.html'); pg.wait_for_timeout(900)
         pg.wait_for_selector('#boot', state='detached', timeout=30000)
-        check('the loading bar is gone once the program has started and the version is shown', pg.locator('#boot').count() == 0 and pg.inner_text('#appver').startswith('v0.'))
+        check('the loading bar is gone once the program has started and the version is shown', pg.locator('#boot').count() == 0 and pg.inner_text('#appver').startswith('v'))
         check('no yellow marks and no clickable cells while there is no card', pg.locator('#cvhl i').count() == 0)
         import base64
         FX = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/tests/fixtures/beartrap/'
@@ -27,7 +27,7 @@ try:
         pg.click('[data-t=mp]'); pg.wait_for_timeout(500); pg.click('text=Datacard >> nth=0'); pg.wait_for_timeout(500)
         check('after another page the marks are still inside the card', pg.locator('#cvhl i').count() >= 5 and inside())
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
-        check('the Datacard keeps its own cells (406 fields)', pg.evaluate("__app.FD.length") == 406)
+        check('the Datacard keeps its own cells (430 fields)', pg.evaluate("__app.FD.length") == 430)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
         need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl7_s', 'fl3_5', 'fp0_st', 'fp14_11',
                 't0_4', 'u2_4', 'dl0_fc', 'dl1_dn2', 'ovw', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']

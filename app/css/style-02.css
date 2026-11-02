@@ -714,3 +714,32 @@ canvas {
   color: #d0a3ff;
   font: 700 11px system-ui;
 }
+/* MSA filter: labels of the route and the symbols of the airbases */
+.msal,
+.msae,
+.msas {
+  background: none;
+  border: 0;
+}
+.msal span,
+.msae span {
+  position: absolute;
+  white-space: nowrap;
+  font: 700 11px system-ui;
+  transform: translate(-50%, 8px);
+  text-shadow:
+    0 0 3px #000,
+    0 0 3px #000;
+}
+.msal span {
+  color: #ff7b7b;
+}
+.msae span {
+  transform: translate(-50%, -50%);
+  color: #8fb8ff;
+  background: #0d1b2add;
+  border: 1px solid #4f8cff;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 12px;
+}

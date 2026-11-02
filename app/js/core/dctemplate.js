@@ -1,3 +1,4 @@
+import { fpCell, fpMsaCell, fpTextX, fpCx } from './fpcols.js';
 // The blank of the Datacard (1600 x 1200: page 1 on the left, page 2 on the right), drawn by the program: a black ground, the grey and white cells, the texts.
 // Own drawing of the layout (cells and captions of a BMS datacard); no image is stored.
 const CELLS = [
@@ -766,6 +767,20 @@ const TEXTS = [
   ['DOR', 1564, 760, 15, 0, 0, 0.82],
   ['ROE', 1418, 900, 15, 0, 0, 0.82],
 ];
+// flight plan: the columns of core/fpcols.js (narrower numbers, wider Action / TOS, and the MSA column next to Alt)
+{
+  const inFp = (x, y) => x >= 27 && x < 788 && y >= 500 && y <= 1200;
+  const cells = CELLS.filter(c => inFp(c[0], c[1]));
+  const add = cells.filter(c => c[0] == 552).map(fpMsaCell);
+  CELLS.forEach((c, i) => {
+    if (inFp(c[0], c[1])) CELLS[i] = fpCell(c);
+  });
+  CELLS.push(...add);
+  TEXTS.forEach((t, i) => {
+    if (t[1] >= 27 && t[1] < 788 && t[2] >= 500 && t[2] <= 1200) TEXTS[i] = [t[0], fpTextX(t[1]), ...t.slice(2)];
+  });
+  TEXTS.push(['MSA', fpCx(7) - 15, 508, 15, 0, 0, 0.82]);
+}
 const ROT = [
   ['Airbase', 15.5, 135, 0],
   ['Flight', 15.5, 262, 0],

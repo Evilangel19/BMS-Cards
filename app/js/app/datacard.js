@@ -15,6 +15,7 @@ import { dtcBtns } from './dtcapply.js';
 import { mapV, sqPage } from './pages.js';
 import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
+import { fpStart, fpSpan } from '../core/fpcols.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
@@ -346,7 +347,7 @@ export function buildForm() {
     const dt = document.createElement('details');
     dt.innerHTML = '<summary>' + g + '</summary>';
     const w = document.createElement('div');
-    const cols = g == 'Flightplan' ? 8 : g == 'Airbase' || g == 'Flight' || g == 'Package' ? 7 : 4;
+    const cols = g == 'Flightplan' ? 9 : g == 'Airbase' || g == 'Flight' || g == 'Package' ? 7 : 4;
     w.className = 'gr';
     w.style.gridTemplateColumns = `repeat(${cols},1fr)`;
     gr[g].forEach(d => {
@@ -447,17 +448,19 @@ export async function init4() {
         'Package'
       )
     );
+  // the columns after the steerpoint number (core/fpcols.js): the field keys stay fp<row>_0 .. _7, the MSA column is fp<row>_11 (it feeds the Cont column of the MDC too)
   for (let i = 0; i < 24; i++)
-    ['Action', 'TOS', 'HDG', 'Dist', 'Mach/TAS', 'Alt', 'Min.Fuel', 'Formation'].forEach((c, j) =>
-      add(
-        `fp${i}_${j}`,
-        c,
-        [78, 183, 318, 395, 473, 551, 630, 711][j],
-        542 + 28 * i,
-        [100, 132, 74, 74, 74, 74, 74, 76][j],
-        'Flightplan'
-      )
-    );
+    [
+      ['Action', 0, 1],
+      ['TOS', 1, 2],
+      ['HDG', 2, 3],
+      ['Dist', 3, 4],
+      ['Mach/TAS', 4, 5],
+      ['Alt', 5, 6],
+      ['MSA', 11, 7],
+      ['Min.Fuel', 6, 8],
+      ['Formation', 7, 9],
+    ].forEach(([c, j, col]) => add(`fp${i}_${j}`, c, fpStart(col) + 1, 542 + 28 * i, fpSpan(col) - 2, 'Flightplan'));
   [
     ['cs', 'Callsign', 985, 39, 120],
     ['pkg', 'Package', 1192, 39, 66],

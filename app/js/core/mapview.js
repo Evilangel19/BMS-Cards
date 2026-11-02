@@ -42,6 +42,7 @@ import {
 } from './mapdata.js';
 import { warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame } from './mapwarp.js';
 import { unitSymbol, placeIcon } from './mapsymbols.js';
+import { msaSymbol } from './msamap.js';
 import { teamName } from './ato.js';
 import { jtacPick } from '../rules/support.js';
 import { actName, hms, els0, nearAb, opWin } from './flight.js';
@@ -383,6 +384,7 @@ export function createMap(host, deps) {
     CREG = 'asia';
     MAP_LAYERS.forEach(([k]) => (G[k] = L.layerGroup()));
     G.off = L.layerGroup().addTo(map); // offsets placed on a route steerpoint
+    G.msaS = L.layerGroup(); // MSA symbols (airbase of the flight, the one under the mouse)
     G.su = L.layerGroup().addTo(map); // SAM units: shown with their unit layer or with their range layer
     heavyMap();
     map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
@@ -403,6 +405,7 @@ export function createMap(host, deps) {
       host.classList.toggle('zmid', z >= 8 && z < 9.5);
     };
     map.on('zoomend', zc);
+    map.on('zoomend', msaSyms);
     zc();
     host.addEventListener(
       'click',
@@ -772,6 +775,19 @@ export function createMap(host, deps) {
         save();
         lab2();
         if (st.on.rc) radarCov();
+      };
+    }
+    const msaRow = el.querySelector('input[data-k=msa]'); // opacity of the MSA / ERAA bands
+    if (msaRow) {
+      const lab = msaRow.closest('label') || msaRow.parentElement;
+      lab.insertAdjacentHTML(
+        'afterend',
+        `<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>`
+      );
+      $('mpmsao').oninput = () => {
+        st.on.msaop = +$('mpmsao').value;
+        save();
+        msaDraw();
       };
     }
     el.querySelectorAll('.mps:not(.mpo)').forEach(h => (h.onclick = () => toggleSec(h)));
@@ -2204,8 +2220,11 @@ export function createMap(host, deps) {
       if (st.on[k]) G[k].addTo(map);
       else map.removeLayer(G[k]);
     });
+    if (st.on.msa) G.msaS.addTo(map);
+    else map.removeLayer(G.msaS);
     objDraw();
     radarCov();
+    msaDraw();
   }
 
   const side = (ally, owner) => (ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile');
@@ -2463,6 +2482,138 @@ export function createMap(host, deps) {
 
   // selected flight plan: line with a halo, steerpoints (circle / triangle, hollow, click to fill and read), leg distances and a label box.
   // Line and steerpoints are in the "fp" layer, leg distances and the label box in "fd", the package mates in "pk". Lines go to their own pane, above rings and units.
+  // ---- MSA and ERAA (filter "MSA and ERAA" of Display) ----
+  // route: the bands (5 NM red, 22 NM blue; their opacity is the slider), the MSA label of each leg and one ERAA label; airbases: the symbol of the airbase the flight takes off
+  // from, the others when the mouse is on them. All from the terrain of the BMS folder (deps.msa), information only.
+  let MSAT = 0,
+    MSAHOME = null,
+    MSAHOV = null,
+    MSANOTE = false;
+  const msaZ = () => (map ? map.getZoom() : 8);
+  function msaMark(ll, secs, hov) {
+    const L = window.L,
+      sy = msaSymbol(secs, msaZ(), deps.magvar ? deps.magvar() : 0);
+    return L.marker(ll, {
+      icon: L.divIcon({ className: 'msas', html: sy.html, iconSize: [0, 0] }),
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: hov ? -50 : -90,
+    });
+  }
+  function msaSyms() {
+    if (!map || !G.msaS) return;
+    G.msaS.clearLayers();
+    if (!st.on.msa) return;
+    if (MSAHOME && MSAHOME.secs) msaMark(MSAHOME.ll, MSAHOME.secs, false).addTo(G.msaS);
+    if (MSAHOV && MSAHOV.secs && !(MSAHOME && MSAHOME.id === MSAHOV.id))
+      msaMark(MSAHOV.ll, MSAHOV.secs, true).addTo(G.msaS);
+  }
+  async function msaHover(a) {
+    if (!a || !st.on.msa || !deps.msa) {
+      MSAHOV = null;
+      return msaSyms();
+    }
+    const id = a.id;
+    MSAHOV = { id, ll: a.ll, secs: null };
+    let secs = null;
+    try {
+      secs = await deps.msa.base(a.x, a.y);
+    } catch (e) {
+      secs = null;
+    }
+    if (MSAHOV && MSAHOV.id === id) {
+      MSAHOV.secs = secs;
+      msaSyms();
+    }
+  }
+  const msaNote = () => {
+    if (MSANOTE) return;
+    MSANOTE = true;
+    toast('MSA: the terrain heights need the BMS install folder (desktop app, Settings).', true);
+  };
+  async function msaDraw() {
+    if (!map || !G.msa) return;
+    const tk = ++MSAT,
+      L = window.L,
+      C = deps.getC(),
+      f = deps.getSel();
+    G.msa.clearLayers();
+    MSAHOME = null;
+    msaSyms();
+    if (!st.on.msa || !deps.msa || !C || !f || !f.wps || f.wps.length < 2) return;
+    const r = flightRoute(C, f);
+    // the airbase the flight takes off from (the same rule as the colour of the airbases)
+    const w0 = f.wps[0],
+      home = nearAb(C, w0.x, w0.y),
+      ab = home ? mapAirbases(C.D).find(a => a.id == home[0]) : null;
+    if (ab && ab.x !== undefined)
+      deps.msa
+        .base(ab.x, ab.y)
+        .then(secs => {
+          if (tk !== MSAT) return;
+          if (!secs) return msaNote();
+          MSAHOME = { id: ab.id, ll: ab.ll, secs };
+          msaSyms();
+        })
+        .catch(() => {});
+    let m = null;
+    try {
+      m = await deps.msa.route(f);
+    } catch (e) {
+      m = null;
+    }
+    if (tk !== MSAT || !st.on.msa) return;
+    if (!m) return msaNote();
+    const op = (st.on.msaop == null ? 14 : st.on.msaop) / 100,
+      ring = (a, b, h) => {
+        const dx = b.x - a.x,
+          dy = b.y - a.y,
+          d = Math.hypot(dx, dy) || 1,
+          nx = (-dy / d) * h,
+          ny = (dx / d) * h;
+        return [
+          [a.x + nx, a.y + ny],
+          [b.x + nx, b.y + ny],
+          [b.x - nx, b.y - ny],
+          [a.x - nx, a.y - ny],
+        ].map(q => toLL(q[0], q[1]));
+      },
+      band = (h, color, o) =>
+        o > 0 &&
+        L.polygon(
+          r.slice(1).map((p, i) => ring(r[i], p, h)),
+          { stroke: false, fillColor: color, fillOpacity: o, fillRule: 'nonzero', interactive: false }
+        ).addTo(G.msa);
+    band(22 * 1.852, '#4f8cff', op); // ERAA: 22 NM each side of the route
+    band(5 * 1.852, '#ff5d5d', Math.min(0.9, op * 1.6)); // route MSA: 5 NM each side
+    r.slice(1).forEach((p, i) => {
+      const v = m.legs[i + 1];
+      if (v === null || v === undefined) return;
+      const a = r[i],
+        ll = toLL((a.x + p.x) / 2, (a.y + p.y) / 2);
+      L.marker(ll, {
+        icon: L.divIcon({ className: 'msal', html: `<span>MSA ${v}</span>`, iconSize: [0, 0] }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 800,
+      }).addTo(G.msa);
+    });
+    if (m.eraa !== null) {
+      const top = r.reduce((q, p) => (p.y > q.y ? p : q), r[0]),
+        x = (Math.min(...r.map(p => p.x)) + Math.max(...r.map(p => p.x))) / 2,
+        ll = toLL(x, top.y + 22 * 1.852 + 3);
+      L.marker(ll, {
+        icon: L.divIcon({
+          className: 'msae',
+          html: `<span title="Highest terrain within 22 NM of the route + ${m.mountainous ? '2,000 ft (mountainous terrain)' : '1,000 ft'}">ERAA ${m.eraa.toLocaleString('en-US')} ft${m.mountainous ? ' · mountainous' : ''}</span>`,
+          iconSize: [0, 0],
+        }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 900,
+      }).addTo(G.msa);
+    }
+  }
   function plan(C, f) {
     const L = window.L;
     ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers());
@@ -2558,6 +2709,7 @@ export function createMap(host, deps) {
       0
     );
     placeLabels();
+    msaDraw();
   }
   // a box tied to the flight plan by a short leader line, next to the distance label of a leg: placeLabels() puts it on the leg whose middle is
   // nearest to the view centre (and inside the visible map), and moves it whenever the map moves
@@ -4089,6 +4241,10 @@ export function createMap(host, deps) {
         })
           .bindTooltip(deps.esc(a.name), { direction: 'top', offset: [0, -8] })
           .addTo(nav ? G.nav : G.ab);
+        if (deps.msa && a.x !== undefined) {
+          mk.on('mouseover', () => msaHover(a));
+          mk.on('mouseout', () => msaHover(null));
+        }
         if (a.kind == 'ab') {
           ABM.set(a.id, mk);
           mk.on('click', () => {

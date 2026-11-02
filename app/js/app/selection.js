@@ -11,6 +11,7 @@ import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
 import { MFD, draw } from './cardview.js';
 import { perfFill } from './perf.js';
+import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
@@ -151,6 +152,7 @@ export function apply(i, mode) {
   atoSearch();
   perfFill(i);
   wxPrep(i);
+  msaFill(i);
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),

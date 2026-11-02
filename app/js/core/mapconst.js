@@ -81,6 +81,7 @@ export const MAP_LAYERS = [
   ['ff', 'Friendly flights', true, 'In flight'],
   ['fe', 'Enemy flights (spotted)', true, 'In flight'],
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
+  ['msa', 'MSA and ERAA (route, airbases)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
 ];
 // switches that are not layers: [key, label, section]

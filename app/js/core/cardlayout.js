@@ -95,6 +95,34 @@ export function buildLayout() {
       [994, 994],
     ]
   );
+  // flight plan: the last column (Cont, now MSA) goes next to the elevation, the columns between move one place to the right
+  {
+    const cw = at('AA19').r[2] - at('AA19').r[0],
+      x0 = at('K19').r[2];
+    shapes.forEach(sh => {
+      const row = rowOf(sh.a);
+      if (page2(sh) || row < 19 || row > 34) return;
+      if (colOf(sh.a) == colOf('AA')) sh.r = [x0, sh.r[1], x0 + cw, sh.r[3]];
+      else if (sh.r[0] >= x0 - 0.01 && sh.r[2] <= 940) sh.r = [sh.r[0] + cw, sh.r[1], sh.r[2] + cw, sh.r[3]];
+    });
+    at('AA19').t = 'MSA';
+  }
+  // top band: narrower Start, Check in, Taxi, Take-off and Land, a wider Callsign, and ERAA instead of Aux
+  xmap(
+    [2, 3],
+    [
+      [11, 11],
+      [203.1, 288],
+      [307.8, 393],
+      [417.7, 478],
+      [533, 563],
+      [648.2, 648],
+      [792.3, 763],
+      [936.4, 878],
+      [994, 994],
+    ]
+  );
+  at('AA2').t = 'ERAA';
   // link: shorter NDL, wider Donor
   xmap(
     [39, 41],
@@ -181,7 +209,7 @@ export function buildLayout() {
     ['M3', 'taxi', 'Taxi'],
     ['Q3', 'to_time', 'Takeoff'],
     ['V3', 'ld_time', 'Land'],
-    ['AA3', 'aux', 'Aux'],
+    ['AA3', 'aux', 'ERAA (whole route, set by the program)'],
     ['A5', 'pkg', 'MSN #'],
     ['C5', 'su0_0', 'Tanker'],
     ['F5', 'su0_3', 'Track / ARCT'],
@@ -236,7 +264,7 @@ export function buildLayout() {
     ['U', 'fp%_3', 'Dist'],
     ['W', 'fp%_2', 'Hdg'],
     ['Y', 'fp%_6', 'Fuel'],
-    ['AA', 'fp%_11', 'Cont'],
+    ['AA', 'fp%_11', 'MSA'],
   ];
   for (let r = 0; r < 15; r++)
     SC.forEach(([c, k, lab]) => field(c + (20 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Steerpoints'));

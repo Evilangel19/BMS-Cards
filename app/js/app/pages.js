@@ -20,6 +20,7 @@ import {
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
 import { heightsAt } from '../bmsdata/heightmap.js';
+import { msaOfFlight, msaOfBase } from './msafill.js';
 import { dtcPoints } from '../core/mapdtc.js';
 import { targetLine } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
@@ -116,6 +117,7 @@ export async function init6() {
       return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
     },
     getSel: () => ST.ATOSEL,
+    msa: { route: msaOfFlight, base: msaOfBase },
     dtc: {
       points: () => dtcPoints(lines),
       wtargets: () => wtList(),
