@@ -134,16 +134,33 @@ export function buildLayout() {
       [994, 994],
     ]
   );
-  // targets: the two ST columns of the same size
-  shapes.forEach(sh => {
-    const r = sh.r,
-      row = rowOf(sh.a);
-    if (row < 35 || row > 38 || page2(sh)) return;
-    if (near(r[2], 98) && near(r[0], 11)) sh.r = [r[0], r[1], 69, r[3]];
-    else if (near(r[0], 98) && near(r[2], 203)) sh.r = [69, r[1], r[2], r[3]];
-    else if (near(r[0], 533) && near(r[2], 562)) sh.r = [r[0], r[1], 591, r[3]];
-    else if (near(r[0], 562) && near(r[2], 677)) sh.r = [591, r[1], r[2], r[3]];
-  });
+  // targets: only three rows, the right half goes away and the left one takes the whole width (ST, Lat, Long, Elev, Description)
+  {
+    const TX = [11, 71, 271, 481, 581, 994],
+      TC = ['A', 'B', 'D', 'F', 'H'].map(c => colOf(c + '1'));
+    for (let i = shapes.length; i--;) {
+      const sh = shapes[i],
+        row = rowOf(sh.a);
+      if (row < 35 || row > 38 || page2(sh)) continue;
+      const j = TC.indexOf(colOf(sh.a));
+      if (j < 0) shapes.splice(i, 1);
+      else sh.r = [TX[j], sh.r[1], TX[j + 1], sh.r[3]];
+    }
+  }
+  // loadout row: no NRM / IMM DIST column, the others take the room
+  {
+    for (let i = shapes.length; i--;) if (/^T6[01]$/.test(shapes[i].a)) shapes.splice(i, 1);
+    const x0 = 340.4,
+      x1 = 993.6,
+      m = x => x0 + ((x - x0) * (x1 - x0)) / (820.4 - x0);
+    shapes.forEach(sh => {
+      const row = rowOf(sh.a);
+      if ((row == 60 || row == 61) && !page2(sh) && sh.r[0] >= x0 - 0.5 && sh.r[2] <= 820.5 && sh.r[0] < 706) {
+        sh.r = [m(sh.r[0]), sh.r[1], m(sh.r[2]), sh.r[3]];
+        if (/^P6[01]$/.test(sh.a)) sh.b = [sh.b[0], sh.b[1], 2, sh.b[3]];
+      }
+    });
+  }
   // heights. Page 2: the Known EOB / AO update tables take the room of the two roll call rows removed; then the whole page is scaled to the new top.
   // Page 1: the white band above is smaller and the room goes to the rows of the flight plan.
   {
@@ -268,7 +285,7 @@ export function buildLayout() {
   ];
   for (let r = 0; r < 15; r++)
     SC.forEach(([c, k, lab]) => field(c + (20 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Steerpoints'));
-  // second table: targets / points, two halves
+  // second table: targets / points (3 rows)
   const HA = [
     ['A', 'ST'],
     ['B', 'Lat'],
@@ -276,16 +293,8 @@ export function buildLayout() {
     ['F', 'Elev'],
     ['H', 'Description'],
   ];
-  const HB = [
-    ['M', 'ST'],
-    ['N', 'Lat'],
-    ['R', 'Long'],
-    ['V', 'Elev'],
-    ['X', 'Description'],
-  ];
   for (let r = 0; r < 3; r++) {
-    HA.forEach(([c, lab], j) => field(c + (36 + r), `t${r}_${j}`, `Left ${lab} ${r + 1}`, 'Targets and points'));
-    HB.forEach(([c, lab], j) => field(c + (36 + r), `u${r}_${j}`, `Right ${lab} ${r + 1}`, 'Targets and points'));
+    HA.forEach(([c, lab], j) => field(c + (36 + r), `t${r}_${j}`, `${lab} ${r + 1}`, 'Targets and points'));
   }
   // link
   for (let i = 0; i < 2; i++) {
@@ -324,7 +333,6 @@ export function buildLayout() {
     ['K61', 'cfg_dist', 'DIST'],
     ['M61', 'ref', 'REF (D/W)'],
     ['P61', 'cfg_ni', 'NRM / IMM'],
-    ['T61', 'cfg_nd', 'NRM / IMM DIST D/(W)'],
   ].forEach(([a, k, lab]) => field(a, k, lab, 'Configuration'));
   field('R62', 'srv', 'Server IP', 'Server', { to: 'Y62', all: 'RSTUVWXY'.split('').map(c => c + 62) });
 

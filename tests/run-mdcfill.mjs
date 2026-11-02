@@ -16,7 +16,7 @@ ok(
   'the cells lie inside the picture',
   LAYOUT.fields.every(f => f.r[0] >= 0 && f.r[2] <= 2048 && f.r[1] >= 150 && f.r[3] <= 2048)
 );
-ok('a lot of cells are writable (page 1 and page 2)', keys.length > 600);
+ok('a lot of cells are writable (page 1 and page 2)', keys.length > 550);
 ok(
   'the screenshot box is the big white box of page 1',
   SHOT[2] - SHOT[0] > 700 && SHOT[3] - SHOT[1] > 480 && SHOT[2] < 1000
@@ -31,7 +31,7 @@ for (const k of [
   'fl7_5',
   'fp14_11',
   't2_4',
-  'u2_4',
+  't2_4',
   'dl1_dn2',
   'ovw',
   'srv',
@@ -123,6 +123,6 @@ ok(
     o.t0_4 == 'Hapgang Bridge1' &&
     o.t0_3 == '420'
 );
-ok('no secondary target: the right cells are empty', o.u0_0 == '' && o.u0_4 == '');
+ok('no secondary target: the second row is empty', o.t1_0 == '' && o.t1_4 == '');
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

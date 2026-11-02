@@ -53,18 +53,18 @@ export function mdcDerive(F) {
     .filter(Boolean)
     .map(shortW)
     .join(' · ');
-  // second table: primary and secondary target (steerpoints 99 and 98 of the DTC)
+  // second table: primary and secondary target (steerpoints 99 and 98 of the DTC), rows 1 and 2; row 3 is free
   [
-    ['t', 'pri', 'll1', '99'],
-    ['u', 'sec', 'll2', '98'],
+    ['t0', 'pri', 'll1', '99'],
+    ['t1', 'sec', 'll2', '98'],
   ].forEach(([p, k, lk, st]) => {
     const m = LL.exec(n(lk)),
       d = n(k);
-    o[`${p}0_0`] = d || m ? st : '';
-    o[`${p}0_1`] = m ? m[1] : '';
-    o[`${p}0_2`] = m ? m[2] : '';
-    o[`${p}0_3`] = m ? n(k + '_alt') : '';
-    o[`${p}0_4`] = d;
+    o[`${p}_0`] = d || m ? st : '';
+    o[`${p}_1`] = m ? m[1] : '';
+    o[`${p}_2`] = m ? m[2] : '';
+    o[`${p}_3`] = m ? n(k + '_alt') : '';
+    o[`${p}_4`] = d;
   });
   return o;
 }

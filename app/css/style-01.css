@@ -276,13 +276,15 @@ textarea {
 .wrow input[type='number'] {
   width: 60px;
 }
-.wpg .seg {
+.wpg .seg,
+#wx .seg {
   display: inline-flex;
   border: 1px solid var(--line);
   border-radius: 7px;
   overflow: hidden;
 }
-.wpg .seg button {
+.wpg .seg button,
+#wx .seg button {
   padding: 3px 10px;
   color: var(--mu);
   background: #0f1419;
@@ -295,14 +297,17 @@ textarea {
     background-color 0.15s,
     color 0.15s;
 }
-.wpg .seg button:last-child {
+.wpg .seg button:last-child,
+#wx .seg button:last-child {
   border-right: 0;
 }
-.wpg .seg button.on {
+.wpg .seg button.on,
+#wx .seg button.on {
   background: #1f7a46;
   color: #fff;
 }
-.wpg .seg button:not(.on):hover {
+.wpg .seg button:not(.on):hover,
+#wx .seg button:not(.on):hover {
   background: #1a212b;
   color: var(--tx);
 }
