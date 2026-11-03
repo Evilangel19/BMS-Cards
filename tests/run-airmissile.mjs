@@ -174,7 +174,7 @@ ck(
   'marShot: known missile gives both cases, an unknown one only the uniform case',
   ms.known && ms.variable !== null && ms.uniform > 20 && !mo.known && mo.variable === null && mo.uniform > 0
 );
-import { timeline, CLASSES, STD } from '../app/js/core/bvrtimeline.js';
+import { timeline, CLASSES, STD, mslName, toKt, toMach } from '../app/js/core/bvrtimeline.js';
 const tl = timeline('F-16C', { 'AIM-120B': amr }, STD),
   tg = timeline('Su-27', { 'AIM-120B': amr }, STD);
 ck(
@@ -196,12 +196,74 @@ ck(
     return r.mtr > r.tr && r.tr > r.dor && r.dor > r.dr && r.dr > r.mar && r.mar > r.stern && r.stern > 0 && r.fr > 0;
   })
 );
-const sel = timeline('F-16CM', { 'AIM-120B': amr, 'AIM-7M': amr }, STD, 'AIM-120B'),
+const sel = timeline('F-16CM', { 'AIM-120B': amr, 'AIM-7': amr }, STD, 'AIM-120B'),
   own = timeline('F-16CM', { 'AIM-120B': amr }, STD),
   ru = timeline('Mig-29A', { 'AIM-120B': amr }, STD, 'AIM-120B');
 ck(
   'timeline: the selected missile replaces the best one of a class that carries it, and leaves the others alone',
   sel.msl === 'AIM-120B' && sel.picked && own.msl === null && ru.src === 'Threat Guide' && !ru.picked
+);
+// the menus show the names the pilots use; the data keep the file names
+const sp = timeline('F-16C', { 'AIM-120B': amr, 'AIM-7': amr }, STD, 'AIM-7');
+ck(
+  'menus: the AIM-7 file is called AIM-7M and MICA_EM is called MICA EM (the other names stay)',
+  mslName('AIM-7') === 'AIM-7M' &&
+    mslName('MICA_EM') === 'MICA EM' &&
+    mslName('AIM-120C') === 'AIM-120C' &&
+    sp.msl === 'AIM-7' &&
+    sp.src === 'model AIM-7M'
+);
+// classes from the Threat Guide: J-15 and Su-39 are there, the Mig-29S has no AA-10C and nobody has the AA-13
+const cl = n => CLASSES.find(c => c.n === n);
+ck(
+  'classes: J-15 (PL-12) and Su-39 (AA-12) added; Mig-29S without AA-10C; no class carries the AA-13',
+  cl('J-15') &&
+    cl('J-15').m === 'PL-12' &&
+    cl('Su-39') &&
+    cl('Su-39').m === 'AA-12' &&
+    !cl('Mig-29S').ms.includes('AA-10C') &&
+    CLASSES.every(c => !c.ms.includes('AA-13'))
+);
+// knots and Mach: the same speed both ways, at any altitude
+ck(
+  'Mach <-> knots: 0.9 at 25 000 ft is 542 kt and back; the same Mach is fewer knots higher up',
+  near(toKt(0.9, 25000), 542, 1) &&
+    near(toMach(toKt(0.9, 25000), 25000), 0.9, 1e-9) &&
+    toKt(0.9, 35000) < toKt(0.9, 25000) &&
+    near(toKt(toMach(450, 10000), 10000), 450, 1e-9)
+);
+// the enemy flies with its own altitude and speed: without them (or with the same ones) the numbers are the old ones,
+// with them the closure is your speed + the enemy's and the enemy's missile is launched from the enemy's conditions
+const same = { alt: STD.alt, mach: STD.mach },
+  fast = { alt: 35000, mach: 1.2 };
+ck(
+  'timeline: an enemy that flies like you gives the very same numbers as no enemy conditions at all, for every class',
+  CLASSES.every(c => {
+    const a = timeline(c.n, { 'AIM-120B': amr }, STD),
+      b = timeline(c.n, { 'AIM-120B': amr }, STD, null, same);
+    return ['vc', 'mar', 'dr', 'dor', 'tr', 'mtr', 'fr', 'stern'].every(k => a[k] === b[k]);
+  })
+);
+const ef = timeline('F-16C', { 'AIM-120B': amr }, STD, null, fast);
+ck(
+  "timeline: with its own altitude and speed the closure is your speed + the enemy's, and the conditions are reported",
+  near(ef.vc, ef.me.kt + ef.en.kt, 1e-9) &&
+    near(ef.me.kt, tl.me.kt, 1e-9) &&
+    near(ef.en.kt, toKt(1.2, 35000), 1e-9) &&
+    ef.vc > tl.vc &&
+    ef.en.alt === 35000 &&
+    ef.me.alt === STD.alt &&
+    near(ef.dr, ef.mar + (ef.vc * STD.tNotch) / 3600, 1e-9) &&
+    near(ef.dor, ef.dr + (ef.vc * STD.tRecommit) / 3600, 1e-9)
+);
+ck(
+  'timeline: a faster enemy than you gives a different MAR (its missile starts faster), the order of the distances stays',
+  Math.abs(ef.mar - tl.mar) > 0.1 &&
+    ef.mtr > ef.tr &&
+    ef.tr > ef.dor &&
+    ef.dor > ef.dr &&
+    ef.dr > ef.mar &&
+    ef.mar > ef.stern
 );
 console.log(bad ? 'airmissile: ' + bad + ' FAILED' : 'airmissile: ' + n + '/' + n + ' checks passed');
 process.exit(bad ? 1 : 0);
