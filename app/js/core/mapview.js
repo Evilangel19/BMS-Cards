@@ -2494,7 +2494,7 @@ export function createMap(host, deps) {
     const L = window.L,
       sy = msaSymbol(secs, msaZ(), deps.magvar ? deps.magvar() : 0);
     return L.marker(ll, {
-      icon: L.divIcon({ className: 'msas', html: sy.html, iconSize: [0, 0] }),
+      icon: L.divIcon({ className: hov ? 'msas fxh' : 'msas', html: sy.html, iconSize: [0, 0] }), // fxh: the symbol under the mouse fades in
       interactive: false,
       keyboard: false,
       zIndexOffset: hov ? -50 : -90,

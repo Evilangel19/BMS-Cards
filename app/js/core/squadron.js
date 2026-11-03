@@ -2709,10 +2709,16 @@ export function createSquadronPage(deps) {
             .join('')
         : '<div class="hint">No squadron yet.</div>';
       inv.querySelectorAll('.sqi').forEach(async el => {
-        const q = DB.squads.find(x => x.id == el.dataset.sid),
-          code = await squadInvite(q);
-        el.querySelector('[data-code]').value = code;
-        el.querySelector('[data-cp]').onclick = () => copy(code);
+        try {
+          const q = DB.squads.find(x => x.id == el.dataset.sid),
+            code = await squadInvite(q),
+            ta = el.querySelector('[data-code]'),
+            cp = el.querySelector('[data-cp]');
+          if (ta) ta.value = code; // the list may have been drawn again while the code was made
+          if (cp) cp.onclick = () => copy(code);
+        } catch (e) {
+          /* no code for this squadron: the box stays empty */
+        }
       });
     }
     const cn = $('#sqconn');

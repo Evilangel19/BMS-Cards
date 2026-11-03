@@ -1429,6 +1429,13 @@ export function createDtcPage(deps) {
 
   // ---- drawing ---------------------------------------------------------------------------------
   function drawNav() {
+    const have = [...nav.querySelectorAll('button')];
+    if (have.length === SECTIONS.length && have.every((b, i) => b.dataset.k === SECTIONS[i][0])) {
+      // the buttons are already there: only the highlighted one changes, in place, so its colours change smoothly
+      have.forEach(b => b.classList.toggle('on', b.dataset.k == cur));
+      dots();
+      return;
+    }
     nav.innerHTML = SECTIONS.map(
       ([k, t]) => `<button type="button" data-k="${k}" class="${k == cur ? 'on' : ''}">${t}<i></i></button>`
     ).join('');

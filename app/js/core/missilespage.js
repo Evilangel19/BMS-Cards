@@ -126,6 +126,25 @@ export function createMissilesPage(deps) {
         : null;
     });
     t.open = [0, 1, 2, 3].map(i => arr(t.open)[i] === true);
+    // the HARM card (the Weapons page keeps it) and what the two pages share
+    const h = st.harm && typeof st.harm == 'object' ? st.harm : {},
+      mp = st.map && typeof st.map == 'object' ? st.map : {};
+    st.harm = {
+      mode: ['pos', 'has', 'had'].includes(h.mode) ? h.mode : 'pos',
+      sub: ['EOM', 'PB', 'RUK'].includes(h.sub) ? h.sub : 'EOM',
+      iso: h.iso == 1 ? 1 : 0,
+      gi: h.gi == 1 ? 1 : 0,
+      msl: typeof h.msl == 'string' ? h.msl : 'AGM-88',
+      heading: num(h.heading, 1, 360, 360),
+      alt: num(h.alt, 1000, 55000, 25000),
+      speed: num(h.speed, 250, 750, 450),
+      shotPct: num(h.shotPct, 20, 100, 90),
+      offNose: num(h.offNose, -180, 180, 0),
+      tgtAlt: num(h.tgtAlt, 0, 55000, 0),
+    };
+    st.em = typeof st.em == 'string' ? st.em : null;
+    st.map = { on: mp.on !== false, op: num(mp.op, 0, 100, 80) };
+    if (!modes.some(m => m[0] === st.mode)) st.mode = modes[0][0];
     const kt = b.u == 'kt';
     if (typeof b.msl != 'string') b.msl = 'AIM-120B';
     b.alt = num(b.alt, 1000, 55000, 25000);
@@ -466,7 +485,7 @@ export function createMissilesPage(deps) {
     const same = tlSame();
     const rows = R.map((r, i) =>
       r
-        ? `<tr data-tlsel="${i}" style="cursor:pointer${i === sel ? ';font-weight:700;color:#ffe680' : ''}" title="${esc(r.src + ' · ' + r.cat + (st.tl.en[i] ? ' · enemy at ' + fmt(r.en.alt) + ' ft, Mach ' + r.en.mach.toFixed(2) : ''))} — click to draw the scheme"><td>${esc(r.cls)}</td><td>${f1(r.mtr)}</td><td>${f1(r.tr)}</td><td>${f1(r.dor)}</td><td>${f1(r.dr)}</td><td>${f1(r.mar)}</td><td>${f1(r.stern)}</td><td>${f1(r.fr)}</td><td style="text-align:left">${r.msl ? esc(mslName(r.msl)) + (r.picked ? ' ★' : '') : 'Threat Guide'}</td></tr>`
+        ? `<tr data-tlsel="${i}"${i === sel ? ' class="sel"' : ''} title="${esc(r.src + ' · ' + r.cat + (st.tl.en[i] ? ' · enemy at ' + fmt(r.en.alt) + ' ft, Mach ' + r.en.mach.toFixed(2) : ''))} — click to draw the scheme"><td>${esc(r.cls)}</td><td>${f1(r.mtr)}</td><td>${f1(r.tr)}</td><td>${f1(r.dor)}</td><td>${f1(r.dr)}</td><td>${f1(r.mar)}</td><td>${f1(r.stern)}</td><td>${f1(r.fr)}</td><td style="text-align:left">${r.msl ? esc(mslName(r.msl)) + (r.picked ? ' ★' : '') : 'Threat Guide'}</td></tr>`
         : ''
     ).join('');
     return `<table class="wtl" style="border-spacing:8px 2px;border-collapse:separate"><tr><th>Class</th><th>MTR</th><th>TR</th><th>DOR</th><th>DR</th><th>MAR</th><th>STERN</th><th>FR</th><th style="text-align:left">Missile</th></tr>${rows}</table><div class="wrow"><button type="button" class="btn${same ? ' nil' : ''}" data-tlfill${same ? ' disabled title="The datacard already holds this table: change a class, the missile or the conditions first."' : ''}>Fill datacard</button></div>`;
@@ -518,10 +537,10 @@ export function createMissilesPage(deps) {
     st.tl.en[i]
       ? `<span>Its own altitude and speed</span><button type="button" class="btn g" data-tllike="${i}" title="The enemy flies like you again">Like you</button>`
       : '<span>Flies like you: change a value to give it its own</span>';
-  // the altitude and speed of the enemy of a row (like yours until you change them)
+  // the altitude and speed of the enemy of a row (like yours until you change them): always in the page, the "open" class opens it smoothly and closes it (nothing in it can be reached with Tab while it is closed)
   function enBlock(i) {
     const e = tlEff(i);
-    return `<div class="wen" data-i="${i}"><div class="wenh">${enHead(i)}</div>${tctl(`en.${i}.alt`, 'alt', e.alt)}${tctl(`en.${i}.spd`, 'spd', e.spd)}</div>`;
+    return `<div class="wen${st.tl.open[i] ? ' open' : ''}" data-i="${i}"><div class="weni"><div class="wenh">${enHead(i)}</div>${tctl(`en.${i}.alt`, 'alt', e.alt)}${tctl(`en.${i}.spd`, 'spd', e.spd)}</div></div>`;
   }
   // the left card: the table, the classes in a column (each with its missile menu and, under its arrow, its altitude and speed) and your conditions
   function tlCard() {
@@ -531,9 +550,9 @@ export function createMissilesPage(deps) {
         const o = t.en[i],
           open = t.open[i],
           ex = c
-            ? `<button type="button" class="wex${open ? ' on' : ''}${o ? ' ov' : ''}" data-tlopen="${i}" title="${exTitle(i)}">${open ? '▾' : '▸'}</button>`
+            ? `<button type="button" class="wex${open ? ' on' : ''}${o ? ' ov' : ''}" data-tlopen="${i}" aria-expanded="${!!open}" title="${exTitle(i)}"><span>▸</span></button>`
             : '';
-        return `<div class="wrow"><div class="wlc"><label>Class ${i + 1}</label>${ex}</div><select data-tl="cls.${i}"><option value="">—</option>${CLASSES.map(x => `<option${x.n === c ? ' selected' : ''}>${esc(x.n)}</option>`).join('')}</select>${msMenu(c, i)}</div>${c && open ? enBlock(i) : ''}`;
+        return `<div class="wrow"><div class="wlc"><label>Class ${i + 1}</label>${ex}</div><select data-tl="cls.${i}"><option value="">—</option>${CLASSES.map(x => `<option${x.n === c ? ' selected' : ''}>${esc(x.n)}</option>`).join('')}</select>${msMenu(c, i)}</div>${c ? enBlock(i) : ''}`;
       })
       .join('');
     const you = ['alt', 'spd', 'tNotch', 'tRecommit'].map(k => tctl('std.' + k, k, t.std[k])).join('');
@@ -939,6 +958,25 @@ export function createMissilesPage(deps) {
     const sc = root.querySelector('#msch');
     if (sc) sc.innerHTML = schemeCard();
   }
+  // switches and segmented buttons that are drawn again with the page: they start as they were and move to their new state, so their transition is seen
+  // (the CSS does the rest: it is off with Settings > Animations and with the system "reduce motion")
+  function flip(els, was, now) {
+    els.forEach(b => b.classList.toggle('on', was(b)));
+    void document.body.offsetWidth; // the old look is on the screen before the new one is set
+    els.forEach(b => b.classList.toggle('on', now(b)));
+  }
+  // another row of the table chosen: the yellow mark moves in place (the colour changes smoothly) and the drawing of that class fades in
+  function tlSelect(root, i) {
+    if (i === tlData().sel) return;
+    st.tl.sel = i;
+    save();
+    root.querySelectorAll('tr[data-tlsel]').forEach(r => r.classList.toggle('sel', +r.dataset.tlsel === i));
+    const sc = root.querySelector('#msch');
+    if (sc) {
+      sc.innerHTML = schemeCard();
+      if (sc.firstElementChild) sc.firstElementChild.classList.add('fx');
+    }
+  }
   // the unit of the speeds of a card changes: every speed is converted at its own altitude, so it stays the same speed
   function setUnit(w, u) {
     if (u != 'kt' && u != 'mach') return;
@@ -1005,30 +1043,49 @@ export function createMissilesPage(deps) {
         const c = e.target.closest ? s => e.target.closest(s) : () => null;
         const q = c('[data-tlsel]');
         if (q) {
-          st.tl.sel = +q.dataset.tlsel;
-          save();
-          draw(true);
+          tlSelect(root, +q.dataset.tlsel);
           return;
         }
         const u = c('[data-unit]');
         if (u) {
-          setUnit(u.dataset.unit, u.dataset.v);
+          const w = u.dataset.unit,
+            was = w == 'bvr' ? bvrU() : tlU();
+          setUnit(w, u.dataset.v);
           save();
           draw(false);
+          flip(
+            [...root.querySelectorAll(`[data-unit="${w}"]`)],
+            b => b.dataset.v == was,
+            b => b.dataset.v == u.dataset.v
+          );
           return;
         }
         if (c('[data-sliders]')) {
-          st.sliders = sliders() ? 0 : 1;
+          const was = sliders();
+          st.sliders = was ? 0 : 1;
           save();
           draw(false);
+          // the cards were drawn again with the sliders or the number boxes: the switch slides, the cards fade in
+          flip(
+            [...root.querySelectorAll('[data-sliders]')],
+            () => !!was,
+            () => !!sliders()
+          );
+          root.querySelectorAll('#mstl, .wpl > .wcard').forEach(x => x.classList.add('fx'));
           return;
         }
         const o = c('[data-tlopen]');
         if (o) {
-          const i = +o.dataset.tlopen;
+          const i = +o.dataset.tlopen,
+            w = root.querySelector(`.wen[data-i="${i}"]`);
           st.tl.open[i] = !st.tl.open[i];
           save();
-          draw(true);
+          if (w) {
+            // in place: the arrow turns and the block opens or closes smoothly
+            w.classList.toggle('open', !!st.tl.open[i]);
+            o.classList.toggle('on', !!st.tl.open[i]);
+            o.setAttribute('aria-expanded', String(!!st.tl.open[i]));
+          } else draw(true);
           return;
         }
         const l = c('[data-tllike]');
@@ -1198,9 +1255,10 @@ export function createMissilesPage(deps) {
         st = {
           ...st,
           ...o,
+          harm: { ...st.harm, ...(o.harm && typeof o.harm == 'object' ? o.harm : {}) },
           bvr: mergeBvr(st.bvr, o.bvr),
           tl: mergeTl(st.tl, o.tl),
-          map: { ...st.map, ...o.map },
+          map: { ...st.map, ...(o.map && typeof o.map == 'object' ? o.map : {}) },
           mode: deps.only || o.mode || st.mode,
         };
         norm();

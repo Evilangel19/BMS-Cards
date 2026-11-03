@@ -52,8 +52,19 @@ docs/              this file, ROADMAP.md, archive/
 ## Conventions
 
 - Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
-- Animations use the Web Animations API through small helpers; `.noanim` (reduced motion) switches them off; tests run with reduced motion unless they test an animation.
+- Animations: see the rule below. Tests run with reduced motion unless they test an animation.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
+
+## Animations (rule: always)
+
+Every function or button that is added comes with its animation, in the same change; a feature without it is not finished.
+
+- **Buttons and fields**: a hover and a press change that is animated. `.btn`, `.seg button`, `.tab`, `.dsw`, `.wex`, `.nst button` already have 0.15 s transitions and a press (`:active`, `scale(.97)`); a new kind of button copies them. Text fields and selects get the border and ring transition from `style-01.css` (written with `:where()`, so a field with its own look keeps it). A clickable row lights up under the pointer.
+- **Appearing**: a menu, panel or pop-up shown with `display`, `hidden` or the `hide` class fades in by itself (`app/js/app/appear.js`), and so does whatever is added straight to `<body>` and the content under a `.wtabs` bar when another tab is chosen. An element shown by a class of an ancestor (`body.onwp ...`) has `animation: appear .15s ease-out` in CSS (`appear` has only the `from` step, so a dimmed button ends dimmed). Folding: `expand()` / `collapse()` (`app/js/app/base.js`) or, in CSS only, `grid-template-rows: 0fr` to `1fr` (the enemy block `.wen` of the BVR timeline: closed it is `visibility: hidden`, so Tab cannot reach it).
+- **Changing**: change a class on the same element, so the CSS transition has a "before"; an element that is drawn again has none (the yellow row of the BVR table, the highlight of the Data Cartridge menu, the arrow that turns). A glyph that turns is one glyph in a `span`, rotated by a class. When a page has to be drawn again anyway (the Sliders switch and the kt | Mach buttons of the BVR page), the new switch is put back in its old state, a style flush is forced (`void el.offsetWidth`) and then the new state is set, so the transition still runs (`flip()` in `core/missilespage.js`).
+- **Not everywhere**: results that a slider redraws many times a second are not faded (they would blink: the MSA bands and labels of the map, the BVR table and drawing while a slider moves). Fade what appears because of a deliberate choice (a page tab, another row, a hovered airbase).
+- **Off switches**: `.noanim` (Settings > Animations) and `prefers-reduced-motion` stop every CSS transition and animation (`style-08.css`), so write the animation in CSS whenever possible: it obeys them without code. A script animation (Web Animations API) asks `animOn()` first.
+- **Test**: `tools/animations-test.py` visits every tab and the Settings window and fails when a visible button, tab, select, link or text field has no transition; it also checks the animations above and both off switches. Add the check of a new animation there.
 
 ## Squadron (online)
 

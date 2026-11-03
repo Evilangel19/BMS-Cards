@@ -377,6 +377,7 @@
   background: #1a212b;
   color: var(--tx);
   border-color: var(--line);
+  transition: background-color 0.15s;
 }
 #mp .leaflet-bar a:hover {
   background: #2a3441;

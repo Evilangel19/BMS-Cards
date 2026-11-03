@@ -721,6 +721,9 @@ canvas {
   background: none;
   border: 0;
 }
+.msas.fxh > * {
+  animation: appear 0.15s ease-out; /* the symbol of the airbase under the mouse (the bands and labels of the route are drawn again while the opacity slider moves: no fade there) */
+}
 .msal span,
 .msae span {
   position: absolute;

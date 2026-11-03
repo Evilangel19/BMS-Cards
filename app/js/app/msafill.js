@@ -35,10 +35,16 @@ export function msaOfFlight(f) {
   if (!ROUTES.has(key))
     ROUTES.set(
       key,
-      busyWrap('Reading the terrain for the MSA…', routeMsa(elev, r, { cache: cells() })).then(v => {
-        if (!v) ROUTES.delete(key); // no terrain data (yet): asked again next time
-        return v;
-      })
+      busyWrap('Reading the terrain for the MSA…', routeMsa(elev, r, { cache: cells() })).then(
+        v => {
+          if (!v) ROUTES.delete(key); // no terrain data (yet): asked again next time
+          return v;
+        },
+        () => {
+          ROUTES.delete(key); // the file could not be read: nothing is kept, it is asked again next time
+          return null;
+        }
+      )
     );
   return ROUTES.get(key);
 }
@@ -49,10 +55,16 @@ export function msaOfBase(x, y) {
     const p = { n: y * FT_KM, e: x * FT_KM };
     BASES.set(
       key,
-      baseMsa(elev, p, 0, { cache: cells() }).then(v => {
-        if (!v) BASES.delete(key);
-        return v;
-      })
+      baseMsa(elev, p, 0, { cache: cells() }).then(
+        v => {
+          if (!v) BASES.delete(key);
+          return v;
+        },
+        () => {
+          BASES.delete(key);
+          return null;
+        }
+      )
     );
   }
   return BASES.get(key);

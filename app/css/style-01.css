@@ -7,6 +7,26 @@
 .wtl th {
   white-space: nowrap;
 }
+/* the rows of a timeline table can be clicked: they light up under the pointer, the selected one is yellow (the class is moved in place, so the colour changes smoothly) */
+.wtl tr[data-tlsel] {
+  cursor: pointer;
+  transition: color 0.15s; /* the cells inherit the colour of the row */
+}
+.wtl tr[data-tlsel] td {
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+.wtl tr[data-tlsel]:hover td {
+  background: #ffffff0d;
+  box-shadow:
+    -4px 0 0 #ffffff0d,
+    4px 0 0 #ffffff0d; /* fills the space between the cells: one bar for the row */
+}
+.wtl tr.sel {
+  font-weight: 700;
+  color: #ffe680;
+}
 #msr svg.wpp {
   max-width: 520px;
 }
@@ -158,6 +178,66 @@ textarea {
   padding: 5px 7px;
   font: inherit;
   width: 100%;
+}
+/* fields: the border and the ring follow hover and focus (short; off with Settings > Animations). :where() keeps the weight low: a field with its own look or transition keeps it */
+:where(
+  input:is(
+    :not([type]),
+    [type='text'],
+    [type='number'],
+    [type='search'],
+    [type='date'],
+    [type='time'],
+    [type='password'],
+    [type='email'],
+    [type='url'],
+    [type='tel']
+  ),
+  select,
+  textarea
+) {
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+:where(
+    input:is(
+      :not([type]),
+      [type='text'],
+      [type='number'],
+      [type='search'],
+      [type='date'],
+      [type='time'],
+      [type='password'],
+      [type='email'],
+      [type='url'],
+      [type='tel']
+    ),
+    select,
+    textarea
+  ):not(:disabled):hover {
+  border-color: #3b4859;
+}
+:where(
+    input:is(
+      :not([type]),
+      [type='text'],
+      [type='number'],
+      [type='search'],
+      [type='date'],
+      [type='time'],
+      [type='password'],
+      [type='email'],
+      [type='url'],
+      [type='tel']
+    ),
+    select,
+    textarea
+  ):not(:disabled):focus {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 2px #4cc38a2e;
+  outline: none;
 }
 .bar {
   display: flex;

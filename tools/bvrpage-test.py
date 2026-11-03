@@ -33,7 +33,7 @@ try:
         # ---- the cards: title, unit and Sliders switch
         check('Shot card is called "Your shot" and the MAR tile "Enemy MAR at 450 kt"', pg.locator('#ms .wpl h3').first.text_content().startswith('Your shot') and pg.locator('#ms #msr .tile span').nth(1).text_content() == 'Enemy MAR at 450 kt')
         check('timeline card: kt | Mach (Mach on) and the Sliders switch (on); Shot card: kt | Mach (kt on) and the same switch', pg.locator('#mstl [data-unit=tl]').all_inner_texts() == ['kt', 'Mach'] and pg.locator('#mstl [data-unit=tl].on').all_inner_texts() == ['Mach'] and pg.locator('#mstl .dsw.on').count() == 1 and pg.locator('#ms .wpl [data-unit=bvr]').all_inner_texts() == ['kt', 'Mach'] and pg.locator('#ms .wpl [data-unit=bvr].on').all_inner_texts() == ['kt'] and pg.locator('#ms .wpl .dsw.on').count() == 1)
-        check('the default page is as it was: sliders, Mach in the timeline, 450 kt in the shot, and no enemy block open', pg.locator('#mstl input[type=range]').count() == 4 and pg.locator('#ms .wpl input[type=range]').count() == 6 and pg.locator('#mstl .wen').count() == 0 and pg.locator('#mstl em[data-tle="std.spd"]').inner_text() == 'Mach 0.90')
+        check('the default page is as it was: sliders, Mach in the timeline, 450 kt in the shot, and no enemy block open', pg.locator('#mstl input[type=range]:visible').count() == 4 and pg.locator('#ms .wpl input[type=range]').count() == 6 and pg.locator('#mstl .wen.open').count() == 0 and pg.locator('#mstl em[data-tle="std.spd"]').inner_text() == 'Mach 0.90')
         cls = pg.locator('#mstl select[data-tl="cls.0"] option').all_inner_texts()
         check('class list: J-15 and Su-39 are there', 'J-15' in cls and 'Su-39' in cls)
         # ---- missile menus: one for each row, names as the pilots say them
@@ -66,11 +66,11 @@ try:
 
         # ---- the altitude and speed of each enemy
         pg.click('#mstl [data-tlopen="0"]'); pg.wait_for_timeout(200)
-        check('the arrow of a row opens its altitude and speed: they start as yours', pg.locator('#mstl .wen').count() == 1 and pg.locator('#mstl input[data-tls="en.0.alt"]').input_value() == '25000' and pg.locator('#mstl input[data-tls="en.0.spd"]').input_value() == '0.9' and 'flies like you' in pg.locator('#mstl .wen').inner_text().lower())
+        check('the arrow of a row opens its altitude and speed: they start as yours', pg.locator('#mstl .wen.open').count() == 1 and pg.locator('#mstl input[data-tls="en.0.alt"]').input_value() == '25000' and pg.locator('#mstl input[data-tls="en.0.spd"]').input_value() == '0.9' and 'flies like you' in pg.locator('#mstl .wen.open').inner_text().lower())
         slide('#mstl input[data-tls="en.0.alt"]', 35000); slide('#mstl input[data-tls="en.0.spd"]', 1.2)
         r2 = rows()
         check('the enemy of row 1 at 35 000 ft and Mach 1.20: closure is your speed + its speed, only that row changes', near(r2[0]['en']['alt'], 35000, 0) and near(r2[0]['en']['mach'], 1.2, 0.001) and near(r2[0]['vc'], r2[0]['me']['kt'] + r2[0]['en']['kt'], 1e-6) and r2[0]['vc'] > r0[0]['vc'] + 100 and r2[1:] == r0[1:])
-        check('the row says it: its arrow is marked, the block says "Its own altitude and speed" with a Like you button', pg.locator('#mstl .wex.ov').count() == 1 and pg.locator('#mstl [data-tllike="0"]').count() == 1 and 'own altitude and speed' in pg.locator('#mstl .wen').inner_text().lower())
+        check('the row says it: its arrow is marked, the block says "Its own altitude and speed" with a Like you button', pg.locator('#mstl .wex.ov').count() == 1 and pg.locator('#mstl [data-tllike="0"]').count() == 1 and 'own altitude and speed' in pg.locator('#mstl .wen.open').first.inner_text().lower())
         check('the scheme tells the conditions it is drawn for', re.search(r'enemy 35.000 ft, Mach 1\.20', pg.inner_text('#msch')) is not None and re.search(r'you 25.000 ft, Mach 0\.90', pg.inner_text('#msch')) is not None)
         check('the datacard asks the page for a class and gets the numbers of its row (the conditions of its enemy included)', near(pg.evaluate("()=>__app.msPage.calc('Su-27').vc"), r2[0]['vc'], 1e-6) and near(pg.evaluate("()=>__app.msPage.calc('J-20').vc"), 2 * r0[0]['me']['kt'], 1e-6))
         pg.click('#mstl [data-tlopen="1"]'); pg.wait_for_timeout(200)
@@ -83,7 +83,7 @@ try:
         pg.focus('#mstl input[data-tls="en.2.alt"]'); pg.keyboard.press('ArrowRight'); pg.wait_for_timeout(250)
         check('an enemy slider moved with the keyboard keeps the focus and its row is marked at once', pg.evaluate("()=>document.activeElement.dataset.tls") == 'en.2.alt' and state()['tl']['en'][2]['alt'] == 26000 and pg.locator('#mstl [data-tlopen="2"].ov').count() == 1 and pg.locator('#mstl [data-tllike="2"]').count() == 1)
         pg.click('#mstl [data-tllike="2"]'); pg.click('#mstl [data-tlopen="2"]'); pg.wait_for_timeout(250)
-        check('Like you and the arrow put the third row back as it was', rows() == r0 and pg.locator('#mstl .wen').count() == 2 and state()['tl']['en'] == [None] * 4)
+        check('Like you and the arrow put the third row back as it was', rows() == r0 and pg.locator('#mstl .wen.open').count() == 2 and state()['tl']['en'] == [None] * 4)
         slide('#mstl input[data-tls="en.0.alt"]', 30000)
         pg.select_option('#mstl select[data-tl="cls.0"]', 'J-15'); pg.wait_for_timeout(250)
         s1 = state()['tl']
@@ -132,6 +132,23 @@ try:
         s3 = state()
         check('a state from anybody: numbers in their ranges, four entries in each list, known classes only, one of the two units', s3['tl']['std'] == {'alt': 25000, 'spd': 0.9, 'tNotch': 15, 'tRecommit': 20} and s3['tl']['cls'] == [''] * 4 and s3['tl']['sel'] == 0 and s3['tl']['msl'] == [''] * 4 and s3['tl']['en'] == [{'alt': 25000, 'spd': 1}, None, None, None] and s3['tl']['open'] == [False] * 4 and s3['tl']['u'] == 'mach' and s3['bvr']['u'] == 'kt' and s3['bvr']['alt'] == 25000 and s3['bvr']['speed'] == 450 and s3['bvr']['tgtSpeed'] == 450 and s3['bvr']['aspect'] == 0 and s3['bvr']['shotPct'] == 20 and s3['bvr']['tgtSize'] == 'fighter' and s3['bvr']['msl'] == 'AIM-120B' and s3['sliders'] == 1)
         check('and nothing of it becomes markup: the page is drawn (empty rows) and no element comes out of the values', pg.locator('#pwn1, #pwn2, #pwn3').count() == 0 and pg.locator('#mstl select[data-tl^="cls."]').count() == 4 and not errs)
+        # the HARM card (the Weapons page keeps it) comes from the same kind of file: a partial state is completed, a hostile one becomes plain values
+        pg.evaluate("()=>__app.harmPage.setState({harm:{msl:'AGM-88',iso:1}})"); pg.wait_for_timeout(200)
+        h1 = json.loads(pg.evaluate("()=>JSON.stringify(__app.harmPage.state().harm)"))
+        check('HARM: a state that holds only some fields is completed with the defaults (the rest of the card is kept)', h1['iso'] == 1 and h1['mode'] == 'pos' and h1['sub'] == 'EOM' and h1['gi'] == 0 and h1['heading'] == 360 and h1['alt'] == 25000 and h1['shotPct'] == 90)
+        pg.evaluate("()=>__app.harmPage.setState({mode:'<u>',em:{},map:{on:'x',op:'<b>'},harm:{mode:'<img src=x id=pwn4>',sub:5,iso:'x',gi:{},msl:7,heading:'<i>',alt:Infinity,speed:-9,tgtAlt:'9e99',shotPct:null,offNose:NaN}})"); pg.wait_for_timeout(200)
+        h2 = json.loads(pg.evaluate("()=>JSON.stringify(__app.harmPage.state())"))
+        check('HARM: a state from anybody: known values only, a number outside its slider goes to the nearest end (speed -9 -> 250), a word to the default', h2['harm'] == {'mode': 'pos', 'sub': 'EOM', 'iso': 0, 'gi': 0, 'msl': 'AGM-88', 'heading': 360, 'alt': 25000, 'speed': 250, 'shotPct': 90, 'offNose': 0, 'tgtAlt': 0} and h2['em'] is None and h2['map'] == {'on': True, 'op': 80} and h2['mode'] == 'harm')
+        pg.click('button.tab[data-t=wp]'); pg.wait_for_timeout(700)
+        pg.evaluate("()=>{const b=[...document.querySelectorAll('#wp .wtabs button')].find(x=>/HARM/i.test(x.textContent));b&&b.click()}"); pg.wait_for_timeout(500)
+        check('HARM: and the Weapons page draws it with no markup from the values and no error', pg.locator('#pwn4').count() == 0 and pg.locator('#wp [data-set="mode"]').count() == 3 and not errs)
+        # the Weapons page: the page of a mission from an older version holds fewer fields; they take the defaults, the parts that are not in the file stay
+        pg.evaluate("()=>__app.wpPage.setState({mode:'toss',inp:{diveAngle:30,heading:0},toss:{releaseAngle:'<img src=x id=pwn5>',ingressSpeed:Infinity,angleOff:12},hadb:'zz',mat:{on:1},fz:{c1ad1:'x'},map:{op:50},stpt:7})"); pg.wait_for_timeout(400)
+        w = json.loads(pg.evaluate("()=>JSON.stringify(__app.wpPage.state())"))
+        check('Weapons: a state with only some fields is completed with the defaults (diveAngle 30 kept, the others default, heading 0 -> 360)', w['mode'] == 'toss' and w['inp']['diveAngle'] == 30 and w['inp']['releaseAltitude'] == 2000 and w['inp']['egressHeading'] == 360 and w['inp']['heading'] == 360 and w['mat']['on'] == 1 and isinstance(w['mat']['samMax'], (int, float)) and w['map'] == {'on': True, 'op': 50} and w['stpt'] == 7)
+        check('Weapons: odd values become the defaults, a field of the right kind is kept, the part that is not an object stays as it was', w['toss']['releaseAngle'] == 23 and w['toss']['ingressSpeed'] == 500 and w['toss']['angleOff'] == 12 and w['fz']['c1ad1'] == 4 and w['hadb']['diveAngle'] == 30)
+        pg.evaluate("()=>__app.wpPage.setState({mode:'<u>'})"); pg.wait_for_timeout(200)
+        check('Weapons: an unknown mode is ignored, the page draws with no markup from the values and no error', json.loads(pg.evaluate("()=>JSON.stringify(__app.wpPage.state().mode)")) == 'toss' and pg.locator('#pwn5').count() == 0 and not errs)
         check('no page errors', not errs); print(errs)
         br.close()
 finally:

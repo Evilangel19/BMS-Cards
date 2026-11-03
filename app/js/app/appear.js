@@ -19,6 +19,23 @@ const fade = el => {
 };
 
 export function initAppear() {
+  // page tabs (.wtabs): the pages draw the chosen tab from scratch, so what stands under the bar fades in (the bar stays). The click is seen before the page reacts
+  // (capture), the bar is found again after it, even when the page drew it anew. Content that brings its own animation, or holds a map, is left alone by fade().
+  document.addEventListener(
+    'click',
+    e => {
+      const b = e.target.closest && e.target.closest('.wtabs button');
+      if (!b || b.disabled || b.classList.contains('on')) return;
+      const bar = b.closest('.wtabs'),
+        id = bar.id,
+        k = [...document.querySelectorAll('.wtabs')].indexOf(bar);
+      setTimeout(() => {
+        const now = (id && document.getElementById(id)) || document.querySelectorAll('.wtabs')[k];
+        for (let x = now && now.nextElementSibling; x; x = x.nextElementSibling) fade(x);
+      }, 0);
+    },
+    true
+  );
   new MutationObserver(list => {
     for (const m of list) {
       if (m.type == 'childList') {
