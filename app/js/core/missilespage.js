@@ -6,6 +6,8 @@ import { bvrShot, harmShot, marShot, HARM_SUB, NM } from './airmissile.js';
 import { bearing, project } from './popup.js';
 
 const FT_KM = 3280.84;
+// surface-to-air missiles (they have a radar seeker too) and the inert training rounds are not air-to-air shots
+const GROUND = /^(SA-|Patriot$|Hawk$|Nike$|CrotaleNG$|RIM-|CATM|UNUSED)/i;
 const MODES = [
   ['harm', 'HARM'],
   ['bvr', 'BVR / MAR'],
@@ -98,6 +100,7 @@ export function createMissilesPage(deps) {
           !/unused/i.test(k) &&
           !/unused/i.test(DB[k].title || '') &&
           DB[k].range &&
+          (kind == 'harm' || !GROUND.test(k)) &&
           (kind == 'harm' ? DB[k].params.seekerType === 2 : [1, 6].includes(DB[k].params.seekerType))
       )
       .sort();
