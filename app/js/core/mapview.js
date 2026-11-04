@@ -40,7 +40,8 @@ import {
   crossesRoute,
   theaterBounds,
 } from './mapdata.js';
-import { warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame } from './mapwarp.js';
+import { warpImageAsync } from './mapwarp.js';
+import { createSkyLayer } from './skylayer.js';
 import { unitSymbol, placeIcon } from './mapsymbols.js';
 import { msaSymbol } from './msamap.js';
 import { teamName } from './ato.js';
@@ -1639,10 +1640,20 @@ export function createMap(host, deps) {
   // decoded off the main thread and cut into tiles on demand at full resolution, so the program stays usable while it loads.
   async function pictureOverlay(key) {
     if (OVC[key]) return OVC[key];
-    const L = window.L;
+    const L = window.L,
+      O = OVC; // the pictures of the theater that was shown when this started: a theater change meanwhile must not get a layer of the old one
     let url = BMS_MAP_URL,
       obj = null;
-    if (key == 'sky') return (OVC.sky = await skyLayer());
+    if (key == 'sky') {
+      // one preparation at a time: asking again while the picture is being prepared waits for the same layer (it would be decoded twice otherwise)
+      O.skyP =
+        O.skyP ||
+        skyLayer().catch(e => {
+          O.skyP = null;
+          throw e;
+        });
+      return (O.sky = await O.skyP);
+    }
     const img = new Image();
     if (key == 'img') {
       let b = OVC.imgBlob;
@@ -1676,139 +1687,13 @@ export function createMap(host, deps) {
     LUM[key] = lumOf(w.canvas);
     return (OVC[key] = new L.CanvasOverlay(w.canvas, w.bounds, { interactive: false, opacity: 1, pane: 'tilePane' }));
   }
+  // The picture of the BMS folder: the layer (core/skylayer.js) takes the file's name and size and reads it only when it has to be decoded, which is the first time.
   async function skyLayer() {
-    const L = window.L;
-    if (!deps.localMap) throw new Error('Not available here.');
-    const blob = await deps.localMap(),
-      sig = 'sky' + (blob.name || '') + blob.size; // the picture of another theater is never taken for this one
-    let bmp = null,
-      sm = null,
-      sw = 0,
-      sh = 0;
-    const decode = async () => {
-      try {
-        return await createImageBitmap(blob);
-      } catch (e) {
-        try {
-          return await createImageBitmap(blob, { resizeWidth: 8192, resizeQuality: 'high' });
-        } catch (e2) {
-          throw new Error('The picture could not be read (is it a PNG / JPG, and is there enough memory?).');
-        }
-      }
-    };
-    // the reduced copy (4096 px) is kept in the database: the next start shows the map at once, the big picture is only decoded when someone zooms in
-    try {
-      const c = await idb.get('skysm');
-      if (c && c.sig == sig && c.blob) {
-        const r = await createImageBitmap(c.blob);
-        sm = document.createElement('canvas');
-        sm.width = r.width;
-        sm.height = r.height;
-        sm.getContext('2d').drawImage(r, 0, 0);
-        sw = c.sw;
-        sh = c.sh;
-      }
-    } catch (e) {
-      sm = null;
-    }
-    if (!sm) {
-      note('Decoding the picture…', -1);
-      bmp = await decode();
-      sw = bmp.width;
-      sh = bmp.height;
-      const k = 4096 / sw;
-      sm = document.createElement('canvas');
-      sm.width = 4096;
-      sm.height = Math.round(sh * k);
-      const x = sm.getContext('2d');
-      x.imageSmoothingQuality = 'high';
-      x.drawImage(bmp, 0, 0, sm.width, sm.height); // reduced copy for the zoomed-out levels
-      sm.toBlob(
-        async jb => {
-          try {
-            if (jb) await idb.put('skysm', { sig, blob: jb, sw, sh });
-          } catch (e) {
-            /* not kept */
-          }
-        },
-        'image/jpeg',
-        0.92
-      );
-    }
-    LUM.sky = lumOf(sm);
-    let full = null,
-      fullBusy = false,
-      lay = null;
-    const needFull = async () => {
-      // blocks for the deep zoom levels, prepared in the background the first time they are needed
-      if (full || fullBusy) return;
-      fullBusy = true;
-      try {
-        if (!bmp) bmp = await decode();
-        full = await blockSource(bmp, 2048, p => note('Preparing the detail for the closest zoom levels…', p));
-        note('');
-        if (lay) lay.redraw();
-      } catch (e) {
-        note(e.message);
-      } finally {
-        fullBusy = false;
-      }
-    };
-    if (bmp) needFull(); // just decoded: continue with the blocks right away
-    const bounds = warpFrame(BMS_EXTENT, sw, sh, 4096).bounds,
-      queue = [];
-    let busy = false;
-    const pump = () => {
-      // tiles are drawn a few milliseconds per frame, newest first, so panning and zooming stay smooth
-      const t0 = performance.now();
-      while (queue.length && performance.now() - t0 < 8) {
-        const j = queue.pop();
-        if (j.cv._dead) {
-          j.done(null, j.cv);
-          continue;
-        }
-        try {
-          if (j.z <= 9) pictureTile(j.cv, sm, sm.width, sm.height, BMS_EXTENT, j.z, j.x, j.y);
-          else if (full) pictureTile(j.cv, full, sw, sh, BMS_EXTENT, j.z, j.x, j.y);
-          else {
-            needFull();
-            pictureTile(j.cv, sm, sm.width, sm.height, BMS_EXTENT, j.z, j.x, j.y);
-          }
-        } catch (e) {
-          /* blank tile */
-        }
-        j.done(null, j.cv);
-      }
-      if (queue.length) requestAnimationFrame(pump);
-      else busy = false;
-    };
-    const Lay = L.GridLayer.extend({
-      createTile(c, done) {
-        const cv = document.createElement('canvas');
-        cv.width = cv.height = 256;
-        queue.push({ cv, done, z: c.z, x: c.x, y: c.y });
-        if (!busy) {
-          busy = true;
-          requestAnimationFrame(pump);
-        }
-        return cv;
-      },
-    });
-    lay = new Lay({
-      pane: 'tilePane',
-      tileSize: 256,
-      minZoom: 5,
-      maxZoom: 18,
-      maxNativeZoom: 13,
-      bounds: L.latLngBounds(bounds),
-      updateWhenIdle: true,
-      updateWhenZooming: false,
-      keepBuffer: 1,
-    });
-    lay.on('tileunload', e => {
-      e.tile._dead = true;
-    });
-    return lay;
+    if (!deps.localMapInfo && !deps.localMap) throw new Error('Not available here.');
+    const info = deps.localMapInfo
+      ? await deps.localMapInfo()
+      : await deps.localMap().then(f => ({ name: f.name, size: f.size, read: async () => f }));
+    return createSkyLayer({ L: window.L, info, db: idb, note, onSmall: sm => (LUM.sky = lumOf(sm)) });
   }
   // average brightness (0-1) of a picture; null when the pixels cannot be read (cross-origin picture)
   function lumOf(cv) {
@@ -4431,6 +4316,13 @@ export function createMap(host, deps) {
       }
     },
     theaterChanged: () => {
+      // the blocks of the old picture leave the memory (and a picture still being prepared is given up as soon as it is ready)
+      if (OVC.sky && OVC.sky._dispose) OVC.sky._dispose();
+      else if (OVC.skyP)
+        OVC.skyP.then(
+          l => l._dispose && l._dispose(),
+          () => {}
+        );
       OVC = { imgBlob: OVC.imgBlob };
       PREF.view = null;
       if (!map) return;

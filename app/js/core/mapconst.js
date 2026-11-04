@@ -184,15 +184,34 @@ export const store = {
     }
   },
 };
-// the imported picture is kept in the browser database (survives restarts)
+// the imported picture and the copies of the BMS folder picture are kept in the browser database (survives restarts). The connection is opened once and kept:
+// the 16K picture is read from it block by block, and opening the database for every block was a round trip each.
+let IDBP = null;
 export const idb = {
   open: () =>
-    new Promise((res, rej) => {
-      const r = indexedDB.open('bmscards', 1);
+    IDBP ||
+    (IDBP = new Promise((res, rej) => {
+      const r = indexedDB.open('bmscards', 1),
+        fail = e => {
+          IDBP = null; // the next call tries again
+          rej(e);
+        };
       r.onupgradeneeded = () => r.result.createObjectStore('blobs');
-      r.onsuccess = () => res(r.result);
-      r.onerror = () => rej(r.error);
-    }),
+      r.onsuccess = () => {
+        const d = r.result;
+        d.onversionchange = d.onclose = () => {
+          IDBP = null;
+          try {
+            d.close();
+          } catch (e) {
+            /* closed already */
+          }
+        };
+        res(d);
+      };
+      r.onerror = () => fail(r.error);
+      r.onblocked = () => fail(new Error('The database is in use.'));
+    })),
   async put(k, v) {
     const d = await idb.open();
     return new Promise((res, rej) => {

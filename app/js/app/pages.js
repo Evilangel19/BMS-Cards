@@ -7,19 +7,18 @@ import { createWeaponsPage } from '../core/weaponspage.js';
 import { createSquadronPage } from '../core/squadron.js';
 import {
   isDesktop,
-  readRange,
   loadPrefs,
   savePrefs,
   loadPrefsSafe,
   savePrefsSafe,
   beforeClose,
   readBytes,
+  fileSize,
   listDir,
   findFiles,
   join as joinPath,
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
 import { msaOfFlight, msaOfBase } from './msafill.js';
 import { dtcPoints } from '../core/mapdtc.js';
 import { targetLine } from '../core/targets.js';
@@ -37,7 +36,7 @@ export const nearName = (x, y) => {
 };
 import { ST } from './state.js';
 import { $, animOn, appToast, esc, jp } from './base.js';
-import { acFolder, misLoad, perfAcGet, terrain } from './gamefiles.js';
+import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
 import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
@@ -114,7 +113,7 @@ export async function init6() {
     getWx: () => ST.WX,
     elev: async pts => {
       const t = await terrain();
-      return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+      return t ? heightsOf(t, pts) : null;
     },
     getSel: () => ST.ATOSEL,
     msa: { route: msaOfFlight, base: msaOfBase },
@@ -133,7 +132,7 @@ export async function init6() {
       elev: async t => {
         try {
           const tr = await terrain();
-          const h = tr ? await heightsAt((o, l) => readRange(tr.path, o, l), tr.spec, [t]) : null;
+          const h = tr ? await heightsOf(tr, [t]) : null;
           return h && h[0] !== null && h[0] !== undefined ? h[0] : 0;
         } catch (e) {
           return 0;
@@ -157,8 +156,14 @@ export async function init6() {
     satCfg: () => ST.CFG.map,
     loadPrefs: () => loadPrefs('mapprefs.json'),
     savePrefs: o => savePrefs('mapprefs.json', o),
-    localMap: async () => {
-      if (window.__localMap) return window.__localMap();
+    // The picture of the BMS folder, found but not read: its name and size (they are all that is needed to know whether the copies kept in the database are still
+    // good) and read(), which gives the whole file, only called when the picture has to be decoded (the first time, or after a change of the file).
+    localMapInfo: async () => {
+      if (window.__localMapInfo) return window.__localMapInfo();
+      if (window.__localMap) {
+        const f = await window.__localMap();
+        return { name: f.name, size: f.size, read: async () => f };
+      }
       if (!isDesktop()) throw new Error('Only in the desktop app.');
       const d = ST.CFG.paths.bmsInstall;
       if (!d) throw new Error('Set the BMS folder in Settings first.');
@@ -185,9 +190,13 @@ export async function init6() {
         f = dir && (await listDir(dir)).find(e => !e.isDirectory && /^8_kto_16k_skyvector/i.test(e.name));
         if (!f) throw new Error('8_KTO_16k_Skyvector not found in Docs\\05 Maps of the BMS folder.');
       }
-      return new File([await readBytes(jp(dir, f.name))], f.name, {
-        type: /\.jpe?g$/i.test(f.name) ? 'image/jpeg' : 'image/png',
-      });
+      const path = jp(dir, f.name);
+      return {
+        name: f.name,
+        size: await fileSize(path),
+        read: async () =>
+          new File([await readBytes(path)], f.name, { type: /\.jpe?g$/i.test(f.name) ? 'image/jpeg' : 'image/png' }),
+      };
     },
     canSelect: f => {
       const e = ATOL.find(z => z.f === f);
@@ -287,7 +296,7 @@ export async function init9() {
     },
     elev: async pts => {
       const t = await terrain();
-      return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+      return t ? heightsOf(t, pts) : null;
     },
     root: $('wp'),
     esc,

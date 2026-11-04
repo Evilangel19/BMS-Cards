@@ -1,5 +1,5 @@
-import { isDesktop, fileSize, listDir, readBytes, findFiles } from '../platform/desktop.js';
-import { heightSpec, parseTheaterValues } from '../bmsdata/heightmap.js';
+import { isDesktop, fileSize, listDir, readBytes, readRange, readRanges, findFiles } from '../platform/desktop.js';
+import { heightSpec, parseTheaterValues, heightsAt, createRowCache } from '../bmsdata/heightmap.js';
 import { parseMisList, parseMissileDat, parseLoftTable } from '../bmsdata/missiledata.js';
 import { CAM } from '../core/cam-core.js';
 import { parseAcPerf } from '../bmsdata/acperf.js';
@@ -49,12 +49,19 @@ export async function terrain() {
       } catch (e) {}
     }
     const spec = heightSpec(vals, await fileSize(path), 1024);
-    if (spec) TERR = { path, spec };
+    if (spec) TERR = { path, spec, rows: createRowCache() };
   } catch (e) {
     TERR = null;
   }
   return TERR;
 }
+// Heights (feet) of points {n, e} (BMS feet) of the terrain t (what terrain() gives). A row of the file holding two or more of the points is read whole, several rows at a
+// time with the file opened once, and kept for the next question (the next flight, airbase or radar of the same ground); a lone point is a small read.
+export const heightsOf = (t, pts) =>
+  heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts, {
+    rows: t.rows,
+    readMany: sp => readRanges(t.path, sp),
+  });
 export let misMemo = null;
 export const misLoad = () =>
   misMemo ||

@@ -17,7 +17,7 @@ source, license and author (see "Third-party code included" below).
 
 Falcon BMS data (Falcon4_*.xml, CampObjData.xml, RadioMap.dat, Strings.txt, Ppt.ini, the aircraft and weapon data files, the ATC files, the AIP, theater files, ...) is read at run time from
 the user's own Falcon BMS installation and is NOT part of this program or of this repository: no table, aircraft file, missile file or AIP value is included. Without the BMS folder
-(Settings) the program has no game data and says so. The tests use private copies of such data and of campaign files that are kept out of the repository (see .gitignore).
+(Settings) the program has no game data and says so. The map picture of the BMS folder is, for speed, also kept in a cut-up form (a reduced copy and blocks) in the program's own database on the user's computer; it is a copy for the user's own use, never part of the program or of the repository, and it is not sent anywhere. The tests use private copies of such data and of campaign files that are kept out of the repository (see .gitignore).
 
 Third-party code included:
 - pdf.js 4.10.38 (Mozilla), Apache License 2.0 - app/vendor/pdfjs/ (unmodified build). Used to read the BMS AIP PDF from the

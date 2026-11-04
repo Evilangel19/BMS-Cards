@@ -243,6 +243,43 @@ export async function readRange(path, offset, len) {
     await f.close();
   }
 }
+// Several pieces of a (possibly huge) file, [[offset, length], ...]: the file is opened once for each of the `conc` readers that work side by side, not once for
+// every piece (open, seek, read and close are four exchanges with the program each). The pieces come back in the order asked; one that has nothing to read is null.
+export async function readRanges(path, spans, conc = 4) {
+  const out = new Array(spans.length).fill(null);
+  if (!spans.length) return out;
+  const fs = T().fs,
+    start = fs.SeekMode ? fs.SeekMode.Start : 0,
+    opened = await Promise.allSettled(
+      Array.from({ length: Math.min(conc, spans.length) }, () => fs.open(path, { read: true }))
+    ),
+    files = opened.filter(r => r.status === 'fulfilled').map(r => r.value);
+  let next = 0,
+    err = opened.find(r => r.status === 'rejected');
+  err = err && err.reason;
+  try {
+    await Promise.all(
+      files.map(async f => {
+        while (!err) {
+          const q = next++;
+          if (q >= spans.length) return;
+          try {
+            await f.seek(spans[q][0], start);
+            const buf = new Uint8Array(spans[q][1]),
+              n = await f.read(buf);
+            out[q] = n ? buf.subarray(0, n) : null;
+          } catch (e) {
+            err = err || e;
+          }
+        }
+      })
+    );
+  } finally {
+    await Promise.all(files.map(f => f.close().catch(() => {})));
+  }
+  if (err) throw err;
+  return out;
+}
 export async function fileSize(path) {
   return (await T().fs.stat(path)).size;
 }

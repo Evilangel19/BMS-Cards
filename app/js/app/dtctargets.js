@@ -1,9 +1,8 @@
 import { createTargetData } from '../core/targetdata.js';
 import { createDtcPage } from '../core/dtcpage.js';
 import { FT_KM, WT_N, dtcPoints, removePoint } from '../core/mapdtc.js';
-import { loadPrefs, savePrefs, readRange, isDesktop, readBytes } from '../platform/desktop.js';
+import { loadPrefs, savePrefs, isDesktop, readBytes } from '../platform/desktop.js';
 import { readTarget, targetLine } from '../core/targets.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
 import { openTargetPicker } from '../core/targetpicker.js';
 import {
   fmtLL as mFmtLL,
@@ -24,7 +23,7 @@ import { $, animOn, esc, jp } from './base.js';
 import { G, S, lines, stpts, view } from './dtcfile.js';
 import { DCS0, dcSync, dtcChanged, freqOwners } from './datacard.js';
 import { dtcBtns, dtcClear, dtcSet } from './dtcapply.js';
-import { terrain } from './gamefiles.js';
+import { terrain, heightsOf } from './gamefiles.js';
 import { mapV } from './pages.js';
 
 // Defaults of the Data Cartridge pages (MFD, EWS, Systems): a snapshot of their keys kept in the program folder and put back into any file with a button
@@ -81,7 +80,7 @@ export async function wtPut(t) {
   if (n < 0) return 'full';
   try {
     const tr = await terrain();
-    const h = tr ? await heightsAt((o, l) => readRange(tr.path, o, l), tr.spec, [t]) : null;
+    const h = tr ? await heightsOf(tr, [t]) : null;
     if (h && h[0] !== null && h[0] !== undefined) t.elv = h[0];
   } catch (e) {}
   S('STPT', 'wpntarget_' + n, targetLine(t, G('STPT', 'wpntarget_' + n, '')));
@@ -115,7 +114,7 @@ export async function wtAdd() {
   if (!t) return 'cancel';
   try {
     const tr = await terrain();
-    const h = tr ? await heightsAt((o, l) => readRange(tr.path, o, l), tr.spec, [t]) : null;
+    const h = tr ? await heightsOf(tr, [t]) : null;
     if (h && h[0] !== null && h[0] !== undefined) t.elv = h[0];
   } catch (e) {}
   S('STPT', 'wpntarget_' + n, targetLine(t, G('STPT', 'wpntarget_' + n, '')));
@@ -148,7 +147,7 @@ export async function init8() {
     },
     elev: async pts => {
       const t = await terrain();
-      return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+      return t ? heightsOf(t, pts) : null;
     },
     nav: $('dnav'),
     view: $('view'),

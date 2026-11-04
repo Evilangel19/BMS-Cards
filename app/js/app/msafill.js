@@ -1,19 +1,17 @@
 // MSA / ERAA of the selected flight (datacard, MDC, map) and of the airbases: the terrain comes from the HeightMap.raw of the BMS folder (gamefiles.js terrain()),
 // nothing is estimated: without it the cells stay empty. The results are kept per route / airbase, the terrain is read once.
 import { routeMsa, baseMsa } from '../core/msa.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
-import { readRange } from '../platform/desktop.js';
 import { flightRoute } from '../core/mapdata.js';
 import { FT_KM } from '../core/mapdtc.js';
 import { busyWrap } from '../core/busy.js';
-import { terrain } from './gamefiles.js';
+import { terrain, heightsOf } from './gamefiles.js';
 import { ST } from './state.js';
 import { F, FD } from './datacard.js';
 import { MFD, draw } from './cardview.js';
 
 async function elev0(pts) {
   const t = await terrain();
-  return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+  return t ? heightsOf(t, pts) : null;
 }
 export const MSA_IO = { elev: elev0 }; // (replaceable by the tests)
 const elev = pts => MSA_IO.elev(pts);

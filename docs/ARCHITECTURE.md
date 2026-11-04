@@ -20,7 +20,7 @@ Tauri v2 shell (`src-tauri/`, Rust: file access, folders, config) + a vanilla ES
 app/index.html     the page (HTML only); style sheets app/css/style-01..09.css (loaded in this order, the order matters)
 app/js/app/        the page's code: main.js (entry), state.js (ST: state shared by modules), pages.js, settings.js,
                    campaign.js, dtcfile.js, dtcapply.js, mission.js, kneeboard.js, datacard.js, expose.js (helper for tests) ...
-app/js/core/       the pages and their logic: mapview.js (+ mapconst, mapdata, mapdtc, mapoffs, mapsymbols, mapwarp),
+app/js/core/       the pages and their logic: mapview.js (+ mapconst, mapdata, mapdtc, mapoffs, mapsymbols, mapwarp, skylayer, skypic),
                    weaponspage.js, dtcpage.js, squadron.js (+ organization.js, orgpage.js, medals.js), missilespage.js, perfpage.js, weatherpage.js, docspage.js,
                    ato.js, flight.js, fillcard.js, cardlayout.js, dctemplate.js, dds.js, kneeboard.js, mission.js ...
 app/js/parsers/    cam, fmap, link16, iff, twx, dtc, lzss
@@ -54,6 +54,12 @@ docs/              this file, ROADMAP.md, archive/
 - Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
 - Animations: see the rule below. Tests run with reduced motion unless they test an animation.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
+
+## Big files (terrain, 16K map)
+
+- Every call of `platform/desktop.js` to the file system is an exchange with the Rust side (open, seek, read and close are four of them), so reads are grouped: `readRanges` opens a file once for several pieces read side by side; `heightsAt` (`bmsdata/heightmap.js`) reads the whole row of the height map (about 64 KB) when a row is asked for twice or more, and keeps it in `createRowCache` (64 MB, least recently used first; one for each terrain in `app/gamefiles.js`). Whatever needs heights of the terrain (MSA, radar coverage, DTC target heights, airbase elevations) asks `heightsOf(terrain, points)` of `app/gamefiles.js`, so the rows are shared. Test: `tests/run-heightmap.mjs`, `tools/terrain-test.py`.
+- The BMS folder picture (16K, 100+ MB) is not read at start: `deps.localMapInfo()` (`app/pages.js`) gives its name and size (together they are the signature of the saved copies) and `read()`, called only when the picture has to be decoded. `core/skylayer.js` is the map layer; `core/skypic.js` holds what does not need the browser (levels, `BlockStore`, `picDb`, `buildBlocks`, `reduceInSlices`, `TileCache`; `tests/run-skypic.mjs`). In the program's database (`idb` of `mapconst.js`, store `blobs`, keys `sky|<signature>|...`) are the reduced copy (4096 px) and the blocks of 2048 px; a picture of 12,288 px or more has two levels (the picture and its half), a smaller one only the picture; two pictures are kept at most, the least recently used goes with its blocks. The manifest is written first as unfinished and last as finished, so a picture that was not completed is cut again and its blocks can still be removed. The blocks are JPEG at quality 1: below 1 the browser keeps half of the colour resolution (4:2:0) and thin coloured lines of a chart are washed out (`tools/skypic-test.py` checks it), at 1 it keeps all of it.
+- A tile is drawn from the level whose pixels are still sharp for its zoom (`pickLevel`: the reduced copy down to zoom 9 on a 16K picture, the half level at 10, the picture from 11), from the blocks that are decoded (at most 384 MB, least recently used first; the others are read from the database and decoded when a tile needs them). A tile whose blocks are not there is drawn at once from the reduced copy and drawn again in place when they are; a part over two blocks is put together at 1:1 before it is drawn (drawn block by block it shows a faint line at the join). Tiles that leave the screen are kept for the way back (`TileCache`, 320). The mesh of a tile is `meshFor(zoom)` (error under 0.15 px). A block that is missing or cannot be decoded makes the program cut the blocks again, once. Test: `tools/mapcache-test.py` (the file is read once, never again; sharp tiles; a block gone; a full database), `tools/skypic-test.py`.
 
 ## Animations (rule: always)
 

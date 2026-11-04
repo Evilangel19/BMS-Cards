@@ -1,5 +1,4 @@
-import { loadPrefs, readBytes, readRange, savePrefs } from '../platform/desktop.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
+import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
@@ -11,7 +10,7 @@ import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
 import { pfPage } from './pages.js';
 import { wxAt, wxWind } from './campaign.js';
-import { perfAcGet, terrain } from './gamefiles.js';
+import { perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { markMan } from './selection.js';
 import { draw } from './cardview.js';
 import { lines } from './dtcfile.js';
@@ -129,9 +128,8 @@ export async function loadRunways(atc) {
         try {
           const tr = await terrain(),
             h = tr
-              ? await heightsAt(
-                  (off, len) => readRange(tr.path, off, len),
-                  tr.spec,
+              ? await heightsOf(
+                  tr,
                   need.map(o => ({ n: o.n, e: o.e }))
                 )
               : null;
