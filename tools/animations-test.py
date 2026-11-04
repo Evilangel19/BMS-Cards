@@ -52,8 +52,12 @@ try:
         seen = ev(CONTROLS); ev("()=>document.getElementById('zz').remove()")
         check('the check itself sees a button that was added without any transition', any('#zz' in x for x in seen))
         pg.click('#cfgbtn'); pg.wait_for_timeout(500)
-        b2 = ev(CONTROLS)
-        check('and the Settings window too %s' % (b2 or ''), not b2)
+        panels = ev("()=>[...document.querySelectorAll('#cfg .s-nv')].map(b=>b.dataset.p)")
+        b2 = {}
+        for t in panels:
+            pg.click('#nv-' + t); pg.wait_for_timeout(300)
+            for s in ev(CONTROLS): b2.setdefault(s, []).append(t)
+        check('and the Settings window too, on each of its pages %s' % (b2 or ''), not b2 and len(panels) == 7)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
         if pg.locator('dialog[open]').count(): pg.evaluate("()=>document.querySelectorAll('dialog[open]').forEach(d=>d.close())")
         check('a field shows hover and focus with a short change of its border', ev("()=>{const e=document.querySelector('input[type=text],input:not([type])');const s=getComputedStyle(e);return s.transitionProperty.includes('border-color')&&s.transitionDuration.split(',').some(x=>x.trim()!='0s')}"))
@@ -131,7 +135,64 @@ try:
         check('Map: only the hover symbol of the MSA layer has a fade (class fxh)', '.msas.fxh > *' in css and "hov ? 'msas fxh' : 'msas'" in open(R + '/app/js/core/mapview.js').read())
         check('Map menu: zoom buttons change colour with a transition', ev("()=>{document.querySelector('button.tab[data-t=mp]').click();return true}") and (pg.wait_for_timeout(900) or True) and ev("()=>{const a=document.querySelector('#mp .leaflet-bar a');return !!a&&getComputedStyle(a).transitionDuration!='0s'}"))
 
-        # ---- 7. switched off: Settings > Animations, and the system "reduce motion"
+        # ---- 7. the Settings window: the page that opens fades in, the switches slide, the dot of a changed section grows, the full report and the own
+        #         satellite layer open in place, the progress bar and the check have their own; all of it is off with the setting and with "reduce motion"
+        pg.click('#cfgbtn'); pg.wait_for_timeout(500)
+        runs = lambda sel: ev("s=>[...document.querySelector(s).getAnimations({subtree:true})].map(a=>a.animationName||a.transitionProperty)", sel)
+        has = lambda sel, *names: all(n in runs(sel) for n in names)
+        r = ev("""()=>{document.querySelector('#nv-general').click();return {page:[...document.querySelector('#p-general').getAnimations()].map(a=>a.animationName),
+          shown:[...document.querySelectorAll('#cfg .s-pg')].filter(e=>!e.hidden).map(e=>e.id),on:[...document.querySelectorAll('#cfg .s-nv.on')].map(e=>e.id)}}""")
+        check('Settings: another section: its page fades in (animation sxin), the other pages are hidden and one entry is marked %s' % r, 'sxin' in r['page'] and r['shown'] == ['p-general'] and r['on'] == ['nv-general'])
+        check('Settings: the entries of the list change colour with a transition', ev("()=>{const s=getComputedStyle(document.querySelector('#nv-map'));return s.transitionProperty.includes('background-color')&&s.transitionDuration.split(',').some(x=>x.trim()!='0s')}"))
+        pg.wait_for_timeout(300)
+        r = ev("""()=>{const b=document.querySelector('#p-general [data-a=sw]');b.__keep=1;b.click();const d=document.querySelector('#nv-general .s-nd');
+          return {kept:b.__keep===1&&document.querySelector('#p-general [data-a=sw]')===b,on:b.classList.contains('on'),aria:b.getAttribute('aria-checked'),
+          slide:[...b.getAnimations({subtree:true})].map(a=>a.transitionProperty).sort().join(),dot:d.classList.contains('on')&&[...d.getAnimations()].map(a=>a.transitionProperty).sort().join()}}""")
+        check('Settings: a switch is the same button and slides (colour, and the knob moves) and the dot of its section grows %s' % r,
+              r['kept'] and 'background-color' in r['slide'] and 'transform' in r['slide'] and 'opacity' in r['dot'] and 'transform' in r['dot'])
+        pg.wait_for_timeout(300)
+        r = ev("""()=>{const b=document.querySelector('#p-general [data-a=sw]');b.click();return {dot:document.querySelector('#nv-general .s-nd').classList.contains('on'),run:[...document.querySelector('#nv-general .s-nd').getAnimations()].length}}""")
+        check('Settings: the switch put back: the dot goes away with a transition %s' % r, not r['dot'] and r['run'] > 0)
+        pg.wait_for_timeout(300)
+        # the full report (Diagnostics): the part opens in place and the arrow turns
+        pg.click('#nv-diag'); pg.wait_for_timeout(300)
+        rep = lambda: ev("""()=>{const e=document.querySelector('#cfgreport'),b=document.querySelector('#p-diag [data-a=report]');return {h:Math.round(e.getBoundingClientRect().height),v:getComputedStyle(e).visibility,
+          open:e.classList.contains('open'),arrow:getComputedStyle(b.querySelector('.s-cv')).transform,exp:b.getAttribute('aria-expanded')}}""")
+        d0 = rep()
+        check('Settings: the full report is closed: no height, hidden (Tab never reaches it) %s' % d0, d0['h'] == 0 and d0['v'] == 'hidden' and not d0['open'] and d0['exp'] == 'false')
+        r = ev("""()=>{const b=document.querySelector('#p-diag [data-a=report]');b.click();return {box:[...document.querySelector('#cfgreport').getAnimations()].map(a=>a.transitionProperty),arrow:[...b.querySelector('.s-cv').getAnimations()].map(a=>a.transitionProperty)}}""")
+        check('Settings: the full report opens with a transition of the height and the arrow turns with another %s' % r, 'grid-template-rows' in r['box'] and 'transform' in r['arrow'])
+        pg.wait_for_timeout(120); mid = rep(); pg.wait_for_timeout(400); done = rep()
+        check('Settings: it was still growing a moment later and is open after 0.5 s; the arrow turned a quarter (%s, %s)' % (mid['h'], done['h']),
+              mid['h'] < done['h'] and done['h'] > 30 and done['open'] and done['v'] == 'visible' and done['arrow'] == 'matrix(0, 1, -1, 0, 0, 0)' and done['exp'] == 'true')
+        ev("()=>document.querySelector('#p-diag [data-a=report]').click()"); pg.wait_for_timeout(500)
+        d1 = rep()
+        check('Settings: and closes again smoothly: no height, hidden, the arrow back %s' % d1, d1['h'] == 0 and d1['v'] == 'hidden' and d1['arrow'] in ('none', 'matrix(1, 0, 0, 1, 0, 0)') and d1['exp'] == 'false')
+        # the own satellite layer (Map): the fields open under their switch
+        pg.click('#nv-map'); pg.wait_for_timeout(300)
+        r = ev("""()=>{const b=document.querySelector('#p-map [data-k=sat]');b.click();return [...document.querySelector('#satbox').getAnimations()].map(a=>a.transitionProperty)}""")
+        check('Settings: the fields of the own satellite layer open in place %s' % r, 'grid-template-rows' in r)
+        pg.wait_for_timeout(500)
+        ev("()=>document.querySelector('#p-map [data-k=sat]').click()"); pg.wait_for_timeout(400)
+        # the parts that appear (the progress bar, the check, the list of the result) are looked at where they are put: here as copies in the window
+        ev("""()=>{const d=document.querySelector('#cfg');d.insertAdjacentHTML('beforeend','<div id="zz"><div class="s-pb"><i></i></div><span class="s-pop">x</span><div class="s-dn"><div class="s-li">x</div></div></div>')}""")
+        check('Settings: the progress bar grows with a transition of its width, the check pops and the list of a result comes in one line after the other',
+              ev("()=>{const w=getComputedStyle(document.querySelector('#zz .s-pb i'));return w.transitionProperty.includes('width')&&w.transitionDuration.split(',').some(x=>x.trim()!='0s')}")
+              and ev("()=>getComputedStyle(document.querySelector('#zz .s-pop')).animationName")=='sxpop' and ev("()=>getComputedStyle(document.querySelector('#zz .s-li')).animationName")=='sxin')
+        # switched off with the setting: nothing moves, a page and a part are there at once
+        ev("()=>{__app.CFG.ui={...(__app.CFG.ui||{}),animations:false};document.documentElement.classList.add('noanim')}")
+        still = ev("""()=>['#nv-map','#p-map [data-k=sat]','#cfgsave','#cfgx','#p-map .s-fd','#zz .s-pb i'].every(s=>{const e=document.querySelector(s);return getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')})
+          &&['#zz .s-pop','#zz .s-li','#p-map'].every(s=>getComputedStyle(document.querySelector(s)).animationName=='none')&&getComputedStyle(document.querySelector('#p-map [data-k=sat]'),'::after').transitionDuration.split(',').every(x=>x.trim()=='0s')""")
+        check('animations off: the entries, the switches (and their knob), the buttons, the boxes, the bar, the check and the list have nothing running', still)
+        r = ev("""()=>{document.querySelector('#nv-diag').click();const p=document.querySelector('#p-diag');document.querySelector('#p-diag [data-a=report]').click();const e=document.querySelector('#cfgreport');
+          return {page:p.getAnimations().length,box:e.getAnimations().length,h:Math.round(e.getBoundingClientRect().height),v:getComputedStyle(e).visibility}}""")
+        check('animations off: the page and the full report are there at once %s' % r, r['page'] == 0 and r['box'] == 0 and r['h'] > 30 and r['v'] == 'visible')
+        ev("()=>{__app.CFG.ui={...__app.CFG.ui,animations:true};document.documentElement.classList.remove('noanim');document.querySelector('#zz').remove()}")
+        check('animations on again: the Settings window moves again', ev("()=>getComputedStyle(document.querySelector('#nv-map')).transitionDuration!='0s'"))
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+        if pg.locator('dialog[open]').count(): pg.evaluate("()=>document.querySelectorAll('dialog[open]').forEach(d=>d.close())")
+
+        # ---- 8. switched off: Settings > Animations, and the system "reduce motion"
         pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(700)
         ev("()=>{__app.CFG.ui={...(__app.CFG.ui||{}),animations:false};document.documentElement.classList.add('noanim')}")
         check('animations off: html has .noanim and the buttons, fields, rows, the enemy block and the arrow have no transition', ev("""()=>{const z=s=>{const e=document.querySelector(s);return getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')&&getComputedStyle(e).animationName=='none'};
@@ -150,6 +211,12 @@ try:
         check('system "reduce motion": no transition and no animation, whatever the setting says', ev("""()=>['.btn','.seg button','.dsw','.wex','.wen','tr[data-tlsel]','tr[data-tlsel] td','select'].every(s=>{const e=document.querySelector(s);return getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')&&getComputedStyle(e).animationName=='none'})"""))
         pg.click('[data-tlopen="0"]'); pg.wait_for_timeout(50)
         check('system "reduce motion": the block is open at once', ev("()=>Math.round(document.querySelector('.wen').getBoundingClientRect().height)") > 60)
+        pg.click('#cfgbtn'); pg.wait_for_timeout(400)
+        r = ev("""()=>{document.querySelector('#nv-diag').click();const p=document.querySelector('#p-diag');document.querySelector('#p-diag [data-a=report]').click();const e=document.querySelector('#cfgreport');
+          return {page:p.getAnimations().length,box:e.getAnimations().length,h:Math.round(e.getBoundingClientRect().height),
+            still:['#nv-map','#nv-diag','#cfgsave','#cfgx'].every(s=>getComputedStyle(document.querySelector(s)).transitionDuration.split(',').every(x=>x.trim()=='0s'))}}""")
+        check('system "reduce motion": the Settings window has no transition, the page and the full report are there at once %s' % r, r['page'] == 0 and r['box'] == 0 and r['h'] > 30 and r['still'])
+        pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         check('no page errors %s' % errs, not errs); pg.close()
         br.close()
 finally:

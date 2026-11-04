@@ -12,7 +12,8 @@
     "showMfd34": false,
     "autoLoad": false,
     "lastDtc": "",
-    "lastCamp": ""
+    "lastCamp": "",
+    "wxTaf": "TGT"
   },
   "mission": {
     "radiusNm": 60

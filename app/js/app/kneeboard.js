@@ -124,6 +124,12 @@ export function kbMemLater() {
   clearTimeout(KBMEMT);
   KBMEMT = setTimeout(kbMemSave, 900);
 }
+// After the cards were imported from another copy of the program (Settings > Import & backup) what the program holds in its memory is the old state:
+// it must not be written over the imported files until the program is started again.
+export function kbMemFreeze() {
+  clearTimeout(KBMEMT);
+  KBMEMOK = false;
+}
 export async function kbMemSave() {
   if (!KBMEMOK) return;
   try {

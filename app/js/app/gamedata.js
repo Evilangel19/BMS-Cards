@@ -232,6 +232,9 @@ async function readGameData(reloadTheaters, stage = () => {}) {
     } catch (e) {}
     let acInfo = '';
     const warn = [];
+    // what the Settings > Diagnostics page shows (status is the same in one text)
+    const rw = { airbases: 0, atc: 0, aip: '', error: '' },
+      ac = { files: 0, found: false, error: '' };
     if (ST.GEOWARN) warn.push(ST.GEOWARN);
     try {
       stage([70, 'Reading the airbases and runways…']);
@@ -259,6 +262,9 @@ async function readGameData(reloadTheaters, stage = () => {}) {
         CAM.D.api = b.api;
         CAM.D.el = Object.assign({}, CAM.D.el, b.el);
         CAM.D.tn = Object.assign({}, CAM.D.tn, b.tn);
+        rw.airbases = Object.keys(b.ap).length;
+        rw.atc = atc.length;
+        rw.aip = aipList ? 'read' : 'missing';
         acInfo +=
           ' Runways: ' +
           Object.keys(b.ap).length +
@@ -269,10 +275,12 @@ async function readGameData(reloadTheaters, stage = () => {}) {
           ').';
         await loadRunways(atc);
       } else {
+        rw.aip = 'missing';
         acInfo += ' Runways: no ATC files or AIP found.';
         warn.push('Runways: no ATC files or AIP found (runway lengths and airbase data will be missing).');
       }
     } catch (e) {
+      rw.error = String((e && e.message) || e);
       acInfo += ' Runways could not be read (' + ((e && e.message) || e) + ').';
       warn.push('Runways could not be read: ' + ((e && e.message) || e));
     }
@@ -304,18 +312,22 @@ async function readGameData(reloadTheaters, stage = () => {}) {
         CAM.D.ew = a.ew;
         CAM.D.fi = a.fi;
         CAM.D.hp = a.hp;
+        ac.files = files.length;
+        ac.found = true;
         acInfo += ' Aircraft data: ' + files.length + ' aircraft files.';
       } else {
         acInfo += ' Aircraft data not found (Data\\Sim\\Acdata); the Performance page and the weights need it.';
         warn.push('Aircraft data not found (Data\\Sim\\Acdata): the Performance page and the weights need it.');
       }
     } catch (e) {
+      ac.error = String((e && e.message) || e);
       acInfo += ' Aircraft data could not be read.';
       warn.push('Aircraft data could not be read.');
     }
     // the version of the game (Details of Bin\x64\Falcon BMS.exe): a warning when it is not the one the readers were checked with
     let bmsVer = '',
-      bmsVerNote = '';
+      bmsVerNote = '',
+      bmsLevel = '';
     try {
       const exe = jp(inst, 'Bin', 'x64', 'Falcon BMS.exe');
       if (!(await fileExists(exe)))
@@ -332,6 +344,7 @@ async function readGameData(reloadTheaters, stage = () => {}) {
           bmsVerNote = 'Falcon BMS.exe has no version number (0.0.0.0), the game version is not checked.';
         const cv = compareVersion(v, BMS_TESTED);
         bmsVer = cv.text;
+        bmsLevel = cv.level;
         if (cv.level == 'newer' || cv.level == 'other')
           warn.push(
             'This is Falcon BMS ' +
@@ -362,6 +375,21 @@ async function readGameData(reloadTheaters, stage = () => {}) {
     if (r.errors.length) warn.push('Files that could not be read: ' + r.errors.join('; '));
     GAMEDATA = {
       warn,
+      info: {
+        theater: ST.TH ? ST.TH.name : '',
+        bms: { version: bmsVer, level: bmsLevel, note: bmsVerNote, tested: BMS_TESTED },
+        files: {
+          found: r.found.length,
+          total: Object.keys(FILES).length - OPTIONAL.size,
+          missing: r.missing,
+          errors: r.errors,
+          changed: r.changed || [],
+        },
+        tables: Object.keys(r.tables),
+        folders: [...new Set(Object.values(paths).map(p => p.replace(/[\\/][^\\/]*$/, '')))],
+        runways: rw,
+        aircraft: ac,
+      },
       status:
         (ST.TH ? 'Theater: ' + ST.TH.name + '. ' : '') +
         (bmsVer ? 'Falcon BMS ' + bmsVer + '. ' : bmsVerNote ? bmsVerNote + ' ' : '') +

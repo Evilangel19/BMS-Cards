@@ -14,6 +14,7 @@ export const DEFAULTS = {
     autoLoad: false, // true = at start the last DTC and the last campaign / tactical engagement are opened again
     lastDtc: '', // full path of the last DTC opened (kept by the program)
     lastCamp: '', // file name of the last campaign or tactical engagement opened (kept by the program)
+    wxTaf: 'TGT', // the forecast of the Weather page and of the datacard: 'TGT' = the target airfield, 'LDG' = the landing one
   },
   mission: {
     radiusNm: 60, // a mission file keeps the units and flights within this distance of the route (the support flights of the datacard are always kept)

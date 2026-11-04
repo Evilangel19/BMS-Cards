@@ -24,6 +24,11 @@ export async function appDir() {
   return T().core.invoke('app_dir');
 }
 
+// Files of the program that were replaced by an import (Settings > Import & backup): what the program holds in its memory is the old state of them, so it must not
+// write them again until it is started anew. The names are lower case ("config.json", "mapprefs.json", "squadron.json" ...).
+const frozen = new Set();
+export const freezeFiles = names => names.forEach(n => frozen.add(String(n).toLowerCase()));
+
 // ---- config ---------------------------------------------------------------
 export async function loadConfig() {
   if (isDesktop()) {
@@ -63,6 +68,7 @@ export async function loadConfig() {
 }
 
 export async function saveConfig(cfg) {
+  if (frozen.has('config.json')) return; // imported a moment ago: the program has to start again first (see freezeFiles)
   const text = JSON.stringify(cfg, null, 2) + '\n';
   if (isDesktop()) {
     await T().fs.writeTextFile(join(await appDir(), 'config.json'), text);
@@ -163,6 +169,26 @@ export async function saveBlob(blob, name, startDir) {
   a.href = URL.createObjectURL(blob);
   a.download = name;
   a.click();
+}
+
+// Bytes saved where the pilot chooses (desktop: the file dialog, then the file is written; browser: a download). Returns the path ('' = the pilot cancelled, the name in the browser);
+// an error (the folder cannot be written ...) is thrown.
+export async function saveFileBytes(bytes, name, startDir) {
+  if (isDesktop()) {
+    const ext = (name.match(/\.([^.]+)$/) || [, ''])[1];
+    const path = await T().dialog.save({
+      defaultPath: startDir ? join(startDir, name) : name,
+      filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : [],
+    });
+    if (!path) return '';
+    await T().fs.writeFile(path, bytes);
+    return path;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes]));
+  a.download = name;
+  a.click();
+  return name;
 }
 
 // ---- game data lookup -------------------------------------------------------
@@ -325,6 +351,17 @@ export async function makeDir(path) {
   }
 }
 
+// The file access of the data move (core/transferrun.js): the folders and files of the program, of another copy of it and of the backup files
+export const dataIo = () => ({
+  join,
+  list: async dir => ((await T().fs.readDir(dir)) || []).map(e => ({ name: e.name, isDirectory: !!e.isDirectory })),
+  read: path => T().fs.readFile(path),
+  write: (path, bytes) => T().fs.writeFile(path, bytes),
+  mkdir: path => makeDir(path),
+  exists: path => fileExists(path),
+  size: path => fileSize(path),
+});
+
 // Files dropped on the window. cb(files, {x, y}) on drop (x, y in CSS pixels); hover(true|false, {x, y}) while files are dragged over.
 // Desktop: Tauri reports file paths (its own drop handling replaces the browser's); browser: normal drag and drop.
 export async function onFilesDropped(cb, hover = () => {}) {
@@ -426,6 +463,7 @@ function prefLater(name, write) {
 export function savePrefs(name, obj) {
   // written a moment after the last change (the map view changes all the time)
   prefLater(name, async () => {
+    if (frozen.has(name.toLowerCase())) return;
     try {
       const text = JSON.stringify(obj);
       if (isDesktop()) await T().fs.writeTextFile(join(await appDir(), name), text);
@@ -455,6 +493,7 @@ export function savePrefsSafe(name, obj) {
   prefLater(name, () => {
     // one write at a time: the next one waits for the one in progress
     safeChain[name] = (safeChain[name] || Promise.resolve()).then(async () => {
+      if (frozen.has(name.toLowerCase())) return;
       try {
         await safeSave(prefIo(), name, JSON.stringify(obj));
       } catch (e) {

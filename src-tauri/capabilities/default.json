@@ -60,6 +60,9 @@
         },
         {
           "path": "**/*.[bB][aA][dD]"
+        },
+        {
+          "path": "**/*.[zZ][iI][pP]"
         }
       ],
       "deny": [
@@ -195,6 +198,9 @@
         },
         {
           "path": "**/*.[bB][aA][dD]"
+        },
+        {
+          "path": "**/*.[zZ][iI][pP]"
         }
       ],
       "deny": [
@@ -300,6 +306,9 @@
     {
       "identifier": "fs:allow-remove",
       "allow": [
+        {
+          "path": "**/write-test.tmp"
+        },
         {
           "path": "**/cardmemory/cards/*"
         },

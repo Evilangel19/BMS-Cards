@@ -40,6 +40,8 @@ for (const id of ['fs:allow-write-file', 'fs:allow-write-text-file']) {
     'D:/app/write-test.tmp',
     'F:/BMS-Cards-portable/squadron.json.new',
     'F:/BMS-Cards-portable/squadron.json.bad',
+    'C:/Users/x/Documents/BMS-Cards-backup-2026-11-04.zip',
+    'D:/app/backup/before-import-2026-11-04/config.json',
   ])
     ok(id + ' allows ' + f, can(f));
   for (const f of [
@@ -56,6 +58,28 @@ for (const id of ['fs:allow-write-file', 'fs:allow-write-text-file']) {
     'C:/Users/x/.ssh/config.json',
   ])
     ok(id + ' refuses ' + f, !can(f));
+}
+// what the program may delete: the small file it writes to check its folder, the pictures of the kneeboard cards and the files of the saved missions; nothing else
+{
+  const e = cap.permissions.find(x => x && x.identifier == 'fs:allow-remove');
+  ok('fs:allow-remove is there', !!e);
+  const can = p => hit(e.allow, p);
+  for (const f of [
+    'D:/app/write-test.tmp',
+    'D:/app/cardmemory/cards/01_x.png',
+    'D:/app/missions/M/M.bcrd',
+    'D:/app/missions/M/cards/01_x.png',
+  ])
+    ok('fs:allow-remove allows ' + f, can(f));
+  for (const f of [
+    'D:/app/config.json',
+    'D:/app/squadron.json',
+    'D:/app/backup/dtc/Evil.ini',
+    'C:/BMS/User/Config/Evil.ini',
+    'D:/app/cardmemory/cards.json',
+    'D:/app/write-test.tmp.exe',
+  ])
+    ok('fs:allow-remove refuses ' + f, !can(f));
 }
 console.log('run-capabilities.mjs: ' + (bad ? bad + ' of ' + n + ' FAILED' : 'OK - ' + n + ' permission checks'));
 process.exit(bad ? 1 : 0);
