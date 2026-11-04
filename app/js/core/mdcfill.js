@@ -13,10 +13,19 @@ const shortW = t => {
 };
 const clean = v => (v && v !== '---' ? String(v) : '');
 
-/** @param {Record<string, any>} F @returns {Record<string, string>} */
-export function mdcDerive(F) {
+/** @param {Record<string, any>} F @param {number} [seat] the chosen seat of the flight (0 = the leader, also when no seat is chosen) @returns {Record<string, string>} */
+export function mdcDerive(F, seat = 0) {
   const n = k => clean(F[k]),
     o = {};
+  // IFF: the cells M2 and M3 are the ones of the chosen seat (fl<seat>_m holds "mode 2|mode 3", written by the DTC fill); with no IFF data they are left as they are
+  {
+    const m = F[`fl${seat}_m`];
+    if (typeof m == 'string' && m.includes('|')) {
+      const [a, b] = m.split('|');
+      o.m2 = a || '';
+      o.m3 = b || '';
+    }
+  }
   // pilots: the callsign of each pilot (flight callsign + position) and the STN of the Link 16 text ("05011 MC 1 FC 3")
   for (let r = 0; r < 8; r++) {
     o[`fl${r}_c`] = n(`fl${r}_1`) && n('cs') ? `${n('cs')}-${r + 1}` : '';
@@ -42,7 +51,8 @@ export function mdcDerive(F) {
   {
     const stn = [0, 1, 2, 3, 4].map(i => n(`pk${i}_4`)),
       others = stn.filter((v, i) => v && i != own);
-    o.dl0_fl = stn[own] || '';
+    // the "Flight" cell of the link table: the STN of the chosen seat (the first word of its Link 16 cell), the lead of the flight for the leader
+    o.dl0_fl = (seat > 0 && n(`fl${seat}_3`).split(/\s+/)[0]) || stn[own] || '';
     o.dl0_tm = others[0] || '';
     o.dl0_dn = others[1] || '';
     o.dl0_dn2 = others.slice(2).join(' ');

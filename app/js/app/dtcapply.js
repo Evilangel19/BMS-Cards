@@ -8,6 +8,7 @@ import { F, mirrorAll } from './datacard.js';
 import { $ } from './base.js';
 import { mapV } from './pages.js';
 import { draw } from './cardview.js';
+import { seatIdx, seatCodes } from './seat.js';
 
 // The datacard of a received mission is the sender's: what his DTC, his Link 16 / IFF files and his pilot list filled in (IFF, Link 16, laser, delivery data, pilots, MAR table...) is kept
 // whenever the card is built again on this computer (another DTC opened, the flight selected again). ST.MSFCARD = {C, key, vals} is set by msfLoad; values changed by hand here (ST.MANK) win.
@@ -21,6 +22,7 @@ export function msfFreeze(fl) {
 export function applyDTC(fl) {
   applyDTC0(fl);
   msfFreeze(fl);
+  seatCodes(); // B. CODE of the weapon profiles: the CONF-LSR code of the chosen seat
 }
 function applyDTC0(fl) {
   if (!lines.length) return;
@@ -38,9 +40,11 @@ function applyDTC0(fl) {
     F.bingo = String(Math.round(+bf));
     F.joker = String(Math.round(+bf) + 1000);
   }
+  // the laser: the TGP code of the DTC is the CONF-LSR code of the chosen seat (the B. CODE cells of the weapon profiles only show it: seatCodes)
+  const tgp = g('Laser', 'LaserTGP');
+  if (tgp !== '') F[`fl${seatIdx()}_5`] = tgp;
   const SUB = { 7: 'CCIP', 8: 'CCRP' },
-    FZ = { 0: 'NSTL', 1: 'NOSE', 2: 'TAIL' },
-    bc = g('Laser', 'LaserTGP');
+    FZ = { 0: 'NSTL', 1: 'NOSE', 2: 'TAIL' };
   [1, 2].forEach(n => {
     const k = s => g('FCC_AGB', `Profile${n}_${s}`);
     if (k('Submode') === '') return;
@@ -52,7 +56,6 @@ function applyDTC0(fl) {
     F[`wp${n}_ang`] = String(Math.round(+k('Release_Angle')));
     F[`wp${n}_rp`] = String(+k('Release_Pulse') + 1);
     F[`wp${n}_spc`] = String(Math.round(+k('Release_Spacing')));
-    if (bc) F[`wp${n}_bc`] = bc;
   });
   // the attack data of the card (Delivery section) are built again from the DTC and the Weapons page every time: what is no longer there (offsets cleared, another attack) must not stay on the card; values typed by hand (MANK) are kept
   [
@@ -212,7 +215,9 @@ function applyDTC0(fl) {
       } else if (s3 == 1) return c3.padStart(4, '0');
       return '';
     };
-    // the IFF cells of the MDC format (M1..M4) are the ones of the lead
+    // what the IFF files give to each seat (modes 2 and 3): the MDC format shows the one of the chosen seat (mdcAuto -> core/mdcfill.js); kept and saved with the card
+    for (let i = 0; i < 4; i++) F['fl' + i + '_m'] = i < CAM.nAcf(fl) ? [m2of(i), m3of(i)].join('|') : '';
+    // the IFF cells of the MDC format (M1..M4): the ones of the lead until mdcAuto puts the ones of the chosen seat
     F.m1 = +g('IFF', 'Mode1 On') ? atAbs(tot, 'Mode1 Code') : '';
     F.m2 = m2of(0);
     F.m3 = m3of(0);

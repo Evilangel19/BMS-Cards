@@ -42,11 +42,13 @@ try:
 
         # ---- 1. the rule: every button and field of every tab has a transition
         tabs = ev("[...document.querySelectorAll('button.tab[data-t]')].map(b=>b.dataset.t)")
-        bad = {}
+        bad = {}; seat_btn = 0
         for t in tabs:
             pg.click('button.tab[data-t=%s]' % t); pg.wait_for_timeout(700)
+            if t == 'kb': seat_btn = ev("()=>[...document.querySelectorAll('#seatov .seatb')].filter(b=>b.getBoundingClientRect().width>0).length")
             for s in ev(CONTROLS): bad.setdefault(s, []).append(t)
         check('every button, tab, menu, link and text field of every tab has a transition %s' % (bad or ''), not bad)
+        check('the round buttons of the seat (Datacard) are among the controls the rule looked at (%d)' % seat_btn, seat_btn >= 5)
         check('there are tabs to look at', len(tabs) >= 8)
         ev("()=>{const b=document.createElement('button');b.id='zz';b.textContent='x';document.body.append(b)}")
         seen = ev(CONTROLS); ev("()=>document.getElementById('zz').remove()")

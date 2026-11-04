@@ -12,11 +12,12 @@ import { dtcSet } from './dtcapply.js';
 import { $, IO } from './base.js';
 import { dtcOut, lines, parse } from './dtcfile.js';
 import { apply, loadCam } from './selection.js';
-import { applyFormToggle, closeEd, openEd } from './editor.js';
+import { SX, SY, applyFormToggle, boxOf, closeEd, openEd } from './editor.js';
 import { perfFill } from './perf.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { TDATA } from './dtctargets.js';
 import { GAMEDATA } from './gamedata.js';
+import { goFlight, pickSeat, seatIdx, seatMe } from './seat.js';
 
 // run 19: statements that run when the program starts (in the order of the original file)
 export async function init19() {
@@ -34,6 +35,15 @@ export async function init19() {
     },
     dcState: () => dcPage.state(),
     openEd: k => openEd(FD.find(z => z.k == k)),
+    // where a cell of the card (or of the MDC format) is on the screen: {x, y, w, h} in the pixels of the page
+    cellRect: k => {
+      const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
+      if (!d) return null;
+      const r = $('cv').getBoundingClientRect(),
+        kk = r.width / 2048,
+        b = boxOf(d);
+      return { x: r.left + b.x * SX * kk, y: r.top + b.y * SY * kk, w: b.w * SX * kk, h: b.h * SY * kk };
+    },
     get KBS() {
       return KBS;
     },
@@ -50,6 +60,7 @@ export async function init19() {
       } catch (e) {}
     },
     sq: sqPage,
+    seat: { pick: pickSeat, go: goFlight, idx: seatIdx, me: seatMe },
     wxPage,
     unsaved: () => unsaved(),
     msfSig: () => msfSig(),

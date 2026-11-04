@@ -16,6 +16,7 @@ import { mapV, sqPage } from './pages.js';
 import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
 import { fpStart, fpSpan } from '../core/fpcols.js';
+import { seatIdx, seatCodes } from './seat.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
@@ -53,10 +54,12 @@ export const cycle = k => {
 };
 export const MIR = {};
 // the groups kept equal to the datacard ("from Datacard" on the Data Cartridge page): on at the first start, then the choice of the pilot (dtcprefs.json)
-export const DCS0 = { ews: true, icp: true, wpn: true };
+// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js)
+export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true };
 ST.DCS = { ...DCS0 };
-export const mir = (k, grp, sec, key, to, from) => {
-  MIR[k] = { grp, sec, key, to, from };
+// when(): optional, the cell is mirrored only while it answers true (the CONF-LSR cell of one seat feeds the DTC only while that seat is the chosen one)
+export const mir = (k, grp, sec, key, to, from, when) => {
+  MIR[k] = { grp, sec, key, to, from, when };
 };
 export const mInt = (k, grp, sec, key, pad) =>
   mir(
@@ -73,7 +76,7 @@ export const mInt = (k, grp, sec, key, pad) =>
 export const MIRK = {};
 export function pushOne(k) {
   const m = MIR[k];
-  if (!m || !lines.length) return false;
+  if (!m || !lines.length || (m.when && !m.when())) return false;
   const old = G(m.sec, m.key, ''),
     nv = m.from(old, F[k] || '');
   if (nv === null || String(nv) === String(old)) return false;
@@ -94,8 +97,9 @@ export function dcSync(g, on) {
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
 export function mirrorToCard(sec, key, quiet) {
   (MIRK[sec + '|' + key] || []).forEach(k => {
-    const m = MIR[k],
-      v = m.to(G(sec, key, ''));
+    const m = MIR[k];
+    if (m.when && !m.when()) return;
+    const v = m.to(G(sec, key, ''));
     F[k] = v;
     if (ST.AUTO) ST.AUTO[k] = v;
     ST.MANK.delete(k);
@@ -109,6 +113,7 @@ export function mirrorToCard(sec, key, quiet) {
       if (j && j.el) j.el.value = F.joker;
     }
   });
+  if (sec == 'Laser') seatCodes(); // the B. CODE cells follow the laser code of the seat
   if (!quiet) {
     markMan();
     draw();
@@ -271,6 +276,7 @@ export function setField(k, v, from) {
     const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
   }
+  if (/^fl\d_5$/.test(k)) seatCodes(); // B. CODE of the weapon profiles = the CONF-LSR code of the chosen seat, until one is typed
   const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
   if (d && d.el && d.el !== from && d.el.value !== v) d.el.value = v;
   markMan();
@@ -295,7 +301,7 @@ export function pilotMenu(d, inp, btn) {
   m.id = 'pnmenu';
   m.dataset.k = d.k;
   m.innerHTML = L.length
-    ? L.map(n => `<button type="button" class="pni">${esc(n)}</button>`).join('')
+    ? L.map(n => `<button type="button" class="pni${n === inp.value ? ' on' : ''}">${esc(n)}</button>`).join('')
     : '<div class="pne">No pilots in the squadron roster yet.</div>';
   document.body.append(m);
   const r = btn.getBoundingClientRect();
@@ -660,15 +666,21 @@ export async function init4() {
         return x === null ? null : lk(o, Math.max(0, x - 1));
       }
     );
+  });
+  // the laser: the TGP code of the DTC is the CONF-LSR code of the chosen seat (the B. CODE cells of the weapon profiles are only a reference on the card)
+  for (let i = 0; i < 4; i++) {
     mir(
-      `wp${n}_bc`,
-      'wpn',
+      `fl${i}_5`,
+      'lsr',
       'Laser',
       'LaserTGP',
       v => v,
-      (o, v) => (/^\d+$/.test(String(v).trim()) ? String(v).trim() : null)
+      (o, v) => (/^\d+$/.test(String(v).trim()) ? String(v).trim() : null),
+      () => seatIdx() === i
     );
-  });
+    // what the IFF files give to each seat (modes 2 and 3, see dtcapply.js): the MDC format shows the one of the chosen seat; kept and saved like the other cells of the MDC
+    if (!XD.includes(`fl${i}_m`)) XD.push(`fl${i}_m`);
+  }
   Object.entries(MIR).forEach(([k, m]) => {
     (MIRK[m.sec + '|' + m.key] = MIRK[m.sec + '|' + m.key] || []).push(k);
   });

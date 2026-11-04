@@ -95,6 +95,40 @@ ok(
     o.dl0_dn2 == '75601 75701'
 );
 ok('loadout: short form', o.cfg == '2x AIM-9M · 2x AIM-120C · 4x GBU-12 · 2x TK370');
+// the seat: IFF (mode 2 | mode 3, written per aircraft by the DTC fill) and the STN of the Link 16 text of the chosen pilot
+const S = {
+  ...F,
+  fl0_3: '71041 MC 1 FC 65',
+  fl1_3: '71042 MC 1 FC 65',
+  fl2_3: '71043 MC 1 FC 65',
+  fl3_3: '71044 MC 1 FC 65',
+  fl2_1: '1-3',
+  fl3_1: '1-4',
+  fl0_m: '|4730',
+  fl1_m: '|4731',
+  fl2_m: '03|4732',
+  fl3_m: '|4733',
+};
+const s0 = mdcDerive(S),
+  s2 = mdcDerive(S, 2),
+  s3 = mdcDerive(S, 3);
+ok(
+  'seat: the leader is the default: his IFF and his Link 16 STN',
+  s0.m3 == '4730' && s0.m2 == '' && s0.dl0_fl == '75301'
+);
+ok(
+  'seat 3: mode 2 and mode 3 of its aircraft, the STN of its Link 16 text',
+  s2.m2 == '03' && s2.m3 == '4732' && s2.dl0_fl == '71043'
+);
+ok('seat 4: the same for the fourth aircraft', s3.m2 == '' && s3.m3 == '4733' && s3.dl0_fl == '71044');
+ok(
+  'seat without Link 16 text: the STN of the flight, not an empty cell',
+  mdcDerive(S, 1).dl0_fl == '71042' && mdcDerive({ ...S, fl1_3: '---' }, 1).dl0_fl == '75301'
+);
+ok(
+  'no IFF data: the IFF cells are not derived (the pilot types them)',
+  !('m2' in mdcDerive(F, 2)) && !('m3' in mdcDerive(F, 2))
+);
 // the PPT of the DTC: SAM first, then the other threats with a ring, then the points
 const list = [
   ['SA2', 164055, 'SA-2'],

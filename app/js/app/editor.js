@@ -4,6 +4,8 @@ import { atoSearch } from './ato.js';
 import { CYC, F, FD, ML, buildForm, cycle, setField, ptChoices, ptPick } from './datacard.js';
 import { MFD, YC, draw } from './cardview.js';
 import { sqPage } from './pages.js';
+import { markMan } from './selection.js';
+import { seatDraw } from './seat.js';
 
 /* ---------- Direct editing on the card: click a cell, a larger colored field opens over it ---------- */
 export const SX = 2048 / 1600;
@@ -125,6 +127,45 @@ export function openPtMenu(d) {
     ptPick(w, L[+t.dataset.i]);
   };
 }
+// the Name cell of a pilot: the standard menu of the program (Auto, type a name, the pilots of the squadron roster)
+export function openNameMenu(d) {
+  closeMenu();
+  const L = sqPage.roster(),
+    A = String((ST.AUTO && ST.AUTO[d.k]) || ''),
+    cur = String(F[d.k] || ''),
+    m = $('chm'),
+    c = $('cv'),
+    k = c.getBoundingClientRect().width / 2048,
+    b = boxOf(d),
+    auto = !(ST.MANK && ST.MANK.has(d.k));
+  m.innerHTML =
+    `<button type="button" class="${auto ? 'on' : ''}" data-a="auto">Auto${A && A !== '---' ? ' · ' + esc(A) : ''}</button>` +
+    '<button type="button" data-a="type">Type a name…</button>' +
+    '<div class="gh">Squadron roster</div>' +
+    L.map((n, i) => `<button type="button" class="${n === cur ? 'on' : ''}" data-i="${i}">${esc(n)}</button>`).join('');
+  m.style.display = 'block';
+  const W = c.getBoundingClientRect().width,
+    wd = Math.min(Math.max(b.w * SX * k, 220), W);
+  m.style.width = wd + 'px';
+  m.style.left = Math.max(0, Math.min(b.x * SX * k + (b.w * SX * k) / 2 - wd / 2, W - wd)) + 'px';
+  const top = b.y * SY * k + b.h * SY * k + 4;
+  m.style.top = Math.min(top, Math.max(0, c.getBoundingClientRect().height - Math.min(m.scrollHeight, 260) - 4)) + 'px';
+  const on = m.querySelector('.on:not([data-a])');
+  m.scrollTop = on ? Math.max(0, on.offsetTop - 60) : 0;
+  m.onclick = e => {
+    const t = e.target.closest('button');
+    if (!t) return;
+    closeMenu();
+    if (t.dataset.a == 'type') openEd(d);
+    else if (t.dataset.a == 'auto') {
+      if (ST.MANK) ST.MANK.delete(d.k);
+      F[d.k] = A;
+      if (d.el) d.el.value = A;
+      markMan();
+      draw();
+    } else setField(d.k, L[+t.dataset.i]);
+  };
+}
 export function openEd(d, sel = true) {
   closeEd(true);
   const ed = $('ed'),
@@ -232,6 +273,7 @@ export async function init15() {
       place(e, d, 0, 0);
       h.append(e);
     });
+    seatDraw(); // the round buttons of the pilot seat and of the flights of the package
   };
   window.addEventListener('resize', () => {
     try {
@@ -271,6 +313,9 @@ export async function init15() {
       closeEd(true);
       if (CYC[d.k].length > 6) openMenu(d);
       else cycle(d.k);
+    } else if (d && /^fl\d_0$/.test(d.k) && sqPage.roster().length) {
+      closeEd(true);
+      openNameMenu(d);
     } else if (d) openEd(d);
     else closeEd(true);
   });

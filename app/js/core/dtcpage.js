@@ -119,7 +119,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
-    SYNC = { ews: true, icp: true, wpn: true }, // same as DCS0 (app/datacard.js)
+    SYNC = { ews: true, icp: true, wpn: true, lsr: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,
@@ -645,7 +645,7 @@ export function createDtcPage(deps) {
             {
               sync: 'icp',
               syncTip: 'Bingo and ALOW follow the Datacard: what you type there is written into the DTC',
-              hint: 'Switch on to take bingo and ALOW from the Datacard; off to type them here (more simulative).',
+              hint: 'Switch on to take bingo and ALOW from the datacard; off to type them inside the plane (more simulative).',
             }
           )
         : card('icp', 'ICP', absent('The ICP data', 'ICP'), { noedit: 1 });
@@ -655,7 +655,13 @@ export function createDtcPage(deps) {
             'Laser',
             row('Laser start time', inp('Laser', 'LaserST', { t: 'int', w: 70 }), 's') +
               row('TGP code', inp('Laser', 'LaserTGP', { t: 'int', w: 70 })) +
-              row('LST code', inp('Laser', 'LaserLST', { t: 'int', w: 70 }))
+              row('LST code', inp('Laser', 'LaserLST', { t: 'int', w: 70 })),
+            {
+              sync: 'lsr',
+              syncTip:
+                'The TGP code follows the Datacard: the CONF-LSR code of the chosen seat is written into the DTC (the LST code and the start time are not touched)',
+              hint: 'Switch on to take the TGP code from the datacard (the CONF-LSR of the chosen seat); off to type it here. The start time and the LST code are always typed here.',
+            }
           )
         : card('laser', 'Laser', absent('The laser codes', 'Laser'), { noedit: 1 });
       h +=

@@ -13,7 +13,8 @@
       "final": "object",
       "flight": "string",
       "label": "string",
-      "manual": "object"
+      "manual": "object",
+      "seat": "object"
     },
     "dtc": {
       "author": "object",

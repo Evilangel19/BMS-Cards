@@ -127,28 +127,32 @@ canvas {
 #pnmenu {
   position: fixed;
   z-index: 50;
-  width: 200px;
+  width: 220px;
   max-height: 260px;
   overflow: auto;
   background: var(--card);
   border: 1px solid var(--line);
   border-radius: 10px;
-  padding: 6px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  box-shadow: 0 8px 24px #000a;
+  gap: 0;
+  box-shadow: 0 6px 24px #000a;
   animation: popin 0.14s ease-out;
 }
 .pni {
-  background: none;
+  display: block;
+  width: 100%;
+  background: transparent;
   border: 0;
   color: var(--tx);
   text-align: left;
-  padding: 6px 8px;
+  padding: 5px 10px;
   border-radius: 6px;
   cursor: pointer;
   font: inherit;
+  font-size: 13px;
+  transition: background-color 0.15s;
 }
 .pni:hover {
   background: #ffffff14;
@@ -169,16 +173,17 @@ canvas {
 .pnb {
   padding: 0 8px;
 }
-#pnmenu {
-  background: #fff;
-  border-color: #9aa5b1;
-}
-#pnmenu .pni,
-#pnmenu .pne {
-  color: #111;
-}
 #pnmenu .pni:hover {
-  background: #0000001a;
+  background: #1a212b;
+}
+#pnmenu .pni.on {
+  background: #1f7a46;
+  color: #fff;
+}
+#pnmenu .pne {
+  padding: 8px 10px;
+  color: var(--mu);
+  font-size: 12px;
 }
 .ato .fl.ml,
 .ato .ph.ml {
@@ -263,6 +268,110 @@ canvas {
   background: #4f8cff22;
   border-radius: 3px;
   display: none;
+}
+/* the pilot seat and the flights of the package: round buttons over the card, never drawn into the canvas (app/seat.js) */
+#seatov {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+#seatov .seatrow {
+  position: absolute;
+  background: rgba(31, 111, 235, 0.14);
+  border: 1px solid rgba(31, 111, 235, 0.6);
+  border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+#seatov .seatrow.on {
+  opacity: 1;
+}
+#seatov .seatb {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 2px solid #1f6feb;
+  background: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    box-shadow 0.15s,
+    transform 0.1s,
+    border-color 0.15s,
+    opacity 0.15s;
+}
+#seatov .seatb::after {
+  content: '';
+  width: 46%;
+  height: 46%;
+  border-radius: 50%;
+  background: #1f6feb;
+  transform: scale(0);
+  transition: transform 0.15s;
+}
+#seatov .seatb.on::after {
+  transform: scale(1);
+}
+#seatov .seatb:hover:not(:disabled) {
+  box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.25);
+}
+#seatov .seatb:active:not(:disabled) {
+  transform: scale(0.9);
+}
+#seatov .seatb:focus-visible {
+  outline: 3px solid #6ea8ff;
+  outline-offset: 2px;
+}
+#seatov .seatb:disabled {
+  border-color: #b0b0b0;
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+#seatov .seatb.ask:not(:disabled) {
+  animation: seatask 1.4s ease-in-out infinite;
+}
+@keyframes seatask {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(31, 111, 235, 0.55);
+  }
+  50% {
+    box-shadow: 0 0 0 7px rgba(31, 111, 235, 0);
+  }
+}
+.seatinfo {
+  display: none;
+  margin-top: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--mu);
+  font-size: 12px;
+  line-height: 1.4;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.seatinfo.on {
+  display: block;
+  animation: appear 0.15s ease-out;
+}
+.seatinfo.ask {
+  border-color: #1f6feb;
+  background: #10243a;
+  color: #9cc4f5;
+}
+.seatinfo.note {
+  border-color: #6b5316;
+  background: #2b2210;
+  color: #f2c76a;
 }
 #ed {
   position: absolute;

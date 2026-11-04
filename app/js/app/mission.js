@@ -24,6 +24,7 @@ import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
 import { atoCloseState, atoSearch } from './ato.js';
 import { dtcBtns, dtcReloaded } from './dtcapply.js';
+import { seatQuiet, seatResolve, seatSave } from './seat.js';
 
 /* Mission (core/mission.js): one folder per package = the mission file (package taken out of the campaign, the DTC as opened with its changes kept apart, the datacard with its
    automatic and manual values), the program settings, the cards and a copy of the original kneeboards. The mission works without the campaign. */
@@ -168,7 +169,7 @@ export async function msfBuild() {
     flight: x.f.id.n + ':' + x.f.id.c,
     snapshot: PJ.snapshotCampaign(ST.C, x.f, { radiusNm: ST.CFG.mission.radiusNm }),
     dtc,
-    datacard: { label: x.label, auto, manual, final },
+    datacard: { label: x.label, auto, manual, final, seat: seatSave() },
     settings: null,
     version: APP_VERSION,
     theater: { name: (ST.TH && ST.TH.name) || '', lat: getGeo().lat, lon: getGeo().lon },
@@ -566,6 +567,7 @@ export async function msfLoad(text, file) {
       dtcReloaded();
       dtcBtns();
     }
+    seatQuiet(true); // the seat is worked out below, when the card of the mission is in
     ST.MSFCARD = {
       C: C2,
       key: p.datacard.flight,
@@ -588,6 +590,7 @@ export async function msfLoad(text, file) {
     ST.MAPSHOT = shot;
     ST.AUTO = Object.assign({}, d.auto || ST.AUTO);
     ST.MANK = new Set(Object.keys(d.manual || {}));
+    seatResolve(d, mine, shared === true); // the seat: the one this pilot saved, or the one his name is on (none: the buttons ask)
     view();
     markMan();
     atoCloseState();
@@ -600,6 +603,7 @@ export async function msfLoad(text, file) {
     return no('Could not open the mission: ' + ((e && e.message) || e) + '\nThe program was put back as it was.');
   } finally {
     ST.NOPERF = false;
+    seatQuiet(false);
   }
 }
 // the state a mission replaces, kept to put it back when the load fails halfway
@@ -637,6 +641,7 @@ export function msfSnapshot() {
   SNAPK.forEach(k => {
     s.st[k] = ST[k];
   });
+  s.seat = { ...ST.SEAT };
   s.html = { fsel: $('fsel').innerHTML, sel: $('fsel').value, cinfo: $('cinfo').textContent, fn: $('fn').textContent };
   try {
     s.tanks = jclone(mapV.tanks());
@@ -649,6 +654,7 @@ export function msfRestore(s) {
   SNAPK.forEach(k => {
     ST[k] = s.st[k];
   });
+  if (s.seat) ST.SEAT = { ...s.seat };
   Object.keys(F).forEach(k => delete F[k]);
   Object.assign(F, s.f);
   WXS.clear();
@@ -707,6 +713,7 @@ export const msfSig = () => {
       $('fsel').value,
       manDiff(),
       [...ST.OVR.entries()],
+      [ST.SEAT.n, ST.SEAT.set],
       lines.map(l => l.s + '|' + l.k + '|' + l.v),
       extraSig(),
     ]);

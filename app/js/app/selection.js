@@ -13,6 +13,7 @@ import { MFD, draw } from './cardview.js';
 import { perfFill } from './perf.js';
 import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
+import { seatCheck, seatEnter } from './seat.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
 export const fkey = f => (f && f.campId != null ? String(f.campId) : null);
@@ -110,6 +111,7 @@ export function apply(i, mode) {
         if (t) F['pk' + q + '_4'] = t.s + '1';
       });
   }
+  seatCheck(); // the seat chosen must exist in this flight
   applyDTC(ST.CL[i].f);
   mdcAuto();
   dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
@@ -146,6 +148,7 @@ export function apply(i, mode) {
       ST.MANK = new Set(Object.keys(ST.OVR.get(k)));
     }
   }
+  seatEnter(); // B. CODE and the callsign of the pilot on his seat, with the final manual changes
   buildForm();
   markMan();
   draw();

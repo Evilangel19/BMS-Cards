@@ -44,7 +44,9 @@ try:
         before = pg.evaluate("()=>({...__app.F})")
         mj = json.loads(pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())")); mj['dtc']['author'] = {'uid': 'other-pilot', 'callsign': 'X'}
         pg.goto('http://localhost:8799/app/index.html'); pg.wait_for_timeout(800)
-        pg.evaluate("async(t)=>__app.msfLoad(t)", json.dumps(mj)); pg.wait_for_timeout(1200)
+        # no DTC is open here: the mission of another pilot waits for a choice; the card does not need his DTC data
+        pg.evaluate("t=>{window.__r=__app.msfLoad(t)}", json.dumps(mj)); pg.wait_for_selector('#msfnodtc', state='visible', timeout=8000)
+        pg.click('#msfnodtc [data-skip]'); pg.evaluate("async()=>await window.__r"); pg.wait_for_timeout(1200)
         pg.evaluate("()=>__app.apply(+document.querySelector('#fsel').value)"); pg.wait_for_timeout(600)
         after = pg.evaluate("()=>({...__app.F})")
         keys = [k for k in before if isinstance(before[k], str) and not k.startswith('__') and before[k]]
