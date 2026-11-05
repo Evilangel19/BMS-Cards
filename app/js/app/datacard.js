@@ -16,7 +16,7 @@ import { mapV, sqPage } from './pages.js';
 import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
 import { fpStart, fpSpan } from '../core/fpcols.js';
-import { seatIdx, seatCodes } from './seat.js';
+import { seatIdx, seatCodes, seatToDtc } from './seat.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
@@ -54,8 +54,8 @@ export const cycle = k => {
 };
 export const MIR = {};
 // the groups kept equal to the datacard ("from Datacard" on the Data Cartridge page): on at the first start, then the choice of the pilot (dtcprefs.json)
-// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js)
-export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true };
+// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js); iff, l16 = the IFF codes and the Link 16 flags of the chosen seat (app/seatdtc.js)
+export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true };
 ST.DCS = { ...DCS0 };
 // when(): optional, the cell is mirrored only while it answers true (the CONF-LSR cell of one seat feeds the DTC only while that seat is the chosen one)
 export const mir = (k, grp, sec, key, to, from, when) => {
@@ -89,10 +89,12 @@ export function dcSync(g, on) {
   try {
     savePrefs('dtcprefs.json', { sync: ST.DCS });
   } catch (e) {}
-  if (on && lines.length)
+  if (on && lines.length) {
     Object.keys(MIR)
       .filter(k => MIR[k].grp == g && F[k] !== undefined && F[k] !== '')
       .forEach(pushOne);
+    if (g == 'iff' || g == 'l16') seatToDtc({ [g]: true });
+  }
 }
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
 export function mirrorToCard(sec, key, quiet) {

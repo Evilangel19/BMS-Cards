@@ -1,4 +1,6 @@
 import { CAM } from '../core/cam-core.js';
+import { RANK_AB } from '../core/squadron.js';
+import { SEAT_PAD, seatBtn } from '../core/seatgeo.js';
 import { ST } from './state.js';
 import { $, appToast } from './base.js';
 import { F, FD, dEl, pushOne, setField } from './datacard.js';
@@ -10,12 +12,15 @@ import { apply, markMan } from './selection.js';
 import { SX, SY, boxOf, cardOn } from './editor.js';
 import { sqPage } from './pages.js';
 import { myIdent, unsaved } from './mission.js';
+import { seatDtcPush } from './seatdtc.js';
 
 /* The pilot seat. A card (and its DTC) is made for one pilot of the flight: the round buttons beside the pilots of the Flight section (and of the Pilots table of the MDC format)
    choose which one. The choice is global (it stays when another flight is chosen) and has these effects:
    - the laser code of the DTC is the CONF-LSR code of the seat (Datacard <-> DTC, group "lsr" of app/datacard.js) and the B. CODE cells show it;
+   - once a seat is chosen (the default writes nothing) the IFF codes of the DTC (modes 2 and 3) and its Link 16 file A (flight lead, position in the callsign number) are the seat's too:
+     groups "iff" and "l16", app/seatdtc.js;
    - the MDC format shows the IFF (M2, M3) and the Link 16 STN of the seat (core/mdcfill.js);
-   - the callsign of the pilot who pressed the button is written in the Name cell of the seat (a manual change of the card, so a mission keeps it).
+   - the name of the pilot who pressed the button (the Logbook name with his rank, "Maj. Chris"; the callsign when he has no name) is written in the Name cell of the seat (a manual change of the card, so a mission keeps it).
    n = 0..3 the seat, -1 no seat chosen (the card uses the values of the leader, as it did before); set = the pilot chose it (false: the default of whoever makes the card, the leader);
    ask = a mission of another pilot was opened and his name is not on it: the buttons call for a choice. Round buttons over the card are HTML, never drawn into the canvas, so the
    kneeboard and the exports stay clean. */
@@ -37,10 +42,12 @@ export function seatMe() {
   }
   const cs = str(m.callsign) || str(mine && mine.callsign),
     nm = str(m.name) || str(mine && mine.name),
-    lb = str(mine && mine.label);
+    lb = str(mine && mine.label),
+    ab = RANK_AB[m.st && m.st.rk] || '',
+    own = str(m.name) ? (ab ? ab + ' ' : '') + str(m.name) : ''; // the name of the Logbook with the rank, as the roster lists it
   return {
-    text: cs || lb || nm, // what is written in the Name cell
-    names: [...new Set([cs, nm, lb].filter(Boolean).map(x => x.toLowerCase()))],
+    text: own || lb || cs, // what is written in the Name cell: the name with the rank, the callsign when the pilot has no name
+    names: [...new Set([cs, nm, lb, own].filter(Boolean).map(x => x.toLowerCase()))],
   };
 }
 const isMe = t => {
@@ -83,7 +90,14 @@ export function seatCodes() {
   const v = str(F[`fl${seatIdx()}_5`]);
   ['wp1_bc', 'wp2_bc'].forEach(k => put(k, v === '---' ? '' : v));
 }
-// everything that follows from the seat, written again: IFF and Link 16 of the MDC, B. CODE, and the laser code of the DTC (when "from Datacard" is on and push is not false)
+// the IFF codes and the Link 16 flags of the DTC for the seat: only once the pilot chose a seat (the default writes nothing), and only for the groups that follow the Datacard;
+// only: {iff: true} = just that group (its switch was turned on). Giving the seat up writes the leader's, as the laser code does.
+export function seatToDtc(only) {
+  if (!ST.SEAT.set || !lines.length || !ST.DCS) return 0;
+  const on = g => (!only || !!only[g]) && !!ST.DCS[g];
+  return seatDtcPush(seatIdx(), { iff: on('iff'), l16: on('l16') });
+}
+// everything that follows from the seat, written again: IFF and Link 16 of the MDC, B. CODE, and the laser, IFF and Link 16 of the DTC (when "from Datacard" is on and push is not false)
 export function seatRefresh(push = true) {
   mdcAuto();
   seatCodes();
@@ -93,6 +107,7 @@ export function seatRefresh(push = true) {
     if (d && d.el && d.el.value !== (F[k] || '')) d.el.value = F[k] || '';
   });
   if (push && ST.DCS && ST.DCS.lsr && lines.length) pushOne(`fl${seatIdx()}_5`);
+  if (push) seatToDtc();
 }
 
 // ---- the names ----
@@ -110,7 +125,7 @@ function giveBack() {
     }
   }
 }
-// the callsign of a pilot is on one seat only: where the campaign had put it, the seat is free
+// a pilot is on one seat only: where the campaign had put him, the seat is free
 function freeOthers(i) {
   for (let j = 0; j < 4; j++) if (j !== i && isMe(F[`fl${j}_0`])) setField(`fl${j}_0`, FREE);
 }
@@ -132,11 +147,14 @@ export function seatInfo() {
     cls = 'ask';
   } else if (S.n < 0)
     t =
-      'No seat chosen: the DTC and the MDC use the leader’s values. Press a round button to take a seat with your callsign.';
+      'No seat chosen: the DTC and the MDC use the leader’s values. Press a round button to take a seat with your name.';
   else {
     const i = seatIdx(),
       nm = str(F[`fl${i}_0`]);
-    t = `Seat ${SEAT_POS[i]}${S.set ? '' : ' (default)'}${nm && nm !== '---' ? ' · ' + nm : ''}: the laser code of the DTC (CONF-LSR ${str(F[`fl${i}_5`]) || '—'}) and the IFF and Link 16 of the MDC format are this seat’s.`;
+    const who = `Seat ${SEAT_POS[i]}${S.set ? '' : ' (default)'}${nm && nm !== '---' ? ' · ' + nm : ''}`;
+    t = S.set
+      ? `${who}: the DTC (laser code ${str(F[`fl${i}_5`]) || '—'}, IFF modes 2 and 3, Link 16 flight lead and number) and the MDC format are made for this seat.`
+      : `${who}: the DTC (laser code ${str(F[`fl${i}_5`]) || '—'}) and the MDC format are the leader’s. Press a round button to take a seat: the DTC takes its IFF and Link 16 too.`;
   }
   el.textContent = t;
   el.className = 'seatinfo' + (cls ? ' ' + cls : '') + (t ? ' on' : '');
@@ -150,7 +168,7 @@ function after() {
   draw();
   seatInfo();
 }
-// the round button of seat i: take the seat (the callsign goes to its Name cell, a confirmation first when another pilot of the roster is there); pressed again: the seat is given up
+// the round button of seat i: take the seat (the name goes to its Name cell, a confirmation first when another pilot of the roster is there); pressed again: the seat is given up
 export async function pickSeat(i) {
   const S = ST.SEAT;
   if (BUSY || !seatExists(i)) return;
@@ -169,11 +187,14 @@ export async function pickSeat(i) {
       if (
         rosterPilot(cur) &&
         !(await confirm(
-          cur + ' is a pilot of your squadron roster. Put your callsign (' + me.text + ') in this seat instead?'
+          cur + ' is a pilot of your squadron roster. Put your name (' + me.text + ') in this seat instead?'
         ))
       )
         return;
-    } else appToast('Your callsign is not set (Squadron page, Me): the seat is chosen, but its name is not changed.');
+    } else
+      appToast(
+        'Your name and callsign are not set (Squadron page, Me): the seat is chosen, but its name is not changed.'
+      );
     giveBack();
     if (me.text && !isMe(F[`fl${i}_0`])) setField(`fl${i}_0`, me.text);
     freeOthers(i);
@@ -197,11 +218,12 @@ export function seatCheck() {
   S.ask = false;
   appToast(S.note);
 }
-// after the manual changes of the flight are back: B. CODE, and the callsign of the pilot on the seat he chose
+// after the manual changes of the flight are back: B. CODE, and the name of the pilot on the seat he chose
 export function seatEnter() {
   const S = ST.SEAT;
   if (!QUIET && S.note && S.n >= 0) S.note = '';
   seatCodes();
+  if (!QUIET && S.set) seatToDtc(); // the DTC of the flight just opened follows the seat the pilot chose
   if (!QUIET && S.n >= 0 && S.set) seatStamp().catch(() => {});
   seatInfo();
 }
@@ -217,7 +239,7 @@ async function seatStamp() {
   if (rosterPilot(cur)) {
     const ok = await confirm(
       cur +
-        ' is a pilot of your squadron roster. Put your callsign (' +
+        ' is a pilot of your squadron roster. Put your name (' +
         me.text +
         ') in the seat ' +
         SEAT_POS[i] +
@@ -344,10 +366,10 @@ export function seatDraw() {
       ask = seatAsk(),
       md = !!ST.MDCON,
       one = (id, rr, o) => {
-        // the row (lit when it is the one chosen) and its round button (at the right end of the first cell)
+        // the row (lit when it is the one chosen) and its round button (at the left end of the first cell: the text of the cell starts after it, see core/seatgeo.js)
         const row = node(id + 'r', 'i', 'seatrow'),
           b = node(id, 'button', 'seatb'),
-          sz = Math.max(13, Math.min(24, rr.first.h * 0.8)),
+          sz = Math.max(10, seatBtn(rr.first.h / kk) * kk),
           set = (el, l, t, w, h) => {
             el.style.left = l + 'px';
             el.style.top = t + 'px';
@@ -358,7 +380,7 @@ export function seatDraw() {
         want.add(id);
         set(row, rr.x, rr.y, rr.w, rr.h);
         row.classList.toggle('on', o.on);
-        set(b, rr.first.x + rr.first.w - sz - 5 * kk * SX, rr.first.y + (rr.first.h - sz) / 2, sz, sz);
+        set(b, rr.first.x + SEAT_PAD * kk, rr.first.y + (rr.first.h - sz) / 2, sz, sz);
         b.type = 'button';
         b.disabled = !!o.why;
         b.classList.toggle('on', o.on);
@@ -380,7 +402,7 @@ export function seatDraw() {
         label:
           on && S.set
             ? `Give up the seat ${SEAT_POS[i]}`
-            : `Take the seat ${SEAT_POS[i]} (your callsign goes in its Name cell)`,
+            : `Take the seat ${SEAT_POS[i]} (your name goes in its Name cell)`,
         go: () => pickSeat(i),
       });
     }

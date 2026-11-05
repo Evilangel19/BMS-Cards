@@ -37,8 +37,8 @@ export function buildLayout() {
   const near = (p, q) => Math.abs(p - q) < 1.5;
   const at = a => shapes.find(s => s.a == a);
   const page2 = sh => (sh.r[0] + sh.r[2]) / 2 >= 994;
-  // x of a cell: the cells of some rows are moved by a piecewise map [[from, to], ...] (the cells keep their order)
-  const xmap = (rows, pts) => {
+  // x of a cell: the cells of some rows are moved by a piecewise map [[from, to], ...] (the cells keep their order); page 1 unless p2
+  const xmap = (rows, pts, p2 = false) => {
     const f = x => {
       for (let i = 1; i < pts.length; i++)
         if (x <= pts[i][0] + 0.01)
@@ -47,7 +47,7 @@ export function buildLayout() {
     };
     shapes.forEach(sh => {
       const row = rowOf(sh.a);
-      if (!page2(sh) && row >= rows[0] && row <= rows[1]) sh.r = [f(sh.r[0]), sh.r[1], f(sh.r[2]), sh.r[3]];
+      if (page2(sh) === p2 && row >= rows[0] && row <= rows[1]) sh.r = [f(sh.r[0]), sh.r[1], f(sh.r[2]), sh.r[3]];
     });
   };
   // the empty square at the bottom right goes to the loadout; the roll call has 8 flights (rows 19-22 of page 2 go to the EOB tables)
@@ -61,14 +61,14 @@ export function buildLayout() {
       row = rowOf(sh.a);
     if ((row == 61 || row == 60) && r[2] < 1000) {
       // the loadout grows in width (and over the row below), the cells of its row move to the right
-      if (sh.a == 'A61') sh.r = [11, r[1], 340, 2044];
-      else if (sh.a == 'A60') sh.r = [11, r[1], 340, r[3]];
+      if (sh.a == 'A61') sh.r = [11, r[1], 459, 2044];
+      else if (sh.a == 'A60') sh.r = [11, r[1], 459, r[3]];
       else if (r[0] >= 254) {
         const m = x => 340 + ((x - 255) * (994 - 340)) / (908 - 255);
         sh.r = [m(r[0]), r[1], m(r[2]), r[3]];
       }
     }
-    if (sh.a == 'A62') sh.r = [340, r[1], r[2], r[3]];
+    if (sh.a == 'A62') sh.r = [459, r[1], r[2], r[3]];
     // audio presets: narrower PRI column, wider FREQ
     if (row >= 6 && row <= 16 && !page2(sh)) {
       if (near(r[0], 792) && near(r[2], 850)) sh.r = [r[0], r[1], 830, r[3]];
@@ -85,6 +85,38 @@ export function buildLayout() {
       else if (near(r[0], 1217)) sh.r = [1180, r[1], r[2], r[3]];
     }
   });
+  // roll call: the columns follow their text. Callsign (with the round button of the flight at its left), Target and Time on target get the room that ALT, FREQ, PUSH and the
+  // others did not need: a long name of a target is written at its natural width (it was squeezed to three quarters)
+  xmap(
+    [1, 22],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1180, 1221], // CALLSIGN
+      [1273.5, 1301], // ACFT
+      [1385.7, 1415], // HOLD
+      [1498, 1495], // ALT
+      [1610.2, 1585], // FREQ
+      [1722.5, 1665], // PUSH
+      [1890.8, 1911], // TGT
+      [2035, 2035], // TOT
+    ],
+    true
+  );
+  // Known EOB: a narrower B/E gives its room to TYPE, LAT and LONG
+  xmap(
+    [24, 33],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1105.1, 1105.1],
+      [1161.2, 1177.2], // TYPE
+      [1273.5, 1299], // LAT
+      [1385.7, 1422], // LONG
+      [1498, 1498], // B/E
+    ],
+    true
+  );
   // flight plan: shorter Description, wider TOS
   xmap(
     [19, 34],
@@ -147,17 +179,24 @@ export function buildLayout() {
       else sh.r = [TX[j], sh.r[1], TX[j + 1], sh.r[3]];
     }
   }
-  // loadout row: no NRM / IMM DIST column, the others take the room
+  // loadout row: no DIST D/W and no NRM / IMM columns (the header and the empty cell below it). The room goes to the loadout (CFG / LMT, wider by a third) and to GW; DI, ROT, TO,
+  // DIST and REF keep their width and move to the right
   {
-    for (let i = shapes.length; i--;) if (/^T6[01]$/.test(shapes[i].a)) shapes.splice(i, 1);
-    const x0 = 340.4,
-      x1 = 993.6,
-      m = x => x0 + ((x - x0) * (x1 - x0)) / (820.4 - x0);
+    for (let i = shapes.length; i--;) if (/^[PT]6[01]$/.test(shapes[i].a)) shapes.splice(i, 1);
+    const X = {
+      E: [459, 569], // GW
+      F: [569, 640.3], // DI
+      G: [640.3, 718.8], // ROT
+      I: [718.8, 797.3], // TO
+      K: [797.3, 875.9], // DIST
+      M: [875.9, 993.6], // REF (D/W), the last cell: a medium border at its right
+    };
     shapes.forEach(sh => {
-      const row = rowOf(sh.a);
-      if ((row == 60 || row == 61) && !page2(sh) && sh.r[0] >= x0 - 0.5 && sh.r[2] <= 820.5 && sh.r[0] < 706) {
-        sh.r = [m(sh.r[0]), sh.r[1], m(sh.r[2]), sh.r[3]];
-        if (/^P6[01]$/.test(sh.a)) sh.b = [sh.b[0], sh.b[1], 2, sh.b[3]];
+      const row = rowOf(sh.a),
+        c = X[sh.a.replace(/\d+$/, '')];
+      if ((row == 60 || row == 61) && !page2(sh) && c) {
+        sh.r = [c[0], sh.r[1], c[1], sh.r[3]];
+        if (c === X.M) sh.b = [sh.b[0], sh.b[1], 2, sh.b[3]];
       }
     });
   }
@@ -332,7 +371,6 @@ export function buildLayout() {
     ['I61', 'tospec', 'TO'],
     ['K61', 'cfg_dist', 'DIST'],
     ['M61', 'ref', 'REF (D/W)'],
-    ['P61', 'cfg_ni', 'NRM / IMM'],
   ].forEach(([a, k, lab]) => field(a, k, lab, 'Configuration'));
   field('R62', 'srv', 'Server IP', 'Server', { to: 'Y62', all: 'RSTUVWXY'.split('').map(c => c + 62) });
 

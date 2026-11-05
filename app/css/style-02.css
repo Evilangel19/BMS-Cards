@@ -303,19 +303,12 @@ canvas {
     box-shadow 0.15s,
     transform 0.1s,
     border-color 0.15s,
+    background-color 0.15s,
     opacity 0.15s;
 }
-#seatov .seatb::after {
-  content: '';
-  width: 46%;
-  height: 46%;
-  border-radius: 50%;
+/* the seat or the flight the card is made for: the button is filled */
+#seatov .seatb.on {
   background: #1f6feb;
-  transform: scale(0);
-  transition: transform 0.15s;
-}
-#seatov .seatb.on::after {
-  transform: scale(1);
 }
 #seatov .seatb:hover:not(:disabled) {
   box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.25);

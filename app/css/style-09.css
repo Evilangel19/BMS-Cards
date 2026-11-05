@@ -13,6 +13,21 @@
     14px system-ui,
     sans-serif;
 }
+/* the program logo above the title and the bar (still: the Animations setting is read after the first paint) */
+#boot .bl {
+  width: 112px;
+  height: 112px;
+  margin-bottom: 4px;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+@media (max-height: 420px) {
+  #boot .bl {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 0;
+  }
+}
 #boot .bt {
   width: min(420px, 80vw);
   height: 8px;

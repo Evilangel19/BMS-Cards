@@ -9,7 +9,7 @@ class H(http.server.SimpleHTTPRequestHandler):
     def end_headers(s):
         s.send_header('Content-Security-Policy', CSP); super().end_headers()
     def log_message(s, *a): pass
-srv = http.server.ThreadingHTTPServer(('127.0.0.1', 8781), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
+srv = http.server.ThreadingHTTPServer(('127.0.0.1', 8934), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 def check(name, cond):
     global ok; ok &= bool(cond); print('OK  ' if cond else 'FAIL', name)
@@ -19,7 +19,7 @@ try:
         pg.add_init_script("window.__csp=[];document.addEventListener('securitypolicyviolation',e=>window.__csp.push(e.violatedDirective+' '+(e.blockedURI||'')+' '+(e.sourceFile||'')+':'+(e.lineNumber||'')))")
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.on('console', lambda m: errs.append(m.text) if 'Content Security Policy' in m.text or 'Refused to' in m.text else None)
-        pg.goto('http://127.0.0.1:8781/app/index.html'); pg.wait_for_timeout(1500)
+        pg.goto('http://127.0.0.1:8934/app/index.html'); pg.wait_for_timeout(1500)
         b = base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b); pg.wait_for_timeout(1000)
         for t in pg.evaluate("[...document.querySelectorAll('button.tab[data-t]')].map(b=>b.dataset.t)"):

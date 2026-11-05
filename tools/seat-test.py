@@ -1,4 +1,4 @@
-"""The pilot seat: the round buttons beside the pilots of the Flight section of the datacard (and of the Pilots table of the MDC format), the callsign in the Name cell,
+"""The pilot seat: the round buttons at the left of the pilots of the Flight section of the datacard (and of the Pilots table of the MDC format), the name in the Name cell,
 the laser code of the DTC and the B. CODE from the CONF-LSR of the seat, the IFF and the Link 16 of the MDC for each seat, the seat when another flight or another mission
 is opened, the buttons of the other flights of the package, the standard menu of the Name cell, the animations. Usage: python3 tools/seat-test.py [screenshot_dir]"""
 import subprocess, sys, time, os, base64, json
@@ -14,9 +14,17 @@ b64 = lambda n: base64.b64encode(open(FX + n, 'rb').read()).decode()
 ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
-# the squadron: me (uid a, callsign Evil19) and Anna (callsign Zed) on the roster
+# the squadron: me (uid a, Chris, callsign Evil19: "Maj. Chris" on the roster) and Anna (callsign Zed: "Capt. Anna")
 SQ = """([uid,cs])=>{const d=__app.sq.db();d.uid=uid;d.cs=cs;d.squads.push({id:'t1',name:'Test',roster:{a:{uid:'a',name:'Chris',callsign:'Evil19',stats:{rk:3}},b:{uid:'b',name:'Anna',callsign:'Zed',stats:{rk:2}}},owner:'a',leader:'a'});d.cur='t1'}"""
 LOAD = "async(a)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app[a[0]](f(a[1],a[2]))}"
+# where a button sits and what the canvas has under it: the text of the cell must start after the button (dark pixels in the zone of the button, and some just after it)
+SCAN = """async([k,btn])=>{const m=await import('./js/core/seatgeo.js'),mdc=!!__app.ST.MDCON,c=__app.cellRect(k),cv=document.getElementById('cv'),r=cv.getBoundingClientRect(),kk=r.width/2048,
+  x0=Math.round((c.x-r.left)/kk),yc=Math.round((c.y-r.top+c.h/2)/kk),h=c.h/kk,ind=Math.round(mdc?m.seatIndent(h):m.seatIndent(m.DC_ROW*2048/1200)),
+  id=cv.getContext('2d').getImageData(0,0,2048,2048).data,dark=(a,b)=>{let n=0;for(let y=yc-9;y<=yc+9;y++)for(let x=a;x<b;x++){const i=(y*2048+x)*4;if(id[i]+id[i+1]+id[i+2]<300)n++}return n},
+  b=document.querySelector('#seatov [data-seat='+btn+']').getBoundingClientRect();
+  return {ind,before:dark(x0+7,x0+ind-4),after:dark(x0+ind-2,x0+ind+110),left:(b.left-c.x)/kk,right:(b.right-c.x)/kk,mid:(b.top+b.height/2-(c.y+c.h/2))/kk,size:b.width/kk,cw:c.w/kk}}"""
+# the IFF and Link 16 lines of the DTC, and whether any line of it is changed
+DTCL = """()=>({v:Object.fromEntries(__app.lines.filter(l=>l.s=='IFF'||l.s=='LINK16').map(l=>[l.k,l.v])),dirty:__app.lines.filter(l=>l.dirty).map(l=>l.s+'|'+l.k)})"""
 STATE = """()=>({seat:{...__app.ST.SEAT}, names:[0,1,2,3].map(i=>__app.F['fl'+i+'_0']), man:[...__app.MANK], lsr:[0,1,2,3].map(i=>__app.F['fl'+i+'_5']),
  tgp:(__app.lines.find(l=>l.s=='Laser'&&l.k=='LaserTGP')||{}).v, bc:[__app.F.wp1_bc,__app.F.wp2_bc], mdc:[__app.F.m2,__app.F.m3,__app.F.dl0_fl],
  info:document.getElementById('seatinfo').textContent,
@@ -60,6 +68,19 @@ try:
         check('the line under the card says which seat the DTC and the MDC are made for', s['info'].startswith('Seat 1 Lead (default)'))
         check('the row of the seat is lit', pg.locator('#seatov .seatrow.on').count() >= 1 and btn('s0').get_attribute('aria-pressed') == 'true' and btn('s1').get_attribute('aria-pressed') == 'false')
         check('the buttons are over the card, not drawn in it: they are HTML', pg.evaluate("()=>document.getElementById('seatov').parentElement.querySelector('#cv')!==null&&document.getElementById('seatov').children.length>=4"))
+        def big(fn):  # the geometry is checked on a card of a normal size: the form beside it is closed for a moment
+            pg.evaluate("()=>__app.toggleForm()"); pg.wait_for_timeout(700)
+            try: return fn()
+            finally: pg.evaluate("()=>__app.toggleForm()"); pg.wait_for_timeout(700)
+        g = big(lambda: pg.evaluate(SCAN, ['fl0_0', 's0']))
+        check('the button is at the LEFT end of the Name cell, centred in its height, with a size in step with the card (%s)' % {k: round(v) for k, v in g.items()}, 0 <= g['left'] <= 12 and g['right'] < g['ind'] and abs(g['mid']) < 2 and 26 <= g['size'] <= 33)
+        check('the text of the Name cell starts after the button: nothing under it, the name just after it', g['before'] == 0 and g['after'] > 20)
+        g = big(lambda: pg.evaluate(SCAN, ['pk0_0', 'p0']))
+        check('the same for the flight of the Package table: button at the left, callsign after it (%s)' % {k: round(v) for k, v in g.items()}, 0 <= g['left'] <= 12 and g['right'] < g['ind'] and abs(g['mid']) < 2 and g['before'] == 0 and g['after'] > 20)
+        # the flight of the card is a random one of the campaign: the pressed button of the package is not always the first
+        cols = pg.evaluate("()=>[...document.querySelectorAll('#seatov .seatb')].map(b=>[b.dataset.seat,b.classList.contains('on'),getComputedStyle(b).backgroundColor])")
+        on = [c for c in cols if c[1]]
+        check('the chosen seat and the chosen flight are filled (solid blue), the others are white (%s)' % ', '.join('%s %s' % (c[0], c[2]) for c in cols), sorted(c[0][0] for c in on) == ['p', 's'] and all(c[2] == 'rgb(31, 111, 235)' for c in on) and all(c[2] == 'rgb(255, 255, 255)' for c in cols if not c[1]))
         if shots: pg.screenshot(path=shots + '/seat-datacard.png', clip=pg.evaluate("()=>{const b=document.getElementById('cv').getBoundingClientRect();return {x:b.x,y:b.y+b.height*0.38,width:b.width,height:b.height*0.34}}"))
 
         pg.set_viewport_size({'width': 1100, 'height': 900}); pg.wait_for_timeout(700)
@@ -67,36 +88,50 @@ try:
         check('the window is made smaller: the buttons follow the cells (%s)' % [round(x) for x in r], r[0] <= r[2] <= r[1] and r[3] <= r[5] <= r[4])
         pg.set_viewport_size({'width': 1500, 'height': 1000}); pg.wait_for_timeout(700)
 
-        # ---- 2. a button: the callsign goes in the Name cell, the same button gives the seat up, the callsign is on one seat only
+        # ---- 2. a button: my name (the Logbook name with the rank) goes in the Name cell, the same button gives the seat up, it is on one seat only
         btn('s1').click(); pg.wait_for_timeout(400); s = S()
-        check('seat 2: my callsign is in its Name cell (a manual change), the leader keeps his name (%s)' % s['names'][:2], s['names'][:2] == [n0[0], 'Evil19'] and s['man'] == ['fl1_0'] and s['seat']['n'] == 1 and s['seat']['set'])
-        check('the button is pressed, the line under the card names the seat', 's1:on' in s['btns'] and 's0:on' not in s['btns'] and s['info'].startswith('Seat 2 Wing · Evil19'))
+        check('seat 2: my name is in its Name cell (a manual change), the leader keeps his name (%s)' % s['names'][:2], s['names'][:2] == [n0[0], 'Maj. Chris'] and s['man'] == ['fl1_0'] and s['seat']['n'] == 1 and s['seat']['set'])
+        check('the button is pressed, the line under the card names the seat', 's1:on' in s['btns'] and 's0:on' not in s['btns'] and s['info'].startswith('Seat 2 Wing · Maj. Chris'))
         btn('s1').click(); pg.wait_for_timeout(400); s = S()
         check('the same button gives the seat up: the name the campaign had is back, no manual change, no seat', s['names'][:2] == n0 and s['man'] == [] and s['seat']['n'] == -1 and not any(b.endswith(':on') and b[:2] in ('s0', 's1') for b in s['btns']))
         check('without a seat the card says it uses the values of the leader', s['info'].startswith('No seat chosen'))
         btn('s0').click(); pg.wait_for_timeout(400); btn('s1').click(); pg.wait_for_timeout(400); s = S()
-        check('taking another seat moves the callsign: the first seat gets its name back (%s)' % s['names'][:2], s['names'][:2] == [n0[0], 'Evil19'] and s['man'] == ['fl1_0'])
-        pg.evaluate("__app.setField('fl0_0','Evil19')"); pg.wait_for_timeout(100)
+        check('taking another seat moves the name: the first seat gets its name back (%s)' % s['names'][:2], s['names'][:2] == [n0[0], 'Maj. Chris'] and s['man'] == ['fl1_0'])
+        pg.evaluate("__app.setField('fl0_0','Maj. Chris')"); pg.wait_for_timeout(100)
         pg.evaluate("__app.seat.pick(1)"); pg.wait_for_timeout(100); pg.evaluate("__app.seat.pick(1)"); pg.wait_for_timeout(300)
         btn('s0').click(); pg.wait_for_timeout(400); s = S()
-        check('my callsign on a seat is taken off the other seats, which become free (%s)' % s['names'][:2], s['names'][0] == 'Evil19' and s['names'][1] != 'Evil19')
+        check('my name on a seat is taken off the other seats, which become free (%s)' % s['names'][:2], s['names'][0] == 'Maj. Chris' and s['names'][1] != 'Maj. Chris')
         # a name typed by hand on a seat is a pilot of the campaign (not on the roster): the seat takes it without asking
         msgs.clear()
         pg.evaluate("__app.seat.pick(0)"); pg.wait_for_timeout(300)  # give up seat 0
         pg.evaluate("__app.setField('fl1_0','Lt. Collins')"); pg.wait_for_timeout(100)
         btn('s1').click(); pg.wait_for_timeout(500); s = S()
-        check('a pilot of the campaign (not on the roster) is replaced without a question (%s)' % msgs, msgs == [] and s['names'][1] == 'Evil19')
+        check('a pilot of the campaign (not on the roster) is replaced without a question (%s)' % msgs, msgs == [] and s['names'][1] == 'Maj. Chris')
 
         # ---- 3. a pilot of the squadron roster on the seat: asked first
         pg.evaluate("__app.seat.pick(1)"); pg.wait_for_timeout(300)  # give up
         pg.evaluate("__app.setField('fl1_0','Capt. Anna')"); pg.wait_for_timeout(100)
         ans[0] = False; msgs.clear()
         btn('s1').click(); pg.wait_for_timeout(600); s = S()
-        check('another pilot of the roster is on the seat: it asks (%s)' % msgs[:1], len(msgs) == 1 and 'Capt. Anna is a pilot of your squadron roster' in msgs[0] and 'Evil19' in msgs[0])
+        check('another pilot of the roster is on the seat: it asks (%s)' % msgs[:1], len(msgs) == 1 and 'Capt. Anna is a pilot of your squadron roster' in msgs[0] and 'Put your name (Maj. Chris)' in msgs[0])
         check('Cancel: nothing changes', s['names'][1] == 'Capt. Anna' and s['seat']['n'] == -1)
         ans[0] = True; msgs.clear()
         btn('s1').click(); pg.wait_for_timeout(600); s = S()
-        check('OK: my callsign takes the seat', s['names'][1] == 'Evil19' and s['seat']['n'] == 1)
+        check('OK: my name takes the seat', s['names'][1] == 'Maj. Chris' and s['seat']['n'] == 1)
+
+        # ---- 3b. what is written is the name of the Logbook with its rank (the callsign only when the pilot has no name)
+        me = lambda: pg.evaluate("()=>__app.seat.me()")
+        m0 = me()
+        check('from the roster of the squadron: "Maj. Chris", not the callsign (%s)' % m0, m0['text'] == 'Maj. Chris' and 'evil19' in m0['names'] and 'chris' in m0['names'] and 'maj. chris' in m0['names'])
+        pg.evaluate("()=>{window.__me=__app.sq.me;__app.sq.me=()=>({uid:'a',name:'Chris',callsign:'Evil19',st:{rk:0}})}")
+        check('the name of the Logbook with its own rank: 2nd Lt. Chris (the Logbook is the first source)', me()['text'] == '2nd Lt. Chris')
+        pg.evaluate("()=>{__app.sq.me=()=>({uid:'zz',name:'',callsign:'Viper',st:null})}")
+        m1 = me()
+        check('no name in the Logbook and not on the roster: the callsign (%s)' % m1, m1['text'] == 'Viper' and m1['names'] == ['viper'])
+        pg.evaluate("()=>{__app.sq.me=()=>({uid:'zz',name:'',callsign:'',st:null})}")
+        check('no name and no callsign: nothing to write', me()['text'] == '')
+        pg.evaluate("()=>{__app.sq.me=window.__me}")
+        check('the old texts still count as mine (the campaign may have written the callsign): Evil19 is not a pilot to ask about', pg.evaluate("()=>__app.seat.me().names.includes('evil19')"))
 
         # ---- 4. the laser: the TGP code of the DTC and the B. CODE follow the CONF-LSR of the seat
         s = S()
@@ -120,13 +155,41 @@ try:
         flight(pg, 'Cyborg 5')
         s = S()
         check('a 4-ship with the IFF and Link 16 files: 4 seats, the leader is the default (%s)' % s['btns'][:4], s['btns'][:4] == ['s0:on', 's1', 's2', 's3'] and s['mdc'] == ['', '4730', '71041'])
+        d0 = pg.evaluate(DTCL)
+        check('the default seat writes nothing into the DTC (IFF %s, lead %s, number %s)' % (d0['v']['Mode3A Code'], d0['v']['FILE_A_FLIGHT_LEAD'], d0['v']['FILE_A_CALLSIGN_NUMBER']), d0['dirty'] == [] and d0['v']['Mode3A Code'] == '4730' and d0['v']['FILE_A_FLIGHT_LEAD'] == '1' and d0['v']['FILE_A_CALLSIGN_NUMBER'] == '31')
         btn('s2').click(); pg.wait_for_timeout(500); s = S()
         check('seat 3: the MDC takes its mode 3 and its Link 16 STN (%s)' % s['mdc'], s['mdc'] == ['', '4732', '71043'])
+        d2 = pg.evaluate(DTCL)
+        tm = [k for k in d0['v'] if k.startswith('TIME ') and k.endswith('Mode3A Code')]
+        low = lambda d, bits: all((int(d['v'][k], 8) & 3) == bits and (int(d['v'][k], 8) >> 2) == (int(d0['v'][k], 8) >> 2) for k in ['Mode3A Code'] + tm)
+        check('seat 3: the DTC takes its Mode 3 code and the Mode 3 code of each of the %d time events (same codes, low bits = the seat) (%s)' % (len(tm), d2['v']['Mode3A Code']), len(tm) >= 3 and d2['v']['Mode3A Code'] == '4732' and low(d2, 2))
+        check('seat 3: Link 16 file A is not the flight lead (0) and the number ends with the position (33)', d2['v']['FILE_A_FLIGHT_LEAD'] == '0' and d2['v']['FILE_A_CALLSIGN_NUMBER'] == '33')
+        rest = [k for k in d0['v'] if k not in tm and k not in ('Mode3A Code', 'Mode2 Code', 'FILE_A_FLIGHT_LEAD', 'FILE_A_CALLSIGN_NUMBER')]
+        check('nothing else of IFF and Link 16 is touched (%d lines the same)' % len(rest), all(d2['v'][k] == d0['v'][k] for k in rest))
+        check('the lines written are marked as changed in the DTC (it is written to the file with the others)', set(d2['dirty']) >= {'IFF|Mode3A Code', 'LINK16|FILE_A_FLIGHT_LEAD', 'LINK16|FILE_A_CALLSIGN_NUMBER'})
         btn('s3').click(); pg.wait_for_timeout(500); s = S()
         check('seat 4: the same for the fourth aircraft (%s)' % s['mdc'], s['mdc'] == ['', '4733', '71044'])
+        d3 = pg.evaluate(DTCL)
+        check('seat 4: the DTC has its Mode 3 code and position 4 (%s, %s)' % (d3['v']['Mode3A Code'], d3['v']['FILE_A_CALLSIGN_NUMBER']), d3['v']['Mode3A Code'] == '4733' and low(d3, 3) and d3['v']['FILE_A_CALLSIGN_NUMBER'] == '34' and d3['v']['FILE_A_FLIGHT_LEAD'] == '0')
         pg.evaluate("__app.setField('m3','5555')"); pg.wait_for_timeout(200); btn('s2').click(); pg.wait_for_timeout(500); s = S()
         check('a value typed by hand in the MDC stays when the seat changes', s['mdc'][1] == '5555' and s['mdc'][2] == '71043')
         pg.evaluate("__app.setField('m3','5555')")
+        btn('s0').click(); pg.wait_for_timeout(500)
+        dl = pg.evaluate(DTCL)
+        check('the leader\'s seat: the DTC has the leader\'s codes and the lead flag again, as it was opened', all(dl['v'][k] == d0['v'][k] for k in d0['v']))
+        btn('s2').click(); pg.wait_for_timeout(500); btn('s2').click(); pg.wait_for_timeout(500)
+        dg = pg.evaluate(DTCL)
+        check('giving the seat up: the leader\'s values (as the laser code does), no seat chosen', S()['seat']['n'] == -1 and all(dg['v'][k] == d0['v'][k] for k in d0['v']))
+        # the switches of the Data Cartridge page: off = the DTC is not touched by the seat
+        pg.evaluate("()=>{__app.ST.DCS.iff=false}"); btn('s3').click(); pg.wait_for_timeout(500)
+        dq = pg.evaluate(DTCL)
+        check('IFF switch off: the Mode 3 codes stay, Link 16 (switch on) follows the seat (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '34' and dq['v']['FILE_A_FLIGHT_LEAD'] == '0')
+        pg.evaluate("()=>{__app.ST.DCS.l16=false}"); btn('s1').click(); pg.wait_for_timeout(500)
+        dq = pg.evaluate(DTCL)
+        check('both switches off: the DTC is left as it is (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '34')
+        pg.evaluate("()=>{__app.ST.DCS.iff=true;__app.ST.DCS.l16=true}"); btn('s2').click(); pg.wait_for_timeout(300); btn('s3').click(); pg.wait_for_timeout(500)
+        check('both on again: the next seat writes both', pg.evaluate(DTCL)['v']['Mode3A Code'] == '4733')
+        btn('s2').click(); pg.wait_for_timeout(500)
         # ---- 6. the MDC format has the same buttons
         pg.click('#mdctog'); pg.wait_for_timeout(700)
         s = S()
@@ -135,6 +198,9 @@ try:
         check('MDC: a button works as on the datacard (seat 4: %s)' % s['mdc'], s['seat']['n'] == 3 and s['mdc'][2] == '71044')
         inside = pg.evaluate("()=>{const c=document.getElementById('cv').getBoundingClientRect();return [...document.querySelectorAll('#seatov .seatb')].every(b=>{const r=b.getBoundingClientRect();return r.left>=c.left-1&&r.right<=c.right+1&&r.top>=c.top-1&&r.bottom<=c.bottom+1&&r.width>8&&r.height>8})}")
         check('MDC: every button is inside the card and big enough to be pressed', inside)
+        for k, b_ in (('fl3_0', 's3'), ('rc0_0', 'p0')):
+            g = big(lambda: pg.evaluate(SCAN, [k, b_]))
+            check('MDC: %s: the button is at the left end of the cell and the text starts after it (%s)' % (k, {a: round(v) for a, v in g.items()}), 0 <= g['left'] <= 12 and g['right'] < g['ind'] and abs(g['mid']) < 2 and g['before'] == 0 and g['after'] > 20)
         if shots: pg.screenshot(path=shots + '/seat-mdc.png', clip=pg.evaluate("()=>{const b=document.getElementById('cv').getBoundingClientRect();return {x:b.x,y:b.y,width:b.width,height:b.height*0.5}}"))
         pg.click('#mdctog'); pg.wait_for_timeout(500)
 
@@ -144,7 +210,7 @@ try:
         check('a 2-ship has no seat 4: the card is neutral and says so (%s)' % s['seat'], s['seat']['n'] == -1 and 'has only 2 aircraft' in s['info'] and not any(b.endswith(':on') for b in s['btns'][:4]))
         btn('s1').click(); pg.wait_for_timeout(400)
         flight(pg, 'Eagle 4'); s = S()
-        check('seat 2 chosen, another 2-ship opened: the seat stays and the callsign is written in the new flight, without a question (%s)' % s['names'][:2], s['seat']['n'] == 1 and s['names'][1] == 'Evil19' and 'fl1_0' in s['man'] and msgs == [])
+        check('seat 2 chosen, another 2-ship opened: the seat stays and the name is written in the new flight, without a question (%s)' % s['names'][:2], s['seat']['n'] == 1 and s['names'][1] == 'Maj. Chris' and 'fl1_0' in s['man'] and msgs == [])
         check('opening a flight clears the notice', 'has only' not in s['info'])
         flight(pg, 'Cyborg 5'); s = S()
         check('and back on the 4-ship the seat is still seat 2 (%s)' % s['mdc'], s['seat']['n'] == 1 and s['btns'][:4] == ['s0', 's1:on', 's2', 's3'])
@@ -174,7 +240,7 @@ try:
         # ---- 9. the standard menu of the Name cell (and of the pilot list of the Flight section)
         flight(pg, 'Stud 1 .*HAVCAP')
         r = pg.evaluate("()=>__app.cellRect('fl0_0')")
-        pg.mouse.click(r['x'] + 8, r['y'] + r['h'] / 2); pg.wait_for_timeout(400)
+        pg.mouse.click(r['x'] + r['w'] * 0.7, r['y'] + r['h'] / 2); pg.wait_for_timeout(400)
         mn = pg.evaluate("()=>{const m=document.getElementById('chm');return {open:m.style.display=='block',items:[...m.querySelectorAll('button')].map(b=>b.textContent),head:(m.querySelector('.gh')||{}).textContent}}")
         check('a click on a Name cell opens the standard menu: Auto, Type a name, then the roster (%s)' % mn['items'], mn['open'] and mn['items'][0].startswith('Auto') and mn['items'][1] == 'Type a name…' and mn['head'] == 'Squadron roster' and mn['items'][2:] == ['Capt. Anna', 'Maj. Chris'])
         sty = lambda sel: pg.evaluate("s=>{const e=document.querySelector(s),c=getComputedStyle(e);return [c.backgroundColor,c.borderRadius,c.borderTopColor]}", sel)
@@ -194,10 +260,13 @@ try:
         mj = pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())"); m = json.loads(mj)
         check('the mission holds the seat of whoever saved it (and who he is)', m['datacard']['seat'] == {'n': 2, 'set': True, 'uid': 'a'})
         check('and the DTC edit of the TGP is the code of the seat', any(l['k'] == 'LaserTGP' and l['v'] == '1666' for l in m['dtc']['edits']))
+        check('the DTC edits hold the IFF and Link 16 of the seat (Mode 3 4732, number 33, not the lead)', any(l['k'] == 'Mode3A Code' and l['v'] == '4732' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_CALLSIGN_NUMBER' and l['v'] == '33' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_FLIGHT_LEAD' and l['v'] == '0' for l in m['dtc']['edits']))
         btn('s0').click(); pg.wait_for_timeout(400)
         pg.evaluate("async t=>__app.msfLoad(t)", mj); pg.wait_for_timeout(1200)
         s = S()
         check('my own mission: the seat is back as I left it, nothing to choose (%s)' % s['seat'], s['seat']['n'] == 2 and s['seat']['set'] and not s['seat']['ask'] and s['btns'][:4] == ['s0', 's1', 's2:on', 's3'])
+        dm = pg.evaluate(DTCL)
+        check('and its DTC is the one of the seat (Mode 3 %s, number %s)' % (dm['v']['Mode3A Code'], dm['v']['FILE_A_CALLSIGN_NUMBER']), dm['v']['Mode3A Code'] == '4732' and dm['v']['FILE_A_CALLSIGN_NUMBER'] == '33' and dm['v']['FILE_A_FLIGHT_LEAD'] == '0')
         old = json.loads(mj); old['datacard'].pop('seat')
         pg.evaluate("async t=>__app.msfLoad(t)", json.dumps(old)); pg.wait_for_timeout(1200); s = S()
         check('my own mission from before the seat existed: the leader, as the default', s['seat']['n'] == 0 and not s['seat']['set'] and not s['seat']['ask'])
@@ -221,16 +290,16 @@ try:
         check('the DTC and the card use the leader\'s values until then (TGP %s)' % s['tgp'], s['tgp'] == s['lsr'][0])
         if shots: pg.screenshot(path=shots + '/seat-ask.png', clip=pg.evaluate("()=>{const b=document.getElementById('cv').getBoundingClientRect();return {x:b.x,y:b.y+b.height*0.38,width:b.width,height:b.height*0.34}}"))
         btn('s3').click(); pg.wait_for_timeout(600); s = S()
-        check('the receiver takes seat 4: his callsign is written, the highlight goes, the laser code is the one of his seat (%s)' % s['tgp'], s['seat']['n'] == 3 and s['names'][3] == 'Zed' and not s['seat']['ask'] and not any(b.endswith(':ask') for b in s['btns']) and s['tgp'] == s['lsr'][3])
-        check('the names of the other pilots of the mission stay (%s)' % s['names'], s['names'][2] == 'Evil19')
-        # the receiver whose callsign is already on the card
-        o2 = json.loads(json.dumps(other)); o2['datacard']['final']['fl1_0'] = 'Zed'; o2['datacard']['manual'] = {**o2['datacard'].get('manual', {}), 'fl1_0': 'Zed'}
+        check('the receiver takes seat 4: his name is written, the highlight goes, the laser code is the one of his seat (%s)' % s['tgp'], s['seat']['n'] == 3 and s['names'][3] == 'Capt. Anna' and not s['seat']['ask'] and not any(b.endswith(':ask') for b in s['btns']) and s['tgp'] == s['lsr'][3])
+        check('the names of the other pilots of the mission stay (%s)' % s['names'], s['names'][2] == 'Maj. Chris')
+        # the receiver whose name is already on the card
+        o2 = json.loads(json.dumps(other)); o2['datacard']['final']['fl1_0'] = 'Capt. Anna'; o2['datacard']['manual'] = {**o2['datacard'].get('manual', {}), 'fl1_0': 'Capt. Anna'}
         pg.evaluate("t=>{window.__r=__app.msfLoad(t)}", json.dumps(o2)); pg.wait_for_timeout(1200)
         for sel in ('#msfnodtc', '#msfgrp'):
             if pg.is_visible(sel): pg.click(sel + ' [data-ok]'); pg.wait_for_timeout(800)
         pg.evaluate("async()=>await window.__r"); pg.wait_for_timeout(800)
         s = S()
-        check('a mission that has my callsign on a seat: that seat is mine, nothing to choose (%s)' % s['seat'], s['seat']['n'] == 1 and s['seat']['set'] and not s['seat']['ask'])
+        check('a mission that has my name on a seat: that seat is mine, nothing to choose (%s)' % s['seat'], s['seat']['n'] == 1 and s['seat']['set'] and not s['seat']['ask'])
         pg.close()
 
         # ---- 11. animations: the round buttons and the lit row change with a transition; everything is off with the switch of the Settings

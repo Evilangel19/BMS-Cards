@@ -119,7 +119,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
-    SYNC = { ews: true, icp: true, wpn: true, lsr: true }, // same as DCS0 (app/datacard.js)
+    SYNC = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,
@@ -575,7 +575,12 @@ export function createDtcPage(deps) {
       return (
         h +
         '<div class="dgrid">' +
-        card('iffs', 'Status', stat) +
+        card('iffs', 'Status', stat, {
+          sync: 'iff',
+          syncTip:
+            'The Mode 2 and Mode 3 codes follow the seat chosen on the Datacard: the codes of that aircraft (the Mode 3 codes of the time events too) are written into the DTC',
+          hint: 'Switch on to take the Mode 2 and Mode 3 codes of the seat you chose on the Datacard (press a round button there); off to type them here.',
+        }) +
         card('iffp', 'Position event', pos) +
         card('ifft', 'Time event', tim) +
         '</div>'
@@ -615,7 +620,12 @@ export function createDtcPage(deps) {
       return (
         h +
         '<div class="dgrid one l16two">' +
-        card('l16a', 'File A', f('A'), {}) +
+        card('l16a', 'File A', f('A'), {
+          sync: 'l16',
+          syncTip:
+            'The flight lead flag and the position in the number of the callsign follow the seat chosen on the Datacard: they are written into the DTC',
+          hint: 'Switch on to take the flight lead flag and the position (the last digit of the number) from the seat you chose on the Datacard (press a round button there); off to type them here.',
+        }) +
         card('l16b', 'File B', f('B'), {}) +
         '</div>'
       );
