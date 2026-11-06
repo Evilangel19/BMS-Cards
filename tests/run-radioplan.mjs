@@ -101,8 +101,9 @@ ck(
   );
 }
 
-// ---- EvilKorea: the numbers a pilot read on the Data Cartridge of BMS for Hammer 7 (package 2525): 5 = 283.300, 6 = 276.675, 13 = 330.100, UHF 15 = 283.750
-{
+// ---- EvilKorea: the numbers a pilot read on the Data Cartridge of BMS for Hammer 7 (package 2525): 5 = 283.300, 6 = 276.675, 13 = 330.100, UHF 15 = 283.750.
+// The campaign is a BMS file that is not in the repository (tests/FIXTURES.md): without it this part is skipped.
+if (fs.existsSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))) {
   const d = new URL('./fixtures/evilkorea/', import.meta.url);
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('EvilKorea.cam', d))), CAM.D, 'EvilKorea.cam');
   const A = buildAto(C, null);
@@ -130,6 +131,6 @@ ck(
     'Plasma 5 (it is the first flight of its package): UHF 15 is its own backup, VHF 15 its own VHF',
     P5.UHF_15 === '233425' && P5.VHF_15 === P5.VHF_6 && P5.UHF_6 === '229675'
   );
-}
+} else console.log('SKIP the EvilKorea checks (campaign file not here)');
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} radio checks`);
 process.exit(bad ? 1 : 0);
