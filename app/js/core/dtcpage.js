@@ -120,7 +120,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
-    SYNC = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true }, // same as DCS0 (app/datacard.js)
+    SYNC = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true, radio: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,
@@ -186,7 +186,7 @@ export function createDtcPage(deps) {
       [0, 'Off'],
     ]);
   const card = (id, title, body, o = {}) =>
-    `<div class="dcard${OPEN.has(o.ok || id) || o.live ? '' : ' ro'}${o.full ? ' full' : ''}${o.cls ? ' ' + o.cls : ''}" data-card="${id}"><h3>${title}<span class="sp"></span>${o.right || ''}${o.sync ? `<button type="button" class="dsw${SYNC[o.sync] ? ' on' : ''}" data-sync="${o.sync}" title="${esc(o.syncTip || 'Keep these values equal to the ones of the Datacard: what you type in the Datacard is written into the DTC')}"><i></i>from Datacard</button>` : ''}${o.noedit ? '' : `<button type="button" class="btn g sm dpen" data-edit="${id}">${OPEN.has(id) ? '✔ Done' : '✎ Edit'}</button>`}</h3>${body}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}</div>`;
+    `<div class="dcard${OPEN.has(o.ok || id) || o.live ? '' : ' ro'}${o.full ? ' full' : ''}${o.cls ? ' ' + o.cls : ''}${o.sync && !SYNC[o.sync] ? ' soff' : ''}" data-card="${id}"><h3>${title}<span class="sp"></span>${o.right || ''}${o.sync ? `<button type="button" class="dsw${SYNC[o.sync] ? ' on' : ''}" data-sync="${o.sync}" title="${esc(o.syncTip || 'Keep these values equal to the ones of the Datacard: what you type in the Datacard is written into the DTC')}"><i></i>from Datacard</button>` : ''}${o.noedit ? '' : `<button type="button" class="btn g sm dpen" data-edit="${id}">${OPEN.has(id) ? '✔ Done' : '✎ Edit'}</button>`}</h3>${body}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}</div>`;
   const absent = (what, sec) =>
     `<div class="hint">${what} is not in this file${sec ? ' (section [' + sec + '])' : ''}.</div>`;
   const head = (t, sub, right) =>
@@ -449,7 +449,16 @@ export function createDtcPage(deps) {
           rows.length
             ? `<table class="dt"><tr><th>#</th><th>MHz</th><th>Note</th><th>Used by</th></tr>${rows.join('')}</table>`
             : absent('These presets'),
-          {}
+          pre === 'UHF'
+            ? {
+                sync: 'radio',
+                syncTip:
+                  'The presets follow the flight on the Datacard: 6 the UHF / VHF of your flight, 13 the first tanker, 5 the AWACS, UHF 15 the intra-flight UHF, VHF 15 on the flights of the package in the order of the Datacard. They are written when you open a flight and when you switch this on',
+                hint:
+                  '<span class="hon">Written from the flight on the Datacard: 5 AWACS, 6 your flight (the frequency for AWACS, FAC and JTAC), 13 the first tanker, UHF 15 the intra-flight UHF of the first flight, VHF 15, 16... the flights of the package in the order of the Datacard. The notes are the ones of BMS.</span>' +
+                  '<span class="hoff">Off: these presets are the ones BMS saved in this file, so they belong to the flight that was saved before and may not be the ones of the flight chosen here. Switch on to write the ones of the flight on the Datacard.</span>',
+              }
+            : {}
         );
       };
       const start = card(
@@ -580,7 +589,7 @@ export function createDtcPage(deps) {
           sync: 'iff',
           syncTip:
             'The Mode 2 and Mode 3 codes follow the seat chosen on the Datacard: the codes of that aircraft (the Mode 3 codes of the time events too) are written into the DTC',
-          hint: 'Switch on to take the Mode 2 and Mode 3 codes of the seat you chose on the Datacard (press a round button there); off to type them here.',
+          hint: 'Switch on to take the Mode 2 and Mode 3 codes of the seat you chose on the Datacard (press a round button there); off to type them here. The codes are the ones BMS saved in this file: they belong to the flight that was saved before, so they may not be the ones BMS gives to the flight chosen here.',
         }) +
         card('iffp', 'Position event', pos) +
         card('ifft', 'Time event', tim) +
@@ -620,9 +629,9 @@ export function createDtcPage(deps) {
           r('Number', I('CALLSIGN_NUMBER', 48)) +
           r('Voice A', I('VOICE_GROUP_A_CHANNEL', 48)) +
           r('Voice B', I('VOICE_GROUP_B_CHANNEL', 48)) +
-          r('Mission', I('MISSION_CHANNEL', 48)) +
-          r('Fighter', I('FIGHTER_CHANNEL', 48)) +
-          r('Special', I('SPECIAL_CHANNEL', 48)) +
+          r('<span title="Mission channel">MC</span>', I('MISSION_CHANNEL', 48)) +
+          r('<span title="Fighter channel">FC</span>', I('FIGHTER_CHANNEL', 48)) +
+          r('<span title="Special channel">SC</span>', I('SPECIAL_CHANNEL', 48)) +
           r(
             'TACAN',
             I('TACAN_CHANNEL', 40) +
@@ -1282,7 +1291,11 @@ export function createDtcPage(deps) {
         (b.onclick = () => {
           const g = b.dataset.sync;
           SYNC[g] = !SYNC[g];
-          view.querySelectorAll(`[data-sync="${g}"]`).forEach(x => x.classList.toggle('on', SYNC[g]));
+          view.querySelectorAll(`[data-sync="${g}"]`).forEach(x => {
+            x.classList.toggle('on', SYNC[g]);
+            const c = x.closest('.dcard');
+            if (c) c.classList.toggle('soff', !SYNC[g]); // the hint of a card can tell what the switch does in each state (.hon / .hoff)
+          });
           deps.sync(g, SYNC[g]);
           dots();
         })

@@ -13,6 +13,7 @@ import { SX, SY, boxOf, cardOn } from './editor.js';
 import { sqPage } from './pages.js';
 import { myIdent, unsaved } from './mission.js';
 import { seatDtcPush } from './seatdtc.js';
+import { flightDtcPush } from './flightdtc.js';
 
 /* The pilot seat. A card (and its DTC) is made for one pilot of the flight: the round buttons beside the pilots of the Flight section (and of the Pilots table of the MDC format)
    choose which one. The choice is global (it stays when another flight is chosen) and has these effects:
@@ -224,6 +225,7 @@ export function seatEnter() {
   if (!QUIET && S.note && S.n >= 0) S.note = '';
   seatCodes();
   if (!QUIET && S.set) seatToDtc(); // the DTC of the flight just opened follows the seat the pilot chose
+  if (!QUIET) flightDtcPush(); // and the channels of Link 16 and the radio presets of the flight
   if (!QUIET && S.n >= 0 && S.set) seatStamp().catch(() => {});
   seatInfo();
 }

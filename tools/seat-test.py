@@ -158,7 +158,7 @@ try:
         s = S()
         check('a 4-ship with the IFF and Link 16 files: 4 seats, the leader is the default (%s)' % s['btns'][:4], s['btns'][:4] == ['s0:on', 's1', 's2', 's3'] and s['mdc'] == ['', '4730', '71041'])
         d0 = pg.evaluate(DTCL)
-        check('the default seat writes nothing into the DTC (IFF %s, lead %s, number %s)' % (d0['v']['Mode3A Code'], d0['v']['FILE_A_FLIGHT_LEAD'], d0['v']['FILE_A_CALLSIGN_NUMBER']), d0['dirty'] == [] and d0['v']['Mode3A Code'] == '4730' and d0['v']['FILE_A_FLIGHT_LEAD'] == '1' and d0['v']['FILE_A_CALLSIGN_NUMBER'] == '31')
+        check('the default seat writes nothing into the DTC but the channels and radio presets of the flight (IFF %s, lead %s, number %s; %s lines of the flight written)' % (d0['v']['Mode3A Code'], d0['v']['FILE_A_FLIGHT_LEAD'], d0['v']['FILE_A_CALLSIGN_NUMBER'], len(d0['dirty'])), [k for k in d0['dirty'] if 'CHANNEL' not in k and not k.startswith('Radio|')] == [] and d0['v']['Mode3A Code'] == '4730' and d0['v']['FILE_A_FLIGHT_LEAD'] == '1' and d0['v']['FILE_A_CALLSIGN_NUMBER'] == '31')
         btn('s2').click(); pg.wait_for_timeout(500); s = S()
         check('seat 3: the MDC takes its mode 3 and its Link 16 STN (%s)' % s['mdc'], s['mdc'] == ['', '4732', '71043'])
         d2 = pg.evaluate(DTCL)

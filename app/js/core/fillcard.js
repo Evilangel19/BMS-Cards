@@ -114,6 +114,8 @@ function fillCard(C, f, ld = 0) {
       S[300 + e.omis] || '',
     ].forEach((v, j) => (F[`pk${i}_${j}`] = v));
   });
+  // the intra-flight UHF (UHF2, backup) of the first flight of the package: UHF preset 15 of the DTC (core/radioplan.js)
+  F.rd_u15 = els.length ? rmf(C, csOf(C, els[0]))[2] || '' : '';
   // MDC format, mission timing: the flights of the package (callsign, aircraft, hold, altitude, frequency, push, target, time on target); the times and the altitude
   // come from the steerpoints of the flight (Holding, Push, the action steerpoints)
   els.slice(0, 8).forEach((e, i) => {
@@ -300,6 +302,7 @@ function fillCard(C, f, ld = 0) {
       F[`su${i}_0`] = `${csOf(C, u).replace(' ', '')} - ${acOf(C, u)}`;
       F[`su${i}_1`] = tcnStr(u.tcn && u.tcn[0], u.band && u.band[0]);
       F[`su${i}_2`] = rmf(C, csOf(C, u))[0];
+      F[`su${i}_v`] = rmf(C, csOf(C, u))[1]; // the VHF of the support aircraft (the DTC presets 5 and 13 have it; not shown on the card)
       F[`su${i}_3`] = locBE(C, u, null);
       if (i == 0) {
         // altitude of the tanker at its action steerpoints (the track), in feet

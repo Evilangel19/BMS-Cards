@@ -95,6 +95,24 @@ export function l16DtcEdits(seat, opts = {}) {
   }
   return out;
 }
+// the channels of the flight (card: dl0_mc = Mission, dl0_fc = Fighter, dl0_sc = Special, from the Link 16 file of the campaign) in file A, as BMS shows them: three digits, 000 when there is none.
+// Only when the card has the channels of this flight (a flight that is not in the file of the campaign leaves the lines as they are), and only the lines that change
+const KCH = [
+  ['MISSION', 'dl0_mc'],
+  ['FIGHTER', 'dl0_fc'],
+  ['SPECIAL', 'dl0_sc'],
+];
+export function l16ChanEdits() {
+  if (!lines.length || !sectionOn() || (str(F.dl0_mc) === '' && str(F.dl0_fc) === '')) return [];
+  const out = [];
+  KCH.forEach(([n, ck]) => {
+    const key = `FILE_A_${n}_CHANNEL`,
+      want = String(Math.max(0, parseInt(str(F[ck]), 10) || 0)).padStart(3, '0');
+    if (!lines.some(l => l.s === 'LINK16' && l.k === key)) return;
+    if (parseInt(G('LINK16', key, ''), 10) !== parseInt(want, 10)) out.push({ s: 'LINK16', k: key, v: want });
+  });
+  return out;
+}
 // writes lines into the DTC (the Data Cartridge page shows them at once); returns how many changed
 export function applyEdits(es) {
   es.forEach(e => {

@@ -120,6 +120,15 @@ try:
         check('the IFF Status card has the "from Datacard" switch, on by default, with a tip and a hint that tell how to choose the seat', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", sw) and pg.evaluate("()=>__app.ST.DCS.iff===true") and 'Mode 3' in pg.get_attribute(sw, 'title') and 'round button' in pg.evaluate("()=>document.querySelector('[data-card=iffs] .hint').textContent"))
         go('l16'); sw2 = '[data-card=l16a] [data-sync=l16]'
         check('the File A card of Link 16 has it too (flight lead flag and position)', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", sw2) and pg.evaluate("()=>__app.ST.DCS.l16===true") and 'flight lead' in pg.get_attribute(sw2, 'title') and 'round button' in pg.evaluate("()=>document.querySelector('[data-card=l16a] .hint').textContent"))
+        check('Link 16 channels: the labels are MC / FC / SC, with the whole name on the tip',
+              pg.evaluate("()=>[...document.querySelectorAll('[data-card=l16a] .drow > label span')].map(e=>e.textContent+'='+e.title).join('|')") == 'MC=Mission channel|FC=Fighter channel|SC=Special channel')
+        check('the channels of the flight are on the page (Mission 001, Fighter 065, Special 000)', [pg.input_value('[data-card=l16a] input[data-k=%s]' % k) for k in ('FILE_A_MISSION_CHANNEL', 'FILE_A_FIGHTER_CHANNEL', 'FILE_A_SPECIAL_CHANNEL')] == ['001', '065', '000'])
+        # the donors are one under the other (the two files side by side, wide window), as the flight and the team STNs
+        pg.set_viewport_size({'width': 1500, 'height': 1000}); pg.wait_for_timeout(300)
+        dn = pg.evaluate("()=>[1,2,3].map(i=>document.querySelector('[data-card=l16a] input[data-k=FILE_A_DONOR_'+i+'_STN]').getBoundingClientRect()).map(r=>[Math.round(r.left),Math.round(r.top)])")
+        check('donors: one under the other, in the same column %s' % dn, dn[0][0] == dn[1][0] == dn[2][0] and dn[0][1] < dn[1][1] < dn[2][1])
+        tm = pg.evaluate("()=>{const r=document.querySelector('[data-card=l16a] input[data-k=FILE_A_TEAM_1_STN]').getBoundingClientRect();return Math.round(r.left)}")
+        check('donors are in the column of the flight and team STNs', tm == dn[0][0])
         m3 = [ln('Mode3A Code'), ln('FILE_A_CALLSIGN_NUMBER'), ln('FILE_A_FLIGHT_LEAD')]
         check('the DTC is the one of the leader (%s) until a seat is chosen' % m3, m3 == ['4730', '31', '1'])
         pg.evaluate("()=>__app.seat.pick(2)"); pg.wait_for_timeout(500)
@@ -147,6 +156,16 @@ try:
         e = pg.locator('[data-card=iffs] input[data-k="Mode3A Code"]'); e.fill('5555'); e.press('Tab'); pg.wait_for_timeout(300)
         pg.evaluate("()=>__app.seat.pick(2)"); pg.wait_for_timeout(500)
         check('a code of this flight typed on the page (5555 = block 44, aircraft 2) is written for the chosen seat (seat 3: 5556)', ln('Mode3A Code') == '5556')
+        # the radio presets follow the flight on the Datacard
+        go('iff'); check('IFF: a note says the codes are the ones BMS saved, of the flight saved before', 'BMS saved' in pg.inner_text('[data-card=iffs] .hint') and 'saved before' in pg.inner_text('[data-card=iffs] .hint'))
+        go('com'); swr = '[data-card=uhf] [data-sync=radio]'
+        check('Radio: the UHF card has the "from Datacard" switch, on by default, with a tip', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", swr) and pg.evaluate("()=>__app.ST.DCS.radio===true") and 'tanker' in pg.get_attribute(swr, 'title'))
+        check('Radio: the presets of the flight are in the DTC (6 = the own flight, 13 = the first tanker, 5 = the AWACS)', [ln(k) for k in ('UHF_6', 'UHF_13', 'UHF_5')] == ['377875', '253325', '290125'])
+        check('Radio: the hint tells what is written while the switch is on', 'tanker' in pg.inner_text('[data-card=uhf] .hint'))
+        pg.click(swr); pg.wait_for_timeout(300)
+        check('Radio: switched off, the hint says the presets are the ones BMS saved, of the flight saved before', 'saved before' in pg.inner_text('[data-card=uhf] .hint') and pg.evaluate("()=>__app.ST.DCS.radio===false"))
+        pg.click(swr); pg.wait_for_timeout(300)
+        check('Radio: switched on again', pg.evaluate("()=>__app.ST.DCS.radio===true"))
         # frequency owners
         go('com'); pk = pg.evaluate("()=>{for(let i=0;i<5;i++){const f=__app.F['pk'+i+'_2'],c=__app.F['pk'+i+'_0'];if(f&&c)return [f,c]}return null}")
         if pk:

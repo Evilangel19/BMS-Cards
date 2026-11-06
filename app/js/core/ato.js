@@ -73,6 +73,7 @@ export function buildAto(C, L16) {
         stn: l ? l.s : '',
         fc: l && l.fc >= 0 ? l.fc : '',
         mc: l && l.mc >= 0 ? l.mc : '',
+        sc: l && l.ew >= 0 ? l.ew : '',
         hifi: isHiFi(acOf(C, f)),
         calc: hasAcData(D, acOf(C, f)),
         heli: isHeli(acOf(C, f)),

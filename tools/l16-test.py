@@ -47,10 +47,36 @@ try:
         def flight(pg, rx):
             i = pg.evaluate("rx=>__app.CL.findIndex(x=>new RegExp(rx).test(x.label))", rx)
             pg.evaluate("i=>{document.getElementById('fsel').value=i;__app.apply(i)}", i); pg.wait_for_timeout(900)
-        pg = page(); flight(pg, 'Cyborg 5'); pg.evaluate(PKG)
+        pg = page(); flight(pg, 'Cyborg 5')
         D = lambda: pg.evaluate(LV)
+        # ---- 0. what the flight gives to the DTC whatever the seat: the channels of Link 16 and the radio presets (the campaign gives Cyborg 5: Mission 1, Fighter 65, no Special)
+        c0 = D()
+        RVf = "()=>Object.fromEntries(__app.lines.filter(l=>l.s=='Radio').map(l=>[l.k,l.v]))"
+        r0 = pg.evaluate(RVf)
+        check('opening the flight writes its channels into file A: Mission 001, Fighter 065, Special 000 (the campaign has none: 000 as BMS shows it) %s %s' % ([c0['v'][k] for k in ('FILE_A_MISSION_CHANNEL', 'FILE_A_FIGHTER_CHANNEL', 'FILE_A_SPECIAL_CHANNEL')], c0['dirty']),
+              [c0['v'][k] for k in ('FILE_A_MISSION_CHANNEL', 'FILE_A_FIGHTER_CHANNEL', 'FILE_A_SPECIAL_CHANNEL')] == ['001', '065', '000'] and set(c0['dirty']) <= {'FILE_A_MISSION_CHANNEL', 'FILE_A_FIGHTER_CHANNEL', 'FILE_A_SPECIAL_CHANNEL'} and 'FILE_A_SPECIAL_CHANNEL' in c0['dirty'])
+        check('file B has no channels written by the program', c0['v']['FILE_B_MISSION_CHANNEL'] == '000' and c0['v']['FILE_B_FIGHTER_CHANNEL'] == '000')
+        check('the card shows the channels as MC / FC / SC of each pilot (and the Special channel is nothing when the flight has none) %s' % pg.evaluate("()=>__app.F.fl0_3"), pg.evaluate("()=>__app.F.fl0_3") == '71041 MC 1 FC 65')
+        check('radio: 6 is the own flight (UHF 377.875, VHF 138.575), 13 the first tanker (253.325 / 39.225), 5 the AWACS (290.125 / 38.225)',
+              [r0[k] for k in ('UHF_6', 'VHF_6', 'UHF_13', 'VHF_13', 'UHF_5', 'VHF_5')] == ['377875', '138575', '253325', '39225', '290125', '38225'])
+        check('radio: UHF 15 is the intra-flight UHF of the first flight (230.700), VHF 15 the VHF of the first flight (138.575)', r0['UHF_15'] == '230700' and r0['VHF_15'] == '138575')
+        pk = pg.evaluate("()=>[1,2,3,4].map(i=>__app.F['pk'+i+'_3']||'')")
+        check('radio: VHF 16, 17... are the flights of the package in the order of the card %s' % pk, all((not v or v == '---') or r0['VHF_%d' % (16 + i)] == str(round(float(v) * 1000)) for i, v in enumerate(pk)))
+        check('the notes of the presets are the ones of BMS, untouched; the presets the card has nothing for stay (UHF 16-20)', r0['UHF_COMMENT_5'] == 'AWACS Check-in' and r0['UHF_COMMENT_13'] == 'Tanker/AAR' and r0['UHF_16'] == '271325' and r0['UHF_20'] == '280500')
+        # the switch "from Datacard" of the radio: off, the flights leave the presets as they are; on, they are written again
+        pg.evaluate("()=>{__app.ST.DCS.radio=false;__app.lines.find(l=>l.s=='Radio'&&l.k=='UHF_6').v='111111'}")
+        flight(pg, 'Cyborg 5')
+        check('radio switch off: opening the flight leaves the DTC as it is (UHF 6 stays as typed)', pg.evaluate(RVf)['UHF_6'] == '111111')
+        pg.evaluate("()=>__app.dcSync('radio', true)"); pg.wait_for_timeout(300)
+        check('...switching it on writes the presets of the flight again', pg.evaluate(RVf)['UHF_6'] == '377875')
+        pg.evaluate("()=>{__app.ST.DCS.l16=false;__app.lines.find(l=>l.k=='FILE_A_FIGHTER_CHANNEL').v='099'}")
+        flight(pg, 'Cyborg 5')
+        check('Link 16 switch off: the channels are left as they are (Fighter stays 099)', D()['v']['FILE_A_FIGHTER_CHANNEL'] == '099')
+        pg.evaluate("()=>__app.dcSync('l16', true)"); pg.wait_for_timeout(300)
+        check('...on again: the channel of the flight is back (065)', D()['v']['FILE_A_FIGHTER_CHANNEL'] == '065')
+        pg.evaluate(PKG)
         d0 = D()
-        check('the DTC is the one of the file: nothing written before a seat is chosen (callsign CA, number 31, STNs 3514x)', d0['dirty'] == [] and d0['v']['FILE_A_CALLSIGN'] == 'CA' and stns(d0, 'A')[:4] == ['35141', '35142', '35143', '35144'])
+        check('the DTC is the one of the file, but for the channels: nothing else written before a seat is chosen (callsign CA, number 31, STNs 3514x)', [k for k in d0['dirty'] if 'CHANNEL' not in k] == [] and d0['v']['FILE_A_CALLSIGN'] == 'CA' and stns(d0, 'A')[:4] == ['35141', '35142', '35143', '35144'])
 
         # ---- 1. the plan of BMS when a seat is chosen
         pg.evaluate("()=>__app.seat.pick(1)"); pg.wait_for_timeout(500)

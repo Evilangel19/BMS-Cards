@@ -101,9 +101,15 @@ export function apply(i, mode) {
     if (b) {
       const n = CAM.nAcf(f);
       for (let q = 0; q < n; q++)
-        F['fl' + q + '_3'] = b.s + (q + 1) + (b.mc >= 0 ? ' MC ' + b.mc : '') + (b.fc >= 0 ? ' FC ' + b.fc : '');
+        F['fl' + q + '_3'] =
+          b.s +
+          (q + 1) +
+          (b.mc >= 0 ? ' MC ' + b.mc : '') +
+          (b.fc >= 0 ? ' FC ' + b.fc : '') +
+          (b.ew >= 0 ? ' SC ' + b.ew : '');
       F.dl0_fc = b.fc >= 0 ? String(b.fc) : '';
       F.dl0_mc = b.mc >= 0 ? String(b.mc) : '';
+      F.dl0_sc = b.ew >= 0 ? String(b.ew) : ''; // the Special channel (EW), not in the MDC format: the Link 16 file of the DTC has it
     }
     CAM.els0(ST.C, f)
       .slice(0, 5)

@@ -31,15 +31,16 @@ export function mdcDerive(F, seat = 0) {
     o[`fl${r}_c`] = n(`fl${r}_1`) && n('cs') ? `${n('cs')}-${r + 1}` : '';
     o[`fl${r}_s`] = n(`fl${r}_3`).split(/\s+/)[0] || '';
   }
-  // audio presets (order of the card: 1 OPS, 2 GND, 3 TWR, 4 DEP/APR, 5 CHKN, 6 C2/TAC, 13 TNKR, 10 ALT A, 11 ALT T, 12 ALT G)
+  // audio presets (order of the card: 1 OPS, 2 GND, 3 TWR, 4 DEP/APR, 5 CHKN, 6 C2/TAC, 13 TNKR, 10 ALT A, 11 ALT T, 12 ALT G). As in the DTC of BMS: 5 is the AWACS (check-in), 6 the UHF of the
+  // player's own flight (the frequency for AWACS, FAC and JTAC), 13 the first tanker
   const own = [0, 1, 2, 3, 4].find(i => n(`pk${i}_0`) && n(`pk${i}_0`) == n('cs')) ?? 0;
   [
     '',
     n('ab0_2'),
     n('ab0_7'),
     n('ab0_3'),
-    n(`pk${own}_2`),
     n('su2_2'),
+    n(`pk${own}_2`),
     n('su0_2'),
     n('ab2_3'),
     n('ab2_7'),

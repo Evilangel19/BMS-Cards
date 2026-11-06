@@ -17,6 +17,7 @@ import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
 import { fpStart, fpSpan } from '../core/fpcols.js';
 import { seatIdx, seatCodes, seatToDtc } from './seat.js';
+import { flightDtcPush } from './flightdtc.js';
 import { l16Typed } from './l16link.js';
 
 /* ---------- DATACARD ---------- */
@@ -24,6 +25,8 @@ export const F = {};
 export const FD = [];
 // the keys of the cells that only the MDC format has (see cardview.js): not drawn on the datacard, but cleared, kept and saved with the other fields
 export const XD = [];
+// hidden keys of the card (not in a format): the Special channel of Link 16 and what the radio presets of the DTC need besides the cells of the card (core/radioplan.js)
+['dl0_sc', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v'].forEach(k => XD.push(k));
 // the field (with its input) of a key in the format that is on the screen
 export const dEl = k => (ST.MDCON ? MFD : FD).find(z => z.k == k);
 export const ML = ['roe', 'free', 'eph'];
@@ -55,8 +58,9 @@ export const cycle = k => {
 };
 export const MIR = {};
 // the groups kept equal to the datacard ("from Datacard" on the Data Cartridge page): on at the first start, then the choice of the pilot (dtcprefs.json)
-// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js); iff, l16 = the IFF codes and the Link 16 flags of the chosen seat (app/seatdtc.js)
-export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true };
+// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js); iff, l16 = the IFF codes and the Link 16 flags of the chosen seat (app/seatdtc.js);
+// l16 also keeps the channels of the flight (Mission, Fighter, Special) and radio = the presets 5, 6, 13 and 15... of the Radio page (app/flightdtc.js)
+export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true, radio: true };
 ST.DCS = { ...DCS0 };
 // when(): optional, the cell is mirrored only while it answers true (the CONF-LSR cell of one seat feeds the DTC only while that seat is the chosen one)
 export const mir = (k, grp, sec, key, to, from, when) => {
@@ -95,6 +99,7 @@ export function dcSync(g, on) {
       .filter(k => MIR[k].grp == g && F[k] !== undefined && F[k] !== '')
       .forEach(pushOne);
     if (g == 'iff' || g == 'l16') seatToDtc({ [g]: true });
+    if (g == 'l16' || g == 'radio') flightDtcPush({ [g]: true });
   }
 }
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)

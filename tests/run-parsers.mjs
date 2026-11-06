@@ -6,6 +6,7 @@ import { parseTwx } from '../app/js/parsers/twx.js';
 import { parseDtc } from '../app/js/parsers/dtc.js';
 
 const fx = n => new URL('./fixtures/' + n, import.meta.url);
+const read2 = f => fs.readFileSync(fx(f)).toString('utf8');
 const gold = JSON.parse(fs.readFileSync(new URL('./golden/parsers.json', import.meta.url), 'utf8'));
 const files = {
   beartrap: {
@@ -17,6 +18,8 @@ const files = {
   evilkorea: { l16: 'EvilKorea_l16.txtpb', iff: 'EvilKorea.iff', twx: 'EvilKorea.twx' },
 };
 const norm = o => JSON.stringify(JSON.parse(JSON.stringify(o)));
+// the golden file is the one of the prototype: it has no Special (EW) channel, which the parser reads since 1.1.0-beta.13 (checked below)
+const noEw = o => Object.fromEntries(Object.entries(o).map(([k, { ew, ...r }]) => [k, r]));
 let bad = 0,
   n = 0;
 const check = (name, got, want) => {
@@ -28,11 +31,32 @@ const check = (name, got, want) => {
 };
 for (const [set, f] of Object.entries(files)) {
   const read = k => fs.readFileSync(fx(set + '/' + f[k]));
-  check(set + ' link16', parseLink16(read('l16').toString('utf8')), gold[set].l16);
+  check(set + ' link16', noEw(parseLink16(read('l16').toString('utf8'))), gold[set].l16);
   check(set + ' iff', parseIff(read('iff').toString('utf8')), gold[set].iff);
   const b = read('twx');
   check(set + ' twx', parseTwx(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)).iso, gold[set].twx);
   if (f.dtc) check(set + ' dtc', parseDtc(read('dtc').toString('latin1')), gold[set].dtc);
+}
+// the channels of the flights that a pilot compared with the Data Cartridge of BMS (EvilKorea): Mission, Fighter (F2F) and Special (EW, -1 = none)
+{
+  const L = parseLink16(read2('evilkorea/EvilKorea_l16.txtpb'));
+  for (const [id, who, mc, fc, ew] of [
+    [2537, 'Hammer 7', 87, 87, 43],
+    [2349, 'Plasma 5', 124, 87, -1],
+    [2403, 'Bulldog 5', 124, 87, -1],
+    [2511, 'Satan 2', 43, 2, -1],
+  ]) {
+    n++;
+    if (!L[id] || L[id].mc !== mc || L[id].fc !== fc || L[id].ew !== ew) {
+      bad++;
+      console.log('FAIL channels of ' + who, JSON.stringify(L[id]));
+    }
+  }
+  n++;
+  if (parseLink16('flight_number: 5\nstn_number: 1234\nf2f_channel: 2\nmission_channel: 3\nteam: 1')[5].ew !== -1) {
+    bad++;
+    console.log('FAIL a Link 16 file without ew_channel gives -1');
+  }
 }
 // player faction = owner of the player squadron (cmp block)
 {

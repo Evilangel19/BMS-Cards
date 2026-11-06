@@ -80,10 +80,10 @@ ok(
 );
 ok('STN is the first word of the Link 16 text', o.fl0_s == '05011' && o.fl1_s == '');
 ok('presets: GND, TWR, DEP/APR of the departure', o.ps1 == '273.525' && o.ps2 == '257.800' && o.ps3 == '292.650');
-ok('presets: CHKN is the UHF of the own flight', o.ps4 == '311.050');
+ok('presets: 5 CHKN is the AWACS (check-in), 6 the UHF of the own flight', o.ps4 == '290.125' && o.ps5 == '311.050');
 ok(
-  'presets: C2, tanker and the alternate airbase',
-  o.ps5 == '290.125' && o.ps6 == '330.100' && o.ps7 == '268.000' && o.ps8 == '254.600' && o.ps9 == '275.800'
+  'presets: the tanker and the alternate airbase',
+  o.ps6 == '330.100' && o.ps7 == '268.000' && o.ps8 == '254.600' && o.ps9 == '275.800'
 );
 ok(
   'link: tables A and B, the STN of the flight, the team and the donors',

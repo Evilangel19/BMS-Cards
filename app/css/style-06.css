@@ -599,6 +599,20 @@
 .l16why {
   margin: 0 0 8px;
 }
+/* a hint that says what the switch "from Datacard" does in each state: .hon while it is on, .hoff while it is off */
+.dcard .hoff {
+  display: none;
+}
+.dcard.soff .hon {
+  display: none;
+}
+.dcard.soff .hoff {
+  display: inline;
+}
+.dcard .hon,
+.dcard.soff .hoff {
+  animation: appear 0.15s ease-out;
+}
 @media (max-width: 1000px) {
   .l16g {
     grid-template-columns: 1fr 1fr;
