@@ -50,6 +50,7 @@ export async function discardOk() {
 export function manClear() {
   ST.LDX = new Map();
   ST.OVR = new Map();
+  ST.L16OV = new Map(); // the Link 16 changes of the flights (app/l16link.js)
   ST.AUTO = null;
   ST.CURK = null;
   ST.MANK = new Set();

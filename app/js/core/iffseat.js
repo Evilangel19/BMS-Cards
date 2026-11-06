@@ -1,4 +1,4 @@
-// IFF codes and Link 16 flags of one aircraft of a flight (pure: no DTC, no card). The campaign's IFF file gives every aircraft of a flight its own codes: in a mode 2 or mode 3
+// IFF codes of one aircraft of a flight (pure: no DTC, no card; the Link 16 files are in l16plan.js). The campaign's IFF file gives every aircraft of a flight its own codes: in a mode 2 or mode 3
 // code the low six bits are a block (4, 24 or 44) plus 20 / 4 = the flight of the package and, in the low two bits, the aircraft of the flight. The DTC of a pilot holds the codes of
 // one aircraft; the codes of the others are the same with their low two bits. Used by the card (what each seat has, app/dtcapply.js) and to write the DTC for the chosen seat
 // (app/seatdtc.js): rewriting a code for another seat and reading it back give the same codes, so the two never fight.
@@ -55,22 +55,5 @@ export function iffSeatEdits(get, fi, seat, o = {}) {
   if (o.mode2 !== false) one('Mode2 Code', o.m2set || 0);
   one('Mode3A Code', o.m3set || 0);
   for (let n = 0; n < 48 && String(get(`TIME ${n} Criteria`)) !== ''; n++) one(`TIME ${n} Mode3A Code`, o.m3set || 0);
-  return out;
-}
-
-/**
- * The lines of the Link 16 file A that make the DTC the one of the aircraft `seat`: the flight lead flag (only the leader has it) and the position in the number of the callsign
- * ("31" = flight 3, position 1; the flight digit stays as the DTC has it). A file A that is not used (no callsign, number 00) is left alone.
- * @param {(key: string) => string} get the value of a key of the [LINK16] section @returns {{k: string, v: string}[]}
- */
-export function l16SeatEdits(get, seat) {
-  const out = [],
-    num = String(get('FILE_A_CALLSIGN_NUMBER')).trim(),
-    lead = String(get('FILE_A_FLIGHT_LEAD')).trim();
-  if (String(get('FILE_A_CALLSIGN')).trim() === '') return out;
-  if (/^[1-9][1-4]$/.test(num) && num[1] !== String(seat + 1))
-    out.push({ k: 'FILE_A_CALLSIGN_NUMBER', v: num[0] + (seat + 1) });
-  if (/^[01]$/.test(lead) && lead !== (seat === 0 ? '1' : '0'))
-    out.push({ k: 'FILE_A_FLIGHT_LEAD', v: seat === 0 ? '1' : '0' });
   return out;
 }

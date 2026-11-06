@@ -19,7 +19,8 @@ import {
   FORMS as fFORMS,
 } from '../core/flight.js';
 import { ST } from './state.js';
-import { $, animOn, esc, jp } from './base.js';
+import { $, animOn, appToast, esc, jp } from './base.js';
+import { l16Back, l16Info, l16Remove, l16Unpin } from './l16link.js';
 import { G, S, lines, stpts, view } from './dtcfile.js';
 import { DCS0, dcSync, dtcChanged, freqOwners } from './datacard.js';
 import { dtcBtns, dtcClear, dtcSet } from './dtcapply.js';
@@ -237,6 +238,11 @@ export async function init8() {
     owners: freqOwners,
     changed: (sec, key) => dtcChanged(sec, key),
     sync: dcSync,
+    l16Info,
+    l16Remove,
+    l16Unpin,
+    l16Back,
+    toast: appToast,
     pointSet: (g, slot, patch) => dtcSet(g, slot, patch, true),
     pointDel: (g, slot) =>
       removePoint(

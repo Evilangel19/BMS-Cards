@@ -25,6 +25,8 @@ SCAN = """async([k,btn])=>{const m=await import('./js/core/seatgeo.js'),mdc=!!__
   return {ind,before:dark(x0+7,x0+ind-4),after:dark(x0+ind-2,x0+ind+110),left:(b.left-c.x)/kk,right:(b.right-c.x)/kk,mid:(b.top+b.height/2-(c.y+c.h/2))/kk,size:b.width/kk,cw:c.w/kk}}"""
 # the IFF and Link 16 lines of the DTC, and whether any line of it is changed
 DTCL = """()=>({v:Object.fromEntries(__app.lines.filter(l=>l.s=='IFF'||l.s=='LINK16').map(l=>[l.k,l.v])),dirty:__app.lines.filter(l=>l.dirty).map(l=>l.s+'|'+l.k)})"""
+# the Link 16 lines of file A that the seat writes: callsign letters, number, flight lead flag, the four STNs of the flight
+L16A = lambda d: [d['v']['FILE_A_CALLSIGN'], d['v']['FILE_A_CALLSIGN_NUMBER'], d['v']['FILE_A_FLIGHT_LEAD']] + [d['v']['FILE_A_FLIGHT_%d_STN' % i] for i in range(1, 5)]
 STATE = """()=>({seat:{...__app.ST.SEAT}, names:[0,1,2,3].map(i=>__app.F['fl'+i+'_0']), man:[...__app.MANK], lsr:[0,1,2,3].map(i=>__app.F['fl'+i+'_5']),
  tgp:(__app.lines.find(l=>l.s=='Laser'&&l.k=='LaserTGP')||{}).v, bc:[__app.F.wp1_bc,__app.F.wp2_bc], mdc:[__app.F.m2,__app.F.m3,__app.F.dl0_fl],
  info:document.getElementById('seatinfo').textContent,
@@ -163,30 +165,31 @@ try:
         tm = [k for k in d0['v'] if k.startswith('TIME ') and k.endswith('Mode3A Code')]
         low = lambda d, bits: all((int(d['v'][k], 8) & 3) == bits and (int(d['v'][k], 8) >> 2) == (int(d0['v'][k], 8) >> 2) for k in ['Mode3A Code'] + tm)
         check('seat 3: the DTC takes its Mode 3 code and the Mode 3 code of each of the %d time events (same codes, low bits = the seat) (%s)' % (len(tm), d2['v']['Mode3A Code']), len(tm) >= 3 and d2['v']['Mode3A Code'] == '4732' and low(d2, 2))
-        check('seat 3: Link 16 file A is not the flight lead (0) and the number ends with the position (33)', d2['v']['FILE_A_FLIGHT_LEAD'] == '0' and d2['v']['FILE_A_CALLSIGN_NUMBER'] == '33')
-        rest = [k for k in d0['v'] if k not in tm and k not in ('Mode3A Code', 'Mode2 Code', 'FILE_A_FLIGHT_LEAD', 'FILE_A_CALLSIGN_NUMBER')]
+        check('seat 3: Link 16 file A has the letters of Cyborg (CG: first and last), the number 53 (flight 5, position 3), no flight lead, the STNs of the flight %s' % L16A(d2), L16A(d2) == ['CG', '53', '0', '71041', '71042', '71043', '71044'])
+        own = ('Mode3A Code', 'Mode2 Code', 'FILE_A_FLIGHT_LEAD', 'FILE_A_CALLSIGN_NUMBER', 'FILE_A_CALLSIGN') + tuple('FILE_A_FLIGHT_%d_STN' % i for i in range(1, 5))
+        rest = [k for k in d0['v'] if k not in tm and k not in own]
         check('nothing else of IFF and Link 16 is touched (%d lines the same)' % len(rest), all(d2['v'][k] == d0['v'][k] for k in rest))
-        check('the lines written are marked as changed in the DTC (it is written to the file with the others)', set(d2['dirty']) >= {'IFF|Mode3A Code', 'LINK16|FILE_A_FLIGHT_LEAD', 'LINK16|FILE_A_CALLSIGN_NUMBER'})
+        check('the lines written are marked as changed in the DTC (it is written to the file with the others)', set(d2['dirty']) >= {'IFF|Mode3A Code', 'LINK16|FILE_A_FLIGHT_LEAD', 'LINK16|FILE_A_CALLSIGN_NUMBER', 'LINK16|FILE_A_CALLSIGN', 'LINK16|FILE_A_FLIGHT_1_STN'} and not [x for x in d2['dirty'] if x.startswith('LINK16|FILE_B')])
         btn('s3').click(); pg.wait_for_timeout(500); s = S()
         check('seat 4: the same for the fourth aircraft (%s)' % s['mdc'], s['mdc'] == ['', '4733', '71044'])
         d3 = pg.evaluate(DTCL)
-        check('seat 4: the DTC has its Mode 3 code and position 4 (%s, %s)' % (d3['v']['Mode3A Code'], d3['v']['FILE_A_CALLSIGN_NUMBER']), d3['v']['Mode3A Code'] == '4733' and low(d3, 3) and d3['v']['FILE_A_CALLSIGN_NUMBER'] == '34' and d3['v']['FILE_A_FLIGHT_LEAD'] == '0')
+        check('seat 4: the DTC has its Mode 3 code and the number 54 (%s, %s)' % (d3['v']['Mode3A Code'], d3['v']['FILE_A_CALLSIGN_NUMBER']), d3['v']['Mode3A Code'] == '4733' and low(d3, 3) and d3['v']['FILE_A_CALLSIGN_NUMBER'] == '54' and d3['v']['FILE_A_FLIGHT_LEAD'] == '0')
         pg.evaluate("__app.setField('m3','5555')"); pg.wait_for_timeout(200); btn('s2').click(); pg.wait_for_timeout(500); s = S()
         check('a value typed by hand in the MDC stays when the seat changes', s['mdc'][1] == '5555' and s['mdc'][2] == '71043')
         pg.evaluate("__app.setField('m3','5555')")
         btn('s0').click(); pg.wait_for_timeout(500)
         dl = pg.evaluate(DTCL)
-        check('the leader\'s seat: the DTC has the leader\'s codes and the lead flag again, as it was opened', all(dl['v'][k] == d0['v'][k] for k in d0['v']))
+        check('the leader\'s seat: the IFF codes as they were opened, and Link 16 of the leader (CG, 51, the lead flag)', all(dl['v'][k] == d0['v'][k] for k in d0['v'] if k not in own[2:]) and L16A(dl) == ['CG', '51', '1', '71041', '71042', '71043', '71044'])
         btn('s2').click(); pg.wait_for_timeout(500); btn('s2').click(); pg.wait_for_timeout(500)
         dg = pg.evaluate(DTCL)
-        check('giving the seat up: the leader\'s values (as the laser code does), no seat chosen', S()['seat']['n'] == -1 and all(dg['v'][k] == d0['v'][k] for k in d0['v']))
+        check('giving the seat up: the leader\'s values (as the laser code does), no seat chosen', S()['seat']['n'] == -1 and all(dg['v'][k] == d0['v'][k] for k in d0['v'] if k not in own[2:]) and L16A(dg) == L16A(dl))
         # the switches of the Data Cartridge page: off = the DTC is not touched by the seat
         pg.evaluate("()=>{__app.ST.DCS.iff=false}"); btn('s3').click(); pg.wait_for_timeout(500)
         dq = pg.evaluate(DTCL)
-        check('IFF switch off: the Mode 3 codes stay, Link 16 (switch on) follows the seat (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '34' and dq['v']['FILE_A_FLIGHT_LEAD'] == '0')
+        check('IFF switch off: the Mode 3 codes stay, Link 16 (switch on) follows the seat (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '54' and dq['v']['FILE_A_FLIGHT_LEAD'] == '0')
         pg.evaluate("()=>{__app.ST.DCS.l16=false}"); btn('s1').click(); pg.wait_for_timeout(500)
         dq = pg.evaluate(DTCL)
-        check('both switches off: the DTC is left as it is (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '34')
+        check('both switches off: the DTC is left as it is (%s, %s)' % (dq['v']['Mode3A Code'], dq['v']['FILE_A_CALLSIGN_NUMBER']), dq['v']['Mode3A Code'] == '4730' and dq['v']['FILE_A_CALLSIGN_NUMBER'] == '54')
         pg.evaluate("()=>{__app.ST.DCS.iff=true;__app.ST.DCS.l16=true}"); btn('s2').click(); pg.wait_for_timeout(300); btn('s3').click(); pg.wait_for_timeout(500)
         check('both on again: the next seat writes both', pg.evaluate(DTCL)['v']['Mode3A Code'] == '4733')
         btn('s2').click(); pg.wait_for_timeout(500)
@@ -260,13 +263,13 @@ try:
         mj = pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())"); m = json.loads(mj)
         check('the mission holds the seat of whoever saved it (and who he is)', m['datacard']['seat'] == {'n': 2, 'set': True, 'uid': 'a'})
         check('and the DTC edit of the TGP is the code of the seat', any(l['k'] == 'LaserTGP' and l['v'] == '1666' for l in m['dtc']['edits']))
-        check('the DTC edits hold the IFF and Link 16 of the seat (Mode 3 4732, number 33, not the lead)', any(l['k'] == 'Mode3A Code' and l['v'] == '4732' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_CALLSIGN_NUMBER' and l['v'] == '33' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_FLIGHT_LEAD' and l['v'] == '0' for l in m['dtc']['edits']))
+        check('the DTC edits hold the IFF and Link 16 of the seat (Mode 3 4732, number 53, not the lead)', any(l['k'] == 'Mode3A Code' and l['v'] == '4732' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_CALLSIGN_NUMBER' and l['v'] == '53' for l in m['dtc']['edits']) and any(l['k'] == 'FILE_A_FLIGHT_LEAD' and l['v'] == '0' for l in m['dtc']['edits']))
         btn('s0').click(); pg.wait_for_timeout(400)
         pg.evaluate("async t=>__app.msfLoad(t)", mj); pg.wait_for_timeout(1200)
         s = S()
         check('my own mission: the seat is back as I left it, nothing to choose (%s)' % s['seat'], s['seat']['n'] == 2 and s['seat']['set'] and not s['seat']['ask'] and s['btns'][:4] == ['s0', 's1', 's2:on', 's3'])
         dm = pg.evaluate(DTCL)
-        check('and its DTC is the one of the seat (Mode 3 %s, number %s)' % (dm['v']['Mode3A Code'], dm['v']['FILE_A_CALLSIGN_NUMBER']), dm['v']['Mode3A Code'] == '4732' and dm['v']['FILE_A_CALLSIGN_NUMBER'] == '33' and dm['v']['FILE_A_FLIGHT_LEAD'] == '0')
+        check('and its DTC is the one of the seat (Mode 3 %s, number %s)' % (dm['v']['Mode3A Code'], dm['v']['FILE_A_CALLSIGN_NUMBER']), dm['v']['Mode3A Code'] == '4732' and dm['v']['FILE_A_CALLSIGN_NUMBER'] == '53' and dm['v']['FILE_A_FLIGHT_LEAD'] == '0')
         old = json.loads(mj); old['datacard'].pop('seat')
         pg.evaluate("async t=>__app.msfLoad(t)", json.dumps(old)); pg.wait_for_timeout(1200); s = S()
         check('my own mission from before the seat existed: the leader, as the default', s['seat']['n'] == 0 and not s['seat']['set'] and not s['seat']['ask'])

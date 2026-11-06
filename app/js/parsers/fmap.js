@@ -3,7 +3,7 @@
 // Layout (checked on real files; the BMS wiki page "fmap" lists the same fields): header of 44 bytes, then ONE ARRAY PER FIELD of X*Y cells (not interleaved):
 // condition (int), pressure (mbar), temperature (C), wind speed (kt, 10 layers), wind heading (deg, 10 layers; where the wind comes FROM), cumulus altitude (ft),
 // cumulus density (1-13), cumulus size (0-5), tower cumulus (0/1), shower cumulus (0/1), fog end (km, 60 = clear), fog layer altitude (ft).
-// Condition: 0 sunny, 1 fair, 2 poor, 3 inclement.
+// Condition: the files hold 1 sunny, 2 fair, 3 poor, 4 inclement (checked on the three real maps: 0 never appears). The reader gives it as 0..3 (0 sunny ... 3 inclement), the index of WX_COND.
 // The 10 wind layers sit at the altitudes of the BMS manual (winds aloft table).
 export const WX_ALT = [0, 3000, 6000, 9000, 12000, 18000, 24000, 30000, 40000, 50000];
 export const WX_COND = ['Sunny', 'Fair', 'Poor', 'Inclement'];
@@ -40,7 +40,7 @@ export function parseFmap(u8) {
     idx = (i, j) => (Y - 1 - j) * X + i,
     // one cell by its index in the file; lv = wind layer (0..9)
     at0 = (c, lv = 0) => ({
-      cond: i32(H + 4 * c),
+      cond: Math.max(0, Math.min(3, i32(H + 4 * c) - 1)),
       p: f(H + 4 * N + 4 * c),
       t: f(H + 8 * N + 4 * c),
       spd: f(S0 + 40 * c + 4 * lv),

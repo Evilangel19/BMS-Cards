@@ -12,6 +12,7 @@
       "auto": "object",
       "final": "object",
       "flight": "string",
+      "l16": ["list"],
       "label": "string",
       "manual": "object",
       "seat": "object"

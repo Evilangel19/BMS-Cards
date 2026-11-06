@@ -41,6 +41,7 @@ import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.j
 import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
+import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
 import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
@@ -108,6 +109,16 @@ export async function init6() {
       $('fsel').value = k;
       apply(k);
       return true;
+    },
+    // Link 16 of the DTC: a flight of the package put in a file from the map (app/l16link.js)
+    l16: {
+      mate: f => l16Mate(ATOL.find(z => z.f === f)),
+      can: l16Can,
+      plan: l16Plan,
+      has: l16Has,
+      preview: l16Preview,
+      add: l16Add,
+      remove: l16Remove,
     },
     getC: () => ST.C,
     getWx: () => ST.WX,

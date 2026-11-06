@@ -320,6 +320,22 @@
 .dtp select:hover {
   border-color: var(--ac);
 }
+/* the window of a flight of the package on the map: Select flight / Add Link 16 (the lines say what a change does to the slots) */
+.dtp select {
+  transition: border-color 0.15s;
+}
+.dtp select option:disabled {
+  color: #5b6573;
+}
+.l16pv {
+  margin: 4px 0 0;
+  color: var(--mu);
+  font-size: 11.5px;
+  line-height: 1.4;
+}
+.l16pv div {
+  animation: appear 0.15s ease-out;
+}
 .mps2 {
   color: var(--mu);
   font-size: 11px;

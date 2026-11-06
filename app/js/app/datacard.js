@@ -17,6 +17,7 @@ import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
 import { fpStart, fpSpan } from '../core/fpcols.js';
 import { seatIdx, seatCodes, seatToDtc } from './seat.js';
+import { l16Typed } from './l16link.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
@@ -223,7 +224,10 @@ export function dtcChanged(sec, key, fromCard) {
       if (sec == 'STPT') mapV.refreshDtc();
     }
   } catch (e) {}
-  if (!fromCard) mirrorToCard(sec, key);
+  if (!fromCard) {
+    mirrorToCard(sec, key);
+    l16Typed(sec, key); // an STN typed on the Link 16 page stays in its slot
+  }
 }
 // who uses each frequency: the flights of the package, the support flights and the airbases of the datacard being shown
 export function freqOwners() {

@@ -1,5 +1,5 @@
-// IFF codes and Link 16 flags per seat (core/iffseat.js) and where the round buttons of the seat sit (core/seatgeo.js).
-import { IFF_BLOCKS, iffModes, iffSeatEdits, l16SeatEdits, seatIffCode } from '../app/js/core/iffseat.js';
+// IFF codes per seat (core/iffseat.js) and where the round buttons of the seat sit (core/seatgeo.js).
+import { IFF_BLOCKS, iffModes, iffSeatEdits, seatIffCode } from '../app/js/core/iffseat.js';
 import { SEAT_PAD, seatBtn, seatCell, seatIndent, seatShift } from '../app/js/core/seatgeo.js';
 let bad = 0,
   n = 0;
@@ -109,39 +109,6 @@ ok('no mode 3 code in the DTC: nothing', iffSeatEdits(map({}), 0, 3).length === 
   );
   ok('mode 4 bit', iffModes({ pm: { 5: '0808' } }, fl).a4 === 1);
 }
-
-// ---- Link 16, file A
-const L = { FILE_A_CALLSIGN: 'CA', FILE_A_CALLSIGN_NUMBER: '31', FILE_A_FLIGHT_LEAD: '1' };
-ok('the leader: nothing to change', l16SeatEdits(map(L), 0).length === 0);
-ok(
-  'seat 3: not the lead, position 3 in the number (the flight digit stays)',
-  l16SeatEdits(map(L), 2)
-    .map(e => e.k + '=' + e.v)
-    .join() === 'FILE_A_CALLSIGN_NUMBER=33,FILE_A_FLIGHT_LEAD=0'
-);
-ok(
-  'seat 2 from a file made for seat 3: position 2',
-  l16SeatEdits(map({ ...L, FILE_A_CALLSIGN_NUMBER: '33', FILE_A_FLIGHT_LEAD: '0' }), 1)
-    .map(e => e.k + '=' + e.v)
-    .join() === 'FILE_A_CALLSIGN_NUMBER=32'
-);
-ok(
-  'back to the leader: lead flag on, position 1',
-  l16SeatEdits(map({ ...L, FILE_A_CALLSIGN_NUMBER: '33', FILE_A_FLIGHT_LEAD: '0' }), 0)
-    .map(e => e.k + '=' + e.v)
-    .join() === 'FILE_A_CALLSIGN_NUMBER=31,FILE_A_FLIGHT_LEAD=1'
-);
-ok(
-  'a file A that is not used (no callsign) is left alone',
-  l16SeatEdits(map({ ...L, FILE_A_CALLSIGN: '' }), 2).length === 0
-);
-ok(
-  'a number that is not flight + position (00) is not touched, the lead flag still follows',
-  l16SeatEdits(map({ ...L, FILE_A_CALLSIGN_NUMBER: '00' }), 1)
-    .map(e => e.k)
-    .join() === 'FILE_A_FLIGHT_LEAD'
-);
-ok('keys that are not in the DTC are not invented', l16SeatEdits(map({ FILE_A_CALLSIGN: 'CA' }), 2).length === 0);
 
 // ---- where the round buttons sit and how far the text of their cell starts
 ok(

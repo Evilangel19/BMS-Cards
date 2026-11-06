@@ -18,6 +18,7 @@ import { acMemo, perfAcGet } from './gamefiles.js';
 import { TDATA } from './dtctargets.js';
 import { GAMEDATA } from './gamedata.js';
 import { goFlight, pickSeat, seatIdx, seatMe } from './seat.js';
+import { l16Add, l16Back, l16Info, l16Plan, l16Recs, l16Remove, l16Unpin } from './l16link.js';
 
 // run 19: statements that run when the program starts (in the order of the original file)
 export async function init19() {
@@ -61,6 +62,15 @@ export async function init19() {
     },
     sq: sqPage,
     seat: { pick: pickSeat, go: goFlight, idx: seatIdx, me: seatMe },
+    l16: {
+      info: l16Info,
+      plan: l16Plan,
+      recs: l16Recs,
+      add: l16Add,
+      remove: l16Remove,
+      unpin: l16Unpin,
+      back: l16Back,
+    },
     wxPage,
     unsaved: () => unsaved(),
     msfSig: () => msfSig(),

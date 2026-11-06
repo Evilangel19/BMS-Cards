@@ -194,6 +194,29 @@ try:
         pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
         if pg.locator('dialog[open]').count(): pg.evaluate("()=>document.querySelectorAll('dialog[open]').forEach(d=>d.close())")
 
+        # ---- 7b. Link 16: the plan on the Data Cartridge page (the chips come in with a fade, the cross and "Back to auto" have a transition) and the window of a flight of the package on the map
+        l16 = base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.l16.txtpb', 'rb').read()).decode()
+        ev("async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadL16(f(b,'x.txtpb'))}", l16); pg.wait_for_timeout(500)
+        ev("rx=>{const i=__app.CL.findIndex(x=>new RegExp(rx).test(x.label));document.getElementById('fsel').value=i;__app.apply(i)}", 'Cajun 6'); pg.wait_for_timeout(900)
+        ev("()=>__app.seat.pick(1)"); pg.wait_for_timeout(500)
+        pg.click('button.tab[data-t=dtc]'); pg.wait_for_timeout(500); pg.click('#dnav [data-k=l16]'); pg.wait_for_timeout(400)
+        pg.click('[data-card=l16a] [data-edit]'); pg.wait_for_timeout(200)
+        ev("()=>__app.l16.add('A','donor',8,'l',{cs:'Mako 5',stn:'4262',n:2})"); pg.wait_for_timeout(300)
+        r = ev("""()=>{const q=s=>document.querySelector(s),z=e=>!e||getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s');
+          return {chips:document.querySelectorAll('[data-card=l16a] .l16c').length,fade:getComputedStyle(q('[data-card=l16a] .l16c')).animationName,add:q('[data-card=l16a] .l16c.add')?1:0,
+            cross:!!q('[data-card=l16a] .l16x')&&!z(q('[data-card=l16a] .l16x')),back:!!q('[data-card=l16a] [data-l16back]')&&!z(q('[data-card=l16a] [data-l16back]')),chip:!z(q('[data-card=l16a] .l16c'))}}""")
+        check('Link 16 page: a chip beside each filled slot comes in with a fade, the cross and "Back to auto" change with a transition %s' % r, r['chips'] >= 3 and r['fade'] == 'appear' and r['add'] and r['cross'] and r['back'] and r['chip'])
+        check('...and every button and field of the page (with the card open) has a transition %s' % ev(CONTROLS), not ev(CONTROLS))
+        pg.click('button.tab[data-t=mp]'); pg.wait_for_timeout(1000)
+        ev("""()=>{const d=[...document.querySelectorAll('#mpmap .flb.m div[data-lb]')].find(x=>/MAKO/.test(x.textContent));const r=d.getBoundingClientRect();d.dispatchEvent(new MouseEvent('click',{bubbles:true,clientX:r.left+5,clientY:r.top+5}))}"""); pg.wait_for_timeout(400)
+        pg.click('.mpop [data-a=l16]'); pg.wait_for_timeout(300)
+        still = lambda: ev("()=>[...document.querySelectorAll('.mpop button,.mpop select')].filter(e=>getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')).map(e=>e.tagName+'.'+(e.dataset.a||e.dataset.k||''))")
+        check('window of a flight of the package (Add Link 16): every button and the slot menu have a transition %s' % still(), not still() and ev("()=>document.querySelectorAll('.mpop button').length") >= 6)
+        check('the lines of what a change does fade in', ev("()=>{const d=document.querySelector('.mpop .l16pv div');return !!d&&getComputedStyle(d).animationName=='appear'}"))
+        pg.click('.mpop [data-a=bk]'); pg.wait_for_timeout(200)
+        check('the first view of the window (Select flight, Add Link 16) has transitions too %s' % still(), not still() and ev("()=>document.querySelectorAll('.mpop button').length") == 2)
+        pg.mouse.click(5, 5); pg.wait_for_timeout(200)
+
         # ---- 8. switched off: Settings > Animations, and the system "reduce motion"
         pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(700)
         ev("()=>{__app.CFG.ui={...(__app.CFG.ui||{}),animations:false};document.documentElement.classList.add('noanim')}")

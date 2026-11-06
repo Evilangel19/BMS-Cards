@@ -9,6 +9,7 @@ import { apply } from './selection.js';
 import { buildForm } from './datacard.js';
 import { draw } from './cardview.js';
 import { campDir, dtcDir } from './campaign.js';
+import { l16Clear } from './l16link.js';
 import { campaignIni, routeRows } from '../core/mapdtc.js';
 
 /* ---------- DTC ---------- */
@@ -162,6 +163,7 @@ export async function dtcRevert() {
     l.v = l.raw.slice(l.raw.indexOf('=') + 1).trim();
     l.dirty = 0;
   }
+  l16Clear(); // the Link 16 changes of the pilot are DTC changes too: without them the next seat would bring them back
   dtcReloaded();
   if ($('fn')) $('fn').textContent = ST.name;
 }

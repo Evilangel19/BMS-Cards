@@ -25,6 +25,7 @@ import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selectio
 import { atoCloseState, atoSearch } from './ato.js';
 import { dtcBtns, dtcReloaded } from './dtcapply.js';
 import { seatQuiet, seatResolve, seatSave } from './seat.js';
+import { l16Load, l16Save } from './l16link.js';
 
 /* Mission (core/mission.js): one folder per package = the mission file (package taken out of the campaign, the DTC as opened with its changes kept apart, the datacard with its
    automatic and manual values), the program settings, the cards and a copy of the original kneeboards. The mission works without the campaign. */
@@ -169,7 +170,7 @@ export async function msfBuild() {
     flight: x.f.id.n + ':' + x.f.id.c,
     snapshot: PJ.snapshotCampaign(ST.C, x.f, { radiusNm: ST.CFG.mission.radiusNm }),
     dtc,
-    datacard: { label: x.label, auto, manual, final, seat: seatSave() },
+    datacard: { label: x.label, auto, manual, final, seat: seatSave(), l16: l16Save() },
     settings: null,
     version: APP_VERSION,
     theater: { name: (ST.TH && ST.TH.name) || '', lat: getGeo().lat, lon: getGeo().lon },
@@ -590,6 +591,7 @@ export async function msfLoad(text, file) {
     ST.MAPSHOT = shot;
     ST.AUTO = Object.assign({}, d.auto || ST.AUTO);
     ST.MANK = new Set(Object.keys(d.manual || {}));
+    l16Load(d.l16); // the Link 16 changes of its author, before the DTC is made for the seat
     seatResolve(d, mine, shared === true); // the seat: the one this pilot saved, or the one his name is on (none: the buttons ask)
     view();
     markMan();
@@ -611,6 +613,7 @@ const SNAPK = [
   'C',
   'CL',
   'OVR',
+  'L16OV',
   'LDX',
   'AUTO',
   'CURK',

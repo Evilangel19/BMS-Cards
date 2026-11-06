@@ -45,6 +45,7 @@ import { createSkyLayer } from './skylayer.js';
 import { unitSymbol, placeIcon } from './mapsymbols.js';
 import { msaSymbol } from './msamap.js';
 import { teamName } from './ato.js';
+import { defaultStart, diffLines, kindRange, rangeText, slotName, startOptions } from './l16plan.js';
 import { jtacPick } from '../rules/support.js';
 import { actName, hms, els0, nearAb, opWin } from './flight.js';
 import {
@@ -415,7 +416,7 @@ export function createMap(host, deps) {
         if (d && LBP[d.dataset.lb]) {
           e.stopPropagation();
           e.preventDefault();
-          LBP[d.dataset.lb]();
+          LBP[d.dataset.lb](e);
         }
       },
       true
@@ -2845,7 +2846,7 @@ export function createMap(host, deps) {
     const L = window.L,
       r = flightRoute(C, m),
       info = deps.flightInfo(m),
-      pick = () => EDIT && deps.selectFlight && deps.selectFlight(m),
+      pick = ev => EDIT && mateOpen(m, ev && ev.latlng),
       ll = r.map(p => p.ll);
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
@@ -2885,9 +2886,137 @@ export function createMap(host, deps) {
         .bindTooltip(deps.esc(info.text) + '<br>Steerpoint ' + p.n, { direction: 'top', offset: [0, -6] })
         .addTo(G.pk);
     });
-    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, () => {
+    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, ev =>
+      mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0])
+    );
+  }
+  // a flight of the package is clicked: with the editing on a small window offers to select it or to add it to the Link 16 files of the DTC; otherwise it is just selected
+  function mateOpen(m, at) {
+    if (!EDIT || !deps.l16 || !at) {
       if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
-    });
+      return;
+    }
+    // the panel is taller than the first view: the map moves to keep it inside (below the bars of the map) each time it is drawn again
+    let pop = null;
+    pop = window.L.popup({
+      className: 'mpop',
+      closeButton: false,
+      autoPan: true,
+      autoPanPaddingTopLeft: [16, 70],
+      autoPanPaddingBottomRight: [16, 16],
+      minWidth: 236,
+      offset: [0, -6],
+    })
+      .setLatLng(at)
+      .setContent(matePopup(m, () => pop && pop.update()))
+      .openOn(map);
+  }
+  // what the pilot chose last (kept for the next flight): file, "team" or "donor", only the leader or the whole flight
+  const L16S = { file: 'A', kind: 'donor', mode: 'a' };
+  function matePopup(m, grown) {
+    const w = document.createElement('div'),
+      info = deps.flightInfo(m),
+      A = deps.l16,
+      d = A.mate(m),
+      esc = deps.esc,
+      parts = String(info.text).split(' · '),
+      pick = { start: null }; // the slot chosen in the menu (null: the first free)
+    w.className = 'dtp';
+    const home = () => {
+      const can = A.can(),
+        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [];
+      w.innerHTML = `<div><b>${esc(parts[0])}</b></div><div class="hint" style="min-height:0">${esc(parts.slice(1).join(' · '))}</div>${
+        in2.length
+          ? `<div class="hint" style="min-height:0">Link 16: ${in2.map(z => 'file ' + z[0] + ' · slot ' + rangeText(z[1])).join(' · ')}</div>`
+          : ''
+      }<div class="bar bar3" style="margin:6px 0 0"><button class="btn g" type="button" data-a="sel" title="Load this flight on the Datacard">Select flight</button><button class="btn g" type="button" data-a="l16"${
+        d ? '' : ' disabled'
+      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>`;
+      w.querySelector('[data-a=sel]').onclick = later(() => {
+        map.closePopup();
+        if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
+      });
+      w.querySelector('[data-a=l16]').onclick = later(panel);
+      grown();
+    };
+    const panel = () => {
+      const st = L16S,
+        count = st.mode == 'l' ? 1 : d.n,
+        plan = A.plan(st.file),
+        [a] = kindRange(st.kind),
+        okStart = pick.start != null && pick.start >= a && pick.start + count <= kindRange(st.kind)[1];
+      const start = okStart ? pick.start : defaultStart(st.kind, count, plan, d.cs),
+        opts = startOptions(st.kind, count, plan, d.cs),
+        pv = A.preview(st.file, st.kind, start, st.mode, d),
+        can = A.can(),
+        here = A.has(st.file, d.cs),
+        lines = pv.why ? [] : diffLines(pv.diff),
+        tg = (k, v, t, tip) =>
+          `<button class="btn g${st[k] == v ? ' on' : ''}" type="button" data-k="${k}" data-v="${v}"${tip ? ` title="${esc(tip)}"` : ''}>${t}</button>`;
+      w.innerHTML = `<div><b>Add Link 16 · ${esc(d.cs)}</b></div><div class="hint" style="min-height:0">${d.n} aircraft · STN ${esc(d.stn)}</div>
+<div class="mps2">File</div><div class="bar bar3" style="margin:0">${tg('file', 'A', 'File A')}${tg('file', 'B', 'File B', 'File B is empty unless you put something in')}</div>
+<div class="mps2">As</div><div class="bar bar3" style="margin:0">${tg('kind', 'team', 'Team 5-8')}${tg('kind', 'donor', 'Donor 9-16')}</div>${
+        d.n > 1
+          ? `<div class="mps2">Aircraft</div><div class="bar bar3" style="margin:0">${tg('mode', 'l', 'Only leader')}${tg('mode', 'a', 'Whole flight')}</div>`
+          : ''
+      }<label class="mps2" style="margin:6px 0 0">Start at slot<select data-s>${opts
+        .map(
+          o =>
+            `<option value="${o.slot}"${o.slot == start ? ' selected' : ''}${o.ok ? '' : ' disabled'}>${o.num} · ${esc(o.name)} — ${esc(o.who ? o.who + (o.mine ? ' (this flight)' : '') : 'empty')}</option>`
+        )
+        .join('')}</select></label>
+<div class="l16pv">${lines.length ? lines.map(x => `<div>${esc(x)}</div>`).join('') : pv.why ? '' : '<div>No change.</div>'}</div>
+<div class="hint err" style="color:#ff8a8a;min-height:0">${esc(pv.why || (can.ok ? '' : can.why))}</div>
+<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="bk">Back</button>${
+        here.length
+          ? `<button class="btn g rd" type="button" data-a="rm" title="Take this flight out of file ${st.file} (all its slots)">Remove</button>`
+          : ''
+      }<button class="btn" type="button" data-a="add"${pv.why || !can.ok ? ' disabled' : ''}>Add</button></div>`;
+      w.querySelectorAll('[data-k]').forEach(
+        b =>
+          (b.onclick = later(() => {
+            st[b.dataset.k] = b.dataset.v;
+            pick.start = null;
+            panel();
+          }))
+      );
+      w.querySelector('[data-s]').onchange = ev => {
+        pick.start = +ev.target.value;
+        setTimeout(panel, 0);
+      };
+      w.querySelector('[data-a=bk]').onclick = later(home);
+      const rm = w.querySelector('[data-a=rm]');
+      if (rm)
+        rm.onclick = later(() => {
+          const why = A.remove(st.file, d.cs);
+          if (why) return toast(why, true);
+          map.closePopup();
+          toast(d.cs + ' taken out of file ' + st.file + ' of the Link 16.');
+        });
+      w.querySelector('[data-a=add]').onclick = later(() => {
+        const why = A.add(st.file, st.kind, start, st.mode, d);
+        if (why) {
+          toast(why, true);
+          return;
+        }
+        map.closePopup();
+        toast(
+          d.cs +
+            (st.mode == 'l' ? ' (leader)' : '') +
+            ' is in file ' +
+            st.file +
+            ' of the Link 16, slot ' +
+            (start + 1) +
+            (count > 1 ? '-' + (start + count) : '') +
+            ' (' +
+            slotName(start) +
+            ').'
+        );
+      });
+      grown();
+    };
+    home();
+    return w;
   }
   function bull(C) {
     const L = window.L;
