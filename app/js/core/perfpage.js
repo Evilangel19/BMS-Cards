@@ -281,10 +281,14 @@ export function createPerfPage(deps) {
       tc = P.turnCurve(ac, o),
       rows = tc.rows;
     if (!rows.length) return { tiles: '', body: '<p class="hint">No flight envelope at this altitude and weight.</p>' };
-    const xs = [Math.min(...rows.map(r => r.cas)), Math.max(...rows.map(r => r.cas))],
+    // the speed axis stops a little after the last speed with a sustained turn (the instantaneous line goes flat far beyond it and would squeeze the curves)
+    const sus = rows.filter(r => r.wM != null || r.wA != null).map(r => r.cas),
+      top = sus.length ? Math.max(...sus) + 100 : Infinity,
+      xs = [Math.min(...rows.map(r => r.cas)), Math.min(Math.max(...rows.map(r => r.cas)), top)],
       xr = [Math.floor(xs[0] / 50) * 50, Math.ceil(xs[1] / 50) * 50];
-    const ymax = a => Math.max(1, ...rows.map(r => Math.max(r[a[0]] || 0, r[a[1]] || 0, r[a[2]] || 0)));
-    const S = k => rows.map(r => [r.cas, r[k]]),
+    const ymax = a =>
+      Math.max(1, ...rows.filter(r => r.cas <= xr[1]).map(r => Math.max(r[a[0]] || 0, r[a[1]] || 0, r[a[2]] || 0)));
+    const S = k => rows.filter(r => r.cas <= xr[1]).map(r => [r.cas, r[k]]),
       c = tc.corner,
       cv = [[ac.af.cornerKt, '#6b7a8c', 'BMS corner ' + ac.af.cornerKt]];
     const wmax = Math.ceil(ymax(['wI', 'wM', 'wA']) / 5) * 5,
@@ -296,7 +300,7 @@ export function createPerfPage(deps) {
     const ser = k => [
       { c: '#fbbf24', pts: S('w' + k[0]) },
       { c: '#38bdf8', pts: S('w' + k[1]) },
-      { c: '#f472b6', pts: S('w' + k[2]) },
+      ...(noAb() ? [] : [{ c: '#f472b6', pts: S('w' + k[2]) }]),
     ];
     const g1 = chart({
       series: ser(['I', 'M', 'A']),
@@ -313,7 +317,7 @@ export function createPerfPage(deps) {
       series: [
         { c: '#fbbf24', pts: S('gI') },
         { c: '#38bdf8', pts: S('gM') },
-        { c: '#f472b6', pts: S('gA') },
+        ...(noAb() ? [] : [{ c: '#f472b6', pts: S('gA') }]),
       ],
       x0: xr[0],
       x1: xr[1],
@@ -325,8 +329,8 @@ export function createPerfPage(deps) {
     });
     const lg = leg([
       ['#fbbf24', 'Instantaneous (lift, alpha and g limit)'],
-      ['#38bdf8', 'Sustained, MIL'],
-      ['#f472b6', 'Sustained, AFTERBURNER'],
+      ['#38bdf8', noAb() ? 'Sustained' : 'Sustained, MIL'],
+      ...(noAb() ? [] : [['#f472b6', 'Sustained, AFTERBURNER']]),
     ]);
     const grid = P.psGrid(ac, { ...base(), n: st.g }, psm()),
       z = grid.ps.flat().filter(v => v != null),
@@ -513,9 +517,9 @@ export function createPerfPage(deps) {
         ? deckArt(sk, X0, rEnd, ry)
         : `<rect x="${X0}" y="${ry}" width="${(rEnd - X0).toFixed(1)}" height="24" rx="2" fill="#3a424d"/>`;
       if (rw && L > rw)
-        g += `<rect x="${rEnd.toFixed(1)}" y="${ry}" width="${(X1 - rEnd).toFixed(1)}" height="24" fill="#ff5d5d" opacity=".14"/><path d="M${rEnd.toFixed(1)} ${ry}V${ry + 24}" stroke="#ff5d5d" stroke-width="2"/><text x="${(rEnd > X1 - 120 ? rEnd - 4 : rEnd + 4).toFixed(1)}" y="${y0 + 11}" fill="#ff8a8a" font-size="10" text-anchor="${rEnd > X1 - 120 ? 'end' : 'start'}">runway end ${f(rw)} ft</text>`;
+        g += `<rect x="${rEnd.toFixed(1)}" y="${ry}" width="${(X1 - rEnd).toFixed(1)}" height="24" fill="#ff5d5d" opacity=".14"/><path d="M${rEnd.toFixed(1)} ${ry}V${ry + 24}" stroke="#ff5d5d" stroke-width="2"/><text x="${(rEnd > X1 - 120 ? rEnd - 4 : rEnd + 4).toFixed(1)}" y="${ry + 16}" fill="#ff8a8a" font-size="10" text-anchor="${rEnd > X1 - 120 ? 'end' : 'start'}">runway end ${f(rw)} ft</text>`;
       if (!rw)
-        g += `<text x="${X1}" y="${y0 + 11}" fill="#8b98a8" font-size="10" text-anchor="end">runway length not set</text>`;
+        g += `<text x="${X1 - 4}" y="${ry + 16}" fill="#8b98a8" font-size="10" text-anchor="end">runway length not set</text>`;
       if (!sk) {
         g += `<path d="M${(X0 + 26).toFixed(1)} ${mid}H${(rEnd - 8).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="10 8" opacity=".7"/>`;
         g += [0, 1, 2, 3, 4]
@@ -610,7 +614,7 @@ export function createPerfPage(deps) {
       .join('');
     return {
       tiles,
-      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is the fuel needed on arriving at a steerpoint to fly the rest of the plan and land with the reserve. The burn of each leg uses the planned speed and altitude with the BMS thrust and fuel flow tables; holds and orbits (the time between arrival and departure) are burned at Mach .5 to .85. At a tanker the fuel on arrival is taken as 1000 lb. The wind of each leg is the wind aloft of the weather map (when one is loaded) at the layer nearest to its mean altitude: it turns the planned ground speed into the airspeed. The plan stops at the first landing.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
+      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is the fuel needed at each steerpoint to fly the rest of the plan and land with the reserve. Burn uses the planned speed and altitude with the BMS tables; holds at Mach .5-.85; 1000 lb at a tanker; wind aloft from the weather map. Stops at the first landing.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
     };
   }
   function inputs() {
@@ -660,7 +664,7 @@ export function createPerfPage(deps) {
                     st.lstores
                   )}</div>`
                 : '') +
-              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker). Overhead: the overhead altitude and speed fill the landing steerpoint of the flight plan. Direct (ILS or visual, one approach): the altitude is the elevation of the landing airfield and the speed is the touchdown speed of the aircraft (weight = empty + landing reserve${st.lmode == 'direct' && st.lstores == 'off' ? '' : ' + the stores still on board'}); the touchdown speed is an estimate from the flight model file, better for the F-16 and the F-15 than for the other aircraft.</p>`
+              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. Overhead: the altitude and speed above go in the landing steerpoint. Direct: the airfield elevation and the estimated touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
             : `${
                 noAb()
                   ? ''
