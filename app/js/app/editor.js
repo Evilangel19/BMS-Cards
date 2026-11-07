@@ -96,7 +96,7 @@ export function openMenu(d) {
 // the Primary / Secondary boxes: a menu of the points that can be shown there (see ptChoices)
 export function openPtMenu(d) {
   closeMenu();
-  const w = d.k == 'pri' || d.k[0] == 't' ? 1 : 2,
+  const w = d.k == 'pri' ? 1 : d.k == 'sec' ? 2 : d.k[0] == 't' ? +d.k[1] + 1 : 2, // the row of the MDC table: t0 primary, t1 secondary, t2 free
     L = ptChoices(w),
     m = $('chm'),
     c = $('cv'),
@@ -306,7 +306,7 @@ export async function init15() {
   });
   $('cv').addEventListener('click', ev => {
     const d = cellAt(ev);
-    if (d && (d.k == 'pri' || d.k == 'sec' || /^[tu]0_[04]$/.test(d.k)) && ST.C) {
+    if (d && (d.k == 'pri' || d.k == 'sec' || /^t[0-2]_[04]$/.test(d.k)) && ST.C) {
       closeEd(true);
       openPtMenu(d);
     } else if (d && CYC[d.k]) {

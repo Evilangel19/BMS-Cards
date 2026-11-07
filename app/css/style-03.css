@@ -498,6 +498,17 @@
   font-size: 11px;
   cursor: pointer;
 }
+#mpobj .mph a {
+  transition: color 0.15s;
+}
+#mpobj .mph a.on {
+  color: #3ddc84;
+}
+#mpobj .mpps {
+  margin: 8px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
 .mpog {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -114,7 +114,7 @@ try:
         pg.check('#mpfilw input[data-k=fd]'); pg.wait_for_timeout(150)
         check('layer names: Package, Names', 'Package' in pg.inner_text('#mpbar [data-row=pk]') and 'Other flights' not in pg.inner_text('#mpbar') and pg.inner_text('#mpbar [data-row=names]').strip() == 'Names')
         check('label box sits on a leg, next to its distance label', pg.evaluate("(()=>{const f=document.querySelector('#mpmap .flb:not(.m)').getBoundingClientRect();return [...document.querySelectorAll('#mpmap .leg')].some(l=>{const r=l.getBoundingClientRect();return Math.hypot(r.left-f.left,r.top-f.top)<3})})()"))
-        check('every macro filter has a switch (8 with Objects and Places)', pg.locator('#mpbar input.mst').count() == 8)
+        check('every macro filter has a switch (7 with Objects; the political layer is in the Objects panel)', pg.locator('#mpbar input.mst').count() == 7)
         pg.uncheck('#mpbar input.mst[data-sec=Display]'); pg.wait_for_timeout(150); dk = "[...document.querySelectorAll('#mpbar .mpsb[data-sec=Display] input[data-k]')]"; off = pg.evaluate(dk + '.every(i=>!i.checked)'); pg.check('#mpbar input.mst[data-sec=Display]'); pg.wait_for_timeout(150); on = pg.evaluate(dk + '.length>0&&' + dk + '.every(i=>i.checked)'); pg.uncheck('#mpbar input.mst[data-sec=Display]'); pg.wait_for_timeout(150)
         check('the Display macro filter switches its layers on and off', off and on)
         pg.uncheck('#mpbar input.mst[data-sec="In flight"]'); pg.wait_for_timeout(150)

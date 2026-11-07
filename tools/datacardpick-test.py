@@ -37,6 +37,17 @@ try:
         check('Auto gives the rules back', s['p'] == auto_pri and 'pri' not in s['m'])
         pg.evaluate("()=>__app.ptPick(2,__app.ptChoices(2)[1])"); pg.wait_for_timeout(200)
         check('None empties the secondary', pg.evaluate("()=>__app.F.sec===''&&__app.F.ll2===''"))
+        # the target table of the MDC format: row 1 primary, row 2 secondary, row 3 free; the menu (editor.js) opens on the ST / Description cells of all three
+        c3 = pg.evaluate("()=>__app.ptChoices(3).map(x=>x.label)")
+        check('the free third row has a menu of its own: None first, no Auto %s' % c3[:2], c3[0].startswith('None') and not any(x.startswith('Auto') for x in c3) and len(c3) > 1)
+        pg.evaluate("()=>{const c=__app.ptChoices(2).find(x=>x.v&&x.v.name);if(c)__app.ptPick(2,c)}"); pg.wait_for_timeout(200)
+        r2 = pg.evaluate("()=>({s:__app.F.sec,n:__app.F.t1_4,t:__app.F.t1_0,u:__app.F.t0_4})")
+        check('a point chosen for the secondary goes to row 2 of the MDC table %s' % r2, r2['n'] and r2['n'] == r2['s'] and r2['t'])
+        pg.evaluate("()=>{const c=__app.ptChoices(3).find(x=>x.v&&x.v.name);__app.ptPick(3,c)}"); pg.wait_for_timeout(200)
+        r3 = pg.evaluate("()=>({s:__app.F.sec,p:__app.F.pri,n:__app.F.t2_4,t:__app.F.t2_0,l:__app.F.t2_1})")
+        check('a point chosen for row 3 fills row 3 only (primary and secondary stay) %s' % r3, r3['n'] and r3['t'] and r3['l'] and r3['s'] == r2['s'] and r3['p'] == auto_pri)
+        pg.evaluate("()=>__app.ptPick(3,__app.ptChoices(3)[0])"); pg.wait_for_timeout(200)
+        check('None empties row 3', pg.evaluate("()=>!__app.F.t2_4&&!__app.F.t2_0"))
         # a click on the box opens the menu
         pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='pri');window.__d=d}")
         # received mission: the card of the sender stays

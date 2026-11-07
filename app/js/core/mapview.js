@@ -122,7 +122,7 @@ export function createMap(host, deps) {
       Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))),
       migrate(PREF.on || {})
     ),
-    closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects', 'Places'],
+    closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'],
     dtcOpen: !!PREF.dtcOpen,
     dtcFilOpen: PREF.dtcFilOpen !== false,
     dtcFilMem: PREF.dtcFilMem || null,
@@ -541,9 +541,19 @@ export function createMap(host, deps) {
     'In flight',
     'Display',
     'Objects',
-    'Places',
   ]; // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]); // the "only ..." switches are not part of a section's master switch
+  // the all / none button of the Objects panel says what its next click does; the political button is lit while its three layers are on
+  function objBtns() {
+    const t = $('mpobj') && $('mpobj').querySelector('a[data-a=tog]'),
+      p = $('mpobj') && $('mpobj').querySelector('a[data-a=pol]');
+    if (t) t.textContent = secKeys('Objects').every(x => st.on[x]) ? 'none' : 'all';
+    if (p)
+      p.classList.toggle(
+        'on',
+        PLACE_LAYERS.every(([t]) => st.on['o' + t])
+      );
+  }
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
     host.querySelectorAll('#mpbar input.mst').forEach(i => {
@@ -552,6 +562,7 @@ export function createMap(host, deps) {
       i.checked = n == k.length;
       i.indeterminate = n > 0 && n < k.length;
     });
+    objBtns();
     const oc = $('mpoc');
     if (oc) {
       const n = secKeys('Objects').filter(x => st.on[x]).length;
@@ -634,7 +645,7 @@ export function createMap(host, deps) {
     f = document.createElement('div');
     f.id = 'mpobj';
     f.style.display = 'none';
-    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
+    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
     w.appendChild(f);
     const an = () => !(deps.anim && !deps.anim()),
       hide = g => {
@@ -700,9 +711,15 @@ export function createMap(host, deps) {
           sync();
         })
     );
+    // one button for all / none of the objects (the label says what the next click does), one for the political layer only
     f.querySelectorAll('a[data-a]').forEach(
-      a => (a.onclick = () => setLayers(secKeys('Objects'), a.dataset.a == 'all'))
+      a =>
+        (a.onclick = () => {
+          const k = a.dataset.a == 'pol' ? PLACE_LAYERS.map(([t]) => 'o' + t) : secKeys('Objects');
+          setLayers(k, !k.every(x => st.on[x]));
+        })
     );
+    objBtns();
     $('mpocol').onclick = () => {
       st.on.ocol = !st.on.ocol;
       save();
@@ -733,7 +750,7 @@ export function createMap(host, deps) {
     });
     MAP_OPTS.filter(o => !['sx', 'fs', 'sj'].includes(o[0])).forEach(o => ITEMS.push(o));
     const secs = [...new Set(ITEMS.map(l => l[2]))]
-      .filter(n => n != 'Names' && n != 'Objects')
+      .filter(n => n != 'Names' && n != 'Objects' && n != 'Political')
       .sort((a, b) => (a == 'Display') - (b == 'Display')); // Display, then Objects; the Names switch is the very last row
     const secHtml = n => {
       const closed = st.closed.includes(n);

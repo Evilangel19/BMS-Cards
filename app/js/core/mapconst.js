@@ -63,7 +63,7 @@ export const OBJ_LAYERS = [
   [0, 'SAM sites', 'SAM'],
   [31, 'SAM / AAA sites', 'AAA'],
 ];
-// places of the campaign (cities, towns, villages): not objectives, drawn like them (dot, owner ring) in a block of their own; [type number, label, size 1 big .. 3 small]
+// the political layer of the campaign (cities, towns, villages, as in BMS): not objectives, drawn like them (dot, owner ring), in a block of their own of the Objects panel; [type number, label, size 1 big .. 3 small]
 export const PLACE_LAYERS = [
   [8, 'Cities', 1],
   [28, 'Towns', 2],
@@ -89,7 +89,7 @@ export const MAP_LAYERS = [
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
   ['msa', 'MSA and ERAA (route, airbases)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
-  ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Places']),
+  ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [

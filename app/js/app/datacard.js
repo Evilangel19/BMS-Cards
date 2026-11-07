@@ -137,13 +137,13 @@ export function mirrorAll() {
   draw();
 }
 // Primary / secondary of the datacard: the rules of the flight (fillCard), STPT 99 / 98 of the DTC when they are used, or a point chosen by hand (click on the box: ptMenu)
-// Click on Primary / Secondary: the points the pilot can show there (w = 1 primary, 2 secondary). A point chosen by hand brings its name, the TOT of this flight's action steerpoint
+// Click on Primary / Secondary: the points the pilot can show there (w = 1 primary, 2 secondary, 3 the free third row of the target table of the MDC format). A point chosen by hand brings its name, the TOT of this flight's action steerpoint
 // (the rule of the flight: time on station for CAS, the patrol time of a CAP...) and its coordinates; "Auto" gives the rules back.
 export function ptChoices(w) {
   const pk = w == 1 ? 'pri' : 'sec',
     A = ST.AUTO || {},
-    out = [{ grp: '', label: 'Auto' + (A[pk] ? ' · ' + A[pk] : ''), auto: true }];
-  if (w == 2) out.push({ grp: '', label: 'None (empty)', v: { name: '', tot: '', ll: '' } });
+    out = w == 3 ? [] : [{ grp: '', label: 'Auto' + (A[pk] ? ' · ' + A[pk] : ''), auto: true }]; // w = 3: the free third row of the MDC table, no rule behind it
+  if (w >= 2) out.push({ grp: '', label: 'None (empty)', v: { name: '', tot: '', ll: '' } });
   const fl = ST.C && ST.CL[+$('fsel').value || 0] && ST.CL[+$('fsel').value || 0].f;
   let tot = '';
   try {
@@ -197,9 +197,10 @@ export function ptChoices(w) {
 }
 export function ptPick(w, c) {
   const K = w == 1 ? ['pri', 'd1', 'll1'] : ['sec', 'd2', 'll2'],
-    A = ST.AUTO || {};
+    A = ST.AUTO || {},
+    R = 't' + (w - 1); // the row of the target table of the MDC format: 1 primary, 2 secondary, 3 free
   if (c.auto) {
-    ['_0', '_1', '_2', '_3', '_4'].forEach(s => ST.MANK.delete((w == 1 ? 't0' : 'u0') + s));
+    ['_0', '_1', '_2', '_3', '_4'].forEach(s => ST.MANK.delete(R + s));
     K.forEach(k => {
       ST.MANK.delete(k);
       F[k] = A[k] || '';
@@ -211,12 +212,13 @@ export function ptPick(w, c) {
     draw();
     return;
   }
-  setField(K[0], c.v.name);
-  setField(K[1], c.v.tot);
-  setField(K[2], c.v.ll);
+  if (w < 3) {
+    setField(K[0], c.v.name);
+    setField(K[1], c.v.tot);
+    setField(K[2], c.v.ll);
+  }
   // the target row of the MDC format (ST / lat / long / elev / description) follows the choice
-  const R = w == 1 ? 't0' : 'u0',
-    m = /^([NS].*?')\s+([EW].*)$/.exec(c.v.ll || '');
+  const m = /^([NS].*?')\s+([EW].*)$/.exec(c.v.ll || '');
   [c.v.name ? c.v.st || '' : '', m ? m[1] : '', m ? m[2] : '', m ? c.v.alt || '' : '', c.v.name].forEach((v, j) =>
     setField(R + '_' + j, v)
   );
