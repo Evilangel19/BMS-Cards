@@ -42,7 +42,12 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 ### Performance
 
 - Added: Landing choice: Overhead (as before) or Direct (airfield elevation and touchdown speed of the aircraft); the stores on board or dropped. The touchdown speed is an estimate, better for the F-16 and the F-15.
-- Added: ships: no red cross against the runway length, a note about catapult and arrested landing.
+- Added: ships: three schematic drawings (catapults and wires, ski-jump and wires, flat deck), no red cross against a runway, the deck assumed 60 ft above the sea (Performance, Direct landing and Datacard).
+- Added: STOVL aircraft (AV-8B, Harrier, F-35B): the take-off roll is compared with the length of the deck, written in DIST; the landing is a rolling estimate only (vertical landing is not modelled).
+- Changed: the thrust and the fuel flow of twin-engine aircraft count both engines (before, the F-15, F-18 and A-10 had half the thrust and the AV-8B could not take off). The fuel plan of these aircraft changes too (Min.Fuel, Bingo, Joker).
+- Changed: approach alpha of the landing estimate: 13° for the F-16, for the others 90% of the gear-down alpha limit of the flight model file.
+- Changed: no afterburner choices (MIL/AB) for the aircraft that have none.
+- Changed: the speed axis of the Turn chart stops after the last sustained turn; shorter texts in the Fuel plan.
 
 ### Weather and missiles
 
