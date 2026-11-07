@@ -21,6 +21,7 @@ import {
   planKbBackups,
   plural,
   safeRel,
+  insidePath,
   samePath,
   squadCount,
   summarize,
@@ -105,7 +106,7 @@ export async function sourceFromFolder(io, dir) {
         }
       })
     );
-  return { kind: 'folder', label: dir, files, find: caseless(files), missionsDir, manifest: async () => null };
+  return { kind: 'folder', label: dir, dir, files, find: caseless(files), missionsDir, manifest: async () => null };
 }
 
 /**
@@ -174,7 +175,11 @@ export function sourceFromZip(/** @type {Uint8Array} */ bytes, label) {
 export async function describeSource(src, ctx = {}) {
   const man = await src.manifest();
   if (man && man.format !== FORMAT) throw new Error('This file is not a backup made by BMS Cards.');
-  const extra = { squads: 0, missionsSame: src.kind === 'folder' && samePath(src.missionsDir, ctx.missionsDir) };
+  const extra = {
+    squads: 0,
+    missionsSame:
+      src.kind === 'folder' && samePath(src.missionsDir, ctx.missionsDir) && !insidePath(ctx.missionsDir, src.dir),
+  }; // a missions folder inside the old program folder is not shared: it is copied
   const problems = {};
   const fresh = src.find('squadron.json.new'),
     main = src.find('squadron.json');
@@ -280,6 +285,8 @@ export async function runImport(o) {
         const plan = planConfig(imp, o.cur.config, policy, pathOk);
         if (!plan.use) row('settings', 'Settings', 'kept', 'Yours stay as they are.');
         else {
+          // the missions folder of the old copy lies inside it: that path would tie this copy to the old one, so it stays automatic and the missions are copied
+          if (src.kind === 'folder' && insidePath(plan.config.paths.missions, src.dir)) plan.config.paths.missions = '';
           const dest = J(appDir, 'config.json');
           if (!isDefaultConfig(o.cur.config)) await saveFirst('config.json', dest); // the settings of a copy never used are not worth a copy
           await put(dest, enc.encode(JSON.stringify(plan.config, null, 2) + '\n'));
@@ -393,6 +400,21 @@ export async function runImport(o) {
   // ---- missions
   if (picks.has('missions')) {
     stage('Copying the missions…');
+    // already tied to the old copy (an earlier import took the path of its missions folder): back to the folder of this copy, the missions are copied
+    if (src.kind === 'folder' && insidePath(destMissions, src.dir) && !samePath(destMissions, J(appDir, 'missions'))) {
+      try {
+        const dest = J(appDir, 'config.json');
+        await saveFirst('config.json', dest);
+        const cfg = JSON.parse(JSON.stringify(o.cur.config));
+        cfg.paths = { ...(cfg.paths || {}), missions: '' };
+        await put(dest, enc.encode(JSON.stringify(cfg, null, 2) + '\n'));
+        written.add('config.json');
+        destMissions = J(appDir, 'missions');
+        notes.push('The missions folder was inside the old program folder: this copy uses its own');
+      } catch (e) {
+        bad('config.json', e);
+      }
+    }
     const ms = missionsIn(src.files.map(f => f.path));
     let added = 0,
       replaced = 0,

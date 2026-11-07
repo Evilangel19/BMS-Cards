@@ -25,6 +25,15 @@ export const samePath = (a, b) => {
       .toLowerCase();
   return n(a) !== '' && n(a) === n(b);
 };
+// a path is the folder dir or lies inside it (the paths of Windows are compared in lower case, with / and \ alike)
+export const insidePath = (p, dir) => {
+  const n = x =>
+    String(x || '')
+      .replace(/\\/g, '/')
+      .replace(/\/+$/, '')
+      .toLowerCase();
+  return n(dir) !== '' && n(p) !== '' && (n(p) === n(dir) || n(p).startsWith(n(dir) + '/'));
+};
 export const plural = (n, one, many) => n + ' ' + (n === 1 ? one : many || one + 's');
 export function fmtSize(n) {
   if (!(n > 0)) return '0 KB';

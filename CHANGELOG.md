@@ -63,6 +63,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 - Added: Settings in sections (Folders with a status, Diagnostics, Preferences, Import & backup).
 - Added: import from an older version (a folder or a `.zip` backup, the older folder is never written) and "Export my data".
+- Import: when the missions of the older copy are in its own folder, they are copied into this copy (before, the settings tied this copy to the old folder and nothing was copied). A copy already tied that way is put right by importing the missions again.
 - Added: Docs page: a Scroll switch, a question before turning more than 20 pages into cards.
 - Added: startup logo.
 - Changed: `config.json` is no longer in the portable folder (the program makes it at the first start).
