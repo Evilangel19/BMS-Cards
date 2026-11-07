@@ -80,4 +80,4 @@ Nothing here is promised.
 - **0.8 (alpha)** - the first build kept on `main`.
 - **0.9 (beta)** - Map, Weapons, BVR Timeline, Performance, Weather, Docs, Squadron, MDC format, other theaters, Tactical Engagements.
 - **1.0** - the first official release (no longer a beta): the security work (CSP, file permissions) and the loading bars.
-- **1.1** - the pilot seat, Link 16 and radio presets in the DTC, objects of the campaign on the map, Overhead or Direct landing, ships and STOVL, a redone Settings window with import and export of your data. See `CHANGELOG.md`.
+- **1.1** - the pilot seat, Link 16 and radio presets in the DTC, objects of the campaign on the map, Overhead or Direct landing, ships and STOVL, a redone Settings window with import and export of your data (the import copies the missions of an older copy into this one). See `CHANGELOG.md`.
