@@ -258,11 +258,22 @@ function mdcText(x, v, d) {
       out.push(cur);
       return out;
     };
-    let fs = Math.min(15, Math.max(7, Math.floor(room / L.length) - 1)),
+    // a cell with an alternative text (d.alt: the METAR and its colour code): the text must be readable (9) or the alternative takes its place
+    const MIN = d.alt && F[d.alt] ? 9 : 7;
+    let fs = Math.min(15, Math.max(MIN, Math.floor(room / L.length) - 1)),
       rows = [];
-    for (; fs >= 7; fs--) {
+    for (; fs >= MIN; fs--) {
       rows = L.flatMap(t => (t === '' ? [''] : wrap(t, fs)));
       if (rows.length * fs * 1.12 <= room) break;
+    }
+    if (MIN == 9 && (fs < MIN || rows.length * fs * 1.12 > room)) {
+      x.save();
+      x.font = 'bold ' + Math.round(Math.min(d.h * 0.55, 30)) + 'px Arial';
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText(F[d.alt], d.x + d.w / 2, d.y0 + (d.lt ? 13 : 3) + room / 2);
+      x.restore();
+      return;
     }
     const lh = Math.min(fs * 1.12, room / rows.length);
     x.font = fs + 'px Arial';
@@ -684,6 +695,7 @@ export async function init5() {
         h: h * ky,
         y: (y0 + h / 2) * ky,
         multi: f.multi,
+        alt: f.alt,
         lt: f.lt,
         red: f.red,
         mdc: 1,

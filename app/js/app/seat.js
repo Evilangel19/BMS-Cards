@@ -8,7 +8,7 @@ import { MFD, draw } from './cardview.js';
 import { mdcAuto } from './mdcfill.js';
 import { lines } from './dtcfile.js';
 import { msLocked } from './ato.js';
-import { apply, markMan } from './selection.js';
+import { apply, ldFollow, markMan } from './selection.js';
 import { SX, SY, boxOf, cardOn } from './editor.js';
 import { sqPage } from './pages.js';
 import { myIdent, unsaved } from './mission.js';
@@ -180,6 +180,7 @@ export async function pickSeat(i) {
       giveBack();
       S.n = -1;
       S.ask = false;
+      ldFollow(true);
       return after();
     }
     const me = seatMe(),
@@ -202,6 +203,7 @@ export async function pickSeat(i) {
     S.n = i;
     S.set = true;
     S.ask = false;
+    ldFollow(true); // the loadout of the aircraft of the seat
     after();
   } finally {
     BUSY = false;
@@ -224,6 +226,7 @@ export function seatEnter() {
   const S = ST.SEAT;
   if (!QUIET && S.note && S.n >= 0) S.note = '';
   seatCodes();
+  if (!QUIET && S.set) ldFollow(false); // a flight with several loadouts opens on the group of the seat
   if (!QUIET && S.set) seatToDtc(); // the DTC of the flight just opened follows the seat the pilot chose
   if (!QUIET) flightDtcPush(); // and the channels of Link 16 and the radio presets of the flight
   if (!QUIET && S.n >= 0 && S.set) seatStamp().catch(() => {});

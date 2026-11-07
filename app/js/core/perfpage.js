@@ -52,6 +52,8 @@ const DEF = {
   jok: 1000,
   ohalt: 1500,
   ohspd: 300,
+  lmode: 'ovhd',
+  lstores: 'on',
 };
 
 export function createPerfPage(deps) {
@@ -125,9 +127,14 @@ export function createPerfPage(deps) {
       ' · for the refusal speed'
     );
   };
+  // the base of the flight is a ship: catapult and arresting wire, no runway to compare the distances with
+  const isShip = () => {
+    const r = deps.runway && deps.runway.get();
+    return !!(r && r.ship);
+  };
   const runwayFt = () => {
     const r = deps.runway && deps.runway.get();
-    return r ? r.ft || 0 : st.rwy || 0;
+    return r ? (r.ship ? 0 : r.ft || 0) : st.rwy || 0;
   };
   const envNote = () => {
     const e = env();
@@ -483,7 +490,7 @@ export function createPerfPage(deps) {
     return {
       tiles: '',
       body: `<div class="wcard"><h3>Take-off · ${fmt(gw())} lb · ${st.power == 'ab' ? 'afterburner' : 'military'}</h3>${tTiles}<p class="hint wnote">Model: thrust and drag from the BMS tables with the gear down, wheel friction ${ac.ground.roll}, rotation at the optimum pitch of the file; the distance to 50 ft assumes a constant climb. A guide, not a figure of the simulator.</p></div>
-      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at half of the maximum alpha, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p></div>
+      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at half of the maximum alpha, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p>${isShip() ? '<p class="hint wnote"><b>Ship</b>: the take-off is a catapult launch and the landing is arrested by the wire, so the distances are not compared with a runway. The approach speed is the figure that counts.</p>' : ''}</div>
       <div class="wcard"><h3>Runway<span class="wtip" title="The distances of the two cards drawn to scale on the runway length of the page (the Runway box); without a length they are drawn to scale only against each other. Red: beyond the runway. A guide, like the figures above.">ⓘ</span></h3>${runwayChart(t, l, rw)}</div>`,
     };
   }
@@ -561,7 +568,25 @@ export function createPerfPage(deps) {
             `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>`
           : st.mode == 'plan'
             ? s(['lres', 'jok', 'ohalt', 'ohspd']) +
-              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker); the overhead altitude and speed fill the landing steerpoint of the flight plan.</p>`
+              `<div class="wrow"><label>Landing</label>${seg(
+                'lmode',
+                [
+                  ['ovhd', 'Overhead'],
+                  ['direct', 'Direct'],
+                ],
+                st.lmode
+              )}</div>` +
+              (st.lmode == 'direct'
+                ? `<div class="wrow"><label>Stores at landing</label>${seg(
+                    'lstores',
+                    [
+                      ['on', 'On board'],
+                      ['off', 'Dropped'],
+                    ],
+                    st.lstores
+                  )}</div>`
+                : '') +
+              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker). Overhead: the overhead altitude and speed fill the landing steerpoint of the flight plan. Direct (ILS or visual, one approach): the altitude is the elevation of the landing airfield and the speed is the touchdown speed of the aircraft (weight = empty + landing reserve${st.lmode == 'direct' && st.lstores == 'off' ? '' : ' + the stores still on board'}); the touchdown speed is an estimate from the flight model file, better for the F-16 and the F-15 than for the other aircraft.</p>`
             : `<div class="wrow"><label>Power</label>${seg(
                 'power',
                 [
@@ -655,11 +680,18 @@ export function createPerfPage(deps) {
     side.append(cards[cards.length - 1]);
     grid.append(side);
   }
+  const prefs = () => ({
+    reserve: st.lres,
+    joker: st.jok,
+    ohalt: st.ohalt,
+    ohspd: st.ohspd,
+    lmode: st.lmode,
+    lstores: st.lstores,
+  });
   function wire(root, partial) {
     const upd = f => {
       save();
-      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd'))
-        deps.prefs.set({ reserve: st.lres, joker: st.jok, ohalt: st.ohalt, ohspd: st.ohspd });
+      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd')) deps.prefs.set(prefs());
       const g = root.querySelector('[data-gw]');
       if (g) g.textContent = fmt(gw()) + ' lb';
       draw(true);
@@ -679,6 +711,7 @@ export function createPerfPage(deps) {
             st[b.dataset.set] = b.dataset.v;
             b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
             save();
+            if (deps.prefs && (b.dataset.set == 'lmode' || b.dataset.set == 'lstores')) deps.prefs.set(prefs());
             draw(false);
           })
       );
@@ -761,6 +794,8 @@ export function createPerfPage(deps) {
           if (p.joker != null) st.jok = p.joker;
           if (p.ohalt != null) st.ohalt = p.ohalt;
           if (p.ohspd != null) st.ohspd = p.ohspd;
+          if (p.lmode != null) st.lmode = p.lmode;
+          if (p.lstores != null) st.lstores = p.lstores;
         }
       }
       draw(false);

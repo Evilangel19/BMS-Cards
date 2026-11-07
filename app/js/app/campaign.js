@@ -125,6 +125,7 @@ export function wxApply(i, set) {
   if (wd && d) {
     set('atis', CAM.atisText(wd, d, F.ab0_4) + (taf ? '\n' + taf : ''));
     set('matis', CAM.atisText(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only
+    set('matis_c', CAM.wxColour(wd, d, F.ab0_4)); // its colour code: shown instead of the METAR when this does not fit the cell at a size that can be read
   }
   (F.__ab || []).forEach((o, j) => {
     if (!o) return;

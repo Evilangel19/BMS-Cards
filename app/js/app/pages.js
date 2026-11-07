@@ -38,6 +38,7 @@ import { ST } from './state.js';
 import { $, animOn, appToast, esc, jp } from './base.js';
 import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
+import { isShipBase } from '../core/carriers.js';
 import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
@@ -472,6 +473,7 @@ export async function init11() {
           auto: a ? a.ft : 0,
           wid: a ? a.w : 0,
           info: RLI,
+          ship: isShipBase(F.__ab && F.__ab[0]),
         };
       },
       set: v => {
@@ -484,12 +486,21 @@ export async function init11() {
       },
     },
     prefs: {
-      get: () => ({ reserve: PERFP.reserve, joker: PERFP.joker, ohalt: PERFP.ohalt, ohspd: PERFP.ohspd }),
+      get: () => ({
+        reserve: PERFP.reserve,
+        joker: PERFP.joker,
+        ohalt: PERFP.ohalt,
+        ohspd: PERFP.ohspd,
+        lmode: PERFP.lmode,
+        lstores: PERFP.lstores,
+      }),
       set: o => {
         PERFP.reserve = o.reserve;
         PERFP.joker = o.joker;
         PERFP.ohalt = o.ohalt;
         PERFP.ohspd = o.ohspd;
+        PERFP.lmode = o.lmode || 'ovhd';
+        PERFP.lstores = o.lstores || 'on';
         perfSave();
         clearTimeout(ST.PFT);
         ST.PFT = setTimeout(() => perfFill(+$('fsel').value || 0), 500);

@@ -242,6 +242,18 @@ async function loadCam0(file, stale) {
   atoSearch();
 }
 
+// The loadout follows the pilot seat: the group of aircraft that holds the aircraft of the seat (the leader's group when no seat is chosen). force = the pilot pressed a round button
+// (the choice of the list is replaced); otherwise only a flight whose list was never touched follows. The list in the Config cell still changes it by hand.
+export function ldFollow(force) {
+  const i = +$('fsel').value || 0,
+    x = ST.CL && ST.CL[i];
+  if (!x || !ST.AUTO || !ST.ldSet) return;
+  const G = CAM.loadGroups(x.f);
+  if (G.length < 2 || (!force && ST.LDX && ST.LDX.has(fkey(x.f)))) return;
+  const s = ST.SEAT && ST.SEAT.set && ST.SEAT.n >= 0 ? ST.SEAT.n : 0,
+    g = G.find(z => z.ac.includes(s + 1));
+  if (g) ST.ldSet(g.label);
+}
 // The aircraft of a flight carry different loadouts: choosing a group (the list in the Config cell) redoes everything that comes from the loadout (rows, gross weight, drag, fuel and what follows from them in Performance)
 ST.ldSet = v => {
   const i = +$('fsel').value || 0,

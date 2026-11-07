@@ -247,7 +247,7 @@ export function buildLayout() {
   const field = (a, k, lab, grp, o = {}) => {
     const r = o.r || rect(a, o.to);
     if (o.use !== false) (o.all || [a]).forEach(x => used.add(x));
-    F.push({ k, lab, grp, r, multi: o.multi, lt: o.lt, red: o.red, img: o.img });
+    F.push({ k, lab, grp, r, multi: o.multi, lt: o.lt, red: o.red, img: o.img, alt: o.alt });
   };
   const L = (c, r) => {
     // column letters of an index
@@ -282,7 +282,13 @@ export function buildLayout() {
     ['G9', 'd1', 'TOT / VUL'],
   ];
   top.forEach(([a, k, lab]) => field(a, k, lab, 'Mission'));
-  field('N7', 'matis', 'ATIS (METAR of the departure airbase)', 'Mission', { multi: 1, lt: 1, r: rect('N6', 'N7') });
+  // alt: when the METAR cannot be read at the smallest size, the cell shows the colour code only (hidden key matis_c)
+  field('N7', 'matis', 'ATIS (METAR of the departure airbase)', 'Mission', {
+    multi: 1,
+    lt: 1,
+    r: rect('N6', 'N7'),
+    alt: 'matis_c',
+  });
   {
     const r = cell('P9').r,
       m = (r[0] + r[2]) / 2;

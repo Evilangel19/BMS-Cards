@@ -77,6 +77,17 @@ try:
         v = pg.evaluate("__app.F.srv"); check('a new field is stored: %s' % v, v == '192.168.1.10:5000')
         dark = pg.evaluate("""()=>{const d=__app.MFD.find(z=>z.k=='srv'),c=document.getElementById('cv').getContext('2d'),SX=2048/1600,SY=2048/1200;const im=c.getImageData(Math.round(d.x*SX),Math.round(d.y0*SY),Math.round(d.w*SX),Math.round(d.h*SY)).data;let n=0;for(let i=0;i<im.length;i+=4)if(im[i]<120)n++;return n}""")
         check('the text is drawn in its cell', dark > 40)
+        # METAR cell: the METAR when it can be read, the colour code alone when it would be smaller than 9 points
+        spy = "()=>{window.__ft=[];if(!window.__fo){window.__fo=CanvasRenderingContext2D.prototype.fillText;CanvasRenderingContext2D.prototype.fillText=function(t,...a){window.__ft.push(String(t));return window.__fo.call(this,t,...a)}}}"
+        pg.evaluate(spy)
+        pg.evaluate("()=>{__app.F.matis='LKBU 071100Z 27008KT 9999 SCT040 12/08 Q1015 A2997 NOSIG';__app.F.matis_c='GRN';__app.draw()}"); pg.wait_for_timeout(300)
+        t1 = pg.evaluate("()=>window.__ft.slice()")
+        check('a METAR that fits is written as it is', any('LKBU 071100Z' in t or 'LKBU' in t for t in t1) and 'GRN' not in t1)
+        pg.evaluate("()=>{window.__ft=[];__app.F.matis=('LKBU 071100Z 27008KT 9999 SCT040 BKN090 12/08 Q1015 A2997 TEMPO 3000 RA BKN012 ').repeat(6);__app.draw()}"); pg.wait_for_timeout(300)
+        t2 = pg.evaluate("()=>window.__ft.slice()")
+        check('a METAR too long for the cell is replaced by the colour code alone %s' % [x for x in t2 if x == 'GRN'], 'GRN' in t2 and not any('TEMPO' in t for t in t2))
+        pg.evaluate("()=>{__app.F.matis_c='';window.__ft=[];__app.draw()}"); pg.wait_for_timeout(300)
+        check('without a colour code the METAR is shrunk as before', any('TEMPO' in t or 'LKBU' in t for t in pg.evaluate("()=>window.__ft.slice()")))
         pg.evaluate("()=>{const d=__app.MFD.find(z=>z.k=='bingo');__app.openEd('bingo')}") if False else None
         d = pg.evaluate("()=>{const d=__app.MFD.find(z=>z.k=='bingo');return {x:d.x+d.w/2,y:d.y0+d.h/2}}")
         box = pg.locator('#cv').bounding_box()

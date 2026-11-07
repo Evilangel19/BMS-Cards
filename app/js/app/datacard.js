@@ -26,7 +26,7 @@ export const FD = [];
 // the keys of the cells that only the MDC format has (see cardview.js): not drawn on the datacard, but cleared, kept and saved with the other fields
 export const XD = [];
 // hidden keys of the card (not in a format): the Special channel of Link 16 and what the radio presets of the DTC need besides the cells of the card (core/radioplan.js)
-['dl0_sc', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v'].forEach(k => XD.push(k));
+['dl0_sc', 'matis_c', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v'].forEach(k => XD.push(k));
 // the field (with its input) of a key in the format that is on the screen
 export const dEl = k => (ST.MDCON ? MFD : FD).find(z => z.k == k);
 export const ML = ['roe', 'free', 'eph'];
@@ -286,6 +286,7 @@ export function setField(k, v, from) {
   if (k == 'ab0_4' && wxAt(F.__dep && F.__dep[3]) && F.__dep) {
     F.atis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + (F.__taf ? '\n' + F.__taf : '');
     F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
+    F.matis_c = CAM.wxColour(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
     const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
   }
