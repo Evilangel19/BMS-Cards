@@ -364,11 +364,18 @@ export function takeoff(ac, o) {
     A,
   };
 }
+// approach alpha (deg): the value flown by the aircraft where it is known and the model can use it (F-16 13°; the F/A-18 flies 8.1° with the flaps down, and the flap lift is not modelled here, so it keeps the estimate); for the others 90% of the gear-down alpha limit of the file, half of the maximum alpha without it (an estimate)
+const APPROACH_ALPHA = [[/^F-16/, 13]];
+export function approachAlpha(ac) {
+  const k = APPROACH_ALPHA.find(([re]) => re.test(ac.name || ''));
+  if (k) return k[1];
+  return Math.round((ac.cat3Aoa ? ac.cat3Aoa * 0.9 : ac.af.aoaMax * 0.5) * 2) / 2;
+}
 export function landing(ac, o) {
   const { W, elev = 0, dIsa = 0, hw = 0, slope = 0 } = o,
     A = atmos(elev, dIsa),
     S = ac.af.area,
-    aApp = Math.round((ac.cat3Aoa ? ac.cat3Aoa * 0.9 : ac.af.aoaMax * 0.5) * 2) / 2; // 90% of the alpha limit with the gear down (file); without it half of the maximum alpha
+    aApp = approachAlpha(ac);
   let V = 150 * KT;
   for (let i = 0; i < 40; i++) {
     const M = V / (A.a * KT);

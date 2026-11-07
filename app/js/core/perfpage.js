@@ -564,7 +564,7 @@ export function createPerfPage(deps) {
     return {
       tiles: '',
       body: `<div class="wcard"><h3>Take-off · ${fmt(gw())} lb · ${pwr() == 'ab' ? 'afterburner' : 'military'}</h3>${tTiles}<p class="hint wnote">Model: thrust and drag from the BMS tables with the gear down, wheel friction ${ac.ground.roll}, rotation at the optimum pitch of the file; the distance to 50 ft assumes a constant climb. A guide, not a figure of the simulator.</p></div>
-      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at ${ac.cat3Aoa ? '90% of the gear-down alpha limit of the file (' + fmt(ac.cat3Aoa) + '°)' : 'half of the maximum alpha'}, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p>${shipNote()}</div>
+      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at ${/^F-16/.test(ac.name) ? '13°, the alpha flown by the F-16' : ac.cat3Aoa ? '90% of the gear-down alpha limit of the file (' + fmt(ac.cat3Aoa) + '°)' : 'half of the maximum alpha'}, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p>${shipNote()}</div>
       <div class="wcard"><h3>${isShip() ? 'Ship deck' : 'Runway'}<span class="wtip" title="The distances of the two cards drawn to scale on the runway length of the page (the Runway box); without a length they are drawn to scale only against each other. Red: beyond the runway. A guide, like the figures above.">ⓘ</span></h3>${isShip() && !stovl() ? shipChart(shipKindNow()) : runwayChart(t, l, rw)}</div>`,
     };
   }

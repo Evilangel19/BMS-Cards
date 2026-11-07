@@ -129,8 +129,9 @@ ok(
     e1 && e2 && Math.abs(e2.T / e1.T - 2) < 1e-6 && Math.abs(e2.ff / e1.ff - 2) < 1e-6,
     'twice the engines: twice the thrust and fuel flow'
   );
-  const la = P.landing({ ...ac, cat3Aoa: 16 }, { W: 22000 }),
-    lb = P.landing({ ...ac, cat3Aoa: 0 }, { W: 22000 });
+  const la = P.landing({ ...ac, name: 'X', cat3Aoa: 16 }, { W: 22000 }),
+    lb = P.landing({ ...ac, name: 'X', cat3Aoa: 0 }, { W: 22000 });
+  ok(P.landing({ ...ac, name: 'F-16CM-50' }, { W: 22000 }).aApp === 13, 'the F-16 approaches at 13°');
   ok(
     la.aApp === 14.5 && lb.aApp === Math.round(ac.af.aoaMax * 0.5 * 2) / 2,
     'approach alpha: 90% of the gear-down limit, else half of the maximum'
