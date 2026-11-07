@@ -119,7 +119,7 @@ try:
         go('iff'); sw = '[data-card=iffs] [data-sync=iff]'
         check('the IFF Status card has the "from Datacard" switch, on by default, with a tip and a hint that tell how to choose the seat', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", sw) and pg.evaluate("()=>__app.ST.DCS.iff===true") and 'Mode 3' in pg.get_attribute(sw, 'title') and 'round button' in pg.evaluate("()=>document.querySelector('[data-card=iffs] .hint').textContent"))
         go('l16'); sw2 = '[data-card=l16a] [data-sync=l16]'
-        check('the File A card of Link 16 has it too (flight lead flag and position)', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", sw2) and pg.evaluate("()=>__app.ST.DCS.l16===true") and 'flight lead' in pg.get_attribute(sw2, 'title') and 'round button' in pg.evaluate("()=>document.querySelector('[data-card=l16a] .hint').textContent"))
+        check('the File A card of Link 16 has it too (flight lead flag and position)', pg.evaluate("s=>document.querySelector(s).classList.contains('on')", sw2) and pg.evaluate("()=>__app.ST.DCS.l16===true") and 'flight lead' in pg.get_attribute(sw2, 'title') and 'Datacard' in pg.evaluate("()=>document.querySelector('[data-card=l16a] .hint').textContent"))
         check('Link 16 channels: the labels are MC / FC / SC, with the whole name on the tip',
               pg.evaluate("()=>[...document.querySelectorAll('[data-card=l16a] .drow > label span')].map(e=>e.textContent+'='+e.title).join('|')") == 'MC=Mission channel|FC=Fighter channel|SC=Special channel')
         check('the channels of the flight are on the page (Mission 001, Fighter 065, Special 000)', [pg.input_value('[data-card=l16a] input[data-k=%s]' % k) for k in ('FILE_A_MISSION_CHANNEL', 'FILE_A_FIGHTER_CHANNEL', 'FILE_A_SPECIAL_CHANNEL')] == ['001', '065', '000'])
@@ -128,7 +128,9 @@ try:
         dn = pg.evaluate("()=>[1,2,3].map(i=>document.querySelector('[data-card=l16a] input[data-k=FILE_A_DONOR_'+i+'_STN]').getBoundingClientRect()).map(r=>[Math.round(r.left),Math.round(r.top)])")
         check('donors: one under the other, in the same column %s' % dn, dn[0][0] == dn[1][0] == dn[2][0] and dn[0][1] < dn[1][1] < dn[2][1])
         tm = pg.evaluate("()=>{const r=document.querySelector('[data-card=l16a] input[data-k=FILE_A_TEAM_1_STN]').getBoundingClientRect();return Math.round(r.left)}")
-        check('donors are in the column of the flight and team STNs', tm == dn[0][0])
+        tb = pg.evaluate("()=>Math.round(document.querySelector('[data-card=l16a] input[data-k=FILE_A_TEAM_4_STN]').getBoundingClientRect().top)")
+        d5 = pg.evaluate("()=>Math.round(document.querySelector('[data-card=l16a] input[data-k=FILE_A_DONOR_5_STN]').getBoundingClientRect().left)")
+        check('the donors sit under the flight and team STNs, 5-8 in a second column %s' % [tb, dn[0], d5], dn[0][1] > tb and d5 > dn[0][0] + 50)
         m3 = [ln('Mode3A Code'), ln('FILE_A_CALLSIGN_NUMBER'), ln('FILE_A_FLIGHT_LEAD')]
         check('the DTC is the one of the leader (%s) until a seat is chosen' % m3, m3 == ['4730', '31', '1'])
         pg.evaluate("()=>__app.seat.pick(2)"); pg.wait_for_timeout(500)
@@ -211,6 +213,8 @@ try:
         go('l16'); unlock('l16a'); pg.locator('[data-card=l16a] .dseg button[data-k="FILE_A_FLIGHT_LEAD"][data-v="0"]').click(); pg.wait_for_timeout(150)
         check('Link 16 files A and B are side by side on a wide window', pg.evaluate("(()=>{const a=document.querySelector('[data-card=l16a]').getBoundingClientRect(),b=document.querySelector('[data-card=l16b]').getBoundingClientRect();return Math.abs(a.top-b.top)<2&&b.left>a.left})()"))
         check('Link 16 file A has the BMS fields and writes them', pg.locator('[data-card=l16a] .l16g h4').count() == 3 and ln('FILE_A_FLIGHT_LEAD') == '0')
+        dn = pg.evaluate("(()=>{const d=[...document.querySelectorAll('[data-card=l16a] .l16g > div:nth-child(3) .drow')].map(r=>r.getBoundingClientRect()),h=document.querySelector('[data-card=l16a] .l16g > div:nth-child(3) h4').getBoundingClientRect(),c=document.querySelector('[data-card=l16a] .l16g > div:nth-child(3)').getBoundingClientRect();return {n:d.length,left:d.slice(0,4).map(r=>Math.round(r.left)),right:d.slice(4).map(r=>Math.round(r.left)),tops:d.map(r=>Math.round(r.top)),hw:Math.round(h.width),cw:Math.round(c.width)}})()")
+        check('Link 16 donors: two columns numbered down (1-4 left, 5-8 right), the title over both %s' % dn, dn['n'] == 8 and len(set(dn['left'])) == 1 and len(set(dn['right'])) == 1 and dn['right'][0] > dn['left'][0] + 50 and dn['tops'][0] < dn['tops'][1] < dn['tops'][2] < dn['tops'][3] and dn['tops'][4] == dn['tops'][0] and dn['tops'][7] == dn['tops'][3] and dn['hw'] >= dn['cw'] - 4)
         # v43
         go('stpt'); vt = pg.inner_text('#view')
         check('flight plan has heading, distance, speed and formation', all(x in vt for x in ('Hdg', 'Dist (NM)', 'Spd (kt)', 'Formation')) and re.search(r'\d{3}\u00b0', vt))

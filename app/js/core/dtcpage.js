@@ -659,13 +659,12 @@ export function createDtcPage(deps) {
         card('l16a', 'File A', f('A'), {
           sync: 'l16',
           right: back('A', info && info.changedA),
-          syncTip:
-            'The callsign letters and number, the flight lead flag and the STNs follow the seat chosen on the Datacard: the plan of that aircraft is written into the DTC',
-          hint: 'Switch on to write the callsign letters (first and last of the callsign), the number (flight and position), the flight lead flag and the STNs of the seat you chose on the Datacard (press a round button there). The STNs follow the plan of BMS: your flight in Flight 1-4, every other flight of the package in the next block of four, then the donors. To put a flight elsewhere click it on the Map and choose Add Link 16; an STN typed here stays where you put it.',
+          syncTip: 'Callsign letters, number, flight lead and STNs follow the seat chosen on the Datacard.',
+          hint: 'Follows the seat chosen on the Datacard. To move a flight, click it on the Map and choose Add Link 16. An STN typed here stays.',
         }) +
         card('l16b', 'File B', f('B'), {
           right: back('B', info && info.changedB),
-          hint: 'Empty unless you put something in: a flight from the Map (click it, Add Link 16, file B) or an STN typed here. Nothing is written here by the program until then.',
+          hint: 'Empty unless you fill it: from the Map (Add Link 16, file B) or by typing an STN here.',
         }) +
         '</div>'
       );

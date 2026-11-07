@@ -171,7 +171,7 @@ try:
         check('file B can be typed too: an amber chip, a Clear button, and file A is not touched', chips('B') == ['pin:typed'] and pg.locator('[data-card=l16b] [data-l16back]').count() == 1 and stns(D(), 'A') == BASE)
         pg.click('[data-card=l16b] [data-l16back]'); pg.wait_for_timeout(400)
         check('Clear empties it (the typed slot too)', stns(D(), 'B') == [E] * 16 and chips('B') == [])
-        check('the hints say how: round button, Map > Add Link 16, typed STN stays; file B empty by default', 'Add Link 16' in pg.inner_text('[data-card=l16a] .hint') and 'round button' in pg.inner_text('[data-card=l16a] .hint') and 'Empty unless' in pg.inner_text('[data-card=l16b] .hint'))
+        check('the hints say how: the Datacard seat, Map > Add Link 16, typed STN stays; file B empty by default', 'Add Link 16' in pg.inner_text('[data-card=l16a] .hint') and 'Datacard' in pg.inner_text('[data-card=l16a] .hint') and 'Empty unless' in pg.inner_text('[data-card=l16b] .hint'))
         if shots: pg.screenshot(path=shots + '/l16-page.png')
 
         # ---- 6. the mission keeps the changes

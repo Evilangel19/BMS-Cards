@@ -537,6 +537,22 @@
   background: #fff;
   box-shadow: 0 0 2px #0008;
 }
+.nobj.pl i {
+  opacity: 0.85;
+}
+.nobj.pl1 i {
+  width: calc(var(--os, 8px) * 1.25);
+  height: calc(var(--os, 8px) * 1.25);
+  margin: auto;
+}
+.nobj.pl2 i {
+  width: calc(var(--os, 8px) * 0.9);
+  height: calc(var(--os, 8px) * 0.9);
+}
+.nobj.pl3 i {
+  width: calc(var(--os, 8px) * 0.62);
+  height: calc(var(--os, 8px) * 0.62);
+}
 .nobj.sub i {
   width: var(--ss, 5px);
   height: var(--ss, 5px);

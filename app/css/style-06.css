@@ -524,8 +524,20 @@
 }
 .l16g {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
   gap: 4px 26px;
+}
+/* the donors: two columns, numbered down (1-4 left, 5-8 right), the title over both */
+.l16g > div:nth-child(3) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto repeat(4, auto);
+  grid-auto-flow: column;
+  column-gap: 26px;
+  align-content: start;
+}
+.l16g > div:nth-child(3) h4 {
+  grid-column: 1 / -1;
 }
 .l16g h4 {
   margin: 6px 0 2px;
@@ -616,6 +628,9 @@
 @media (max-width: 1000px) {
   .l16g {
     grid-template-columns: 1fr 1fr;
+  }
+  .l16g > div:nth-child(3) {
+    grid-column: 1 / -1;
   }
 }
 .drow.stk {

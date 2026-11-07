@@ -60,6 +60,7 @@ import {
   NAME_MAX,
   NM,
   OBJ_LAYERS,
+  PLACE_LAYERS,
   PAL,
   SHOTS,
   SUPPORT,
@@ -101,11 +102,12 @@ export function createMap(host, deps) {
     SAVED = null,
     dtcMst = () => {},
     SX = false;
+  const OBJ_ALL = OBJ_LAYERS.concat(PLACE_LAYERS); // objectives and places: all drawn by objDraw
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
   const migrate = o => {
     const r = Object.assign({}, o);
-    OBJ_LAYERS.forEach(([t]) => {
+    OBJ_ALL.forEach(([t]) => {
       if (r['oa' + t] || r['oe' + t] || r['ox' + t]) r['o' + t] = true;
       delete r['oa' + t];
       delete r['oe' + t];
@@ -120,7 +122,7 @@ export function createMap(host, deps) {
       Object.fromEntries(MAP_LAYERS.map(l => [l[0], l[2]]).concat(MAP_OPTS.map(o => [o[0], false]))),
       migrate(PREF.on || {})
     ),
-    closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects'],
+    closed: Array.isArray(PREF.closed) ? PREF.closed : ['Objects', 'Places'],
     dtcOpen: !!PREF.dtcOpen,
     dtcFilOpen: PREF.dtcFilOpen !== false,
     dtcFilMem: PREF.dtcFilMem || null,
@@ -539,6 +541,7 @@ export function createMap(host, deps) {
     'In flight',
     'Display',
     'Objects',
+    'Places',
   ]; // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]); // the "only ..." switches are not part of a section's master switch
   // the switch of a section: on when all its layers are on, "mixed" when some are
@@ -1821,9 +1824,9 @@ export function createMap(host, deps) {
     const z = Math.min(13, map ? map.getZoom() : 8);
     return Math.round((3 + (z - 5) * 1.25) * 10) / 10;
   }; // 3 px zoomed out, about 13 px at the maximum zoom
-  const dotIcon = (state, sub, side) =>
+  const dotIcon = (state, sub, side, place) =>
     window.L.divIcon({
-      className: 'nobj' + (sub ? ' sub' : ''),
+      className: 'nobj' + (sub ? ' sub' : '') + (place ? ' pl pl' + place : ''),
       html: '<i class="s' + state + (side == 'a' || side == 'e' ? ' o' + side : '') + '"></i>',
       iconSize: [22, 22],
       iconAnchor: [11, 11],
@@ -1904,7 +1907,7 @@ export function createMap(host, deps) {
     host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px');
   };
   function objDraw() {
-    const on = OBJ_LAYERS.filter(([t]) => st.on['o' + t]);
+    const on = OBJ_ALL.filter(([t]) => st.on['o' + t]);
     if (!map) return;
     if (!on.length) {
       objClear();
@@ -1921,7 +1924,7 @@ export function createMap(host, deps) {
           .catch(e => {
             OBLP = null;
             toast('Objects: ' + ((e && e.message) || e), true);
-            OBJ_LAYERS.forEach(([t]) => {
+            OBJ_ALL.forEach(([t]) => {
               st.on['o' + t] = false;
             });
             save();
@@ -1953,7 +1956,7 @@ export function createMap(host, deps) {
       OBK = '';
     } // the airport symbols stand in for the dots only while the Airbases layer is shown
     if (key != OBK) {
-      OBJ_LAYERS.forEach(([t]) => {
+      OBJ_ALL.forEach(([t]) => {
         G['o' + t].clearLayers();
       });
       OBK = key;
@@ -1991,10 +1994,15 @@ export function createMap(host, deps) {
           return;
         } // an airfield: its own symbol is the clickable one, no dot over it
         OJ.push({ t, o, ll, g });
-        L.marker(ll, { icon: dotIcon(state, false, side), keyboard: false, zIndexOffset: 100 })
+        const pl = PLACE_LAYERS.find(p => p[0] == t); // a place: its buildings are not shown, a click opens the window at once
+        L.marker(ll, {
+          icon: dotIcon(state, false, side, pl ? pl[2] : 0),
+          keyboard: false,
+          zIndexOffset: pl ? 60 : 100,
+        })
           .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + info.txt, { direction: 'top', offset: [0, -6] })
           .on('click', () => {
-            if (OSEL === o.id)
+            if (OSEL === o.id || pl)
               window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
                 .setLatLng(ll)
                 .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
@@ -2004,7 +2012,12 @@ export function createMap(host, deps) {
           .addTo(g); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
     });
-    if (C && C.objFeat) featLoad(OBL.filter(o => on.some(([t]) => t == o.type) && objState(C.objFeat.get(o.id))));
+    if (C && C.objFeat)
+      featLoad(
+        OBL.filter(
+          o => on.some(([t]) => t == o.type) && !PLACE_LAYERS.some(p => p[0] == o.type) && objState(C.objFeat.get(o.id))
+        )
+      );
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
@@ -2140,7 +2153,13 @@ export function createMap(host, deps) {
         ' · ' +
         deps.esc(teamName(C.D, m.owner)) +
         (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') +
-        (m.noFcr ? '<br><b style="color:#ff8a8a">No FCR</b>' : '') +
+        (m.telar >= 0
+          ? m.telar
+            ? '<br>TELARs ' + m.telar
+            : '<br><b style="color:#ff8a8a">No TELAR</b>'
+          : m.noFcr
+            ? '<br><b style="color:#ff8a8a">No FCR</b>'
+            : '') +
         (m.carrier
           ? '<br>' +
             deps.esc(m.carrier.name) +
@@ -4436,7 +4455,7 @@ export function createMap(host, deps) {
       OBK = '';
       if (!map) return;
       try {
-        OBJ_LAYERS.forEach(([t]) => G['o' + t].clearLayers());
+        OBJ_ALL.forEach(([t]) => G['o' + t].clearLayers());
         objClear();
         OJ = [];
         objDraw();
