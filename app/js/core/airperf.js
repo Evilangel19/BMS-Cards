@@ -83,9 +83,10 @@ export function alphaFor(ac, M, c, aoa = ac.af.aoaMax) {
 
 // engine: thrust and fuel flow at a power setting 'idle' | 'mil' | 'ab'; for the BMS aircraft with a simple engine the fuel flow is thrust x a factor
 export function engine(ac, alt, M, mode) {
-  const T = bilin(ac.thrust[mode], alt, M) * ac.thrustFactor;
+  const n = ac.nEngines || 1; // the tables are for one engine
+  const T = bilin(ac.thrust[mode], alt, M) * ac.thrustFactor * n;
   let ff;
-  if (ac.flow && ac.flow[mode]) ff = bilin(ac.flow[mode], alt, M) * ac.flowFactor;
+  if (ac.flow && ac.flow[mode]) ff = bilin(ac.flow[mode], alt, M) * ac.flowFactor * n;
   else {
     const s = ac.simpleFuel;
     ff = Math.max(s.min || 0, Math.max(0, T) * ((mode == 'ab' ? s.ab : s.normal) || 0.8));
@@ -367,7 +368,7 @@ export function landing(ac, o) {
   const { W, elev = 0, dIsa = 0, hw = 0, slope = 0 } = o,
     A = atmos(elev, dIsa),
     S = ac.af.area,
-    aApp = Math.round(ac.af.aoaMax * 0.5 * 2) / 2;
+    aApp = Math.round((ac.cat3Aoa ? ac.cat3Aoa * 0.9 : ac.af.aoaMax * 0.5) * 2) / 2; // 90% of the alpha limit with the gear down (file); without it half of the maximum alpha
   let V = 150 * KT;
   for (let i = 0; i < 40; i++) {
     const M = V / (A.a * KT);

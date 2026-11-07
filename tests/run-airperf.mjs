@@ -120,6 +120,23 @@ ok(
   'landing: approach ' + l.vapp.toFixed(0) + ' kt, roll ' + l.rollBrakes.toFixed(0) + ' ft'
 );
 
+// engines: the tables are per engine, the thrust and the flow follow n_engines; the approach alpha follows the gear-down limit
+{
+  const e1 = P.engine(ac, 0, 0, 'mil'),
+    twin = { ...ac, nEngines: (ac.nEngines || 1) * 2 },
+    e2 = P.engine(twin, 0, 0, 'mil');
+  ok(
+    e1 && e2 && Math.abs(e2.T / e1.T - 2) < 1e-6 && Math.abs(e2.ff / e1.ff - 2) < 1e-6,
+    'twice the engines: twice the thrust and fuel flow'
+  );
+  const la = P.landing({ ...ac, cat3Aoa: 16 }, { W: 22000 }),
+    lb = P.landing({ ...ac, cat3Aoa: 0 }, { W: 22000 });
+  ok(
+    la.aApp === 14.5 && lb.aApp === Math.round(ac.af.aoaMax * 0.5 * 2) / 2,
+    'approach alpha: 90% of the gear-down limit, else half of the maximum'
+  );
+}
+
 // ---- fuel along the flight plan, climb schedule, refusal speed
 import { fuelPlan, climbAltitude } from '../app/js/core/fuelplan.js';
 const H = 3600000,

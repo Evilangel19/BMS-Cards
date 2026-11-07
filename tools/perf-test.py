@@ -74,7 +74,7 @@ try:
             check('DIST of the loadout row is the length of the runway', pg.evaluate("()=>__app.F.cfg_dist") == '9000')
             pg.evaluate("()=>{const a=__app.F.__ab[0];a.unit=1;__app.pfPage.render()}"); pg.wait_for_timeout(600)
             tx = pg.inner_text('#pf'); pg.fill('#pf input[data-rwy]', '9100'); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)
-            check('a ship: no red cross, a note about catapult and arrested landing, and no DIST', pg.locator('#pf .rwno').count() == 0 and 'catapult' in tx and pg.evaluate("()=>__app.F.cfg_dist") == '')
+            check('a ship: no red cross, a note about catapult and arrested landing, and no DIST', pg.locator('#pf .rwno').count() == 0 and 'not compared with a runway' in tx and 'schematic' in pg.inner_text('#pf') and pg.evaluate("()=>__app.F.cfg_dist") == '')
             pg.evaluate("()=>{delete __app.F.__ab[0].unit;__app.pfPage.render()}"); pg.wait_for_timeout(500)
             pg.fill('#pf input[data-rwy]', '10000'); pg.dispatch_event('#pf input[data-rwy]', 'change'); pg.wait_for_timeout(1500)
             # Overhead / Direct landing

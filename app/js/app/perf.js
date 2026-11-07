@@ -5,6 +5,7 @@ import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
 import { isShipBase } from '../core/carriers.js';
+import { isStovl } from '../core/flight.js';
 import { ST } from './state.js';
 import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
@@ -166,6 +167,9 @@ export const perfSave = () => {
     savePrefs('perfprefs.json', PERFP);
   } catch (e) {}
 };
+// name of the departure base for the pages (the name of the objective is often the same as the id: no repetition)
+export const baseName = d =>
+  F.ab0_0 && String(F.ab0_0).toLowerCase() !== String(d[0]).toLowerCase() ? d[0] + ' · ' + F.ab0_0 : d[0];
 // Conditions at the departure of the selected flight: field elevation (ft), headwind on the planned runway (kt, from the weather at the departure time) and temperature against ISA (°C)
 export function perfEnv() {
   const d = F.__dep;
@@ -186,7 +190,8 @@ export function perfEnv() {
   }
   const rn = parseInt(F.ab0_5);
   return {
-    name: d[0] + (F.ab0_0 ? ' · ' + F.ab0_0 : ''),
+    name: baseName(d),
+    ship: isShipBase(F.__ab && F.__ab[0]),
     elev,
     hw,
     isa,
@@ -263,8 +268,10 @@ export async function perfFill(i) {
   // the landing steerpoints: Overhead = speed and altitude from the Fuel plan sliders (the Performance page); Direct = the elevation of the landing airfield, and the touchdown speed of the aircraft (below, with the flight model)
   const direct = PERFP.lmode == 'direct',
     LD = [];
+  let stv = false; // a STOVL aircraft lands vertically: no touchdown speed is written
   {
     const f = ST.CL[i].f;
+    stv = isStovl(ST.C.D.ac[f.c.i] || '');
     if (CAM.isHiFi(ST.C.D.ac[f.c.i] || '') || CAM.hasAcData(ST.C.D, ST.C.D.ac[f.c.i] || ''))
       f.wps.forEach((p, j) => {
         if (j < 24 && p.act == 7) {
@@ -282,10 +289,10 @@ export async function perfFill(i) {
       });
   }
   {
-    // DIST of the loadout row: the length of the runway of the departure base (none for a ship)
+    // DIST of the loadout row: the length of the runway of the departure base; a ship: the length of the deck for a STOVL aircraft (the only one that rolls on it), nothing for the others
     const d = F.__dep,
       sh = isShipBase(F.__ab && F.__ab[0]),
-      rw = d && !sh ? rwyFt(d) : 0;
+      rw = d && (!sh || stv) ? rwyFt(d) : 0;
     put('cfg_dist', rw ? String(Math.round(rw)) : '');
   }
   let r;
@@ -295,7 +302,7 @@ export async function perfFill(i) {
     return;
   }
   if (!r || ST.CURK !== k || !ST.AUTO) return;
-  if (direct)
+  if (direct && !stv)
     LD.forEach(z => {
       // touchdown speed: empty + the stores still on board (or none) + the landing reserve, at the elevation of the airfield
       try {

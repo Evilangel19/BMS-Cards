@@ -38,8 +38,8 @@ import { ST } from './state.js';
 import { $, animOn, appToast, esc, jp } from './base.js';
 import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
-import { isShipBase } from '../core/carriers.js';
-import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
+import { isShipBase, shipKind } from '../core/carriers.js';
+import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
 import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
@@ -467,13 +467,14 @@ export async function init11() {
         const a = rwyAuto(d);
         return {
           id: d[0],
-          name: d[0] + (F.ab0_0 ? ' · ' + F.ab0_0 : ''),
+          name: baseName(d),
           ft: rwyFt(d),
           man: PERFP.rwy[d[0]] || 0,
           auto: a ? a.ft : 0,
           wid: a ? a.w : 0,
           info: RLI,
           ship: isShipBase(F.__ab && F.__ab[0]),
+          kind: isShipBase(F.__ab && F.__ab[0]) ? shipKind(F.__ab[0][1]) : '',
         };
       },
       set: v => {

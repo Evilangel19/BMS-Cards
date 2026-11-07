@@ -1,4 +1,5 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
+import { isShipBase, SHIP_DECK_FT } from './carriers.js';
 import {
   FORMS,
   isHiFi,
@@ -40,7 +41,7 @@ function fillCard(C, f, ld = 0) {
       tcnFor(C, o, a),
       f3(a[12]),
       f3(a[13]),
-      C.D.el[o[0]] || '',
+      isShipBase(o) ? String(SHIP_DECK_FT) : C.D.el[o[0]] || '', // a ship: the deck about 60 ft above the sea (assumed; the elevation of its objective in the files is negative)
       '',
       a[7] ? (a[7] / 100).toFixed(2) : '',
       f3(a[5]), // 7: tower (only the MDC format uses it, for its audio presets)
