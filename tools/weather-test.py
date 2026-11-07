@@ -93,6 +93,18 @@ try:
         check('leaving the page gives the map back to the Map page (no weather left on it)', pg.evaluate("()=>{const m=document.querySelector('#mpmap');return !!m&&m.parentElement.id=='mpbody'&&!document.querySelector('img.wxcells')}"))
         pg.click('[data-t=wx]'); pg.wait_for_timeout(1200)
         check('and the page takes it again', pg.locator('#wxbox .leaflet-container').count() == 1 and pg.locator('#wxbox img.wxcells').count() == 1)
+        # TAF of the datacard: target (default) or landing airbase
+        tx = lambda: pg.evaluate("()=>[...document.querySelectorAll('#wx .wxb')].map(b=>b.textContent).join('|')")
+        check('TAF switch: TGT is the default, "TAF TGT" on the page', pg.locator('#wx [data-taf=TGT].on').count() == 1 and 'TAF TGT' in tx() and 'TARGET FORECAST' in tx())
+        pg.click('#wx [data-taf=LDG]'); pg.wait_for_timeout(500)
+        import re
+        m = re.search(r'TAF (\w+) ', tx())
+        check('LDG: landing forecast named with the ICAO of the airbase', pg.locator('#wx [data-taf=LDG].on').count() == 1 and 'LANDING FORECAST' in tx() and m and m.group(1) != 'TGT' and len(m.group(1)) >= 3)
+        check('LDG is kept in the settings', pg.evaluate("()=>__app.ST.CFG.ui.wxTaf") == 'LDG')
+        pg.click('#wx [data-fill]'); pg.wait_for_timeout(500)
+        check('Fill datacard writes the landing TAF into the ATIS', pg.evaluate("()=>/TAF (?!TGT)\\w+ /.test(__app.F.atis||'')"))
+        pg.click('#wx [data-taf=TGT]'); pg.wait_for_timeout(500)
+        check('back to TGT', 'TAF TGT' in tx() and pg.evaluate("()=>__app.ST.CFG.ui.wxTaf") == 'TGT')
         check('no page errors', not errs); print(errs[:3])
 finally:
     srv.terminate()

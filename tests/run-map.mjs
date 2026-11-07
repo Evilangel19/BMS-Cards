@@ -172,6 +172,24 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
         return mapUnits(C, C.playerTeam).every(m => !m.noFcr);
       })()
     );
+    {
+      // TELAR: the classes with the radar in every launcher vehicle (slot 0) count the vehicles of slot 0; the others give -1
+      cls.forEach(c => {
+        CAM.D.un[c] = [...saved[c].slice(0, 3), 0];
+      });
+      u0.roster = ((r0 & ~3) | 2) >>> 0;
+      const two = mapUnits(C, C.playerTeam).find(m => m.u === u0);
+      u0.roster = (r0 & ~3) >>> 0;
+      const none = mapUnits(C, C.playerTeam).find(m => m.u === u0);
+      cls.forEach(c => {
+        CAM.D.un[c] = [...saved[c].slice(0, 3), 3];
+      });
+      const sep = mapUnits(C, C.playerTeam).find(m => m.u === u0);
+      ck(
+        'TELAR count: 2 left, none left (also noFcr), and -1 for a class with a separate radar',
+        two.telar === 2 && none.telar === 0 && none.noFcr === true && sep.telar === -1
+      );
+    }
     u0.roster = r0;
     cls.forEach(c => {
       CAM.D.un[c] = saved[c];

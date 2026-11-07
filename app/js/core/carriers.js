@@ -38,6 +38,21 @@ export function carriers(C) {
 }
 // an airbase row of a ship (aircraft carrier, helicopter carrier, amphibious ship): the row of the ships of the campaign has the unit, the others are told by the name
 export const isShipBase = row => !!row && (!!row.unit || SHIP.test(String(row[1] || '')));
+// the kind of a ship from its name: 'catobar' (catapults and arresting wires: Nimitz, Ford, Charles de Gaulle...), 'stobar' (ski-jump ramp and wires: Kuznetsov, Liaoning, Shandong), 'deck' (flat deck of an amphibious
+// ship or a helicopter carrier: Wasp, America, Izumo...; the STOVL aircraft take off with a short roll). The name is the one of the objective in the theater files.
+export const shipKind = name => {
+  const n = String(name || '');
+  if (/TAKR|Kuznetsov|Liaoning|Shandong|Type\s*00[12]|Vikramaditya|Vikrant/i.test(n)) return 'stobar';
+  if (
+    /\bCVN?-?\s?\d|\bCVN?\b|Nimitz|Enterprise|Eisenhower|Vinson|Roosevelt|Lincoln|Washington|Stennis|Truman|Reagan|Bush|Ford|Gaulle|Kitty|Kennedy|Midway|Forrestal/i.test(
+      n
+    )
+  )
+    return 'catobar';
+  return 'deck';
+};
+// height of the deck of a ship above the sea (ft): the same for every ship, an assumption (the objective of a ship has a negative elevation in the files)
+export const SHIP_DECK_FT = 60;
 // the carrier within `km` of a place (a steerpoint of take-off or recovery), nearest first; null when none
 export function carrierNear(C, x, y, km = 25) {
   let b = null,

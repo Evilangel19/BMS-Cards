@@ -51,6 +51,9 @@ There is no installer and no updater. Settings, squadrons and everything the pro
 
 **Requirements:** Windows and a Falcon BMS installation. Written and tested on **4.38.1**; the program warns when it sees another version.
 
+### A new version
+There is no updater, and the download never contains your data. Put the new version in a **new folder** (the old one stays as it is), start it and open **Settings > Import & backup > Import from another version**. Choose the folder of the older version (or a backup file) and the program copies what you want to keep: settings, page preferences, squadrons and your pilot identity, saved missions, kneeboard cards and the saved originals of your DTC and kneeboard files. The older folder is never changed. When it is done, restart the program. The same page has **Export my data**, which saves all of it in one `.zip` backup file that can be imported the same way.
+
 ## Limits and known problems
 
 - **Mostly tested on Korea.** The Balkans, the Israel and Hellas theaters work, but with far fewer campaigns and Tactical Engagements tried.
@@ -66,7 +69,7 @@ Pilots find each other through public trackers that only pass the connection off
 
 ## What the program touches
 
-The desktop program only runs its own scripts, reads your BMS folder and its own folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files). It never writes programs or scripts. The game data (aircraft, weapons, theaters, airbases, radio) is **read from your own installation at run time and is not part of this repository**.
+The desktop program only runs its own scripts, reads your BMS folder and its own folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files, the `.zip` backup file). It never writes programs or scripts. The game data (aircraft, weapons, theaters, airbases, radio) is **read from your own installation at run time and is not part of this repository**.
 
 ## For developers
 

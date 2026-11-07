@@ -62,10 +62,11 @@ function atisText(W, d, elev) {
     dd = Math.floor(s / 86400) + 1;
   return `${d[0]} ${p2w(dd)}${p2w(((s % 86400) / 3600) | 0)}${p2w(((s % 3600) / 60) | 0)}Z ${k.wind} ${k.sky} ${mt(k.t)}/${mt(k.dp)} Q${k.q} A${k.a} NOSIG`;
 }
-function tafText(C, W, f) {
+// site {id, x, y, arr, elev}: the forecast of an airbase (the landing one) instead of the target
+function tafText(C, W, f, site) {
   if (!W || !C || !f) return '';
   const B = [0, 1, 2, 3, 4, 7, 8],
-    a = f.wps.find(p => !B.includes(p.act));
+    a = site || f.wps.find(p => !B.includes(p.act));
   if (!a || !a.arr) return '';
   const H = 3600000,
     hh = ms => {
@@ -74,9 +75,9 @@ function tafText(C, W, f) {
     },
     ms0 = a.arr - 3 * H,
     s0 = Math.floor(ms0 / 1000),
-    k = wxCore(W, a.x, a.y, 0),
+    k = wxCore(W, a.x, a.y, (site && site.elev) || 0),
     tm = `${p2w(Math.floor(s0 / 86400) + 1)}${p2w(((s0 % 86400) / 3600) | 0)}${p2w(((s0 % 3600) / 60) | 0)}Z`;
-  let o = `TAF TGT ${tm} ${hh(Math.floor((a.arr - H) / H) * H)}/${hh(Math.ceil((a.arr + 2 * H) / H) * H)} ${k.wind} ${k.sky}`;
+  let o = `TAF ${site ? site.id : 'TGT'} ${tm} ${hh(Math.floor((a.arr - H) / H) * H)}/${hh(Math.ceil((a.arr + 2 * H) / H) * H)} ${k.wind} ${k.sky}`;
   if (k.c >= 2) {
     const w = k.wx ? (/^[-+]/.test(k.wx) ? '+' + k.wx.slice(1) : k.wx) : 'BR',
       v = Math.max(500, Math.round((Math.min(k.vm, 8000) * 0.5) / 100) * 100),

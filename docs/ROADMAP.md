@@ -27,10 +27,17 @@ This file says what the program does today, how far each part has been checked, 
 | Weather (campaign maps, wind, conditions) and the fuel plan                        | Implemented, Estimated for the fuel                                 |
 | Radar coverage                                                                     | Estimated: one detection range per unit                             |
 | Squadron: roster, organization, missions, kneeboard cards, logbook                 | Implemented; tested with a few pilots                               |
+| Pilot seat (laser, IFF, Link 16 and loadout of the chosen aircraft)                | Implemented; Link 16 and IFF follow the files BMS saves             |
+| Link 16 and radio presets in the DTC                                               | Implemented, few campaigns tried                                    |
+| Map objects of the campaign, political layer, MSA and ERAA                         | Implemented; the owners are verified on one campaign                |
+| Landing (Overhead or Direct), ships, STOVL                                         | Estimated                                                           |
 
 ## Not yet verified in the game
 
 - Performance and weights of the F-15K, F/A-18, F-4E, AV-8B+ and EA-6B on the datacard; the refusal speed shown as `---` for take-offs from a ship.
+- Landing speeds: only the F-16 has a real approach alpha (13°); for the others it is 90% of the gear-down alpha limit of the file. The F/A-18 flies 8.1° with the flaps down, and the flap lift is not modelled (the file has the CL TEF table but not the way the game combines it): it keeps the estimate. The F-15C flies 20-22 AoA units, whose conversion to degrees is not known.
+- The take-off from a ship and the STOVL take-off roll against the length of the deck; a vertical landing is not modelled.
+- The Performance model of the F-16 Block 50 was compared with the HFFM manual: quickest turn 21.0 against 21.3 °/s, tightest radius 1 578 against 1 565 ft, sustained turn about 17 °/s, acceleration within 5-10% (30% at Mach 0.5).
 - Two or three DLZ readings in the cockpit against the missile ranges and MAR of the program.
 - The take-off lift gain (calibrated on one WDP point) and the weapon models.
 - NAV OFFSETS written to the DTC: that VRP, VIP, OA1 and OA2 appear in the DED.
@@ -45,6 +52,8 @@ This file says what the program does today, how far each part has been checked, 
 - Weather: the wind direction is where it comes from; layers at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand ft; the cells are drawn axis-aligned.
 - HARM: Target Isolate and Glide Inhibit follow the table of the BMS 4.38 manual.
 - Radar coverage: the detection ranges of the campaign database are taken as km, 4/3 earth radius, 5,000 ft MSL; the owner of a fixed station comes from the scenario file of the campaign.
+- Thrust and fuel flow tables of the flight model files are per engine and are multiplied by the number of engines; the thrust of the AV-8B comes from `thrust_factor` and one engine.
+- Ships: the deck is taken as 60 ft above the sea; the kind of ship (catapults, ski-jump, flat deck) is read from its name.
 - Runway headings are the magnetic ones of the ATC files; without an ATC file the program shows the runway number times 10.
 
 ## Possible later
@@ -53,7 +62,11 @@ Nothing here is promised.
 
 - A live **Briefing** section for a squadron: the leaders show the map and every pilot sees the cursor, drawings and markers, over the links the squadron already has.
 - Adapting the program to future versions of Falcon BMS (new aircraft, data and theaters).
-- A calibration of the weapon and performance models as more readings from the game come in.
+- A calibration of the weapon and performance models as more readings from the game come in (the flap lift of the F/A-18, the AoA units of the F-15C).
+- **For 1.2: a faster map** with all the objects and the political layer on (measure first; canvas drawing, a minimum zoom for each type, drawing only what is in view, chunked creation, tooltips made when needed, damaged features read in the background).
+- **For 1.2: the complete user manual**: procedures, the rules of the tooltips, and for each section what is certain and what is assumed.
+- A rule for AWACS and JSTARS like the one for the tankers, after field tests.
+- Approach points from the ATC files (`Terrdata/atc/<airfield>.dat`) for an instrument or visual landing.
 
 ## Security
 
@@ -67,3 +80,4 @@ Nothing here is promised.
 - **0.8 (alpha)** - the first build kept on `main`.
 - **0.9 (beta)** - Map, Weapons, BVR Timeline, Performance, Weather, Docs, Squadron, MDC format, other theaters, Tactical Engagements.
 - **1.0** - the first official release (no longer a beta): the security work (CSP, file permissions) and the loading bars.
+- **1.1** - the pilot seat, Link 16 and radio presets in the DTC, objects of the campaign on the map, Overhead or Direct landing, ships and STOVL, a redone Settings window with import and export of your data. See `CHANGELOG.md`.

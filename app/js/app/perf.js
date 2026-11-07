@@ -1,24 +1,24 @@
-import { loadPrefs, readBytes, readRange, savePrefs } from '../platform/desktop.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
+import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
 import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
 import { isShipBase } from '../core/carriers.js';
+import { isStovl } from '../core/flight.js';
 import { ST } from './state.js';
 import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
 import { pfPage } from './pages.js';
 import { wxAt, wxWind } from './campaign.js';
-import { perfAcGet, terrain } from './gamefiles.js';
+import { perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { markMan } from './selection.js';
 import { draw } from './cardview.js';
 import { lines } from './dtcfile.js';
 
 /* Datacard fields from the performance data: TO Spec, Rotation, Refusal, Mil Power, Mil Climb, TO Fuel, Joker, Bingo and the Min.Fuel of every steerpoint. Fields the user typed are left alone. */
 export const TAXIMIN = 10; // minutes of engine start and taxi at idle between the parking spot and the take-off roll (estimate)
-export let PERFP = { rwy: {}, reserve: 1500, joker: 1000, ohalt: 1500, ohspd: 300 };
+export let PERFP = { rwy: {}, reserve: 1500, joker: 1000, ohalt: 1500, ohspd: 300, lmode: 'ovhd', lstores: 'on' };
 ST.PFT = 0;
 ST.NOPERF = false;
 // Runway sizes read from the objective files of the airbases (RL: campId -> {ends: {'09': {ft, w}}, max}); the length typed on the Performance page wins over them
@@ -129,9 +129,8 @@ export async function loadRunways(atc) {
         try {
           const tr = await terrain(),
             h = tr
-              ? await heightsAt(
-                  (off, len) => readRange(tr.path, off, len),
-                  tr.spec,
+              ? await heightsOf(
+                  tr,
                   need.map(o => ({ n: o.n, e: o.e }))
                 )
               : null;
@@ -168,6 +167,9 @@ export const perfSave = () => {
     savePrefs('perfprefs.json', PERFP);
   } catch (e) {}
 };
+// name of the departure base for the pages (the name of the objective is often the same as the id: no repetition)
+export const baseName = d =>
+  F.ab0_0 && String(F.ab0_0).toLowerCase() !== String(d[0]).toLowerCase() ? d[0] + ' · ' + F.ab0_0 : d[0];
 // Conditions at the departure of the selected flight: field elevation (ft), headwind on the planned runway (kt, from the weather at the departure time) and temperature against ISA (°C)
 export function perfEnv() {
   const d = F.__dep;
@@ -188,7 +190,8 @@ export function perfEnv() {
   }
   const rn = parseInt(F.ab0_5);
   return {
-    name: d[0] + (F.ab0_0 ? ' · ' + F.ab0_0 : ''),
+    name: baseName(d),
+    ship: isShipBase(F.__ab && F.__ab[0]),
     elev,
     hw,
     isa,
@@ -230,6 +233,8 @@ export async function perfCalc(i) {
   } catch (e) {}
   return {
     ac,
+    ew,
+    stores,
     to,
     taxi,
     rpm: PA.milRpm(ac),
@@ -260,16 +265,35 @@ export async function perfFill(i) {
     if (d && d.el) d.el.value = v;
     if (MIR[key] && ST.DCS[MIR[key].grp] && lines.length) pushOne(key);
   };
-  // the overhead pattern of the landing steerpoints: speed and altitude from the Fuel plan sliders (the Performance page)
+  // the landing steerpoints: Overhead = speed and altitude from the Fuel plan sliders (the Performance page); Direct = the elevation of the landing airfield, and the touchdown speed of the aircraft (below, with the flight model)
+  const direct = PERFP.lmode == 'direct',
+    LD = [];
+  let stv = false; // a STOVL aircraft lands vertically: no touchdown speed is written
   {
     const f = ST.CL[i].f;
+    stv = isStovl(ST.C.D.ac[f.c.i] || '');
     if (CAM.isHiFi(ST.C.D.ac[f.c.i] || '') || CAM.hasAcData(ST.C.D, ST.C.D.ac[f.c.i] || ''))
       f.wps.forEach((p, j) => {
         if (j < 24 && p.act == 7) {
-          put(`fp${j}_4`, '- / ' + PERFP.ohspd);
-          put(`fp${j}_5`, String(PERFP.ohalt));
+          const q = LD.length,
+            e = String(q === 0 ? F.ab1_4 : F.ab2_4 || F.ab1_4);
+          LD.push({ j, e: e !== '' && !isNaN(+e) ? Math.round(+e) : null });
+          if (!direct) {
+            put(`fp${j}_4`, '- / ' + PERFP.ohspd);
+            put(`fp${j}_5`, String(PERFP.ohalt));
+          } else {
+            put(`fp${j}_4`, ''); // the speed comes with the flight model (below); without it the cell stays empty
+            put(`fp${j}_5`, LD[q].e == null ? '' : String(LD[q].e));
+          }
         }
       });
+  }
+  {
+    // DIST of the loadout row: the length of the runway of the departure base; a ship: the length of the deck for a STOVL aircraft (the only one that rolls on it), nothing for the others
+    const d = F.__dep,
+      sh = isShipBase(F.__ab && F.__ab[0]),
+      rw = d && (!sh || stv) ? rwyFt(d) : 0;
+    put('cfg_dist', rw ? String(Math.round(rw)) : '');
   }
   let r;
   try {
@@ -278,6 +302,19 @@ export async function perfFill(i) {
     return;
   }
   if (!r || ST.CURK !== k || !ST.AUTO) return;
+  if (direct && !stv)
+    LD.forEach(z => {
+      // touchdown speed: empty + the stores still on board (or none) + the landing reserve, at the elevation of the airfield
+      try {
+        const L = PA.landing(r.ac, {
+          W: r.ew + (PERFP.lstores == 'off' ? 0 : r.stores) + PERFP.reserve,
+          elev: z.e || 0,
+          dIsa: 0,
+          hw: 0,
+        });
+        if (L && L.vtd > 0) put(`fp${z.j}_4`, '- / ' + Math.round(L.vtd));
+      } catch (e) {}
+    });
   if (!r.to.stuck) {
     put('tospec', (TOPOWER == 'mil' || r.ac.hasAb === false ? 'MIL ' : 'AB ') + Math.round(r.to.aLO) + '°');
     put('rot', Math.round(r.to.vr));

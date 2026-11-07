@@ -1,4 +1,6 @@
 import { SHOT, LAYOUT, paintBlank } from '../core/cardlayout.js';
+import { DC_ROW, seatCell, seatShift } from '../core/seatgeo.js';
+import { FP_NAMES, fpCx, fpTextX } from '../core/fpcols.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { F, FD, XD, LOAD, ML, abTok, shortW, tpl } from './datacard.js';
@@ -227,11 +229,15 @@ export const blank = () => {
 // the cells of the MDC format whose text is centred (numbers, times, frequencies, codes); the others are written from the left
 export const CENTERK =
   /^(step|start|chkin|taxi|to_time|ld_time|aux|tk_\w+|m[1-4]|d1|joker|bingo|ps\d|nav\d_\d|fl\d_[12fios5]|fp\d+_(st|1|2|3|5|6|10|11)|dl\d_\w+|rc\d_[1-7]|gw|drag|rot|tospec|cfg_\w+|ref|t\d_[0-3]|u\d_[0-3]|x(AD|AJ)(2[5-9]|3[0-3]))$/;
+// the text of a cell that has a round button of the pilot seat starts after the button (card units, core/seatgeo.js): only while the buttons are there (a campaign with a card)
+const seatOn = () => !!(ST.C && ST.CL && ST.CL.length && F.cs);
+const seatInd = d => (seatOn() && seatCell(d.k, !!d.mdc) ? seatShift(d.mdc ? d.h : DC_ROW) : 0);
 // the text of a cell of the MDC format. Several lines (a text with line breaks, or a multi-line cell): broken at the words to the width of the cell, in the biggest size that
 // fits. One line: squeezed in width (down to 60%) before its size is reduced, so that a frequency in a narrow cell is still tall enough to read.
 function mdcText(x, v, d) {
   const left = !CENTERK.test(d.k),
-    W = d.w - 8;
+    ind = left ? seatInd(d) : 0,
+    W = d.w - 8 - ind;
   x.textBaseline = 'middle';
   if (d.multi || v.includes('\n')) {
     const SQ = 0.82,
@@ -252,11 +258,22 @@ function mdcText(x, v, d) {
       out.push(cur);
       return out;
     };
-    let fs = Math.min(15, Math.max(7, Math.floor(room / L.length) - 1)),
+    // a cell with an alternative text (d.alt: the METAR and its colour code): the text must be readable (9) or the alternative takes its place
+    const MIN = d.alt && F[d.alt] ? 9 : 7;
+    let fs = Math.min(15, Math.max(MIN, Math.floor(room / L.length) - 1)),
       rows = [];
-    for (; fs >= 7; fs--) {
+    for (; fs >= MIN; fs--) {
       rows = L.flatMap(t => (t === '' ? [''] : wrap(t, fs)));
       if (rows.length * fs * 1.12 <= room) break;
+    }
+    if (MIN == 9 && (fs < MIN || rows.length * fs * 1.12 > room)) {
+      x.save();
+      x.font = 'bold ' + Math.round(Math.min(d.h * 0.55, 30)) + 'px Arial';
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText(F[d.alt], d.x + d.w / 2, d.y0 + (d.lt ? 13 : 3) + room / 2);
+      x.restore();
+      return;
     }
     const lh = Math.min(fs * 1.12, room / rows.length);
     x.font = fs + 'px Arial';
@@ -275,7 +292,7 @@ function mdcText(x, v, d) {
         return;
       }
       x.save();
-      x.translate(left ? d.x + 5 : d.x + d.w / 2, yy);
+      x.translate(left ? d.x + 5 + ind : d.x + d.w / 2, yy);
       x.scale(SQ, 1);
       x.fillText(t, 0, 0);
       x.restore();
@@ -298,7 +315,7 @@ function mdcText(x, v, d) {
       yy = vy(d, 0) + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
     }
     x.save();
-    x.translate(left ? d.x + 4 : d.x + d.w / 2, yy);
+    x.translate(left ? d.x + 4 + ind : d.x + d.w / 2, yy);
     x.scale(Math.min(1, W / w), 1);
     x.fillText(v, 0, 0);
     x.restore();
@@ -390,13 +407,14 @@ function draw0() {
   x.fillStyle = '#000';
   x.font = '15px Arial';
   x.textBaseline = 'middle';
-  x.fillText('Formation', 714, 514, 70);
-  x.drawImage(tpl, 476, 503, 3, 23, 475, 503, 37, 23);
-  x.drawImage(tpl, 545, 503, 3, 23, 511, 503, 37, 23);
+  x.fillText('Formation', 714 + fpTextX(749) - 749, 514, 70);
+  const dm = fpTextX(512) - 512; // the Mach/TAS column moved
+  x.drawImage(tpl, 476 + dm, 503, 3, 23, 475 + dm, 503, 37, 23);
+  x.drawImage(tpl, 545 + dm, 503, 3, 23, 511 + dm, 503, 37, 23);
   x.textAlign = 'center';
   x.font = '14px Arial';
   x.fillStyle = '#333';
-  x.fillText('Mach/TAS', 511, 514, 68);
+  x.fillText('Mach/TAS', 511 + dm, 514, 68);
   x.fillStyle = '#000';
   x.font = '15px Arial';
   x.textAlign = 'left';
@@ -494,14 +512,15 @@ function draw0() {
         }
       }
     } else {
-      const fs = fitF(x, v, d.w - 4, 16, 11);
+      const ind = CT ? 0 : seatInd(d),
+        fs = fitF(x, v, d.w - 4 - ind, 16, 11);
       x.textBaseline = 'alphabetic';
       let yy = vy(d, fs);
       if (!/[A-Z0-9]/.test(v)) {
         const m = x.measureText(v);
         yy = vy(d, 0) + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent) / 2;
       }
-      x.fillText(v, CT ? cx : d.x + 3, yy, d.w - 4);
+      x.fillText(v, CT ? cx : d.x + 3 + ind, yy, d.w - 4 - ind);
       x.textBaseline = 'middle';
     }
     x.textAlign = 'left';
@@ -572,18 +591,8 @@ export async function init5() {
       ['TCN', 590],
       ['Task', 710],
     ].forEach(([t, x]) => a(t, x, 347));
-    [
-      ['STPT', 51],
-      ['Action', 128],
-      ['TOS', 248],
-      ['HDG', 355],
-      ['Dist', 433],
-      ['Mach/TAS', 511],
-      ['Alt', 590],
-      ['Min.Fuel', 669],
-      ['Formation', 749],
-    ].forEach(([t, x]) => a(t, x, 514));
-    for (let i = 0; i < 24; i++) a(String(i + 1), 51, 542 + 28 * i);
+    FP_NAMES.forEach((t, j) => a(t, fpCx(j) + 0.5, 514));
+    for (let i = 0; i < 24; i++) a(String(i + 1), fpCx(0) + 0.5, 542 + 28 * i);
     a('Page 2', 860, 14);
     a('DATACARD', 1260, 14, { b: 1 });
     a('Callsign', 948, 39);
@@ -686,6 +695,7 @@ export async function init5() {
         h: h * ky,
         y: (y0 + h / 2) * ky,
         multi: f.multi,
+        alt: f.alt,
         lt: f.lt,
         red: f.red,
         mdc: 1,

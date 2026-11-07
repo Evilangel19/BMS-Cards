@@ -3,6 +3,7 @@
 import * as P from './airperf.js';
 import { resolveAcName } from '../bmsdata/bmsdata.js';
 import { fuelPlan, climbAltitude } from './fuelplan.js';
+import { isStovl } from './flight.js';
 
 const MODES = [
   ['field', 'Take-off & landing'],
@@ -52,6 +53,8 @@ const DEF = {
   jok: 1000,
   ohalt: 1500,
   ohspd: 300,
+  lmode: 'ovhd',
+  lstores: 'on',
 };
 
 export function createPerfPage(deps) {
@@ -125,9 +128,31 @@ export function createPerfPage(deps) {
       ' · for the refusal speed'
     );
   };
+  // the base of the flight is a ship: catapult and arresting wire, no runway to compare the distances with
+  const isShip = () => {
+    const r = deps.runway && deps.runway.get();
+    return !!(r && r.ship);
+  };
+  const shipKindNow = () => {
+    const r = deps.runway && deps.runway.get();
+    return r && r.ship ? r.kind || 'deck' : '';
+  };
+  // a STOVL aircraft takes off with a short roll: on a ship the deck length is its runway
+  const stovl = () => isStovl(st.ac);
   const runwayFt = () => {
     const r = deps.runway && deps.runway.get();
-    return r ? r.ft || 0 : st.rwy || 0;
+    return r ? (r.ship && !stovl() ? 0 : r.ft || 0) : st.rwy || 0;
+  };
+  // an aircraft without afterburner has only the military power: no choice to offer
+  const noAb = () => !!(ac && ac.hasAb === false);
+  const pwr = () => (noAb() ? 'mil' : st.power);
+  const psm = () => (noAb() ? 'mil' : st.ps);
+  const shipNote = () => {
+    const k = shipKindNow();
+    if (!k) return '';
+    if (stovl())
+      return '<p class="hint wnote"><b>Ship</b>: a STOVL aircraft takes off with a short roll on the deck, compared here with the length of the deck; the landing is a vertical one, which is not modelled: the roll above is only an estimate of a rolling landing. The touchdown speed is an estimate too.</p>';
+    return `<p class="hint wnote"><b>Ship</b>: ${k == 'catobar' ? 'the take-off is a catapult launch' : k == 'stobar' ? 'the take-off is a roll on the deck and the ski-jump ramp' : 'the take-off is made from the deck'}${k == 'deck' ? '' : ' and the landing is arrested by the wire'}, so the distances are not compared with a runway. The approach speed is the figure that counts (an estimate).</p>`;
   };
   const envNote = () => {
     const e = env();
@@ -140,7 +165,7 @@ export function createPerfPage(deps) {
         ' kt on runway ' +
         esc(e.rwy || '?')
       : ' · no weather for this flight';
-    return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${w}${ov.size ? ' · <a href="#" data-envreset style="color:#ff5d5d">use the flight values again</a>' : ''}</p>`;
+    return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${e.ship ? ' · ship deck, about 60 ft above the sea (assumed)' : ''}${w}${ov.size ? ' · <a href="#" data-envreset style="color:#ff5d5d">use the flight values again</a>' : ''}</p>`;
   };
   const empty = () => (ac ? ac.af.emptyLb : 0);
   const gw = () => empty() + st.fuel + st.stores;
@@ -256,10 +281,14 @@ export function createPerfPage(deps) {
       tc = P.turnCurve(ac, o),
       rows = tc.rows;
     if (!rows.length) return { tiles: '', body: '<p class="hint">No flight envelope at this altitude and weight.</p>' };
-    const xs = [Math.min(...rows.map(r => r.cas)), Math.max(...rows.map(r => r.cas))],
+    // the speed axis stops a little after the last speed with a sustained turn (the instantaneous line goes flat far beyond it and would squeeze the curves)
+    const sus = rows.filter(r => r.wM != null || r.wA != null).map(r => r.cas),
+      top = sus.length ? Math.max(...sus) + 100 : Infinity,
+      xs = [Math.min(...rows.map(r => r.cas)), Math.min(Math.max(...rows.map(r => r.cas)), top)],
       xr = [Math.floor(xs[0] / 50) * 50, Math.ceil(xs[1] / 50) * 50];
-    const ymax = a => Math.max(1, ...rows.map(r => Math.max(r[a[0]] || 0, r[a[1]] || 0, r[a[2]] || 0)));
-    const S = k => rows.map(r => [r.cas, r[k]]),
+    const ymax = a =>
+      Math.max(1, ...rows.filter(r => r.cas <= xr[1]).map(r => Math.max(r[a[0]] || 0, r[a[1]] || 0, r[a[2]] || 0)));
+    const S = k => rows.filter(r => r.cas <= xr[1]).map(r => [r.cas, r[k]]),
       c = tc.corner,
       cv = [[ac.af.cornerKt, '#6b7a8c', 'BMS corner ' + ac.af.cornerKt]];
     const wmax = Math.ceil(ymax(['wI', 'wM', 'wA']) / 5) * 5,
@@ -267,11 +296,11 @@ export function createPerfPage(deps) {
     const best = k => rows.reduce((b, r) => ((r[k] || 0) > (b[k] || 0) ? r : b), rows[0]),
       sa = best('wA'),
       sm = best('wM');
-    const tiles = `<div class="wpt">${tile('Corner speed', fmt(c.cas) + ' KCAS', fmt(c.gI, 1) + ' g · ' + fmt(c.wI, 1) + '°/s')}${tile('Best sustained, MIL', sm.wM == null ? 'none' : fmt(sm.wM, 1) + '°/s', sm.wM == null ? 'no level turn' : fmt(sm.cas) + ' KCAS · ' + fmt(sm.gM, 1) + ' g')}${tile('Best sustained, AB', sa.wA == null ? 'none' : fmt(sa.wA, 1) + '°/s', sa.wA == null ? 'no level turn' : fmt(sa.cas) + ' KCAS · ' + fmt(sa.gA, 1) + ' g')}</div>`;
+    const tiles = `<div class="wpt">${tile('Corner speed', fmt(c.cas) + ' KCAS', fmt(c.gI, 1) + ' g · ' + fmt(c.wI, 1) + '°/s')}${tile(noAb() ? 'Best sustained' : 'Best sustained, MIL', sm.wM == null ? 'none' : fmt(sm.wM, 1) + '°/s', sm.wM == null ? 'no level turn' : fmt(sm.cas) + ' KCAS · ' + fmt(sm.gM, 1) + ' g')}${noAb() ? '' : tile('Best sustained, AB', sa.wA == null ? 'none' : fmt(sa.wA, 1) + '°/s', sa.wA == null ? 'no level turn' : fmt(sa.cas) + ' KCAS · ' + fmt(sa.gA, 1) + ' g')}</div>`;
     const ser = k => [
       { c: '#fbbf24', pts: S('w' + k[0]) },
       { c: '#38bdf8', pts: S('w' + k[1]) },
-      { c: '#f472b6', pts: S('w' + k[2]) },
+      ...(noAb() ? [] : [{ c: '#f472b6', pts: S('w' + k[2]) }]),
     ];
     const g1 = chart({
       series: ser(['I', 'M', 'A']),
@@ -288,7 +317,7 @@ export function createPerfPage(deps) {
       series: [
         { c: '#fbbf24', pts: S('gI') },
         { c: '#38bdf8', pts: S('gM') },
-        { c: '#f472b6', pts: S('gA') },
+        ...(noAb() ? [] : [{ c: '#f472b6', pts: S('gA') }]),
       ],
       x0: xr[0],
       x1: xr[1],
@@ -300,10 +329,10 @@ export function createPerfPage(deps) {
     });
     const lg = leg([
       ['#fbbf24', 'Instantaneous (lift, alpha and g limit)'],
-      ['#38bdf8', 'Sustained, MIL'],
-      ['#f472b6', 'Sustained, AFTERBURNER'],
+      ['#38bdf8', noAb() ? 'Sustained' : 'Sustained, MIL'],
+      ...(noAb() ? [] : [['#f472b6', 'Sustained, AFTERBURNER']]),
     ]);
-    const grid = P.psGrid(ac, { ...base(), n: st.g }, st.ps),
+    const grid = P.psGrid(ac, { ...base(), n: st.g }, psm()),
       z = grid.ps.flat().filter(v => v != null),
       vmax = Math.max(100, Math.min(900, Math.max(...z))),
       vmin = Math.min(-300, Math.min(...z));
@@ -337,7 +366,7 @@ export function createPerfPage(deps) {
       hline = `<path d="M${L} ${ay.toFixed(1)}H${W - Rm}" stroke="#fbbf24" stroke-dasharray="4 4"/>`;
     const ps = `<svg viewBox="0 0 ${W} ${H}" class="wpv" style="width:100%;height:auto" role="img" aria-label="Specific excess power by Mach and altitude"><rect width="${W}" height="${H}" rx="6" fill="#0f1419"/>${cells}${hline}<g fill="#9aa8b8" font-size="10" font-family="system-ui,sans-serif">${ax}<text x="${(L + W - Rm) / 2}" y="${H - 4}" text-anchor="middle">Mach</text><text transform="translate(11 ${(T + H - B) / 2}) rotate(-90)" text-anchor="middle">Altitude (ft)</text></g></svg>`;
     const body = `<div class="wcard"><h3>Turn at ${fmt(st.alt)} ft<span class="wtip" title="Instantaneous: the best g the lift (CL at the alpha limit), the structural g and the flight control limit allow. Sustained: the most g for which the thrust equals the drag, so the speed does not fall. The grey line is the corner speed written in the BMS file.">ⓘ</span></h3>${g1}${lg}${g2}</div>
-      <div class="wcard"><h3>Specific excess power · ${st.ps == 'ab' ? 'afterburner' : 'military'} · ${fmtV('g', st.g)} g<span class="wtip" title="Ps = (thrust − drag) × speed / weight, in ft/s, at the load factor chosen. Blue: the aircraft can accelerate or climb; red: it loses energy; the dark area has no level flight at that load factor. The dotted line is the altitude chosen above.">ⓘ</span></h3>${ps}
+      <div class="wcard"><h3>Specific excess power · ${psm() == 'ab' ? 'afterburner' : 'military'} · ${fmtV('g', st.g)} g<span class="wtip" title="Ps = (thrust − drag) × speed / weight, in ft/s, at the load factor chosen. Blue: the aircraft can accelerate or climb; red: it loses energy; the dark area has no level flight at that load factor. The dotted line is the altitude chosen above.">ⓘ</span></h3>${ps}
       <div class="wleg"><span><i style="background:rgb(50,190,210)"></i>Ps &gt; 0 (up to ${fmt(vmax)} ft/s)</span><span><i style="background:rgb(150,45,55)"></i>Ps &lt; 0</span><span><i style="background:#171d26"></i>no level flight</span></div></div>`;
     return { tiles, body };
   }
@@ -409,6 +438,53 @@ export function createPerfPage(deps) {
   }
   // the distances of the take-off and of the landing drawn on a runway, to one scale (the runway length is the one of the page: red where a distance goes beyond it)
   const TD_FT = 1000; // landing: touchdown at the usual aiming point, 1 000 ft from the threshold
+  // schematic drawing of a ship deck (not to scale): catapults and wires (CATOBAR), ski-jump and wires (STOBAR), flat deck with spots (amphibious ships, STOVL)
+  function deckArt(kind, x0, x1, y) {
+    const w = x1 - x0,
+      h = 24;
+    let g = `<rect x="${x0}" y="${y}" width="${w.toFixed(1)}" height="${h}" rx="3" fill="#3a424d"/>`;
+    const wires = (a, b) =>
+      [0, 1, 2, 3]
+        .map(i => `<path d="M${(a + i * 9).toFixed(1)} ${y + 3}v${h - 6}" stroke="#fbbf24" stroke-width="1.6"/>`)
+        .join('');
+    if (kind == 'catobar') {
+      g += wires(x0 + w * 0.08);
+      [0, 1].forEach(i => {
+        const yy = y + 7 + i * 10;
+        g += `<path d="M${(x0 + w * 0.45).toFixed(1)} ${yy}H${(x0 + w * 0.95).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="8 4"/><path d="M${(x0 + w * 0.95).toFixed(1)} ${yy - 3}l6 3l-6 3z" fill="#34d399"/>`;
+      });
+    } else if (kind == 'stobar') {
+      g += wires(x0 + w * 0.08);
+      g += `<path d="M${(x0 + w * 0.45).toFixed(1)} ${y + 12}H${(x0 + w * 0.78).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="8 4"/><path d="M${(x0 + w * 0.78).toFixed(1)} ${y}L${(x0 + w).toFixed(1)} ${y - 6}V${y + h}H${(x0 + w * 0.78).toFixed(1)}z" fill="#4b5563"/>`;
+    } else {
+      g += `<path d="M${(x0 + 10).toFixed(1)} ${y + 12}H${(x1 - 10).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.2" stroke-dasharray="10 8" opacity=".6"/>`;
+      g += [0.12, 0.3, 0.48, 0.66, 0.84]
+        .map(
+          f =>
+            `<circle cx="${(x0 + w * f).toFixed(1)}" cy="${y + 12}" r="6" fill="none" stroke="#38bdf8" stroke-width="1.5"/>`
+        )
+        .join('');
+    }
+    return g;
+  }
+  const SHIPTXT = {
+    catobar: [
+      'Catapults and arresting wires',
+      'Take-off: catapult launch. Landing: the hook catches one of the wires.',
+    ],
+    stobar: [
+      'Ski-jump and arresting wires',
+      'Take-off: roll on the deck and launch from the ramp. Landing: the hook catches one of the wires.',
+    ],
+    deck: ['Flat deck', 'Take-off and landing on the deck spots.'],
+  };
+  function shipChart(kind) {
+    const W = 700,
+      X0 = 12,
+      X1 = W - 12,
+      [t1, t2] = SHIPTXT[kind] || SHIPTXT.deck;
+    return `<svg viewBox="0 0 ${W} 74" style="width:100%;height:auto;display:block" role="img" aria-label="${t1}, schematic" font-family="system-ui,sans-serif"><text x="${X0}" y="12" fill="#cbd5e1" font-size="12" font-weight="600">${t1} (schematic, not to scale)</text>${deckArt(kind, X0, X1, 24)}<text x="${X0}" y="68" fill="#8b98a8" font-size="10">${t2}</text></svg>`;
+  }
   function runwayChart(t, l, rw) {
     const TO = t.stuck
       ? []
@@ -436,15 +512,20 @@ export function createPerfPage(deps) {
         rEnd = rw ? sx(rw) : X1,
         mid = ry + 12;
       let g = `<text x="${X0}" y="${y0 + 11}" fill="#cbd5e1" font-size="12" font-weight="600">${title}</text>`;
-      g += `<rect x="${X0}" y="${ry}" width="${(rEnd - X0).toFixed(1)}" height="24" rx="2" fill="#3a424d"/>`;
+      const sk = shipKindNow();
+      g += sk
+        ? deckArt(sk, X0, rEnd, ry)
+        : `<rect x="${X0}" y="${ry}" width="${(rEnd - X0).toFixed(1)}" height="24" rx="2" fill="#3a424d"/>`;
       if (rw && L > rw)
-        g += `<rect x="${rEnd.toFixed(1)}" y="${ry}" width="${(X1 - rEnd).toFixed(1)}" height="24" fill="#ff5d5d" opacity=".14"/><path d="M${rEnd.toFixed(1)} ${ry}V${ry + 24}" stroke="#ff5d5d" stroke-width="2"/><text x="${(rEnd > X1 - 120 ? rEnd - 4 : rEnd + 4).toFixed(1)}" y="${y0 + 11}" fill="#ff8a8a" font-size="10" text-anchor="${rEnd > X1 - 120 ? 'end' : 'start'}">runway end ${f(rw)} ft</text>`;
+        g += `<rect x="${rEnd.toFixed(1)}" y="${ry}" width="${(X1 - rEnd).toFixed(1)}" height="24" fill="#ff5d5d" opacity=".14"/><path d="M${rEnd.toFixed(1)} ${ry}V${ry + 24}" stroke="#ff5d5d" stroke-width="2"/><text x="${(rEnd > X1 - 120 ? rEnd - 4 : rEnd + 4).toFixed(1)}" y="${ry + 16}" fill="#ff8a8a" font-size="10" text-anchor="${rEnd > X1 - 120 ? 'end' : 'start'}">runway end ${f(rw)} ft</text>`;
       if (!rw)
-        g += `<text x="${X1}" y="${y0 + 11}" fill="#8b98a8" font-size="10" text-anchor="end">runway length not set</text>`;
-      g += `<path d="M${(X0 + 26).toFixed(1)} ${mid}H${(rEnd - 8).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="10 8" opacity=".7"/>`;
-      g += [0, 1, 2, 3, 4]
-        .map(i => `<rect x="${X0 + 3}" y="${ry + 3 + i * 4.2}" width="12" height="2.4" fill="#e5e7eb" opacity=".8"/>`)
-        .join('');
+        g += `<text x="${X1 - 4}" y="${ry + 16}" fill="#8b98a8" font-size="10" text-anchor="end">runway length not set</text>`;
+      if (!sk) {
+        g += `<path d="M${(X0 + 26).toFixed(1)} ${mid}H${(rEnd - 8).toFixed(1)}" stroke="#e5e7eb" stroke-width="1.5" stroke-dasharray="10 8" opacity=".7"/>`;
+        g += [0, 1, 2, 3, 4]
+          .map(i => `<rect x="${X0 + 3}" y="${ry + 3 + i * 4.2}" width="12" height="2.4" fill="#e5e7eb" opacity=".8"/>`)
+          .join('');
+      }
       if (td)
         g += `<path d="M${sx(TD_FT).toFixed(1)} ${ry}v24" stroke="#fff" stroke-width="2"/><text x="${(sx(TD_FT) + 5).toFixed(1)}" y="${ry + 9}" fill="#fff" font-size="9">touchdown</text>`;
       for (let d = 0; d <= L; d += step)
@@ -467,7 +548,7 @@ export function createPerfPage(deps) {
   }
   function fieldTab() {
     const hw = V('hw'),
-      o = { W: gw(), elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, power: st.power, di: st.di },
+      o = { W: gw(), elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, power: pwr(), di: st.di },
       t = P.takeoff(ac, o);
     const wl = empty() + st.stores + st.lfuel,
       l = P.landing(ac, { W: wl, elev: V('elev'), dIsa: V('isa'), hw, slope: st.slope / 100, di: st.di }),
@@ -482,9 +563,9 @@ export function createPerfPage(deps) {
     const lTiles = `<div class="wpt">${tile('Approach / touchdown', fmt(l.vapp) + ' / ' + fmt(l.vtd) + ' kt', 'at ' + fmt(l.aApp, 1) + '° · ' + fmt(wl) + ' lb')}${tile('Roll, brakes', fmt(l.rollBrakes) + ' ft' + ok(rw, l.rollBrakes), 'from touchdown')}${tile('Roll, aerobrake + brakes', fmt(l.rollAero) + ' ft' + ok(rw, l.rollAero), 'nose up to 100 kt, speed brake')}${tile('Roll, no brakes', fmt(l.rollNoBrakes) + ' ft' + ok(rw, l.rollNoBrakes), 'rolling friction only')}</div>`;
     return {
       tiles: '',
-      body: `<div class="wcard"><h3>Take-off · ${fmt(gw())} lb · ${st.power == 'ab' ? 'afterburner' : 'military'}</h3>${tTiles}<p class="hint wnote">Model: thrust and drag from the BMS tables with the gear down, wheel friction ${ac.ground.roll}, rotation at the optimum pitch of the file; the distance to 50 ft assumes a constant climb. A guide, not a figure of the simulator.</p></div>
-      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at half of the maximum alpha, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p></div>
-      <div class="wcard"><h3>Runway<span class="wtip" title="The distances of the two cards drawn to scale on the runway length of the page (the Runway box); without a length they are drawn to scale only against each other. Red: beyond the runway. A guide, like the figures above.">ⓘ</span></h3>${runwayChart(t, l, rw)}</div>`,
+      body: `<div class="wcard"><h3>Take-off · ${fmt(gw())} lb · ${pwr() == 'ab' ? 'afterburner' : 'military'}</h3>${tTiles}<p class="hint wnote">Model: thrust and drag from the BMS tables with the gear down, wheel friction ${ac.ground.roll}, rotation at the optimum pitch of the file; the distance to 50 ft assumes a constant climb. A guide, not a figure of the simulator.</p></div>
+      <div class="wcard"><h3>Landing · ${fmt(wl)} lb</h3>${lTiles}<p class="hint wnote">Approach at ${/^F-16/.test(ac.name) ? '13°, the alpha flown by the F-16' : ac.cat3Aoa ? '90% of the gear-down alpha limit of the file (' + fmt(ac.cat3Aoa) + '°)' : 'half of the maximum alpha'}, touchdown at 97% of the approach speed, two seconds of free roll, then brakes (friction ${ac.ground.brake}). Landing weight = empty + stores + landing fuel.</p>${shipNote()}</div>
+      <div class="wcard"><h3>${isShip() ? 'Ship deck' : 'Runway'}<span class="wtip" title="The distances of the two cards drawn to scale on the runway length of the page (the Runway box); without a length they are drawn to scale only against each other. Red: beyond the runway. A guide, like the figures above.">ⓘ</span></h3>${isShip() && !stovl() ? shipChart(shipKindNow()) : runwayChart(t, l, rw)}</div>`,
     };
   }
 
@@ -533,7 +614,7 @@ export function createPerfPage(deps) {
       .join('');
     return {
       tiles,
-      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is the fuel needed on arriving at a steerpoint to fly the rest of the plan and land with the reserve. The burn of each leg uses the planned speed and altitude with the BMS thrust and fuel flow tables; holds and orbits (the time between arrival and departure) are burned at Mach .5 to .85. At a tanker the fuel on arrival is taken as 1000 lb. The wind of each leg is the wind aloft of the weather map (when one is loaded) at the layer nearest to its mean altitude: it turns the planned ground speed into the airspeed. The plan stops at the first landing.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
+      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is the fuel needed at each steerpoint to fly the rest of the plan and land with the reserve. Burn uses the planned speed and altitude with the BMS tables; holds at Mach .5-.85; 1000 lb at a tanker; wind aloft from the weather map. Stops at the first landing.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
     };
   }
   function inputs() {
@@ -548,28 +629,54 @@ export function createPerfPage(deps) {
     const s = m => m.map(slider).join('');
     const per =
       st.mode == 'turn'
-        ? `<div class="wrow"><label>Ps map</label>${seg(
-            'ps',
-            [
-              ['mil', 'MIL'],
-              ['ab', 'AB'],
-            ],
-            st.ps
-          )}</div>${s(['alt', 'g'])}`
+        ? `${
+            noAb()
+              ? ''
+              : `<div class="wrow"><label>Ps map</label>${seg(
+                  'ps',
+                  [
+                    ['mil', 'MIL'],
+                    ['ab', 'AB'],
+                  ],
+                  st.ps
+                )}</div>`
+          }${s(['alt', 'g'])}`
         : st.mode == 'cruise'
           ? s(['alt', 'reserve', 'mach']) +
             `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>`
           : st.mode == 'plan'
             ? s(['lres', 'jok', 'ohalt', 'ohspd']) +
-              `<p class="hint wnote">Landing reserve and the Joker margin are used by the Datacard (Min.Fuel, Bingo, Joker); the overhead altitude and speed fill the landing steerpoint of the flight plan.</p>`
-            : `<div class="wrow"><label>Power</label>${seg(
-                'power',
+              `<div class="wrow"><label>Landing</label>${seg(
+                'lmode',
                 [
-                  ['mil', 'MIL'],
-                  ['ab', 'AB'],
+                  ['ovhd', 'Overhead'],
+                  ['direct', 'Direct'],
                 ],
-                st.power
-              )}</div>${s(['elev', 'hw', 'slope', 'lfuel'])}${envNote()}<div class="wrow"><label>Runway</label><input type="number" data-rwy min="0" max="20000" step="100" value="${rwMan() || ''}" placeholder="${rwAuto() || 'length, ft'}" style="width:110px"> <span class="hint">${rwHint()}</span></div>`;
+                st.lmode
+              )}</div>` +
+              (st.lmode == 'direct'
+                ? `<div class="wrow"><label>Stores at landing</label>${seg(
+                    'lstores',
+                    [
+                      ['on', 'On board'],
+                      ['off', 'Dropped'],
+                    ],
+                    st.lstores
+                  )}</div>`
+                : '') +
+              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. Overhead: the altitude and speed above go in the landing steerpoint. Direct: the airfield elevation and the estimated touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
+            : `${
+                noAb()
+                  ? ''
+                  : `<div class="wrow"><label>Power</label>${seg(
+                      'power',
+                      [
+                        ['mil', 'MIL'],
+                        ['ab', 'AB'],
+                      ],
+                      st.power
+                    )}</div>`
+              }${s(['elev', 'hw', 'slope', 'lfuel'])}${envNote()}<div class="wrow"><label>Runway</label><input type="number" data-rwy min="0" max="20000" step="100" value="${rwMan() || ''}" placeholder="${rwAuto() || 'length, ft'}" style="width:110px"> <span class="hint">${rwHint()}</span></div>`;
     return `<div class="wcard"><h3>Aircraft and load</h3>${acsel}${loadBtn}${note ? `<p class="hint wnote">${esc(note)}</p>` : ''}${ac ? s(['fuel', 'stores', 'di', 'isa']) : ''}${w}</div><div class="wcard"><h3>${MODES.find(m => m[0] == st.mode)[1]}</h3>${ac ? per : ''}</div>`;
   }
 
@@ -655,11 +762,18 @@ export function createPerfPage(deps) {
     side.append(cards[cards.length - 1]);
     grid.append(side);
   }
+  const prefs = () => ({
+    reserve: st.lres,
+    joker: st.jok,
+    ohalt: st.ohalt,
+    ohspd: st.ohspd,
+    lmode: st.lmode,
+    lstores: st.lstores,
+  });
   function wire(root, partial) {
     const upd = f => {
       save();
-      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd'))
-        deps.prefs.set({ reserve: st.lres, joker: st.jok, ohalt: st.ohalt, ohspd: st.ohspd });
+      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd')) deps.prefs.set(prefs());
       const g = root.querySelector('[data-gw]');
       if (g) g.textContent = fmt(gw()) + ' lb';
       draw(true);
@@ -679,6 +793,7 @@ export function createPerfPage(deps) {
             st[b.dataset.set] = b.dataset.v;
             b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
             save();
+            if (deps.prefs && (b.dataset.set == 'lmode' || b.dataset.set == 'lstores')) deps.prefs.set(prefs());
             draw(false);
           })
       );
@@ -761,6 +876,8 @@ export function createPerfPage(deps) {
           if (p.joker != null) st.jok = p.joker;
           if (p.ohalt != null) st.ohalt = p.ohalt;
           if (p.ohspd != null) st.ohspd = p.ohspd;
+          if (p.lmode != null) st.lmode = p.lmode;
+          if (p.lstores != null) st.lstores = p.lstores;
         }
       }
       draw(false);

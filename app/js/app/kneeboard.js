@@ -124,6 +124,12 @@ export function kbMemLater() {
   clearTimeout(KBMEMT);
   KBMEMT = setTimeout(kbMemSave, 900);
 }
+// After the cards were imported from another copy of the program (Settings > Import & backup) what the program holds in its memory is the old state:
+// it must not be written over the imported files until the program is started again.
+export function kbMemFreeze() {
+  clearTimeout(KBMEMT);
+  KBMEMOK = false;
+}
 export async function kbMemSave() {
   if (!KBMEMOK) return;
   try {
@@ -623,7 +629,7 @@ export function kbRender(keepMenu) {
   const tray = DM
     ? `<div id="kbtray"><div class="hint" style="margin:0 0 6px">Unused cards — drag them onto the kneeboard · drop a card on the bin to delete it, click the bin to empty this area</div><div class="kbtw">${KBTR.map((c, i) => `<div class="kbt kbtr" data-i="${i}" title="${esc(kbName(c))}"><canvas class="kbt" width="144" height="216" data-i="${i}"></canvas></div>`).join('')}<div id="kbtrash" title="Click to delete all unused imported cards, or drop a card here to delete it">🗑</div></div></div>`
     : '';
-  el.innerHTML = `<style>.kbw{display:grid;grid-template-columns:auto minmax(300px,1fr) auto;gap:18px;align-items:start;margin-top:6px}.kbside{display:flex;flex-direction:column}.kbbtns{padding-top:14px;display:flex;gap:10px;flex-wrap:wrap}.kbbtns.right{justify-content:flex-end}.kbw h3{margin:0 0 8px;text-align:center}.kbgrid{display:grid;grid-template-columns:repeat(4,100px);gap:8px}
+  el.innerHTML = `<style>.kbw{display:grid;grid-template-columns:auto minmax(300px,1fr) auto;gap:18px;align-items:start;margin-top:6px}.kbside{display:flex;flex-direction:column}.kbbtns{padding-top:14px;display:flex;gap:10px;flex-wrap:wrap}.kbbtns.right{justify-content:flex-end}.kbw h3{margin:0 0 8px;text-align:center}.kbgrid{display:grid;grid-template-columns:repeat(4,100px);gap:8px}@media(max-width:1230px){.kbgrid{grid-template-columns:repeat(3,100px)}}
  div.kbt{position:relative;cursor:pointer;border:2px solid transparent;border-radius:4px;line-height:0}.kbdrag div.kbt{cursor:grab}div.kbt.sel{border-color:#1f7a46}div.kbt.csel{outline:2px solid #4aa3ff;outline-offset:1px}div.kbt:hover{border-color:var(--ac)}div.kbt.ib{box-shadow:inset 8px 0 0 #3ddc84}div.kbt.ia{box-shadow:inset -8px 0 0 #3ddc84}div.kbt.ib::before,div.kbt.ia::after{content:'';position:absolute;top:-3px;bottom:-3px;width:7px;border-radius:4px;background:#3ddc84;box-shadow:0 0 12px 3px #3ddc84cc;z-index:4;pointer-events:none}div.kbt.ib::before{left:-10px}div.kbt.ia::after{right:-10px}div.kbt.ib,div.kbt.ia{border-style:solid;border-color:#3ddc84}div.kbt.dr,#kbtrash.dr,#kbtray.dr{border-color:#e0a030;border-style:dashed}#kbtrash.dr{background:#a12b2b55;border-color:#d44}div.kbt.dg{opacity:.4}div.kbt span{position:absolute;left:2px;top:2px;background:#000b;color:#fff;font:600 11px/1 sans-serif;padding:2px 4px;border-radius:3px}canvas.kbt{width:96px;height:144px;background:#0003;display:block}
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}

@@ -56,6 +56,8 @@ export function mapAirbases(D) {
     id: o[0],
     name: clean(o[1]),
     ll: toLL(o[2], o[3]),
+    x: o[2],
+    y: o[3],
     kind: NAV.test(o[1]) || nb.includes(o[4]) ? 'nav' : SHIP.test(o[1]) ? 'ship' : 'ab',
     sub: /VORTAC/.test(o[1])
       ? 'vortac'
@@ -141,6 +143,7 @@ const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 
 // Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, noFcr, ally, spotted}] seen from team `view`.
 // noFcr: a SAM unit whose fire control radar vehicle is gone (the class names the slot of that vehicle, the roster has 2 bits of count per slot): it cannot engage, so no ring and no automatic threat.
+// telar: for the classes whose radar is in every launcher vehicle (slot 0, SA-8/11/15/17/19...) the TELARs that are left (-1 for the others); 0 = no TELAR, the same as noFcr there.
 export function mapUnits(C, view) {
   const cvs = new Map(carriers(C).map(r => [r.unit, r]));
   const D = C.D,
@@ -165,6 +168,7 @@ export function mapUnits(C, view) {
         slot: i[3] == null ? -1 : i[3],
         sam: SAMCAT.has(i[0]) && i[1] > 0,
         noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0,
+        telar: SAMCAT.has(i[0]) && i[1] > 0 && i[3] === 0 && u.roster != null ? u.roster & 3 : -1,
         ally,
         hostile,
         spotted: ally || spottedBy(u, mates),

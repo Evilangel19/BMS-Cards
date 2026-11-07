@@ -1,1 +1,2 @@
-The style sheets are loaded in this order by index.html (style-01 ... style-09): later rules override earlier ones, so keep the order.
+The style sheets are loaded in this order by index.html (style-01 ... style-10): later rules override earlier ones, so keep the order.
+style-10.css is only the Settings window (every rule starts with #cfg, every class with s-).

@@ -11,7 +11,9 @@ import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
 import { MFD, draw } from './cardview.js';
 import { perfFill } from './perf.js';
+import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
+import { seatCheck, seatEnter } from './seat.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
 export const fkey = f => (f && f.campId != null ? String(f.campId) : null);
@@ -48,6 +50,7 @@ export async function discardOk() {
 export function manClear() {
   ST.LDX = new Map();
   ST.OVR = new Map();
+  ST.L16OV = new Map(); // the Link 16 changes of the flights (app/l16link.js)
   ST.AUTO = null;
   ST.CURK = null;
   ST.MANK = new Set();
@@ -98,9 +101,15 @@ export function apply(i, mode) {
     if (b) {
       const n = CAM.nAcf(f);
       for (let q = 0; q < n; q++)
-        F['fl' + q + '_3'] = b.s + (q + 1) + (b.mc >= 0 ? ' MC ' + b.mc : '') + (b.fc >= 0 ? ' FC ' + b.fc : '');
+        F['fl' + q + '_3'] =
+          b.s +
+          (q + 1) +
+          (b.mc >= 0 ? ' MC ' + b.mc : '') +
+          (b.fc >= 0 ? ' FC ' + b.fc : '') +
+          (b.ew >= 0 ? ' SC ' + b.ew : '');
       F.dl0_fc = b.fc >= 0 ? String(b.fc) : '';
       F.dl0_mc = b.mc >= 0 ? String(b.mc) : '';
+      F.dl0_sc = b.ew >= 0 ? String(b.ew) : ''; // the Special channel (EW), not in the MDC format: the Link 16 file of the DTC has it
     }
     CAM.els0(ST.C, f)
       .slice(0, 5)
@@ -109,6 +118,7 @@ export function apply(i, mode) {
         if (t) F['pk' + q + '_4'] = t.s + '1';
       });
   }
+  seatCheck(); // the seat chosen must exist in this flight
   applyDTC(ST.CL[i].f);
   mdcAuto();
   dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
@@ -145,12 +155,14 @@ export function apply(i, mode) {
       ST.MANK = new Set(Object.keys(ST.OVR.get(k)));
     }
   }
+  seatEnter(); // B. CODE and the callsign of the pilot on his seat, with the final manual changes
   buildForm();
   markMan();
   draw();
   atoSearch();
   perfFill(i);
   wxPrep(i);
+  msaFill(i);
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),
@@ -230,6 +242,18 @@ async function loadCam0(file, stale) {
   atoSearch();
 }
 
+// The loadout follows the pilot seat: the group of aircraft that holds the aircraft of the seat (the leader's group when no seat is chosen). force = the pilot pressed a round button
+// (the choice of the list is replaced); otherwise only a flight whose list was never touched follows. The list in the Config cell still changes it by hand.
+export function ldFollow(force) {
+  const i = +$('fsel').value || 0,
+    x = ST.CL && ST.CL[i];
+  if (!x || !ST.AUTO || !ST.ldSet) return;
+  const G = CAM.loadGroups(x.f);
+  if (G.length < 2 || (!force && ST.LDX && ST.LDX.has(fkey(x.f)))) return;
+  const s = ST.SEAT && ST.SEAT.set && ST.SEAT.n >= 0 ? ST.SEAT.n : 0,
+    g = G.find(z => z.ac.includes(s + 1));
+  if (g) ST.ldSet(g.label);
+}
 // The aircraft of a flight carry different loadouts: choosing a group (the list in the Config cell) redoes everything that comes from the loadout (rows, gross weight, drag, fuel and what follows from them in Performance)
 ST.ldSet = v => {
   const i = +$('fsel').value || 0,

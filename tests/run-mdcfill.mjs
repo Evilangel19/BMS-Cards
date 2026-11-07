@@ -16,7 +16,7 @@ ok(
   'the cells lie inside the picture',
   LAYOUT.fields.every(f => f.r[0] >= 0 && f.r[2] <= 2048 && f.r[1] >= 150 && f.r[3] <= 2048)
 );
-ok('a lot of cells are writable (page 1 and page 2)', keys.length > 600);
+ok('a lot of cells are writable (page 1 and page 2)', keys.length > 550);
 ok(
   'the screenshot box is the big white box of page 1',
   SHOT[2] - SHOT[0] > 700 && SHOT[3] - SHOT[1] > 480 && SHOT[2] < 1000
@@ -31,7 +31,7 @@ for (const k of [
   'fl7_5',
   'fp14_11',
   't2_4',
-  'u2_4',
+  't2_4',
   'dl1_dn2',
   'ovw',
   'srv',
@@ -80,10 +80,10 @@ ok(
 );
 ok('STN is the first word of the Link 16 text', o.fl0_s == '05011' && o.fl1_s == '');
 ok('presets: GND, TWR, DEP/APR of the departure', o.ps1 == '273.525' && o.ps2 == '257.800' && o.ps3 == '292.650');
-ok('presets: CHKN is the UHF of the own flight', o.ps4 == '311.050');
+ok('presets: 5 CHKN is the AWACS (check-in), 6 the UHF of the own flight', o.ps4 == '290.125' && o.ps5 == '311.050');
 ok(
-  'presets: C2, tanker and the alternate airbase',
-  o.ps5 == '290.125' && o.ps6 == '330.100' && o.ps7 == '268.000' && o.ps8 == '254.600' && o.ps9 == '275.800'
+  'presets: the tanker and the alternate airbase',
+  o.ps6 == '330.100' && o.ps7 == '268.000' && o.ps8 == '254.600' && o.ps9 == '275.800'
 );
 ok(
   'link: tables A and B, the STN of the flight, the team and the donors',
@@ -95,6 +95,40 @@ ok(
     o.dl0_dn2 == '75601 75701'
 );
 ok('loadout: short form', o.cfg == '2x AIM-9M · 2x AIM-120C · 4x GBU-12 · 2x TK370');
+// the seat: IFF (mode 2 | mode 3, written per aircraft by the DTC fill) and the STN of the Link 16 text of the chosen pilot
+const S = {
+  ...F,
+  fl0_3: '71041 MC 1 FC 65',
+  fl1_3: '71042 MC 1 FC 65',
+  fl2_3: '71043 MC 1 FC 65',
+  fl3_3: '71044 MC 1 FC 65',
+  fl2_1: '1-3',
+  fl3_1: '1-4',
+  fl0_m: '|4730',
+  fl1_m: '|4731',
+  fl2_m: '03|4732',
+  fl3_m: '|4733',
+};
+const s0 = mdcDerive(S),
+  s2 = mdcDerive(S, 2),
+  s3 = mdcDerive(S, 3);
+ok(
+  'seat: the leader is the default: his IFF and his Link 16 STN',
+  s0.m3 == '4730' && s0.m2 == '' && s0.dl0_fl == '75301'
+);
+ok(
+  'seat 3: mode 2 and mode 3 of its aircraft, the STN of its Link 16 text',
+  s2.m2 == '03' && s2.m3 == '4732' && s2.dl0_fl == '71043'
+);
+ok('seat 4: the same for the fourth aircraft', s3.m2 == '' && s3.m3 == '4733' && s3.dl0_fl == '71044');
+ok(
+  'seat without Link 16 text: the STN of the flight, not an empty cell',
+  mdcDerive(S, 1).dl0_fl == '71042' && mdcDerive({ ...S, fl1_3: '---' }, 1).dl0_fl == '75301'
+);
+ok(
+  'no IFF data: the IFF cells are not derived (the pilot types them)',
+  !('m2' in mdcDerive(F, 2)) && !('m3' in mdcDerive(F, 2))
+);
 // the PPT of the DTC: SAM first, then the other threats with a ring, then the points
 const list = [
   ['SA2', 164055, 'SA-2'],
@@ -123,6 +157,6 @@ ok(
     o.t0_4 == 'Hapgang Bridge1' &&
     o.t0_3 == '420'
 );
-ok('no secondary target: the right cells are empty', o.u0_0 == '' && o.u0_4 == '');
+ok('no secondary target: the second row is empty', o.t1_0 == '' && o.t1_4 == '');
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

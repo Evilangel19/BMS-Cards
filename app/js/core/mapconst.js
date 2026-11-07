@@ -63,6 +63,12 @@ export const OBJ_LAYERS = [
   [0, 'SAM sites', 'SAM'],
   [31, 'SAM / AAA sites', 'AAA'],
 ];
+// the political layer of the campaign (cities, towns, villages, as in BMS): not objectives, drawn like them (dot, owner ring), in a block of their own of the Objects panel; [type number, label, size 1 big .. 3 small]
+export const PLACE_LAYERS = [
+  [8, 'Cities', 1],
+  [28, 'Towns', 2],
+  [29, 'Villages', 3],
+];
 export const MAP_LAYERS = [
   ['ab', 'Airbases', true, 'Navigation'],
   ['nav', 'Navaids (VOR / TACAN)', false, 'Navigation'],
@@ -81,7 +87,9 @@ export const MAP_LAYERS = [
   ['ff', 'Friendly flights', true, 'In flight'],
   ['fe', 'Enemy flights (spotted)', true, 'In flight'],
   ['rc', 'Enemy radar coverage (approximate)', false, 'Display'],
+  ['msa', 'MSA and ERAA (route, airbases)', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
+  ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
 // switches that are not layers: [key, label, section]
 export const MAP_OPTS = [
@@ -183,15 +191,34 @@ export const store = {
     }
   },
 };
-// the imported picture is kept in the browser database (survives restarts)
+// the imported picture and the copies of the BMS folder picture are kept in the browser database (survives restarts). The connection is opened once and kept:
+// the 16K picture is read from it block by block, and opening the database for every block was a round trip each.
+let IDBP = null;
 export const idb = {
   open: () =>
-    new Promise((res, rej) => {
-      const r = indexedDB.open('bmscards', 1);
+    IDBP ||
+    (IDBP = new Promise((res, rej) => {
+      const r = indexedDB.open('bmscards', 1),
+        fail = e => {
+          IDBP = null; // the next call tries again
+          rej(e);
+        };
       r.onupgradeneeded = () => r.result.createObjectStore('blobs');
-      r.onsuccess = () => res(r.result);
-      r.onerror = () => rej(r.error);
-    }),
+      r.onsuccess = () => {
+        const d = r.result;
+        d.onversionchange = d.onclose = () => {
+          IDBP = null;
+          try {
+            d.close();
+          } catch (e) {
+            /* closed already */
+          }
+        };
+        res(d);
+      };
+      r.onerror = () => fail(r.error);
+      r.onblocked = () => fail(new Error('The database is in use.'));
+    })),
   async put(k, v) {
     const d = await idb.open();
     return new Promise((res, rej) => {

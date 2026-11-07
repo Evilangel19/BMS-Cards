@@ -40,9 +40,12 @@ import {
   crossesRoute,
   theaterBounds,
 } from './mapdata.js';
-import { warpImageAsync, pictureTile, blockSource, BMS_EXTENT, warpFrame } from './mapwarp.js';
+import { warpImageAsync } from './mapwarp.js';
+import { createSkyLayer } from './skylayer.js';
 import { unitSymbol, placeIcon } from './mapsymbols.js';
+import { msaSymbol } from './msamap.js';
 import { teamName } from './ato.js';
+import { defaultStart, diffLines, kindRange, rangeText, slotName, startOptions } from './l16plan.js';
 import { jtacPick } from '../rules/support.js';
 import { actName, hms, els0, nearAb, opWin } from './flight.js';
 import {
@@ -57,6 +60,7 @@ import {
   NAME_MAX,
   NM,
   OBJ_LAYERS,
+  PLACE_LAYERS,
   PAL,
   SHOTS,
   SUPPORT,
@@ -98,11 +102,12 @@ export function createMap(host, deps) {
     SAVED = null,
     dtcMst = () => {},
     SX = false;
+  const OBJ_ALL = OBJ_LAYERS.concat(PLACE_LAYERS); // objectives and places: all drawn by objDraw
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
   const migrate = o => {
     const r = Object.assign({}, o);
-    OBJ_LAYERS.forEach(([t]) => {
+    OBJ_ALL.forEach(([t]) => {
       if (r['oa' + t] || r['oe' + t] || r['ox' + t]) r['o' + t] = true;
       delete r['oa' + t];
       delete r['oe' + t];
@@ -383,6 +388,7 @@ export function createMap(host, deps) {
     CREG = 'asia';
     MAP_LAYERS.forEach(([k]) => (G[k] = L.layerGroup()));
     G.off = L.layerGroup().addTo(map); // offsets placed on a route steerpoint
+    G.msaS = L.layerGroup(); // MSA symbols (airbase of the flight, the one under the mouse)
     G.su = L.layerGroup().addTo(map); // SAM units: shown with their unit layer or with their range layer
     heavyMap();
     map.fitBounds(PREF.view ? PREF.view.b : theaterBounds());
@@ -403,6 +409,7 @@ export function createMap(host, deps) {
       host.classList.toggle('zmid', z >= 8 && z < 9.5);
     };
     map.on('zoomend', zc);
+    map.on('zoomend', msaSyms);
     zc();
     host.addEventListener(
       'click',
@@ -411,7 +418,7 @@ export function createMap(host, deps) {
         if (d && LBP[d.dataset.lb]) {
           e.stopPropagation();
           e.preventDefault();
-          LBP[d.dataset.lb]();
+          LBP[d.dataset.lb](e);
         }
       },
       true
@@ -536,6 +543,17 @@ export function createMap(host, deps) {
     'Objects',
   ]; // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]); // the "only ..." switches are not part of a section's master switch
+  // the all / none button of the Objects panel says what its next click does; the political button is lit while its three layers are on
+  function objBtns() {
+    const t = $('mpobj') && $('mpobj').querySelector('a[data-a=tog]'),
+      p = $('mpobj') && $('mpobj').querySelector('a[data-a=pol]');
+    if (t) t.textContent = secKeys('Objects').every(x => st.on[x]) ? 'none' : 'all';
+    if (p)
+      p.classList.toggle(
+        'on',
+        PLACE_LAYERS.every(([t]) => st.on['o' + t])
+      );
+  }
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
     host.querySelectorAll('#mpbar input.mst').forEach(i => {
@@ -544,6 +562,7 @@ export function createMap(host, deps) {
       i.checked = n == k.length;
       i.indeterminate = n > 0 && n < k.length;
     });
+    objBtns();
     const oc = $('mpoc');
     if (oc) {
       const n = secKeys('Objects').filter(x => st.on[x]).length;
@@ -626,7 +645,7 @@ export function createMap(host, deps) {
     f = document.createElement('div');
     f.id = 'mpobj';
     f.style.display = 'none';
-    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="all">all</a><a data-a="none">none</a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
+    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
     w.appendChild(f);
     const an = () => !(deps.anim && !deps.anim()),
       hide = g => {
@@ -692,9 +711,15 @@ export function createMap(host, deps) {
           sync();
         })
     );
+    // one button for all / none of the objects (the label says what the next click does), one for the political layer only
     f.querySelectorAll('a[data-a]').forEach(
-      a => (a.onclick = () => setLayers(secKeys('Objects'), a.dataset.a == 'all'))
+      a =>
+        (a.onclick = () => {
+          const k = a.dataset.a == 'pol' ? PLACE_LAYERS.map(([t]) => 'o' + t) : secKeys('Objects');
+          setLayers(k, !k.every(x => st.on[x]));
+        })
     );
+    objBtns();
     $('mpocol').onclick = () => {
       st.on.ocol = !st.on.ocol;
       save();
@@ -725,7 +750,7 @@ export function createMap(host, deps) {
     });
     MAP_OPTS.filter(o => !['sx', 'fs', 'sj'].includes(o[0])).forEach(o => ITEMS.push(o));
     const secs = [...new Set(ITEMS.map(l => l[2]))]
-      .filter(n => n != 'Names' && n != 'Objects')
+      .filter(n => n != 'Names' && n != 'Objects' && n != 'Political')
       .sort((a, b) => (a == 'Display') - (b == 'Display')); // Display, then Objects; the Names switch is the very last row
     const secHtml = n => {
       const closed = st.closed.includes(n);
@@ -772,6 +797,19 @@ export function createMap(host, deps) {
         save();
         lab2();
         if (st.on.rc) radarCov();
+      };
+    }
+    const msaRow = el.querySelector('input[data-k=msa]'); // opacity of the MSA / ERAA bands
+    if (msaRow) {
+      const lab = msaRow.closest('label') || msaRow.parentElement;
+      lab.insertAdjacentHTML(
+        'afterend',
+        `<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>`
+      );
+      $('mpmsao').oninput = () => {
+        st.on.msaop = +$('mpmsao').value;
+        save();
+        msaDraw();
       };
     }
     el.querySelectorAll('.mps:not(.mpo)').forEach(h => (h.onclick = () => toggleSec(h)));
@@ -1623,10 +1661,20 @@ export function createMap(host, deps) {
   // decoded off the main thread and cut into tiles on demand at full resolution, so the program stays usable while it loads.
   async function pictureOverlay(key) {
     if (OVC[key]) return OVC[key];
-    const L = window.L;
+    const L = window.L,
+      O = OVC; // the pictures of the theater that was shown when this started: a theater change meanwhile must not get a layer of the old one
     let url = BMS_MAP_URL,
       obj = null;
-    if (key == 'sky') return (OVC.sky = await skyLayer());
+    if (key == 'sky') {
+      // one preparation at a time: asking again while the picture is being prepared waits for the same layer (it would be decoded twice otherwise)
+      O.skyP =
+        O.skyP ||
+        skyLayer().catch(e => {
+          O.skyP = null;
+          throw e;
+        });
+      return (O.sky = await O.skyP);
+    }
     const img = new Image();
     if (key == 'img') {
       let b = OVC.imgBlob;
@@ -1660,139 +1708,13 @@ export function createMap(host, deps) {
     LUM[key] = lumOf(w.canvas);
     return (OVC[key] = new L.CanvasOverlay(w.canvas, w.bounds, { interactive: false, opacity: 1, pane: 'tilePane' }));
   }
+  // The picture of the BMS folder: the layer (core/skylayer.js) takes the file's name and size and reads it only when it has to be decoded, which is the first time.
   async function skyLayer() {
-    const L = window.L;
-    if (!deps.localMap) throw new Error('Not available here.');
-    const blob = await deps.localMap(),
-      sig = 'sky' + (blob.name || '') + blob.size; // the picture of another theater is never taken for this one
-    let bmp = null,
-      sm = null,
-      sw = 0,
-      sh = 0;
-    const decode = async () => {
-      try {
-        return await createImageBitmap(blob);
-      } catch (e) {
-        try {
-          return await createImageBitmap(blob, { resizeWidth: 8192, resizeQuality: 'high' });
-        } catch (e2) {
-          throw new Error('The picture could not be read (is it a PNG / JPG, and is there enough memory?).');
-        }
-      }
-    };
-    // the reduced copy (4096 px) is kept in the database: the next start shows the map at once, the big picture is only decoded when someone zooms in
-    try {
-      const c = await idb.get('skysm');
-      if (c && c.sig == sig && c.blob) {
-        const r = await createImageBitmap(c.blob);
-        sm = document.createElement('canvas');
-        sm.width = r.width;
-        sm.height = r.height;
-        sm.getContext('2d').drawImage(r, 0, 0);
-        sw = c.sw;
-        sh = c.sh;
-      }
-    } catch (e) {
-      sm = null;
-    }
-    if (!sm) {
-      note('Decoding the picture…', -1);
-      bmp = await decode();
-      sw = bmp.width;
-      sh = bmp.height;
-      const k = 4096 / sw;
-      sm = document.createElement('canvas');
-      sm.width = 4096;
-      sm.height = Math.round(sh * k);
-      const x = sm.getContext('2d');
-      x.imageSmoothingQuality = 'high';
-      x.drawImage(bmp, 0, 0, sm.width, sm.height); // reduced copy for the zoomed-out levels
-      sm.toBlob(
-        async jb => {
-          try {
-            if (jb) await idb.put('skysm', { sig, blob: jb, sw, sh });
-          } catch (e) {
-            /* not kept */
-          }
-        },
-        'image/jpeg',
-        0.92
-      );
-    }
-    LUM.sky = lumOf(sm);
-    let full = null,
-      fullBusy = false,
-      lay = null;
-    const needFull = async () => {
-      // blocks for the deep zoom levels, prepared in the background the first time they are needed
-      if (full || fullBusy) return;
-      fullBusy = true;
-      try {
-        if (!bmp) bmp = await decode();
-        full = await blockSource(bmp, 2048, p => note('Preparing the detail for the closest zoom levels…', p));
-        note('');
-        if (lay) lay.redraw();
-      } catch (e) {
-        note(e.message);
-      } finally {
-        fullBusy = false;
-      }
-    };
-    if (bmp) needFull(); // just decoded: continue with the blocks right away
-    const bounds = warpFrame(BMS_EXTENT, sw, sh, 4096).bounds,
-      queue = [];
-    let busy = false;
-    const pump = () => {
-      // tiles are drawn a few milliseconds per frame, newest first, so panning and zooming stay smooth
-      const t0 = performance.now();
-      while (queue.length && performance.now() - t0 < 8) {
-        const j = queue.pop();
-        if (j.cv._dead) {
-          j.done(null, j.cv);
-          continue;
-        }
-        try {
-          if (j.z <= 9) pictureTile(j.cv, sm, sm.width, sm.height, BMS_EXTENT, j.z, j.x, j.y);
-          else if (full) pictureTile(j.cv, full, sw, sh, BMS_EXTENT, j.z, j.x, j.y);
-          else {
-            needFull();
-            pictureTile(j.cv, sm, sm.width, sm.height, BMS_EXTENT, j.z, j.x, j.y);
-          }
-        } catch (e) {
-          /* blank tile */
-        }
-        j.done(null, j.cv);
-      }
-      if (queue.length) requestAnimationFrame(pump);
-      else busy = false;
-    };
-    const Lay = L.GridLayer.extend({
-      createTile(c, done) {
-        const cv = document.createElement('canvas');
-        cv.width = cv.height = 256;
-        queue.push({ cv, done, z: c.z, x: c.x, y: c.y });
-        if (!busy) {
-          busy = true;
-          requestAnimationFrame(pump);
-        }
-        return cv;
-      },
-    });
-    lay = new Lay({
-      pane: 'tilePane',
-      tileSize: 256,
-      minZoom: 5,
-      maxZoom: 18,
-      maxNativeZoom: 13,
-      bounds: L.latLngBounds(bounds),
-      updateWhenIdle: true,
-      updateWhenZooming: false,
-      keepBuffer: 1,
-    });
-    lay.on('tileunload', e => {
-      e.tile._dead = true;
-    });
-    return lay;
+    if (!deps.localMapInfo && !deps.localMap) throw new Error('Not available here.');
+    const info = deps.localMapInfo
+      ? await deps.localMapInfo()
+      : await deps.localMap().then(f => ({ name: f.name, size: f.size, read: async () => f }));
+    return createSkyLayer({ L: window.L, info, db: idb, note, onSmall: sm => (LUM.sky = lumOf(sm)) });
   }
   // average brightness (0-1) of a picture; null when the pixels cannot be read (cross-origin picture)
   function lumOf(cv) {
@@ -1919,9 +1841,9 @@ export function createMap(host, deps) {
     const z = Math.min(13, map ? map.getZoom() : 8);
     return Math.round((3 + (z - 5) * 1.25) * 10) / 10;
   }; // 3 px zoomed out, about 13 px at the maximum zoom
-  const dotIcon = (state, sub, side) =>
+  const dotIcon = (state, sub, side, place) =>
     window.L.divIcon({
-      className: 'nobj' + (sub ? ' sub' : ''),
+      className: 'nobj' + (sub ? ' sub' : '') + (place ? ' pl pl' + place : ''),
       html: '<i class="s' + state + (side == 'a' || side == 'e' ? ' o' + side : '') + '"></i>',
       iconSize: [22, 22],
       iconAnchor: [11, 11],
@@ -2002,7 +1924,7 @@ export function createMap(host, deps) {
     host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px');
   };
   function objDraw() {
-    const on = OBJ_LAYERS.filter(([t]) => st.on['o' + t]);
+    const on = OBJ_ALL.filter(([t]) => st.on['o' + t]);
     if (!map) return;
     if (!on.length) {
       objClear();
@@ -2019,7 +1941,7 @@ export function createMap(host, deps) {
           .catch(e => {
             OBLP = null;
             toast('Objects: ' + ((e && e.message) || e), true);
-            OBJ_LAYERS.forEach(([t]) => {
+            OBJ_ALL.forEach(([t]) => {
               st.on['o' + t] = false;
             });
             save();
@@ -2051,7 +1973,7 @@ export function createMap(host, deps) {
       OBK = '';
     } // the airport symbols stand in for the dots only while the Airbases layer is shown
     if (key != OBK) {
-      OBJ_LAYERS.forEach(([t]) => {
+      OBJ_ALL.forEach(([t]) => {
         G['o' + t].clearLayers();
       });
       OBK = key;
@@ -2089,10 +2011,15 @@ export function createMap(host, deps) {
           return;
         } // an airfield: its own symbol is the clickable one, no dot over it
         OJ.push({ t, o, ll, g });
-        L.marker(ll, { icon: dotIcon(state, false, side), keyboard: false, zIndexOffset: 100 })
+        const pl = PLACE_LAYERS.find(p => p[0] == t); // a place: its buildings are not shown, a click opens the window at once
+        L.marker(ll, {
+          icon: dotIcon(state, false, side, pl ? pl[2] : 0),
+          keyboard: false,
+          zIndexOffset: pl ? 60 : 100,
+        })
           .bindTooltip(deps.esc(o.name) + ' · ' + lab + own + info.txt, { direction: 'top', offset: [0, -6] })
           .on('click', () => {
-            if (OSEL === o.id)
+            if (OSEL === o.id || pl)
               window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
                 .setLatLng(ll)
                 .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
@@ -2102,7 +2029,12 @@ export function createMap(host, deps) {
           .addTo(g); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
       });
     });
-    if (C && C.objFeat) featLoad(OBL.filter(o => on.some(([t]) => t == o.type) && objState(C.objFeat.get(o.id))));
+    if (C && C.objFeat)
+      featLoad(
+        OBL.filter(
+          o => on.some(([t]) => t == o.type) && !PLACE_LAYERS.some(p => p[0] == o.type) && objState(C.objFeat.get(o.id))
+        )
+      );
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
@@ -2204,8 +2136,11 @@ export function createMap(host, deps) {
       if (st.on[k]) G[k].addTo(map);
       else map.removeLayer(G[k]);
     });
+    if (st.on.msa) G.msaS.addTo(map);
+    else map.removeLayer(G.msaS);
     objDraw();
     radarCov();
+    msaDraw();
   }
 
   const side = (ally, owner) => (ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile');
@@ -2235,7 +2170,13 @@ export function createMap(host, deps) {
         ' · ' +
         deps.esc(teamName(C.D, m.owner)) +
         (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') +
-        (m.noFcr ? '<br><b style="color:#ff8a8a">No FCR</b>' : '') +
+        (m.telar >= 0
+          ? m.telar
+            ? '<br>TELARs ' + m.telar
+            : '<br><b style="color:#ff8a8a">No TELAR</b>'
+          : m.noFcr
+            ? '<br><b style="color:#ff8a8a">No FCR</b>'
+            : '') +
         (m.carrier
           ? '<br>' +
             deps.esc(m.carrier.name) +
@@ -2463,6 +2404,150 @@ export function createMap(host, deps) {
 
   // selected flight plan: line with a halo, steerpoints (circle / triangle, hollow, click to fill and read), leg distances and a label box.
   // Line and steerpoints are in the "fp" layer, leg distances and the label box in "fd", the package mates in "pk". Lines go to their own pane, above rings and units.
+  // ---- MSA and ERAA (filter "MSA and ERAA" of Display) ----
+  // route: the bands (5 NM red, 22 NM blue; their opacity is the slider), the MSA label of each leg and one ERAA label; airbases: the symbol of the airbase the flight takes off
+  // from, the others when the mouse is on them. All from the terrain of the BMS folder (deps.msa), information only.
+  let MSAT = 0,
+    MSAHOME = null,
+    MSAHOV = null,
+    MSANOTE = false;
+  const msaZ = () => (map ? map.getZoom() : 8);
+  function msaMark(ll, secs, hov) {
+    const L = window.L,
+      sy = msaSymbol(secs, msaZ(), deps.magvar ? deps.magvar() : 0);
+    return L.marker(ll, {
+      icon: L.divIcon({ className: hov ? 'msas fxh' : 'msas', html: sy.html, iconSize: [0, 0] }), // fxh: the symbol under the mouse fades in
+      interactive: false,
+      keyboard: false,
+      zIndexOffset: hov ? -50 : -90,
+    });
+  }
+  function msaSyms() {
+    if (!map || !G.msaS) return;
+    G.msaS.clearLayers();
+    if (!st.on.msa) return;
+    if (MSAHOME && MSAHOME.secs) msaMark(MSAHOME.ll, MSAHOME.secs, false).addTo(G.msaS);
+    if (MSAHOV && MSAHOV.secs && !(MSAHOME && MSAHOME.id === MSAHOV.id))
+      msaMark(MSAHOV.ll, MSAHOV.secs, true).addTo(G.msaS);
+  }
+  async function msaHover(a) {
+    if (!a || !st.on.msa || !deps.msa) {
+      MSAHOV = null;
+      return msaSyms();
+    }
+    const id = a.id;
+    MSAHOV = { id, ll: a.ll, secs: null };
+    let secs = null;
+    try {
+      secs = await deps.msa.base(a.x, a.y);
+    } catch (e) {
+      secs = null;
+    }
+    if (MSAHOV && MSAHOV.id === id) {
+      MSAHOV.secs = secs;
+      msaSyms();
+    }
+  }
+  const msaNote = () => {
+    if (MSANOTE) return;
+    MSANOTE = true;
+    toast('MSA: the terrain heights need the BMS install folder (desktop app, Settings).', true);
+  };
+  async function msaDraw() {
+    if (!map || !G.msa) return;
+    const tk = ++MSAT,
+      L = window.L,
+      C = deps.getC(),
+      f = deps.getSel();
+    G.msa.clearLayers();
+    MSAHOME = null;
+    msaSyms();
+    if (!st.on.msa || !deps.msa || !C || !f || !f.wps || f.wps.length < 2) return;
+    const r = flightRoute(C, f);
+    // the airbase the flight takes off from (the same rule as the colour of the airbases)
+    const w0 = f.wps[0],
+      home = nearAb(C, w0.x, w0.y),
+      ab = home ? mapAirbases(C.D).find(a => a.id == home[0]) : null;
+    if (ab && ab.x !== undefined)
+      deps.msa
+        .base(ab.x, ab.y)
+        .then(secs => {
+          if (tk !== MSAT) return;
+          if (!secs) return msaNote();
+          MSAHOME = { id: ab.id, ll: ab.ll, secs };
+          msaSyms();
+        })
+        .catch(() => {});
+    let m = null;
+    try {
+      m = await deps.msa.route(f);
+    } catch (e) {
+      m = null;
+    }
+    if (tk !== MSAT || !st.on.msa) return;
+    if (!m) return msaNote();
+    const op = (st.on.msaop == null ? 14 : st.on.msaop) / 100,
+      ring = (a, b, h) => {
+        const dx = b.x - a.x,
+          dy = b.y - a.y,
+          d = Math.hypot(dx, dy) || 1,
+          nx = (-dy / d) * h,
+          ny = (dx / d) * h;
+        return [
+          [a.x + nx, a.y + ny],
+          [b.x + nx, b.y + ny],
+          [b.x - nx, b.y - ny],
+          [a.x - nx, a.y - ny],
+        ].map(q => toLL(q[0], q[1]));
+      },
+      band = (h, color, o) =>
+        o > 0 &&
+        L.polygon(
+          r.slice(1).map((p, i) => ring(r[i], p, h)),
+          { stroke: false, fillColor: color, fillOpacity: o, fillRule: 'nonzero', interactive: false }
+        ).addTo(G.msa);
+    band(22 * 1.852, '#4f8cff', op); // ERAA: 22 NM each side of the route
+    band(5 * 1.852, '#ff5d5d', Math.min(0.9, op * 1.6)); // route MSA: 5 NM each side
+    r.slice(1).forEach((p, i) => {
+      const v = m.legs[i + 1];
+      if (v === null || v === undefined) return;
+      const a = r[i],
+        ll = toLL((a.x + p.x) / 2, (a.y + p.y) / 2);
+      L.marker(ll, {
+        icon: L.divIcon({ className: 'msal', html: `<span>MSA ${v}</span>`, iconSize: [0, 0] }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 800,
+      }).addTo(G.msa);
+    });
+    if (m.eraa !== null) {
+      const top = r.reduce((q, p) => (p.y > q.y ? p : q), r[0]),
+        x = (Math.min(...r.map(p => p.x)) + Math.max(...r.map(p => p.x))) / 2,
+        ll = toLL(x, top.y + 22 * 1.852 + 3);
+      L.marker(ll, {
+        icon: L.divIcon({
+          className: 'msae',
+          html: `<span title="Highest terrain within 22 NM of the route + ${m.mountainous ? '2,000 ft (mountainous terrain)' : '1,000 ft'}">ERAA ${m.eraa.toLocaleString('en-US')} ft${m.mountainous ? ' · mountainous' : ''}</span>`,
+          iconSize: [0, 0],
+        }),
+        interactive: false,
+        keyboard: false,
+        zIndexOffset: 900,
+      }).addTo(G.msa);
+    }
+  }
+  // speed, MSA and minimum fuel of the steerpoint (the flight-plan cells of the datacard)
+  function stpExtra(f, i) {
+    const v = deps.stp ? deps.stp(f, i) : null,
+      a = v
+        ? [
+            v.speed && 'Speed ' + v.speed,
+            v.msa && v.msa !== '---' && 'MSA ' + v.msa + ' ft',
+            v.fuel && v.fuel !== '---' && 'Fuel ' + v.fuel,
+          ].filter(Boolean)
+        : [];
+    return a.length ? '<br>' + a.map(deps.esc).join(' · ') : '';
+  }
   function plan(C, f) {
     const L = window.L;
     ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers());
@@ -2527,7 +2612,7 @@ export function createMap(host, deps) {
       mk.bindPopup(
         () =>
           stpPopup(
-            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}`,
+            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
             p,
             mk
           ),
@@ -2558,6 +2643,7 @@ export function createMap(host, deps) {
       0
     );
     placeLabels();
+    msaDraw();
   }
   // a box tied to the flight plan by a short leader line, next to the distance label of a leg: placeLabels() puts it on the leg whose middle is
   // nearest to the view centre (and inside the visible map), and moves it whenever the map moves
@@ -2796,7 +2882,7 @@ export function createMap(host, deps) {
     const L = window.L,
       r = flightRoute(C, m),
       info = deps.flightInfo(m),
-      pick = () => EDIT && deps.selectFlight && deps.selectFlight(m),
+      pick = ev => EDIT && mateOpen(m, ev && ev.latlng),
       ll = r.map(p => p.ll);
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
@@ -2836,9 +2922,137 @@ export function createMap(host, deps) {
         .bindTooltip(deps.esc(info.text) + '<br>Steerpoint ' + p.n, { direction: 'top', offset: [0, -6] })
         .addTo(G.pk);
     });
-    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, () => {
+    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, ev =>
+      mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0])
+    );
+  }
+  // a flight of the package is clicked: with the editing on a small window offers to select it or to add it to the Link 16 files of the DTC; otherwise it is just selected
+  function mateOpen(m, at) {
+    if (!EDIT || !deps.l16 || !at) {
       if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
-    });
+      return;
+    }
+    // the panel is taller than the first view: the map moves to keep it inside (below the bars of the map) each time it is drawn again
+    let pop = null;
+    pop = window.L.popup({
+      className: 'mpop',
+      closeButton: false,
+      autoPan: true,
+      autoPanPaddingTopLeft: [16, 70],
+      autoPanPaddingBottomRight: [16, 16],
+      minWidth: 236,
+      offset: [0, -6],
+    })
+      .setLatLng(at)
+      .setContent(matePopup(m, () => pop && pop.update()))
+      .openOn(map);
+  }
+  // what the pilot chose last (kept for the next flight): file, "team" or "donor", only the leader or the whole flight
+  const L16S = { file: 'A', kind: 'donor', mode: 'a' };
+  function matePopup(m, grown) {
+    const w = document.createElement('div'),
+      info = deps.flightInfo(m),
+      A = deps.l16,
+      d = A.mate(m),
+      esc = deps.esc,
+      parts = String(info.text).split(' · '),
+      pick = { start: null }; // the slot chosen in the menu (null: the first free)
+    w.className = 'dtp';
+    const home = () => {
+      const can = A.can(),
+        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [];
+      w.innerHTML = `<div><b>${esc(parts[0])}</b></div><div class="hint" style="min-height:0">${esc(parts.slice(1).join(' · '))}</div>${
+        in2.length
+          ? `<div class="hint" style="min-height:0">Link 16: ${in2.map(z => 'file ' + z[0] + ' · slot ' + rangeText(z[1])).join(' · ')}</div>`
+          : ''
+      }<div class="bar bar3" style="margin:6px 0 0"><button class="btn g" type="button" data-a="sel" title="Load this flight on the Datacard">Select flight</button><button class="btn g" type="button" data-a="l16"${
+        d ? '' : ' disabled'
+      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>`;
+      w.querySelector('[data-a=sel]').onclick = later(() => {
+        map.closePopup();
+        if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
+      });
+      w.querySelector('[data-a=l16]').onclick = later(panel);
+      grown();
+    };
+    const panel = () => {
+      const st = L16S,
+        count = st.mode == 'l' ? 1 : d.n,
+        plan = A.plan(st.file),
+        [a] = kindRange(st.kind),
+        okStart = pick.start != null && pick.start >= a && pick.start + count <= kindRange(st.kind)[1];
+      const start = okStart ? pick.start : defaultStart(st.kind, count, plan, d.cs),
+        opts = startOptions(st.kind, count, plan, d.cs),
+        pv = A.preview(st.file, st.kind, start, st.mode, d),
+        can = A.can(),
+        here = A.has(st.file, d.cs),
+        lines = pv.why ? [] : diffLines(pv.diff),
+        tg = (k, v, t, tip) =>
+          `<button class="btn g${st[k] == v ? ' on' : ''}" type="button" data-k="${k}" data-v="${v}"${tip ? ` title="${esc(tip)}"` : ''}>${t}</button>`;
+      w.innerHTML = `<div><b>Add Link 16 · ${esc(d.cs)}</b></div><div class="hint" style="min-height:0">${d.n} aircraft · STN ${esc(d.stn)}</div>
+<div class="mps2">File</div><div class="bar bar3" style="margin:0">${tg('file', 'A', 'File A')}${tg('file', 'B', 'File B', 'File B is empty unless you put something in')}</div>
+<div class="mps2">As</div><div class="bar bar3" style="margin:0">${tg('kind', 'team', 'Team 5-8')}${tg('kind', 'donor', 'Donor 9-16')}</div>${
+        d.n > 1
+          ? `<div class="mps2">Aircraft</div><div class="bar bar3" style="margin:0">${tg('mode', 'l', 'Only leader')}${tg('mode', 'a', 'Whole flight')}</div>`
+          : ''
+      }<label class="mps2" style="margin:6px 0 0">Start at slot<select data-s>${opts
+        .map(
+          o =>
+            `<option value="${o.slot}"${o.slot == start ? ' selected' : ''}${o.ok ? '' : ' disabled'}>${o.num} · ${esc(o.name)} — ${esc(o.who ? o.who + (o.mine ? ' (this flight)' : '') : 'empty')}</option>`
+        )
+        .join('')}</select></label>
+<div class="l16pv">${lines.length ? lines.map(x => `<div>${esc(x)}</div>`).join('') : pv.why ? '' : '<div>No change.</div>'}</div>
+<div class="hint err" style="color:#ff8a8a;min-height:0">${esc(pv.why || (can.ok ? '' : can.why))}</div>
+<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="bk">Back</button>${
+        here.length
+          ? `<button class="btn g rd" type="button" data-a="rm" title="Take this flight out of file ${st.file} (all its slots)">Remove</button>`
+          : ''
+      }<button class="btn" type="button" data-a="add"${pv.why || !can.ok ? ' disabled' : ''}>Add</button></div>`;
+      w.querySelectorAll('[data-k]').forEach(
+        b =>
+          (b.onclick = later(() => {
+            st[b.dataset.k] = b.dataset.v;
+            pick.start = null;
+            panel();
+          }))
+      );
+      w.querySelector('[data-s]').onchange = ev => {
+        pick.start = +ev.target.value;
+        setTimeout(panel, 0);
+      };
+      w.querySelector('[data-a=bk]').onclick = later(home);
+      const rm = w.querySelector('[data-a=rm]');
+      if (rm)
+        rm.onclick = later(() => {
+          const why = A.remove(st.file, d.cs);
+          if (why) return toast(why, true);
+          map.closePopup();
+          toast(d.cs + ' taken out of file ' + st.file + ' of the Link 16.');
+        });
+      w.querySelector('[data-a=add]').onclick = later(() => {
+        const why = A.add(st.file, st.kind, start, st.mode, d);
+        if (why) {
+          toast(why, true);
+          return;
+        }
+        map.closePopup();
+        toast(
+          d.cs +
+            (st.mode == 'l' ? ' (leader)' : '') +
+            ' is in file ' +
+            st.file +
+            ' of the Link 16, slot ' +
+            (start + 1) +
+            (count > 1 ? '-' + (start + count) : '') +
+            ' (' +
+            slotName(start) +
+            ').'
+        );
+      });
+      grown();
+    };
+    home();
+    return w;
   }
   function bull(C) {
     const L = window.L;
@@ -4089,6 +4303,10 @@ export function createMap(host, deps) {
         })
           .bindTooltip(deps.esc(a.name), { direction: 'top', offset: [0, -8] })
           .addTo(nav ? G.nav : G.ab);
+        if (deps.msa && a.x !== undefined) {
+          mk.on('mouseover', () => msaHover(a));
+          mk.on('mouseout', () => msaHover(null));
+        }
         if (a.kind == 'ab') {
           ABM.set(a.id, mk);
           mk.on('click', () => {
@@ -4254,7 +4472,7 @@ export function createMap(host, deps) {
       OBK = '';
       if (!map) return;
       try {
-        OBJ_LAYERS.forEach(([t]) => G['o' + t].clearLayers());
+        OBJ_ALL.forEach(([t]) => G['o' + t].clearLayers());
         objClear();
         OJ = [];
         objDraw();
@@ -4263,6 +4481,13 @@ export function createMap(host, deps) {
       }
     },
     theaterChanged: () => {
+      // the blocks of the old picture leave the memory (and a picture still being prepared is given up as soon as it is ready)
+      if (OVC.sky && OVC.sky._dispose) OVC.sky._dispose();
+      else if (OVC.skyP)
+        OVC.skyP.then(
+          l => l._dispose && l._dispose(),
+          () => {}
+        );
       OVC = { imgBlob: OVC.imgBlob };
       PREF.view = null;
       if (!map) return;

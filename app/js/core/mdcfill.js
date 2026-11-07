@@ -13,24 +13,34 @@ const shortW = t => {
 };
 const clean = v => (v && v !== '---' ? String(v) : '');
 
-/** @param {Record<string, any>} F @returns {Record<string, string>} */
-export function mdcDerive(F) {
+/** @param {Record<string, any>} F @param {number} [seat] the chosen seat of the flight (0 = the leader, also when no seat is chosen) @returns {Record<string, string>} */
+export function mdcDerive(F, seat = 0) {
   const n = k => clean(F[k]),
     o = {};
+  // IFF: the cells M2 and M3 are the ones of the chosen seat (fl<seat>_m holds "mode 2|mode 3", written by the DTC fill); with no IFF data they are left as they are
+  {
+    const m = F[`fl${seat}_m`];
+    if (typeof m == 'string' && m.includes('|')) {
+      const [a, b] = m.split('|');
+      o.m2 = a || '';
+      o.m3 = b || '';
+    }
+  }
   // pilots: the callsign of each pilot (flight callsign + position) and the STN of the Link 16 text ("05011 MC 1 FC 3")
   for (let r = 0; r < 8; r++) {
     o[`fl${r}_c`] = n(`fl${r}_1`) && n('cs') ? `${n('cs')}-${r + 1}` : '';
     o[`fl${r}_s`] = n(`fl${r}_3`).split(/\s+/)[0] || '';
   }
-  // audio presets (order of the card: 1 OPS, 2 GND, 3 TWR, 4 DEP/APR, 5 CHKN, 6 C2/TAC, 13 TNKR, 10 ALT A, 11 ALT T, 12 ALT G)
+  // audio presets (order of the card: 1 OPS, 2 GND, 3 TWR, 4 DEP/APR, 5 CHKN, 6 C2/TAC, 13 TNKR, 10 ALT A, 11 ALT T, 12 ALT G). As in the DTC of BMS: 5 is the AWACS (check-in), 6 the UHF of the
+  // player's own flight (the frequency for AWACS, FAC and JTAC), 13 the first tanker
   const own = [0, 1, 2, 3, 4].find(i => n(`pk${i}_0`) && n(`pk${i}_0`) == n('cs')) ?? 0;
   [
     '',
     n('ab0_2'),
     n('ab0_7'),
     n('ab0_3'),
-    n(`pk${own}_2`),
     n('su2_2'),
+    n(`pk${own}_2`),
     n('su0_2'),
     n('ab2_3'),
     n('ab2_7'),
@@ -42,7 +52,8 @@ export function mdcDerive(F) {
   {
     const stn = [0, 1, 2, 3, 4].map(i => n(`pk${i}_4`)),
       others = stn.filter((v, i) => v && i != own);
-    o.dl0_fl = stn[own] || '';
+    // the "Flight" cell of the link table: the STN of the chosen seat (the first word of its Link 16 cell), the lead of the flight for the leader
+    o.dl0_fl = (seat > 0 && n(`fl${seat}_3`).split(/\s+/)[0]) || stn[own] || '';
     o.dl0_tm = others[0] || '';
     o.dl0_dn = others[1] || '';
     o.dl0_dn2 = others.slice(2).join(' ');
@@ -53,18 +64,18 @@ export function mdcDerive(F) {
     .filter(Boolean)
     .map(shortW)
     .join(' · ');
-  // second table: primary and secondary target (steerpoints 99 and 98 of the DTC)
+  // second table: primary and secondary target (steerpoints 99 and 98 of the DTC), rows 1 and 2; row 3 is free
   [
-    ['t', 'pri', 'll1', '99'],
-    ['u', 'sec', 'll2', '98'],
+    ['t0', 'pri', 'll1', '99'],
+    ['t1', 'sec', 'll2', '98'],
   ].forEach(([p, k, lk, st]) => {
     const m = LL.exec(n(lk)),
       d = n(k);
-    o[`${p}0_0`] = d || m ? st : '';
-    o[`${p}0_1`] = m ? m[1] : '';
-    o[`${p}0_2`] = m ? m[2] : '';
-    o[`${p}0_3`] = m ? n(k + '_alt') : '';
-    o[`${p}0_4`] = d;
+    o[`${p}_0`] = d || m ? st : '';
+    o[`${p}_1`] = m ? m[1] : '';
+    o[`${p}_2`] = m ? m[2] : '';
+    o[`${p}_3`] = m ? n(k + '_alt') : '';
+    o[`${p}_4`] = d;
   });
   return o;
 }

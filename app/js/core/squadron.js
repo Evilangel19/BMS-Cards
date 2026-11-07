@@ -2709,10 +2709,16 @@ export function createSquadronPage(deps) {
             .join('')
         : '<div class="hint">No squadron yet.</div>';
       inv.querySelectorAll('.sqi').forEach(async el => {
-        const q = DB.squads.find(x => x.id == el.dataset.sid),
-          code = await squadInvite(q);
-        el.querySelector('[data-code]').value = code;
-        el.querySelector('[data-cp]').onclick = () => copy(code);
+        try {
+          const q = DB.squads.find(x => x.id == el.dataset.sid),
+            code = await squadInvite(q),
+            ta = el.querySelector('[data-code]'),
+            cp = el.querySelector('[data-cp]');
+          if (ta) ta.value = code; // the list may have been drawn again while the code was made
+          if (cp) cp.onclick = () => copy(code);
+        } catch (e) {
+          /* no code for this squadron: the box stays empty */
+        }
       });
     }
     const cn = $('#sqconn');
@@ -3487,6 +3493,23 @@ export function createSquadronPage(deps) {
     drawAll();
     startAll();
   }
+  // the pilots of the roster as the datacard lists them: [{label, uid, name, callsign}] (the label is the name with his rank; a pilot with no name is listed by his callsign)
+  const rosterOf = () => {
+    const q = cur();
+    if (!q) return [];
+    const seen = new Set();
+    return live(q)
+      .filter(r => (r.name && String(r.name).trim()) || (r.callsign && String(r.callsign).trim()))
+      .map(r => {
+        const name = String(r.name || '').trim(),
+          callsign = String(r.callsign || '').trim(),
+          rk = r.stats && r.stats.rk,
+          ab = RANK_AB[rk] || '';
+        return { label: name ? (ab ? ab + ' ' : '') + name : callsign, uid: r.uid || '', name, callsign };
+      })
+      .filter(x => !seen.has(x.label) && seen.add(x.label))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  };
   const ready = init();
   return {
     S,
@@ -3496,22 +3519,8 @@ export function createSquadronPage(deps) {
     canSendCard: () => !!cur(),
     // 'owner': created a squadron (the commander); 'member': is in squadrons made by others; 'none': in no squadron
     role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
-    roster: () => {
-      const q = cur();
-      if (!q) return [];
-      const seen = new Set();
-      return live(q)
-        .filter(r => (r.name && String(r.name).trim()) || (r.callsign && String(r.callsign).trim()))
-        .map(r => {
-          // the name with his rank; a pilot with no name is listed by his callsign
-          if (!(r.name && String(r.name).trim())) return String(r.callsign).trim();
-          const rk = r.stats && r.stats.rk;
-          const ab = RANK_AB[rk] || '';
-          return (ab ? ab + ' ' : '') + String(r.name).trim();
-        })
-        .filter(l => !seen.has(l) && seen.add(l))
-        .sort((a, b) => a.localeCompare(b));
-    },
+    rosterOf,
+    roster: () => rosterOf().map(x => x.label),
     flush,
     refresh: () => {
       if (!pilot) loadLbks();

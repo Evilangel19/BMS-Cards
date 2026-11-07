@@ -50,6 +50,8 @@ for (const s of sets) {
   const res = [];
   flights.forEach((x, i) => {
     const F = CAM.fillCard(C, x.f);
+    // hidden keys added after the prototype (the radio presets of the DTC, core/radioplan.js): the golden file is the prototype's, so they are left out here (tests/run-radioplan.mjs checks them)
+    for (const k of Object.keys(F)) if (/^(rd_u15|su\d_v)$/.test(k)) delete F[k];
     const r = { i, label: x.label, card: F };
     try {
       r.taf = CAM.tafText(C, WX, x.f);

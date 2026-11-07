@@ -15,12 +15,18 @@ import { dtcBtns } from './dtcapply.js';
 import { mapV, sqPage } from './pages.js';
 import { wxAt } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
+import { fpStart, fpSpan } from '../core/fpcols.js';
+import { seatIdx, seatCodes, seatToDtc } from './seat.js';
+import { flightDtcPush } from './flightdtc.js';
+import { l16Typed } from './l16link.js';
 
 /* ---------- DATACARD ---------- */
 export const F = {};
 export const FD = [];
 // the keys of the cells that only the MDC format has (see cardview.js): not drawn on the datacard, but cleared, kept and saved with the other fields
 export const XD = [];
+// hidden keys of the card (not in a format): the Special channel of Link 16 and what the radio presets of the DTC need besides the cells of the card (core/radioplan.js)
+['dl0_sc', 'matis_c', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v'].forEach(k => XD.push(k));
 // the field (with its input) of a key in the format that is on the screen
 export const dEl = k => (ST.MDCON ? MFD : FD).find(z => z.k == k);
 export const ML = ['roe', 'free', 'eph'];
@@ -52,10 +58,13 @@ export const cycle = k => {
 };
 export const MIR = {};
 // the groups kept equal to the datacard ("from Datacard" on the Data Cartridge page): on at the first start, then the choice of the pilot (dtcprefs.json)
-export const DCS0 = { ews: true, icp: true, wpn: true };
+// lsr = the TGP code of the Laser page, equal to the CONF-LSR code of the chosen seat (app/seat.js); iff, l16 = the IFF codes and the Link 16 flags of the chosen seat (app/seatdtc.js);
+// l16 also keeps the channels of the flight (Mission, Fighter, Special) and radio = the presets 5, 6, 13 and 15... of the Radio page (app/flightdtc.js)
+export const DCS0 = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true, radio: true };
 ST.DCS = { ...DCS0 };
-export const mir = (k, grp, sec, key, to, from) => {
-  MIR[k] = { grp, sec, key, to, from };
+// when(): optional, the cell is mirrored only while it answers true (the CONF-LSR cell of one seat feeds the DTC only while that seat is the chosen one)
+export const mir = (k, grp, sec, key, to, from, when) => {
+  MIR[k] = { grp, sec, key, to, from, when };
 };
 export const mInt = (k, grp, sec, key, pad) =>
   mir(
@@ -72,7 +81,7 @@ export const mInt = (k, grp, sec, key, pad) =>
 export const MIRK = {};
 export function pushOne(k) {
   const m = MIR[k];
-  if (!m || !lines.length) return false;
+  if (!m || !lines.length || (m.when && !m.when())) return false;
   const old = G(m.sec, m.key, ''),
     nv = m.from(old, F[k] || '');
   if (nv === null || String(nv) === String(old)) return false;
@@ -85,16 +94,20 @@ export function dcSync(g, on) {
   try {
     savePrefs('dtcprefs.json', { sync: ST.DCS });
   } catch (e) {}
-  if (on && lines.length)
+  if (on && lines.length) {
     Object.keys(MIR)
       .filter(k => MIR[k].grp == g && F[k] !== undefined && F[k] !== '')
       .forEach(pushOne);
+    if (g == 'iff' || g == 'l16') seatToDtc({ [g]: true });
+    if (g == 'l16' || g == 'radio') flightDtcPush({ [g]: true });
+  }
 }
 // a DTC value was changed on the Data Cartridge page: the datacard shows it at once (and it is no longer a manual change)
 export function mirrorToCard(sec, key, quiet) {
   (MIRK[sec + '|' + key] || []).forEach(k => {
-    const m = MIR[k],
-      v = m.to(G(sec, key, ''));
+    const m = MIR[k];
+    if (m.when && !m.when()) return;
+    const v = m.to(G(sec, key, ''));
     F[k] = v;
     if (ST.AUTO) ST.AUTO[k] = v;
     ST.MANK.delete(k);
@@ -108,6 +121,7 @@ export function mirrorToCard(sec, key, quiet) {
       if (j && j.el) j.el.value = F.joker;
     }
   });
+  if (sec == 'Laser') seatCodes(); // the B. CODE cells follow the laser code of the seat
   if (!quiet) {
     markMan();
     draw();
@@ -123,13 +137,13 @@ export function mirrorAll() {
   draw();
 }
 // Primary / secondary of the datacard: the rules of the flight (fillCard), STPT 99 / 98 of the DTC when they are used, or a point chosen by hand (click on the box: ptMenu)
-// Click on Primary / Secondary: the points the pilot can show there (w = 1 primary, 2 secondary). A point chosen by hand brings its name, the TOT of this flight's action steerpoint
+// Click on Primary / Secondary: the points the pilot can show there (w = 1 primary, 2 secondary, 3 the free third row of the target table of the MDC format). A point chosen by hand brings its name, the TOT of this flight's action steerpoint
 // (the rule of the flight: time on station for CAS, the patrol time of a CAP...) and its coordinates; "Auto" gives the rules back.
 export function ptChoices(w) {
   const pk = w == 1 ? 'pri' : 'sec',
     A = ST.AUTO || {},
-    out = [{ grp: '', label: 'Auto' + (A[pk] ? ' · ' + A[pk] : ''), auto: true }];
-  if (w == 2) out.push({ grp: '', label: 'None (empty)', v: { name: '', tot: '', ll: '' } });
+    out = w == 3 ? [] : [{ grp: '', label: 'Auto' + (A[pk] ? ' · ' + A[pk] : ''), auto: true }]; // w = 3: the free third row of the MDC table, no rule behind it
+  if (w >= 2) out.push({ grp: '', label: 'None (empty)', v: { name: '', tot: '', ll: '' } });
   const fl = ST.C && ST.CL[+$('fsel').value || 0] && ST.CL[+$('fsel').value || 0].f;
   let tot = '';
   try {
@@ -183,9 +197,10 @@ export function ptChoices(w) {
 }
 export function ptPick(w, c) {
   const K = w == 1 ? ['pri', 'd1', 'll1'] : ['sec', 'd2', 'll2'],
-    A = ST.AUTO || {};
+    A = ST.AUTO || {},
+    R = 't' + (w - 1); // the row of the target table of the MDC format: 1 primary, 2 secondary, 3 free
   if (c.auto) {
-    ['_0', '_1', '_2', '_3', '_4'].forEach(s => ST.MANK.delete((w == 1 ? 't0' : 'u0') + s));
+    ['_0', '_1', '_2', '_3', '_4'].forEach(s => ST.MANK.delete(R + s));
     K.forEach(k => {
       ST.MANK.delete(k);
       F[k] = A[k] || '';
@@ -197,12 +212,13 @@ export function ptPick(w, c) {
     draw();
     return;
   }
-  setField(K[0], c.v.name);
-  setField(K[1], c.v.tot);
-  setField(K[2], c.v.ll);
+  if (w < 3) {
+    setField(K[0], c.v.name);
+    setField(K[1], c.v.tot);
+    setField(K[2], c.v.ll);
+  }
   // the target row of the MDC format (ST / lat / long / elev / description) follows the choice
-  const R = w == 1 ? 't0' : 'u0',
-    m = /^([NS].*?')\s+([EW].*)$/.exec(c.v.ll || '');
+  const m = /^([NS].*?')\s+([EW].*)$/.exec(c.v.ll || '');
   [c.v.name ? c.v.st || '' : '', m ? m[1] : '', m ? m[2] : '', m ? c.v.alt || '' : '', c.v.name].forEach((v, j) =>
     setField(R + '_' + j, v)
   );
@@ -215,7 +231,10 @@ export function dtcChanged(sec, key, fromCard) {
       if (sec == 'STPT') mapV.refreshDtc();
     }
   } catch (e) {}
-  if (!fromCard) mirrorToCard(sec, key);
+  if (!fromCard) {
+    mirrorToCard(sec, key);
+    l16Typed(sec, key); // an STN typed on the Link 16 page stays in its slot
+  }
 }
 // who uses each frequency: the flights of the package, the support flights and the airbases of the datacard being shown
 export function freqOwners() {
@@ -266,10 +285,12 @@ export function setField(k, v, from) {
   }
   if (k == 'ab0_4' && wxAt(F.__dep && F.__dep[3]) && F.__dep) {
     F.atis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + (F.__taf ? '\n' + F.__taf : '');
-    F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + ' ' + CAM.wxColour(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
+    F.matis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
+    F.matis_c = CAM.wxColour(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
     const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
   }
+  if (/^fl\d_5$/.test(k)) seatCodes(); // B. CODE of the weapon profiles = the CONF-LSR code of the chosen seat, until one is typed
   const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
   if (d && d.el && d.el !== from && d.el.value !== v) d.el.value = v;
   markMan();
@@ -294,7 +315,7 @@ export function pilotMenu(d, inp, btn) {
   m.id = 'pnmenu';
   m.dataset.k = d.k;
   m.innerHTML = L.length
-    ? L.map(n => `<button type="button" class="pni">${esc(n)}</button>`).join('')
+    ? L.map(n => `<button type="button" class="pni${n === inp.value ? ' on' : ''}">${esc(n)}</button>`).join('')
     : '<div class="pne">No pilots in the squadron roster yet.</div>';
   document.body.append(m);
   const r = btn.getBoundingClientRect();
@@ -346,7 +367,7 @@ export function buildForm() {
     const dt = document.createElement('details');
     dt.innerHTML = '<summary>' + g + '</summary>';
     const w = document.createElement('div');
-    const cols = g == 'Flightplan' ? 8 : g == 'Airbase' || g == 'Flight' || g == 'Package' ? 7 : 4;
+    const cols = g == 'Flightplan' ? 9 : g == 'Airbase' || g == 'Flight' || g == 'Package' ? 7 : 4;
     w.className = 'gr';
     w.style.gridTemplateColumns = `repeat(${cols},1fr)`;
     gr[g].forEach(d => {
@@ -447,17 +468,19 @@ export async function init4() {
         'Package'
       )
     );
+  // the columns after the steerpoint number (core/fpcols.js): the field keys stay fp<row>_0 .. _7, the MSA column is fp<row>_11 (it feeds the Cont column of the MDC too)
   for (let i = 0; i < 24; i++)
-    ['Action', 'TOS', 'HDG', 'Dist', 'Mach/TAS', 'Alt', 'Min.Fuel', 'Formation'].forEach((c, j) =>
-      add(
-        `fp${i}_${j}`,
-        c,
-        [78, 183, 318, 395, 473, 551, 630, 711][j],
-        542 + 28 * i,
-        [100, 132, 74, 74, 74, 74, 74, 76][j],
-        'Flightplan'
-      )
-    );
+    [
+      ['Action', 0, 1],
+      ['TOS', 1, 2],
+      ['HDG', 2, 3],
+      ['Dist', 3, 4],
+      ['Mach/TAS', 4, 5],
+      ['Alt', 5, 6],
+      ['MSA', 11, 7],
+      ['Min.Fuel', 6, 8],
+      ['Formation', 7, 9],
+    ].forEach(([c, j, col]) => add(`fp${i}_${j}`, c, fpStart(col) + 1, 542 + 28 * i, fpSpan(col) - 2, 'Flightplan'));
   [
     ['cs', 'Callsign', 985, 39, 120],
     ['pkg', 'Package', 1192, 39, 66],
@@ -657,15 +680,21 @@ export async function init4() {
         return x === null ? null : lk(o, Math.max(0, x - 1));
       }
     );
+  });
+  // the laser: the TGP code of the DTC is the CONF-LSR code of the chosen seat (the B. CODE cells of the weapon profiles are only a reference on the card)
+  for (let i = 0; i < 4; i++) {
     mir(
-      `wp${n}_bc`,
-      'wpn',
+      `fl${i}_5`,
+      'lsr',
       'Laser',
       'LaserTGP',
       v => v,
-      (o, v) => (/^\d+$/.test(String(v).trim()) ? String(v).trim() : null)
+      (o, v) => (/^\d+$/.test(String(v).trim()) ? String(v).trim() : null),
+      () => seatIdx() === i
     );
-  });
+    // what the IFF files give to each seat (modes 2 and 3, see dtcapply.js): the MDC format shows the one of the chosen seat; kept and saved like the other cells of the MDC
+    if (!XD.includes(`fl${i}_m`)) XD.push(`fl${i}_m`);
+  }
   Object.entries(MIR).forEach(([k, m]) => {
     (MIRK[m.sec + '|' + m.key] = MIRK[m.sec + '|' + m.key] || []).push(k);
   });

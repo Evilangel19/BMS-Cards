@@ -7,7 +7,10 @@ import {
   readBytes,
   canWriteAppDir,
   onSaveFail,
+  appDir,
+  join,
 } from '../platform/desktop.js';
+import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
 import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
@@ -17,6 +20,9 @@ import { applyFormToggle, closeEd } from './editor.js';
 import { mapV, sqPage } from './pages.js';
 import { view, openDtc } from './dtcfile.js';
 import { initAppear } from './appear.js';
+import { ic, setOpen, setSwitch, swRow, top } from './settingsui.js';
+import { diagInner, warnCount } from './settingsdiag.js';
+import { dataBusy, dataPage, restartInfo } from './settingsdata.js';
 
 /* ---------- Settings ---------- */
 export const CFG_PATHS = [
@@ -43,265 +49,351 @@ export async function autoLoadLast() {
     });
   }
 }
+
+// The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
+const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data'];
+const SW_OF = { general: ['autoLoad', 'anim'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+let LAST = 'folders'; // the section shown the last time
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+// What the pilot has typed or switched, as plain values (the same shape for the values at the start, to see what changed)
+function readForm(dlg) {
+  const q = id => dlg.querySelector('#' + id),
+    on = k => dlg.querySelector('[data-a=sw][data-k=' + k + ']').classList.contains('on');
+  const sw = {};
+  Object.values(SW_OF)
+    .flat()
+    .forEach(k => (sw[k] = on(k)));
+  const rad = q('c-rad').value.trim(),
+    zoom = q('c-zoom').value.trim();
+  return {
+    paths: Object.fromEntries(CFG_PATHS.map(([k]) => [k, q('f-' + k).value.trim()])),
+    sw,
+    radius: rad === '' ? '' : clamp(+rad || 0, 0, 300),
+    trackers: q('c-trk').value.trim(),
+    sat: {
+      url: q('c-url').value.trim(),
+      key: q('c-key').value.trim(),
+      attr: q('c-attr').value.trim(),
+      zoom: zoom === '' ? 18 : clamp(Math.round(+zoom || 18), 5, 22),
+    },
+  };
+}
+// the part of the values that belongs to a section
+const OF = {
+  folders: v => v.paths,
+  general: v => [v.sw.autoLoad, v.sw.anim],
+  datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
+  mission: v => [v.radius, v.trackers],
+  map: v => [v.sw.sat, v.sat],
+};
+
 export async function openSettings() {
-  const dlg = $('cfg'),
-    loc = (await loadConfig()).location;
+  const dlg = $('cfg');
+  if (dlg.open) return;
+  const desk = isDesktop(),
+    [loc, chk, app] = await Promise.all([
+      loadConfig().then(r => r.location),
+      APPCHK || canWriteAppDir(), // the check made at start (it writes a small file: not again each time the window opens)
+      desk ? appDir() : '',
+    ]);
+  const prog = { desktop: desk, dir: chk.dir, ok: chk.ok, why: chk.why, loc };
+  const C = ST.CFG,
+    ui = C.ui || {},
+    mp = C.map || {};
+  const sw = swRow;
+  const input = (id, v, extra = '') =>
+    '<input id="' +
+    id +
+    '" class="s-fd" type="text" value="' +
+    esc(v) +
+    '" spellcheck="false" autocomplete="off"' +
+    extra +
+    '>';
+  const page = (id, inner) =>
+    '<section class="s-pg s-ap" data-p="' + id + '" id="p-' + id + '" hidden>' + inner + '</section>';
+  const ph = k =>
+    k === 'bmsInstall'
+      ? 'C:\\Games\\Falcon BMS 4.38'
+      : k === 'missions'
+        ? 'default: ' + (app ? join(app, 'missions') : 'the missions folder next to BMS-Cards.exe')
+        : 'automatic: ' + (AUTO_HINT[k]() || 'set the BMS install folder');
+  const nav = (id, label, icon, extra = '') =>
+    '<button type="button" class="s-nv" data-a="go" data-p="' +
+    id +
+    '" id="nv-' +
+    id +
+    '" aria-current="false">' +
+    ic(icon) +
+    '<span class="t">' +
+    label +
+    '</span><span class="s-nd" aria-hidden="true"></span>' +
+    extra +
+    '</button>';
+
+  const folders =
+    top(
+      'folders',
+      'Folders',
+      'Where BMS Cards reads your game and keeps your files. Leave a field empty to use the automatic folder.'
+    ) +
+    '<div class="s-gp">' +
+    CFG_PATHS.map(
+      ([k, lab]) =>
+        '<div class="s-fr"><div class="s-lr"><label for="f-' +
+        k +
+        '">' +
+        lab +
+        '</label><span class="s-st" id="fs-' +
+        k +
+        '" role="status"></span></div>' +
+        '<div class="s-ir">' +
+        input('f-' + k, C.paths[k] || '', ' placeholder="' + esc(ph(k)) + '"') +
+        (desk ? '<button type="button" class="btn g" data-a="browse" data-k="' + k + '">Browse</button>' : '') +
+        '</div>' +
+        (k === 'bmsInstall'
+          ? '<p class="hint" style="margin-top:6px">Aircraft, weapons, airbases and radio data are read from here. Nothing works without it.</p>'
+          : '') +
+        (k === 'missions'
+          ? '<p class="hint" style="margin-top:6px">Saved missions go here, one folder for each.</p>'
+          : '') +
+        '</div>'
+    ).join('') +
+    '</div>';
+  const general =
+    top('general', 'General', 'How the program starts and how it looks.') +
+    '<div class="s-gp">' +
+    sw(
+      'autoLoad',
+      'Open last at start',
+      'At start the last DTC and the last campaign / tactical engagement are opened again',
+      !!ui.autoLoad
+    ) +
+    sw(
+      'anim',
+      'Animations',
+      'Short transitions (ignored when the system asks for reduced motion)',
+      ui.animations !== false
+    ) +
+    '</div>';
+  const datacard =
+    top('datacard', 'Datacard', 'What the Datacard and Data Cartridge pages show.') +
+    '<div class="s-gp">' +
+    sw('form', 'Datacard form', 'Show the form with all the fields on the Datacard page', !!ST.FORMON) +
+    sw(
+      'others',
+      'Other factions',
+      'Read the ATO and the map of the other factions (only without a squadron: in a squadron, only its commander can). Just for immersion: in BMS you can start the campaign as the other side.',
+      !!ST.OBSERVER
+    ) +
+    sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
+    '</div>';
+  const mission =
+    top('mission', 'Mission & squadron', 'What a saved mission keeps, and how your squadron finds its pilots.').replace(
+      'class="s-top"',
+      'class="s-top" style="margin-bottom:6px"'
+    ) +
+    '<h3 class="s-gt">Mission</h3><div class="s-gp"><div class="s-rw"><div class="tx"><label class="tt" for="c-rad">Mission radius</label><p class="hint">A saved mission keeps the units within this distance (NM) of the route. 0 = only the units of the package.</p></div>' +
+    '<div style="display:flex;align-items:center;gap:8px"><input id="c-rad" class="s-fd" type="text" inputmode="numeric" style="width:76px;text-align:right" value="' +
+    (C.mission && C.mission.radiusNm != null ? C.mission.radiusNm : 60) +
+    '" autocomplete="off">' +
+    '<span class="s-nst"><button type="button" aria-label="Increase" data-a="step" data-d="1">' +
+    ic('up') +
+    '</button><button type="button" aria-label="Decrease" data-a="step" data-d="-1">' +
+    ic('down') +
+    '</button></span><span style="color:var(--mu)">NM</span></div></div></div>' +
+    '<h3 class="s-gt">Squadron</h3><div class="s-gp"><div class="s-fr"><label for="c-trk">Squadron trackers</label><textarea id="c-trk" class="s-fd" rows="3" spellcheck="false" placeholder="empty = the built-in public trackers (wss://tracker.openwebtorrent.com …)">' +
+    esc((C.squadron && C.squadron.trackers) || '') +
+    '</textarea><p class="hint" style="margin-top:8px">WebTorrent trackers (ws:// or wss://, one per line) used to see which pilots of the squadron are online. You can use your own.</p></div></div>';
+  const map =
+    top('map', 'Map', 'The satellite layer of the maps.') +
+    '<div class="s-gp">' +
+    sw(
+      'sat',
+      'Own satellite layer',
+      'Replace the satellite layer of the maps (built-in: Sentinel-2 by EOX) with your own tile provider',
+      !!mp.satOn
+    ) +
+    '<div class="s-xp' +
+    (mp.satOn ? ' open' : '') +
+    '" id="satbox"><div>' +
+    '<div class="s-fr"><label for="c-url">Tile address</label>' +
+    input('c-url', mp.satUrl || '', ' placeholder="https://provider/{z}/{y}/{x}?token={key}"') +
+    '</div>' +
+    '<div class="s-fr"><label for="c-key">Key</label>' +
+    input('c-key', mp.satKey || '', ' placeholder="replaces {key} in the address (optional)"') +
+    '</div>' +
+    '<div class="s-fr"><label for="c-attr">Credit</label>' +
+    input('c-attr', mp.satAttr || '', ' placeholder="credit shown on the map, as the provider asks"') +
+    '</div>' +
+    '<div class="s-fr"><label for="c-zoom">Deepest zoom</label>' +
+    input('c-zoom', String(mp.satMaxZoom || 18), ' inputmode="numeric" style="width:76px"') +
+    '<p class="hint" style="margin-top:10px">Address with {z}, {x} and {y} (XYZ tiles); the provider must allow CORS. Use only a service whose terms let you do so, with your own account or key.</p></div>' +
+    '</div></div></div>';
+
   dlg.innerHTML =
-    '<h3 style="margin:0 0 6px">Settings</h3><p class="hint" style="margin:0 0 10px">Saved in: ' + esc(loc) + '</p>';
-  const r3 = document.createElement('div');
-  r3.className = 'cf';
-  const l3 = document.createElement('label');
-  l3.textContent = 'Open last at start';
-  const cb3 = document.createElement('input');
-  cb3.type = 'checkbox';
-  cb3.checked = !!(ST.CFG.ui && ST.CFG.ui.autoLoad);
-  cb3.style.width = 'auto';
-  const t3 = document.createElement('span');
-  t3.className = 'hint';
-  t3.textContent = 'At start the last DTC and the last campaign / tactical engagement are opened again';
-  r3.append(l3, cb3, t3);
-  r3.style.gridTemplateColumns = '150px auto 1fr';
-  r3.style.cssText +=
-    ';background:#16301f;border:1px solid #2c6b47;border-radius:8px;padding:9px 12px;margin:0 0 12px;align-items:center';
-  l3.style.cssText = 'font-weight:700;color:#3ddc84';
-  t3.style.color = 'var(--tx)';
-  dlg.append(r3);
-  const inputs = {};
-  CFG_PATHS.forEach(([k, lab]) => {
-    const row = document.createElement('div');
-    row.className = 'cf';
-    const l = document.createElement('label');
-    l.textContent = lab;
-    const i = document.createElement('input');
-    i.value = ST.CFG.paths[k];
-    inputs[k] = i;
-    if (AUTO_HINT[k]) i.placeholder = 'automatic: ' + (AUTO_HINT[k]() || 'set the BMS install folder');
-    row.append(l, i);
-    if (isDesktop()) {
-      const b = document.createElement('button');
-      b.className = 'btn g';
-      b.textContent = 'Browse';
-      b.onclick = async () => {
-        const d = await pickFolder({ startDir: i.value, title: lab });
-        if (d) i.value = d;
-      };
-      row.append(b);
-    } else row.append(document.createElement('span'));
-    dlg.append(row);
-  });
-  const gd = document.createElement('p');
-  gd.className = 'hint';
-  gd.style.margin = '2px 0 8px';
-  gd.textContent = GAMEDATA.status;
-  dlg.append(gd);
-  if (GAMEDATA.warn && GAMEDATA.warn.length) {
-    const w = document.createElement('div');
-    w.id = 'cfgwarn';
-    w.style.cssText =
-      'color:#ff6b6b;border:1px solid #ff6b6b66;background:#ff6b6b14;border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:12px;line-height:1.5';
-    GAMEDATA.warn.forEach(t => {
-      const d = document.createElement('div');
-      d.textContent = '⚠ ' + t;
-      w.append(d);
+    '<div class="s-hd"><h1>Settings</h1><span class="s-ch mu">v' +
+    esc(APP_VERSION) +
+    '</span><span style="flex:1"></span><button type="button" class="s-ib" id="cfgx" data-a="close" aria-label="Close">' +
+    ic('close') +
+    '</button></div>' +
+    '<div class="s-bd"><nav class="s-sb" aria-label="Settings sections">' +
+    '<div class="s-eg"><div class="s-gl"><span>Essentials</span><i>needed to work</i></div>' +
+    nav('folders', 'Folders', 'folder', '<span id="nvf"></span>') +
+    nav('diag', 'Diagnostics', 'pulse', '<span class="s-nb" id="nvdiag" hidden></span>') +
+    '</div><div class="s-gl s-gap"><span>Preferences</span><i>optional</i></div>' +
+    nav('general', 'General', 'sliders') +
+    nav('datacard', 'Datacard', 'card') +
+    nav('mission', 'Mission &amp; squadron', 'people') +
+    nav('map', 'Map', 'map') +
+    '<div class="s-gl s-gap"><span>Data</span><i>move or back up</i></div>' +
+    nav('data', 'Import &amp; backup', 'swap') +
+    '</nav><div class="s-ct">' +
+    page('folders', folders) +
+    page('diag', '') +
+    page('general', general) +
+    page('datacard', datacard) +
+    page('mission', mission) +
+    page('map', map) +
+    page('data', '') +
+    '</div></div>' +
+    '<div class="s-ft"><span class="s-note" id="cfgnote" role="status"></span><span style="flex:1"></span><button type="button" class="btn g" id="cfgcancel" data-a="close">Close</button><button type="button" class="btn" id="cfgsave" data-a="save" disabled>Save</button></div>';
+
+  // ---------------- state of the window
+  const q = id => dlg.querySelector('#' + id);
+  let init = readForm(dlg),
+    flash = 0,
+    loading = false,
+    reportOpen = false,
+    busy = false;
+
+  // the entry of the list that has something to say: unsaved changes (a dot), a folder that is not found, warnings of the game data
+  function refresh() {
+    const v = readForm(dlg);
+    let any = false;
+    Object.keys(OF).forEach(p => {
+      const d = JSON.stringify(OF[p](v)) !== JSON.stringify(OF[p](init));
+      q('nv-' + p)
+        .querySelector('.s-nd')
+        .classList.toggle('on', d);
+      any = any || d;
     });
-    dlg.append(w);
+    const rs = restartInfo(),
+      note = q('cfgnote');
+    note.className = 's-note';
+    if (loading) note.textContent = 'Reading the game data…';
+    else if (any) note.innerHTML = '<span class="s-nd on" aria-hidden="true"></span>Unsaved changes';
+    else if (flash) {
+      note.classList.add('ok');
+      note.innerHTML = ic('check', 's') + 'Saved';
+    } else if (rs) {
+      note.classList.add('wn');
+      note.textContent = 'Restart BMS Cards to use the imported data.';
+    } else note.textContent = '';
+    q('cfgsave').disabled = !any || loading || busy || !!(rs && rs.cfg);
+    q('cfgsave').title = rs && rs.cfg ? 'The settings were imported: restart BMS Cards first.' : '';
+    q('cfgcancel').textContent = any ? 'Cancel' : 'Close';
+    q('cfgcancel').disabled = q('cfgx').disabled = busy;
+  }
+  const show = id => {
+    LAST = id;
+    SECTIONS.forEach(p => {
+      const on = p === id;
+      dlg.querySelector('#p-' + p).hidden = !on;
+      q('nv-' + p).classList.toggle('on', on);
+      q('nv-' + p).setAttribute('aria-current', on ? 'page' : 'false');
+    });
+  };
+
+  // folders: what each one is (found, automatic, not found ...), said next to its name
+  const seq = {};
+  async function folderState(k, v) {
+    if (!desk) return { c: 'nf', t: 'Used by the desktop app' };
+    if (k === 'bmsInstall') {
+      if (!v) return { c: 'wn', t: 'Not set' };
+      if (!(await fileExists(v))) return { c: 'wn', t: 'Not found on this computer' };
+      const b = GAMEDATA && GAMEDATA.info && GAMEDATA.info.bms,
+        ver = b && b.version && v === C.paths.bmsInstall ? ' · Falcon BMS ' + b.version : '';
+      return { c: 'ok', t: 'Found' + ver };
+    }
+    if (k === 'missions') {
+      const d = v || join(app, 'missions');
+      return (await fileExists(d))
+        ? { c: 'ok', t: v ? 'Found' : 'Automatic · found' }
+        : { c: 'nf', t: 'Created when you save your first mission' };
+    }
+    if (v) return (await fileExists(v)) ? { c: 'ok', t: 'Found' } : { c: 'wn', t: 'Not found on this computer' };
+    const a = AUTO_HINT[k]();
+    if (!a) return { c: 'nf', t: 'Set the BMS install folder first' };
+    return (await fileExists(a)) ? { c: 'ok', t: 'Automatic · found' } : { c: 'wn', t: 'Automatic · not found' };
+  }
+  async function folderStatus(k) {
+    const n = (seq[k] = (seq[k] || 0) + 1),
+      s = await folderState(k, q('f-' + k).value.trim());
+    if (n !== seq[k] || !dlg.open) return;
+    const el = q('fs-' + k);
+    el.className = 's-st ' + s.c;
+    el.innerHTML = (s.c === 'ok' ? ic('check', 's') : s.c === 'wn' ? ic('warn', 's') : ic('info', 's')) + esc(s.t);
+    el.dataset.c = s.c;
+    const bad = CFG_PATHS.filter(([x]) => q('fs-' + x).dataset.c === 'wn').length,
+      allSet = CFG_PATHS.every(([x]) => q('fs-' + x).dataset.c);
+    q('nvf').innerHTML =
+      !desk || !allSet
+        ? ''
+        : bad
+          ? '<span class="s-nb" aria-label="' + bad + ' to check">' + bad + '</span>'
+          : '<span class="s-okm">' + ic('check', 's') + '</span>';
+  }
+  const allFolders = () => CFG_PATHS.forEach(([k]) => folderStatus(k));
+  const placeholders = () => CFG_PATHS.forEach(([k]) => (q('f-' + k).placeholder = ph(k)));
+  function fillDiag() {
+    q('p-diag').innerHTML = diagInner(prog, reportOpen);
+    const n = warnCount(),
+      b = q('nvdiag');
+    b.hidden = !n;
+    b.textContent = n;
+    b.setAttribute('aria-label', n + (n === 1 ? ' warning' : ' warnings'));
   }
 
-  const rf = document.createElement('div');
-  rf.className = 'cf';
-  const lf = document.createElement('label');
-  lf.textContent = 'Datacard form';
-  const cbf = document.createElement('input');
-  cbf.type = 'checkbox';
-  cbf.checked = ST.FORMON;
-  cbf.style.width = 'auto';
-  cbf.onchange = () => {
-    closeEd(true);
-    ST.FORMON = cbf.checked;
-    try {
-      localStorage.setItem('bmsform', ST.FORMON ? '1' : '0');
-    } catch (e) {}
-    applyFormToggle();
-  };
-  const tf = document.createElement('span');
-  tf.className = 'hint';
-  tf.textContent = 'Show the form with all the fields on the Datacard page';
-  rf.append(lf, cbf, tf);
-  rf.style.gridTemplateColumns = '150px auto 1fr';
-  dlg.append(rf);
-  const ro = document.createElement('div');
-  ro.className = 'cf';
-  const lo = document.createElement('label');
-  lo.textContent = 'Other factions';
-  const cbo = document.createElement('input');
-  cbo.type = 'checkbox';
-  cbo.checked = ST.OBSERVER;
-  cbo.style.width = 'auto';
-  cbo.onchange = () => {
-    ST.OBSERVER = cbo.checked;
-    try {
-      localStorage.setItem('bmsobs', ST.OBSERVER ? '1' : '0');
-    } catch (e) {}
-  };
-  const to = document.createElement('span');
-  to.className = 'hint';
-  to.textContent =
-    'Read the ATO and the map of the other factions (only without a squadron: in a squadron, only its commander can). Just for immersion: in BMS you can start the campaign as the other side.';
-  ro.append(lo, cbo, to);
-  ro.style.gridTemplateColumns = '150px auto 1fr';
-  dlg.append(ro);
-  const r4 = document.createElement('div');
-  r4.className = 'cf';
-  const l4 = document.createElement('label');
-  l4.textContent = 'Animations';
-  const cb4 = document.createElement('input');
-  cb4.type = 'checkbox';
-  cb4.checked = !ST.CFG.ui || ST.CFG.ui.animations !== false;
-  cb4.style.width = 'auto';
-  const t4 = document.createElement('span');
-  t4.className = 'hint';
-  t4.textContent = 'Short transitions (ignored when the system asks for reduced motion)';
-  r4.append(l4, cb4, t4);
-  r4.style.gridTemplateColumns = '150px auto 1fr';
-  dlg.append(r4);
-  const r5 = document.createElement('div');
-  r5.className = 'cf';
-  const l5 = document.createElement('label');
-  l5.textContent = 'MFD 3 and 4';
-  const cb5 = document.createElement('input');
-  cb5.type = 'checkbox';
-  cb5.checked = !!(ST.CFG.ui && ST.CFG.ui.showMfd34);
-  cb5.style.width = 'auto';
-  const t5 = document.createElement('span');
-  t5.className = 'hint';
-  t5.textContent = 'Show them in the Data Cartridge MFD page (BMS does not use them yet)';
-  r5.append(l5, cb5, t5);
-  r5.style.gridTemplateColumns = '150px auto 1fr';
-  dlg.append(r5);
-  const r6 = document.createElement('div');
-  r6.className = 'cf';
-  const l6 = document.createElement('label');
-  l6.textContent = 'Mission radius';
-  const rn = document.createElement('input');
-  rn.type = 'number';
-  rn.min = 0;
-  rn.max = 300;
-  rn.step = 5;
-  rn.value = ST.CFG.mission && ST.CFG.mission.radiusNm != null ? ST.CFG.mission.radiusNm : 60;
-  const u6 = document.createElement('span');
-  u6.textContent = 'NM';
-  u6.style.color = 'var(--mu)';
-  const t6 = document.createElement('div');
-  t6.className = 'hint';
-  t6.textContent =
-    'A saved mission keeps the units within this distance (NM) of the route. 0 = only the units of the package.';
-  t6.style.margin = '-2px 0 8px 158px';
-  const w6 = document.createElement('span');
-  w6.style.cssText = 'display:flex;align-items:center;gap:6px';
-  rn.style.width = '80px';
-  w6.append(rn, u6);
-  r6.append(l6, w6);
-  r6.style.gridTemplateColumns = '150px 1fr';
-  dlg.append(r6, t6);
-  const r7 = document.createElement('div');
-  r7.className = 'cf';
-  const l7 = document.createElement('label');
-  l7.textContent = 'Squadron trackers';
-  const tk = document.createElement('textarea');
-  tk.rows = 3;
-  tk.value = (ST.CFG.squadron && ST.CFG.squadron.trackers) || '';
-  tk.placeholder = 'empty = the built-in public trackers (wss://tracker.openwebtorrent.com …)';
-  tk.style.cssText = 'width:100%;box-sizing:border-box;font:12px monospace';
-  r7.append(l7, tk, document.createElement('span'));
-  dlg.append(r7);
-  const t7 = document.createElement('div');
-  t7.className = 'hint';
-  t7.textContent =
-    'WebTorrent trackers (ws:// or wss://, one per line) used to see which pilots of the squadron are online. You can use your own.';
-  t7.style.margin = '-2px 0 8px 158px';
-  dlg.append(t7);
-  const mp = ST.CFG.map || {},
-    ms = (lab, el, hint) => {
-      const r = document.createElement('div');
-      r.className = 'cf';
-      const l = document.createElement('label');
-      l.textContent = lab;
-      r.append(l, el, document.createElement('span'));
-      if (hint) r.title = hint;
-      return r;
-    };
-  const r8 = document.createElement('div');
-  r8.className = 'cf';
-  const l8 = document.createElement('label');
-  l8.textContent = 'Own satellite layer';
-  const cb8 = document.createElement('input');
-  cb8.type = 'checkbox';
-  cb8.checked = !!mp.satOn;
-  cb8.style.width = 'auto';
-  const t8 = document.createElement('span');
-  t8.className = 'hint';
-  t8.textContent = 'Replace the satellite layer of the maps (built-in: Sentinel-2 by EOX) with your own tile provider';
-  r8.append(l8, cb8, t8);
-  r8.style.gridTemplateColumns = '150px auto 1fr';
-  dlg.append(r8);
-  const su = document.createElement('input');
-  su.value = mp.satUrl || '';
-  su.placeholder = 'https://provider/{z}/{y}/{x}?token={key}';
-  const sk = document.createElement('input');
-  sk.value = mp.satKey || '';
-  sk.placeholder = 'replaces {key} in the address (optional)';
-  const sa = document.createElement('input');
-  sa.value = mp.satAttr || '';
-  sa.placeholder = 'credit shown on the map, as the provider asks';
-  const sz = document.createElement('input');
-  sz.type = 'text';
-  sz.inputMode = 'numeric';
-  sz.value = mp.satMaxZoom || 18;
-  sz.style.width = '80px';
-  const satBox = document.createElement('div');
-  satBox.append(ms('Tile address', su), ms('Key', sk), ms('Credit', sa), ms('Deepest zoom', sz));
-  const t9 = document.createElement('div');
-  t9.className = 'hint';
-  t9.textContent =
-    'Address with {z}, {x} and {y} (XYZ tiles); the provider must allow CORS. Use only a service whose terms let you do so, with your own account or key.';
-  t9.style.margin = '-2px 0 8px 158px';
-  satBox.append(t9);
-  dlg.append(satBox);
-  const satShow = () => {
-    satBox.style.display = cb8.checked ? '' : 'none';
-  };
-  cb8.addEventListener('change', satShow);
-  satShow();
-  const bar = document.createElement('div');
-  bar.className = 'bar';
-  bar.style.justifyContent = 'flex-end';
-  const ok = document.createElement('button');
-  ok.className = 'btn';
-  ok.textContent = 'Save';
-  const no = document.createElement('button');
-  no.className = 'btn g';
-  no.textContent = 'Cancel';
-  ok.onclick = async () => {
+  dataPage(q('p-data'), {
+    busy: on => {
+      busy = on;
+      refresh();
+    },
+    imported: () => refresh(),
+  });
+  fillDiag();
+  allFolders();
+  show(LAST);
+  refresh();
+
+  // ---------------- Save
+  async function save() {
+    if (q('cfgsave').disabled) return;
+    const v = readForm(dlg);
     const n = JSON.parse(JSON.stringify(ST.CFG));
-    CFG_PATHS.forEach(([k]) => (n.paths[k] = inputs[k].value.trim()));
-    n.ui = { ...(n.ui || {}), animations: cb4.checked, showMfd34: cb5.checked, autoLoad: cb3.checked };
-    n.squadron = { ...(n.squadron || {}), trackers: tk.value.trim() };
-    n.mission = { ...(n.mission || {}), radiusNm: Math.max(0, Math.min(300, +rn.value || 0)) };
+    CFG_PATHS.forEach(([k]) => (n.paths[k] = v.paths[k]));
+    n.ui = { ...(n.ui || {}), animations: v.sw.anim, showMfd34: v.sw.mfd, autoLoad: v.sw.autoLoad };
+    n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
+    n.mission = {
+      ...(n.mission || {}),
+      radiusNm: v.radius === '' ? ((ST.CFG.mission && ST.CFG.mission.radiusNm) ?? 60) : v.radius,
+    };
     n.map = {
       ...(n.map || {}),
-      satOn: cb8.checked,
-      satUrl: su.value.trim(),
-      satKey: sk.value.trim(),
-      satAttr: sa.value.trim(),
-      satMaxZoom: Math.max(5, Math.min(22, Math.round(+sz.value || 18))),
+      satOn: v.sw.sat,
+      satUrl: v.sat.url,
+      satKey: v.sat.key,
+      satAttr: v.sat.attr,
+      satMaxZoom: v.sat.zoom,
     };
     // a folder typed with a mistake would leave the program without its data or write nowhere: said before saving
     if (isDesktop()) {
       const missing = [];
       for (const [k, lab] of CFG_PATHS) {
-        const v = n.paths[k];
+        const p = n.paths[k];
         // the missions folder is made when the first mission is saved
-        if (k != 'missions' && v && v !== ST.CFG.paths[k] && !(await fileExists(v))) missing.push(lab + ': ' + v);
+        if (k != 'missions' && p && p !== ST.CFG.paths[k] && !(await fileExists(p))) missing.push(lab + ': ' + p);
       }
       if (
         missing.length &&
@@ -318,25 +410,123 @@ export async function openSettings() {
       const changed = n.paths.bmsInstall !== ST.CFG.paths.bmsInstall;
       const trk = n.squadron.trackers !== ((ST.CFG.squadron && ST.CFG.squadron.trackers) || '');
       ST.CFG = n;
+      if (v.sw.form !== !!ST.FORMON) {
+        closeEd(true);
+        ST.FORMON = v.sw.form;
+        try {
+          localStorage.setItem('bmsform', ST.FORMON ? '1' : '0');
+        } catch (e) {}
+        applyFormToggle();
+      }
+      if (v.sw.others !== !!ST.OBSERVER) {
+        ST.OBSERVER = v.sw.others;
+        try {
+          localStorage.setItem('bmsobs', ST.OBSERVER ? '1' : '0');
+        } catch (e) {}
+      }
       applyAnim();
       if (trk) sqPage.restart();
       try {
         mapV.rebase();
       } catch (e) {}
-      dlg.close();
       view();
       if (!$('kn').classList.contains('hide')) kbRender();
-      if (changed) await loadGameData();
+      init = readForm(dlg);
+      clearTimeout(flash);
+      flash = setTimeout(() => {
+        flash = 0;
+        if (dlg.open) refresh();
+      }, 2500);
+      refresh();
+      if (changed) {
+        loading = true;
+        refresh();
+        try {
+          await loadGameData();
+        } finally {
+          loading = false;
+        }
+      }
       fillCampaigns();
+      if (dlg.open) {
+        placeholders();
+        allFolders();
+        fillDiag();
+        refresh();
+      }
     } catch (e) {
+      loading = false;
+      if (dlg.open) refresh();
       alert('Could not save settings: ' + ((e && e.message) || e));
     }
+  }
+
+  // ---------------- the buttons and boxes
+  dlg.onclick = async e => {
+    const b = e.target.closest('[data-a]');
+    if (!b || b.disabled || !dlg.contains(b)) return;
+    const a = b.dataset.a;
+    if (a === 'go') show(b.dataset.p);
+    else if (a === 'close') dlg.close();
+    else if (a === 'save') save();
+    else if (a === 'sw') {
+      const on = !b.classList.contains('on');
+      setSwitch(b, on);
+      if (b.dataset.k === 'sat') setOpen(q('satbox'), on);
+      refresh();
+    } else if (a === 'report') {
+      reportOpen = !reportOpen;
+      setOpen(q('cfgreport'), reportOpen);
+      setOpen(b.querySelector('.s-cv'), reportOpen);
+      b.setAttribute('aria-expanded', String(reportOpen));
+    } else if (a === 'step') {
+      const r = q('c-rad');
+      r.value = clamp((+r.value || 0) + 5 * +b.dataset.d, 0, 300);
+      refresh();
+    } else if (a === 'browse') {
+      const i = q('f-' + b.dataset.k),
+        lab = CFG_PATHS.find(([k]) => k === b.dataset.k)[1],
+        d = await pickFolder({ startDir: i.value, title: lab });
+      if (d) {
+        i.value = d;
+        folderStatus(b.dataset.k);
+        refresh();
+      }
+    }
   };
-  no.onclick = () => dlg.close();
-  bar.append(no, ok);
-  dlg.append(bar);
+  const later = {};
+  dlg.oninput = e => {
+    const t = e.target;
+    if (t.id === 'c-rad') t.value = t.value.replace(/\D/g, '').slice(0, 3);
+    else if (t.id === 'c-zoom') t.value = t.value.replace(/\D/g, '').slice(0, 2);
+    if (t.id === 'c-rad' && +t.value > 300) t.value = '300';
+    const k = t.id.startsWith('f-') && t.id.slice(2);
+    if (k) {
+      clearTimeout(later[k]);
+      later[k] = setTimeout(() => dlg.open && folderStatus(k), 350);
+    }
+    refresh();
+  };
+  dlg.onchange = e => {
+    // a number box left empty goes back to what it was
+    if (e.target.id === 'c-rad' && e.target.value === '')
+      e.target.value = String(init.radius === '' ? 60 : init.radius);
+    if (e.target.id === 'c-zoom' && e.target.value === '') e.target.value = String(init.sat.zoom);
+    refresh();
+  };
+  dlg.oncancel = e => {
+    if (busy || dataBusy()) e.preventDefault(); // Escape while something is being copied
+  };
+  dlg.onclose = () => {
+    clearTimeout(flash);
+    Object.values(later).forEach(clearTimeout);
+    dlg.onclick = dlg.oninput = dlg.onchange = dlg.oncancel = dlg.onclose = null;
+  };
   dlg.showModal();
+  const cur = q('nv-' + LAST);
+  if (cur) cur.focus();
 }
+
 // our own number steppers (the browser's spin buttons are hidden by the CSS): a pair of small buttons after every number box, also for boxes drawn later
 export function stepper(i) {
   if (i.dataset.nst || i.closest('#ed')) return;
@@ -364,11 +554,13 @@ export function stepper(i) {
 
 // The program keeps its files next to the exe (portable). A folder it cannot write to (Program Files, a protected, read-only or synced folder) would lose the settings,
 // the squadron, the missions, the cards and the backups without a word: said once at start, or the first time a file of the program cannot be written.
-let FOLDERWARN = false;
+let FOLDERWARN = false,
+  APPCHK = null;
 const MOVE_HINT =
   'Move the whole BMS Cards folder to a folder of yours (Documents, or C:\\Games for example) and start it from there.';
 export async function checkAppFolder() {
   const r = await canWriteAppDir();
+  APPCHK = r;
   if (r.ok || FOLDERWARN) return r.ok;
   FOLDERWARN = true;
   alert(

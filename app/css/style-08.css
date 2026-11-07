@@ -436,6 +436,22 @@ body.onharm #wpclear {
 body.onwp #wpnote {
   display: inline;
 }
+/* these buttons are shown by a class of the body, not by the element itself: a CSS animation runs again each time the element is displayed. "appear" has only the from step, so it ends at the opacity the element has (a dimmed .nil button stays dimmed). .fx: the same for an element put in the page; off with Settings > Animations */
+@keyframes appear {
+  from {
+    opacity: 0;
+  }
+}
+#dtcrev,
+#saveow,
+#wpapply,
+#wpclear,
+#wpnote {
+  animation: appear 0.15s ease-out;
+}
+.fx {
+  animation: appear 0.18s ease-out;
+}
 body.onms #msfsave,
 body.onharm #msfsave {
   margin-left: auto;
@@ -459,6 +475,103 @@ body.onharm #msfsave {
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid #2a3441;
+}
+.wh .wctl {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wlc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 104px;
+  flex: none;
+}
+.wex {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #0f1419;
+  color: var(--mu);
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    transform 0.1s;
+}
+.wex:hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+.wex:active {
+  transform: scale(0.92);
+}
+.wex.ov {
+  color: #ffe680;
+  border-color: #ffe68088;
+}
+.wex span {
+  display: inline-block;
+  transition: transform 0.18s ease;
+}
+.wex.on span {
+  transform: rotate(90deg);
+}
+/* the altitude and speed of an enemy: always in the page, closed it has no height and cannot be reached with Tab; it opens and closes smoothly (grid rows 0fr <-> 1fr) */
+.wen {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin: 0 0 0 12px;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.18s ease,
+    margin 0.18s ease,
+    opacity 0.15s ease,
+    visibility 0s 0.18s;
+}
+.wen.open {
+  grid-template-rows: 1fr;
+  margin-bottom: 8px;
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.weni {
+  min-height: 0;
+  overflow: hidden;
+  padding-left: 10px;
+  border-left: 2px solid var(--line);
+}
+.wenh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 2px 0;
+  font-size: 11.5px;
+  color: var(--mu);
+}
+.wenh .btn {
+  margin-left: auto;
+  padding: 1px 8px;
+  font-size: 11px;
+}
+.wsubh {
+  margin: 10px 0 2px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.wcond {
+  margin: 0 0 2px;
 }
 .wpvs {
   overflow: auto;
@@ -542,6 +655,10 @@ input[type='number'] + .nst {
   font-size: 7px;
   line-height: 9px;
   cursor: pointer;
+  transition:
+    background-color 0.12s,
+    color 0.12s,
+    transform 0.1s;
 }
 .nst button:hover {
   background: #1a212b;
@@ -550,6 +667,7 @@ input[type='number'] + .nst {
 .nst button:active {
   background: #1f7a46;
   color: #fff;
+  transform: scale(0.9);
 }
 .wxtop {
   display: flex;

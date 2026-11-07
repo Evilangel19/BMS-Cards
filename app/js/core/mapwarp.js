@@ -157,13 +157,10 @@ export async function warpImageAsync(img, ext = BMS_EXTENT, outW = 4096, N = 40,
   }
 }
 
-// One 256 px web-mercator tile (z/x/y) cut out of a theater picture, drawn onto the canvas `cv`: every tile is drawn straight from the
-// picture at full resolution through a small mesh (N x N cells), so a very large picture needs no huge intermediate canvas and tiles are
-// made only when they are shown. src: image / ImageBitmap / canvas of sw x sh pixels in the extent `ext`. Returns false when the tile
-// lies outside the picture (nothing drawn).
-export function pictureTile(cv, src, sw, sh, ext, z, x, y, N = 4) {
-  const size = cv.width,
-    n = 2 ** z;
+// The nodes of the mesh of a tile (N + 1 rows of N + 1 points): for each one the picture pixel [x, y] that lies under that point of the 256 px web-mercator tile z/x/y
+// (a picture of sw x sh pixels in the extent ext).
+export function tileMesh(size, sw, sh, ext, z, x, y, N) {
+  const n = 2 ** z;
   const sp = (px, py) => {
     const X = (x + px / size) / n,
       Y = (y + py / size) / n,
@@ -176,15 +173,40 @@ export function pictureTile(cv, src, sw, sh, ext, z, x, y, N = 4) {
     ];
   };
   const G = [];
-  let inside = false;
   for (let j = 0; j <= N; j++) {
     G.push([]);
-    for (let i = 0; i <= N; i++) {
-      const s = sp((i / N) * size, (j / N) * size);
-      G[j].push(s);
-      if (s[0] > 0 && s[0] < sw && s[1] > 0 && s[1] < sh) inside = true;
-    }
+    for (let i = 0; i <= N; i++) G[j].push(sp((i / N) * size, (j / N) * size));
   }
+  return G;
+}
+// Cells of the mesh per side of a tile at zoom z. Over a small tile the mapping is a turn and a scale (the error of a mesh of 1 cell is 0.13 px at zoom 11 and less at the closer
+// levels, 2 cells: 0.07 px at zoom 10 and 0.14 px at zoom 9), so the closer levels need fewer pieces; the wide levels keep 4 (as before).
+export const meshFor = z => (z <= 8 ? 4 : z <= 10 ? 2 : 1);
+// The part of the picture that a tile draws: {x0, y0, x1, y1} in picture pixels (the mesh holds every triangle) and the picture pixels per tile pixel (scale), or null
+// when the tile lies outside the picture.
+export function tileSourceRect(sw, sh, ext, z, x, y, N = 4, size = 256) {
+  const G = tileMesh(size, sw, sh, ext, z, x, y, N),
+    xs = G.flat().map(p => p[0]),
+    ys = G.flat().map(p => p[1]),
+    r = {
+      x0: Math.max(0, Math.floor(Math.min(...xs)) - 1),
+      y0: Math.max(0, Math.floor(Math.min(...ys)) - 1),
+      x1: Math.min(sw, Math.ceil(Math.max(...xs)) + 1),
+      y1: Math.min(sh, Math.ceil(Math.max(...ys)) + 1),
+      scale: Math.hypot(G[N][N][0] - G[0][0][0], G[N][N][1] - G[0][0][1]) / Math.SQRT2 / size,
+    };
+  return r.x1 > r.x0 && r.y1 > r.y0 ? r : null;
+}
+
+// One 256 px web-mercator tile (z/x/y) cut out of a theater picture, drawn onto the canvas `cv`: every tile is drawn straight from the
+// picture at full resolution through a small mesh (N x N cells), so a very large picture needs no huge intermediate canvas and tiles are
+// made only when they are shown. src: image / ImageBitmap / canvas of sw x sh pixels in the extent `ext`. Returns false when the tile
+// lies outside the picture (nothing drawn).
+export function pictureTile(cv, src, sw, sh, ext, z, x, y, N = 4) {
+  const size = cv.width,
+    G = tileMesh(size, sw, sh, ext, z, x, y, N);
+  let inside = false;
+  for (const row of G) for (const s of row) if (s[0] > 0 && s[0] < sw && s[1] > 0 && s[1] < sh) inside = true;
   if (!inside) {
     // no mesh point inside: the picture can still cross the tile (small tile, big picture) - test the corners of the tile in the picture
     const xs = G.flat().map(p => p[0]),
@@ -239,38 +261,4 @@ export function pictureTile(cv, src, sw, sh, ext, z, x, y, N = 4) {
       }
     }
   return true;
-}
-
-// A big picture kept as a grid of blocks (ImageBitmaps of at most `bs` px): drawing a small part never touches the whole picture.
-// Returns {sw, sh, draw(c, x0, y0, x1, y1)} (the form pictureTile takes as a source). `bmp` is closed. onProgress(0..1) per block.
-export async function blockSource(bmp, bs = 2048, onProgress) {
-  const sw = bmp.width,
-    sh = bmp.height,
-    blocks = [],
-    nx = Math.ceil(sw / bs),
-    ny = Math.ceil(sh / bs);
-  for (let j = 0; j < ny; j++)
-    for (let i = 0; i < nx; i++) {
-      const x = i * bs,
-        y = j * bs,
-        w = Math.min(bs, sw - x),
-        h = Math.min(bs, sh - y);
-      blocks.push({ x, y, w, h, bmp: await createImageBitmap(bmp, x, y, w, h) });
-      if (onProgress) onProgress(blocks.length / (nx * ny));
-    }
-  bmp.close();
-  return {
-    sw,
-    sh,
-    draw(c, x0, y0, x1, y1) {
-      for (const b of blocks) {
-        const ix0 = Math.max(x0, b.x),
-          iy0 = Math.max(y0, b.y),
-          ix1 = Math.min(x1, b.x + b.w),
-          iy1 = Math.min(y1, b.y + b.h);
-        if (ix1 > ix0 && iy1 > iy0)
-          c.drawImage(b.bmp, ix0 - b.x, iy0 - b.y, ix1 - ix0, iy1 - iy0, ix0, iy0, ix1 - ix0, iy1 - iy0);
-      }
-    },
-  };
 }

@@ -12,8 +12,10 @@
       "auto": "object",
       "final": "object",
       "flight": "string",
+      "l16": ["list"],
       "label": "string",
-      "manual": "object"
+      "manual": "object",
+      "seat": "object"
     },
     "dtc": {
       "author": "object",

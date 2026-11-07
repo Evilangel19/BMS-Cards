@@ -32,7 +32,7 @@ try:
         check('value stored', pg.evaluate("()=>__app.F.fp3_5") == '27500')
         # Tab goes to the next field, Esc cancels
         click_tpl(fd['x'] + fd['w'] / 2, fd['y']); pg.keyboard.press('Tab')
-        check('Tab opens next field', pg.is_visible('#ed') and 'Min.Fuel' in pg.inner_text('#ed .l'))
+        check('Tab opens next field', pg.is_visible('#ed') and 'MSA' in pg.inner_text('#ed .l'))
         pg.keyboard.type('zzz'); pg.keyboard.press('Escape')
         check('Esc cancels', pg.evaluate("()=>__app.F.fp3_6") != 'zzz' and not pg.is_visible('#ed'))
         # click another cell commits

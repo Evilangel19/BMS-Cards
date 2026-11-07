@@ -1,0 +1,868 @@
+/* Settings (dialog#cfg): a window with the list of the sections on the left and the page of the chosen section on the right (app/js/app/settings.js).
+   Every rule starts with #cfg and every class starts with s-, so nothing else in the program is touched.
+   Short transitions as in the rest of the program; they are off with Settings > Animations and with the system "reduce motion" (the rules of .noanim and of
+   prefers-reduced-motion in style-08.css cover everything below). */
+#cfg {
+  --pane: #151b23;
+  --deep: #10161d;
+  --field: #0b0f14;
+  --hov: #4a586b;
+  --warn: #f2b84b;
+  --bad: #ff6b6b;
+  --info: #6aa7ff;
+  padding: 0;
+  width: min(960px, 96vw);
+  max-width: none;
+  height: min(720px, calc(100vh - 48px));
+  overflow: hidden;
+  box-shadow: 0 24px 60px #0009;
+}
+#cfg[open] {
+  display: flex;
+  flex-direction: column;
+}
+#cfg button:focus-visible,
+#cfg input:focus-visible,
+#cfg textarea:focus-visible {
+  outline: 2px solid var(--ac);
+  outline-offset: 2px;
+}
+#cfg h1,
+#cfg h2,
+#cfg h3,
+#cfg p {
+  margin: 0;
+}
+#cfg .hint {
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+#cfg .s-ic {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+#cfg .s-ic.s {
+  width: 14px;
+  height: 14px;
+}
+#cfg .s-ic.l {
+  width: 22px;
+  height: 22px;
+}
+#cfg .s-mono {
+  font:
+    12.5px ui-monospace,
+    Consolas,
+    'Cascadia Mono',
+    monospace;
+  overflow-wrap: anywhere;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* the window */
+#cfg .s-hd {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px 12px 22px;
+  border-bottom: 1px solid var(--line);
+}
+#cfg .s-hd h1 {
+  font-size: 18px;
+  font-weight: 700;
+}
+#cfg .s-bd {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+#cfg .s-sb {
+  width: 236px;
+  flex: none;
+  overflow: auto;
+  padding: 14px 12px;
+  background: var(--pane);
+  border-right: 1px solid var(--line);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+#cfg .s-ct {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: 22px 28px 28px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line) transparent;
+}
+#cfg .s-ft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px 12px 22px;
+  border-top: 1px solid var(--line);
+  min-height: 60px;
+}
+#cfg .s-ft .s-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mu);
+  font-size: 13px;
+  min-width: 0;
+}
+#cfg .s-ft .s-note.ok {
+  color: var(--ac);
+  font-weight: 600;
+  gap: 6px;
+}
+#cfg .s-ft .s-note.wn {
+  color: var(--warn);
+}
+
+/* the sections */
+#cfg .s-gl {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+#cfg .s-gl i {
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+#cfg .s-gl.s-gap {
+  margin-top: 18px;
+}
+#cfg .s-eg {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--deep);
+  padding: 10px 6px 6px;
+}
+#cfg .s-nv {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--mu);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+#cfg .s-nv:hover:not(.on) {
+  background: #ffffff12;
+  color: var(--tx);
+}
+#cfg .s-nv.on {
+  background: var(--card);
+  color: var(--ac);
+}
+#cfg .s-nv:active {
+  transform: scale(0.97);
+}
+#cfg .s-nv .t {
+  flex: 1;
+  min-width: 0;
+}
+#cfg .s-nd {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--info);
+  flex: none;
+  opacity: 0;
+  transform: scale(0.4);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+#cfg .s-nd.on {
+  opacity: 1;
+  transform: none;
+}
+#cfg .s-nb {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 10px;
+  background: #f2b84b26;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+#cfg .s-nv .s-okm {
+  color: var(--ac);
+}
+
+/* buttons and fields: the look of the program's own (.btn), the buttons round the switches and the boxes */
+#cfg .btn {
+  white-space: nowrap;
+  font: inherit;
+  font-weight: 600;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    filter 0.15s,
+    transform 0.1s,
+    opacity 0.15s;
+}
+#cfg .btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+#cfg .btn.sm {
+  padding: 5px 10px;
+  font-size: 13px;
+}
+#cfg .s-ib {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  color: var(--mu);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+#cfg .s-ib:hover {
+  background: #ffffff12;
+  color: var(--tx);
+}
+#cfg .s-ib:active {
+  transform: scale(0.94);
+}
+#cfg .s-fd {
+  padding: 7px 9px;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    box-shadow 0.15s;
+}
+#cfg .s-fd:hover {
+  border-color: #3b4859;
+}
+#cfg .s-fd:focus {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 2px #4cc38a2e;
+  outline: none;
+}
+#cfg .s-fd::placeholder {
+  color: #7d8a9a;
+}
+#cfg textarea.s-fd {
+  resize: vertical;
+  font:
+    12.5px ui-monospace,
+    Consolas,
+    'Cascadia Mono',
+    monospace;
+  line-height: 1.5;
+}
+#cfg .s-sw {
+  position: relative;
+  flex: none;
+  width: 40px;
+  height: 22px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  padding: 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.1s;
+}
+#cfg .s-sw::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--mu);
+  transition:
+    transform 0.15s,
+    background-color 0.15s;
+}
+#cfg .s-sw.on {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+#cfg .s-sw.on::after {
+  transform: translateX(18px);
+  background: #062014;
+}
+#cfg .s-sw:active {
+  transform: scale(0.94);
+}
+#cfg .s-sw:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#cfg .s-cb {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  border: 1px solid var(--line);
+  background: var(--field);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  color: #062014;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    transform 0.1s;
+}
+#cfg .s-cb .s-ic {
+  opacity: 0;
+  transform: scale(0.6);
+  transition:
+    opacity 0.15s,
+    transform 0.15s;
+}
+#cfg .s-cb.on {
+  background: var(--ac);
+  border-color: var(--ac);
+}
+#cfg .s-cb.on .s-ic {
+  opacity: 1;
+  transform: none;
+}
+#cfg .s-cb:active {
+  transform: scale(0.92);
+}
+#cfg .s-cb:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+#cfg .s-sg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--field);
+}
+#cfg .s-sg button {
+  border: 0;
+  background: none;
+  padding: 6px 12px;
+  color: var(--mu);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+#cfg .s-sg button.on {
+  background: var(--card);
+  color: var(--ac);
+}
+#cfg .s-sg button:hover:not(.on) {
+  background: #ffffff12;
+  color: var(--tx);
+}
+#cfg .s-nst {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 2px;
+}
+#cfg .s-nst button {
+  width: 22px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--card);
+  color: var(--mu);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.1s;
+}
+#cfg .s-nst button:hover {
+  background: #2a3442;
+  color: var(--tx);
+}
+#cfg .s-nst button:active {
+  transform: scale(0.92);
+}
+#cfg .s-nst .s-ic {
+  width: 11px;
+  height: 11px;
+}
+
+/* chips and status lines */
+#cfg .s-ch {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  flex: none;
+}
+#cfg .s-ch.ok {
+  color: var(--ac);
+  background: #4cc38a1f;
+  border-color: #4cc38a40;
+}
+#cfg .s-ch.wn {
+  color: var(--warn);
+  background: #f2b84b1f;
+  border-color: #f2b84b40;
+}
+#cfg .s-ch.mu,
+#cfg .s-ch.nf {
+  color: var(--mu);
+  background: #ffffff0a;
+  border-color: var(--line);
+}
+#cfg .s-st {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12.5px;
+  color: var(--mu);
+  transition: color 0.15s;
+}
+#cfg .s-st.ok {
+  color: var(--ac);
+}
+#cfg .s-st.wn {
+  color: var(--warn);
+}
+#cfg .s-st.nf {
+  color: var(--info);
+}
+#cfg .s-okc {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #4cc38a26;
+  color: var(--ac);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+#cfg .s-badc {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #ff6b6b26;
+  color: var(--bad);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+/* groups and rows */
+#cfg .s-pg > .s-top {
+  margin-bottom: 18px;
+}
+#cfg .s-pg h2 {
+  font-size: 18px;
+  font-weight: 600;
+}
+#cfg .s-pg > .s-top .hint {
+  margin-top: 4px;
+}
+#cfg .s-gp {
+  background: var(--pane);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+#cfg .s-gp + .s-gp,
+#cfg .s-gp + .s-wb,
+#cfg .s-wb + .s-gp {
+  margin-top: 14px;
+}
+#cfg .s-gt {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+  margin: 18px 0 8px 2px;
+}
+#cfg .s-rw {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+}
+#cfg .s-rw + .s-rw,
+#cfg .s-rw + .s-xp > div > .s-fr:first-child,
+#cfg .s-fr + .s-fr,
+#cfg .s-kv + .s-kv {
+  border-top: 1px solid var(--line);
+}
+#cfg .s-rw .tx {
+  flex: 1;
+  min-width: 0;
+}
+#cfg .s-rw .tt {
+  font-weight: 600;
+}
+#cfg .s-rw .hint {
+  margin-top: 3px;
+}
+#cfg .s-fr {
+  padding: 12px 16px 14px;
+}
+#cfg .s-fr > label,
+#cfg .s-lr label {
+  display: block;
+  font-weight: 600;
+  color: var(--tx);
+  font-size: 14px;
+  margin-bottom: 8px;
+}
+#cfg .s-ir {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+#cfg .s-lr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 12px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+#cfg .s-lr label {
+  margin: 0;
+}
+#cfg .s-lr .s-st {
+  margin-top: 0;
+}
+#cfg .s-kv {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 11px 16px;
+}
+#cfg .s-kv .k {
+  width: 140px;
+  flex: none;
+  color: var(--mu);
+  font-size: 13px;
+}
+#cfg .s-kv .v {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#cfg .s-wb {
+  background: #f2b84b14;
+  border: 1px solid #f2b84b55;
+  border-radius: 10px;
+  padding: 12px 16px;
+}
+#cfg .s-wb .s-wt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--warn);
+  font-weight: 700;
+}
+#cfg .s-wb ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-user-select: text;
+  user-select: text;
+}
+#cfg .s-wb.good {
+  background: #4cc38a14;
+  border-color: #4cc38a40;
+}
+#cfg .s-wb.good .s-wt {
+  color: var(--ac);
+}
+#cfg .s-pbm {
+  width: 130px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  flex: none;
+}
+#cfg .s-pbm i {
+  display: block;
+  height: 100%;
+  background: var(--ac);
+}
+#cfg .s-pb {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--field);
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+#cfg .s-pb i {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ac);
+  transition: width 0.12s linear;
+}
+#cfg .s-cv {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.15s;
+}
+#cfg .s-cv.open {
+  transform: rotate(90deg);
+}
+/* a part that opens and closes (the full report, the own satellite layer): its height follows the content */
+#cfg .s-xp {
+  display: grid;
+  grid-template-rows: 0fr;
+  visibility: hidden;
+  transition:
+    grid-template-rows 0.2s ease-out,
+    visibility 0s 0.2s;
+}
+#cfg .s-xp.open {
+  grid-template-rows: 1fr;
+  visibility: visible;
+  transition:
+    grid-template-rows 0.2s ease-out,
+    visibility 0s;
+}
+#cfg .s-xp > div {
+  overflow: hidden;
+  min-height: 0;
+}
+#cfg .s-report {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--field);
+  color: var(--mu);
+  white-space: pre-wrap;
+}
+#cfg .s-lst {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--deep);
+  overflow: hidden;
+}
+#cfg .s-li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 11px 14px;
+  border-top: 1px solid var(--line);
+}
+#cfg .s-lst > .s-li:first-child {
+  border-top: 0;
+}
+#cfg .s-li .tx {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+#cfg .s-li .sz {
+  width: 62px;
+  text-align: right;
+  flex: none;
+}
+#cfg .s-li .s-pr {
+  flex-basis: 100%;
+  color: var(--bad);
+  font-size: 12.5px;
+}
+#cfg .s-dn .s-li {
+  animation: sxin 0.25s ease-out both;
+}
+#cfg .s-ds {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+#cfg .s-ico {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #4cc38a1f;
+  color: var(--ac);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+#cfg .s-cd {
+  padding: 18px;
+}
+#cfg .s-cd h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+#cfg .s-src {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--deep);
+}
+#cfg .s-src .s-ic {
+  color: var(--mu);
+}
+#cfg .s-err {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--warn);
+}
+#cfg .s-err .s-ic {
+  margin-top: 1px;
+}
+#cfg .s-err ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--mu);
+}
+
+/* animations: the page of a section, the parts that appear, the check that pops */
+#cfg .s-ap {
+  animation: sxin 0.15s ease-out;
+}
+#cfg .s-pop {
+  animation: sxpop 0.25s ease-out;
+}
+@keyframes sxin {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@keyframes sxpop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+/* a narrow window: the sections become a row of tabs above the page */
+@media (max-width: 760px) {
+  #cfg {
+    width: 100vw;
+    height: 100vh;
+    max-height: none;
+    border-radius: 0;
+    border: 0;
+  }
+  #cfg .s-bd {
+    flex-direction: column;
+  }
+  #cfg .s-sb {
+    width: auto;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    padding: 8px 10px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+  #cfg .s-sb .s-gl {
+    display: none;
+  }
+  #cfg .s-eg {
+    display: contents;
+  }
+  #cfg .s-nv {
+    width: auto;
+    white-space: nowrap;
+  }
+  #cfg .s-ct {
+    padding: 18px 16px 24px;
+  }
+  #cfg .s-kv {
+    flex-wrap: wrap;
+  }
+  #cfg .s-kv .k {
+    width: 100%;
+  }
+  #cfg .s-cd {
+    padding: 14px;
+  }
+  #cfg .s-rw {
+    gap: 12px;
+  }
+}

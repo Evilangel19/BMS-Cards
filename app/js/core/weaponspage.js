@@ -57,9 +57,21 @@ export function navRow(text, withStpt = true) {
   if (a.length >= 4 && !/^\d{1,2}$/.test(a[0])) return { stpt: +a[3] || 0, brg: a[0], rng: a[1], elev: a[2] };
   return { stpt: +a[0] || 0, brg: a[1], rng: a[2], elev: a[3] };
 }
+// a part of the state (a mission file from an older version has fewer fields, and a file may come from anybody): a field the page knows keeps the type it has by default
+// (a number stays a finite number, text stays text), a missing one is the default, a field the page does not know is kept as it is
+const part = (d, v) => {
+  const o = { ...d };
+  if (v && typeof v == 'object' && !Array.isArray(v))
+    for (const k of Object.keys(v)) {
+      const x = v[k];
+      if (k === '__proto__') continue;
+      if (!(k in d) || (typeof x == typeof d[k] && (typeof x != 'number' || isFinite(x)))) o[k] = x;
+    }
+  return o;
+};
 export function createWeaponsPage(deps) {
   const { esc } = deps;
-  let st = {
+  const blank = () => ({
     mode: 'popup',
     bomb: 'auto',
     oa1: 'top',
@@ -85,20 +97,20 @@ export function createWeaponsPage(deps) {
       cbu: 'CBU-87',
       loaded: false,
     },
+  });
+  let st = blank();
+  // the state o (the page of a mission, or the session) over the state keep: the parts it holds are completed with the defaults, the others stay as they are
+  const take = (o, keep) => {
+    const d = blank(),
+      g = k => (o[k] && typeof o[k] == 'object' && !Array.isArray(o[k]) ? part(d[k], o[k]) : keep[k]),
+      r = { ...keep, ...o, inp: g('inp'), hadb: g('hadb'), toss: g('toss'), map: g('map'), mat: g('mat'), fz: g('fz') };
+    if (!r.inp.heading) r.inp.heading = 360;
+    if (!MODES.some(m => m[0] === r.mode)) r.mode = keep.mode;
+    return r;
   };
   try {
     const o = JSON.parse(sessionStorage.getItem(KEY) || 'null');
-    if (o)
-      st = {
-        ...st,
-        ...o,
-        inp: { ...DEFAULTS, ...o.inp, heading: (o.inp && o.inp.heading) || 360 },
-        hadb: { ...HADB_DEFAULTS, ...o.hadb },
-        toss: { ...TOSS_DEFAULTS, ...o.toss },
-        map: { ...st.map, ...o.map },
-        mat: { ...st.mat, ...o.mat },
-        fz: { ...st.fz, ...o.fz },
-      };
+    if (o && typeof o == 'object') st = take(o, st);
   } catch (e) {
     /* none */
   }
@@ -2285,7 +2297,7 @@ export function createWeaponsPage(deps) {
     clearAll,
     setState: o => {
       if (o && typeof o == 'object') {
-        st = { ...st, ...o };
+        st = take(o, st);
         save();
         refresh();
       }

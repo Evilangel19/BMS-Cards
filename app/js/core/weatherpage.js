@@ -371,7 +371,7 @@ export function createWeatherPage(deps) {
             )
             .join('') +
           (fl.taf
-            ? `<div class="wxb"><div class="hint">TARGET FORECAST</div><div class="wxa">${esc(fl.taf)}</div></div>`
+            ? `<div class="wxb"><div class="hint">${fl.tafMode == 'LDG' ? 'LANDING FORECAST' + (fl.tafId ? ' · ' + esc(fl.tafId) : '') : 'TARGET FORECAST'}<span class="seg" style="float:right" title="Which forecast goes on the datacard"><button type="button" class="${fl.tafMode == 'LDG' ? '' : 'on'}" data-taf="TGT">TGT</button><button type="button" class="${fl.tafMode == 'LDG' ? 'on' : ''}" data-taf="LDG">LDG</button></span></div><div class="wxa">${esc(fl.taf)}</div></div>`
             : '')
         : '<p class="hint">Pick a flight in the Datacard to see its airbases.</p>';
     const rte =
@@ -521,6 +521,13 @@ export function createWeatherPage(deps) {
         pp.style.display = st.open ? '' : 'none';
         pb.querySelector('i').textContent = st.open ? '▴' : '▾';
       };
+    root.querySelectorAll('[data-taf]').forEach(
+      b =>
+        (b.onclick = () => {
+          if (deps.setTaf) deps.setTaf(b.dataset.taf);
+          draw();
+        })
+    );
     const fb = root.querySelector('[data-fill]');
     if (fb)
       fb.onclick = () => {

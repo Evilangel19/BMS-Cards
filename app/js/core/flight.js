@@ -129,6 +129,8 @@ const tcnStr = (v, b) => {
 const isHiFi = n => /^F-16/.test(n) || (/^F-15/.test(n) && !/^F-15[EKI]/.test(n) && !/JASDF|^F-15[CD]J/.test(n));
 // An aircraft whose data file was read (weights, fuel, hardpoints): the datacard can calculate for it too, even if it is not one of the accurate ones above.
 const hasAcData = (D, n) => !!(D && D.ew && (D.ew[n] != null || D.ew[n.replace(/\s*ROK\w*$/, '')] != null));
+// STOVL aircraft: a short take-off roll, a vertical landing (the program computes the roll only)
+const isStovl = n => /^(AV-?8|Harrier|F-35B|Yak-?38|Sea Harrier)/i.test(n);
 // BMS helicopters (and the MV-22) cannot be flown: no datacard for them.
 const isHeli = n => /^(UH|AH|CH|MH|OH|HH|SH|MV|Mi-|Ka-|Z-\d|WZ-|MD-)/i.test(n);
 function listFlights(C, rx = /F-16/) {
@@ -207,6 +209,7 @@ export {
   loadGroups,
   ord,
   isHiFi,
+  isStovl,
   hasAcData,
   isHeli,
   locBE,

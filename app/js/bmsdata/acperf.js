@@ -86,6 +86,7 @@ export function parseAcPerf(text, name = '') {
     fl.ab = table(en.alt_mach_fuel_flow_ab_table, th.idle);
     if (!fl.mil || !fl.ab || !fl.idle) fl.idle = null;
   }
+  const nEng = Math.max(1, Math.round(+((ax.engine && ax.engine.n_engines) || 1)));
   const lim = {};
   arr(o.limits && o.limits.limit).forEach(l => {
     if (l.key) lim[l.key] = arr(l.data && l.data.values);
@@ -144,6 +145,8 @@ export function parseAcPerf(text, name = '') {
     thrust: th,
     flow: fl,
     thrustFactor: en.thrust_factor == null ? 1 : en.thrust_factor,
+    nEngines: nEng, // the tables of thrust and fuel flow are for one engine (the Harrier counts its four nozzles, each with thrust_factor 0.25)
+    cat3Aoa: (lim.LIM_CAT3_AOA || [])[0] || 0, // alpha limit with the gear down: the approach is flown near it
     flowFactor: en.fuel_flow_factor == null ? 1 : en.fuel_flow_factor,
     simpleFuel: { normal: fuel.fuel_flow_factor_normal, ab: fuel.fuel_flow_factor_ab, min: fuel.min_fuel_flow },
     lim: { posG: lim.LIM_POS_G || [], storesDrag: lim.LIM_STORES_DRAG || [], aoa: (lim.LIM_AOA || [])[0] },

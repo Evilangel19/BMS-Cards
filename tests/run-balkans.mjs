@@ -41,6 +41,15 @@ ck('the Korea class table does not fit this theater', !korea);
 const w = parseFmap(new Uint8Array(rd('10900.fmap')));
 ck('fmap version 5: 59 x 59 cells, 5 arrays after the winds', w.X === 59 && w.Y === 59 && w.tail === 5);
 const c = w.at(512, 512);
+{
+  // the file holds 1 sunny .. 4 inclement; the reader gives 0..3
+  const h = [0, 0, 0, 0];
+  for (let i = 0; i < w.X; i++) for (let j = 0; j < w.Y; j++) h[w.cell(i, j).cond]++;
+  ck(
+    'fmap condition: 1..4 in the file are 0..3 (sunny 1243, fair 1091, poor 1123, inclement 24)',
+    h.join() === '1243,1091,1123,24'
+  );
+}
 ck(
   'fmap cell values are sane',
   c.p > 950 &&

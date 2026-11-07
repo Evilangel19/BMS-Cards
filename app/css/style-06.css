@@ -182,6 +182,12 @@
   letter-spacing: 0;
   cursor: pointer;
   padding: 2px 4px;
+  transition:
+    color 0.15s,
+    transform 0.1s;
+}
+.dsw:active {
+  transform: scale(0.97);
 }
 .dsw i {
   width: 30px;
@@ -518,8 +524,20 @@
 }
 .l16g {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 2fr);
   gap: 4px 26px;
+}
+/* the donors: two columns, numbered down (1-4 left, 5-8 right), the title over both */
+.l16g > div:nth-child(3) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-rows: auto repeat(4, auto);
+  grid-auto-flow: column;
+  column-gap: 26px;
+  align-content: start;
+}
+.l16g > div:nth-child(3) h4 {
+  grid-column: 1 / -1;
 }
 .l16g h4 {
   margin: 6px 0 2px;
@@ -531,9 +549,88 @@
 .l16g h4:first-child {
   margin-top: 0;
 }
+/* who is in each slot of the Link 16 plan: a chip beside the STN (grey: the plan of BMS, blue: put by the pilot from the map, amber: typed), with a cross to take the flight out */
+.l16g .drow.stn label {
+  width: 24px;
+}
+.l16g .drow .du.l16s {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+  display: flex;
+}
+.l16c {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  max-width: 100%;
+  padding: 1px 3px 1px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--mu);
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: nowrap;
+  animation: appear 0.15s ease-out;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.l16c.add {
+  color: #7cb7ff;
+  border-color: #3b82f6aa;
+  background: #3b82f61a;
+}
+.l16c.pin {
+  color: #f0b040;
+  border-color: #f0b040aa;
+  background: #f0b0401a;
+}
+.l16x {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 5px;
+  border-radius: 999px;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.l16x:hover {
+  background: #ffffff26;
+  color: #fff;
+}
+.dcard.ro .l16x,
+.dcard.ro .l16bk {
+  display: none;
+}
+.l16why {
+  margin: 0 0 8px;
+}
+/* a hint that says what the switch "from Datacard" does in each state: .hon while it is on, .hoff while it is off */
+.dcard .hoff {
+  display: none;
+}
+.dcard.soff .hon {
+  display: none;
+}
+.dcard.soff .hoff {
+  display: inline;
+}
+.dcard .hon,
+.dcard.soff .hoff {
+  animation: appear 0.15s ease-out;
+}
 @media (max-width: 1000px) {
   .l16g {
     grid-template-columns: 1fr 1fr;
+  }
+  .l16g > div:nth-child(3) {
+    grid-column: 1 / -1;
   }
 }
 .drow.stk {

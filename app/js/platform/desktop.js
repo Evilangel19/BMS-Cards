@@ -24,6 +24,11 @@ export async function appDir() {
   return T().core.invoke('app_dir');
 }
 
+// Files of the program that were replaced by an import (Settings > Import & backup): what the program holds in its memory is the old state of them, so it must not
+// write them again until it is started anew. The names are lower case ("config.json", "mapprefs.json", "squadron.json" ...).
+const frozen = new Set();
+export const freezeFiles = names => names.forEach(n => frozen.add(String(n).toLowerCase()));
+
 // ---- config ---------------------------------------------------------------
 export async function loadConfig() {
   if (isDesktop()) {
@@ -63,6 +68,7 @@ export async function loadConfig() {
 }
 
 export async function saveConfig(cfg) {
+  if (frozen.has('config.json')) return; // imported a moment ago: the program has to start again first (see freezeFiles)
   const text = JSON.stringify(cfg, null, 2) + '\n';
   if (isDesktop()) {
     await T().fs.writeTextFile(join(await appDir(), 'config.json'), text);
@@ -165,6 +171,26 @@ export async function saveBlob(blob, name, startDir) {
   a.click();
 }
 
+// Bytes saved where the pilot chooses (desktop: the file dialog, then the file is written; browser: a download). Returns the path ('' = the pilot cancelled, the name in the browser);
+// an error (the folder cannot be written ...) is thrown.
+export async function saveFileBytes(bytes, name, startDir) {
+  if (isDesktop()) {
+    const ext = (name.match(/\.([^.]+)$/) || [, ''])[1];
+    const path = await T().dialog.save({
+      defaultPath: startDir ? join(startDir, name) : name,
+      filters: ext ? [{ name: ext.toUpperCase(), extensions: [ext] }] : [],
+    });
+    if (!path) return '';
+    await T().fs.writeFile(path, bytes);
+    return path;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([bytes]));
+  a.download = name;
+  a.click();
+  return name;
+}
+
 // ---- game data lookup -------------------------------------------------------
 // Breadth-first search under `root` for the given file names (case-insensitive). Returns { name: fullPath }.
 // Folders that never hold the data tables (large media/asset folders); skipped to keep the search fast.
@@ -243,6 +269,43 @@ export async function readRange(path, offset, len) {
     await f.close();
   }
 }
+// Several pieces of a (possibly huge) file, [[offset, length], ...]: the file is opened once for each of the `conc` readers that work side by side, not once for
+// every piece (open, seek, read and close are four exchanges with the program each). The pieces come back in the order asked; one that has nothing to read is null.
+export async function readRanges(path, spans, conc = 4) {
+  const out = new Array(spans.length).fill(null);
+  if (!spans.length) return out;
+  const fs = T().fs,
+    start = fs.SeekMode ? fs.SeekMode.Start : 0,
+    opened = await Promise.allSettled(
+      Array.from({ length: Math.min(conc, spans.length) }, () => fs.open(path, { read: true }))
+    ),
+    files = opened.filter(r => r.status === 'fulfilled').map(r => r.value);
+  let next = 0,
+    err = opened.find(r => r.status === 'rejected');
+  err = err && err.reason;
+  try {
+    await Promise.all(
+      files.map(async f => {
+        while (!err) {
+          const q = next++;
+          if (q >= spans.length) return;
+          try {
+            await f.seek(spans[q][0], start);
+            const buf = new Uint8Array(spans[q][1]),
+              n = await f.read(buf);
+            out[q] = n ? buf.subarray(0, n) : null;
+          } catch (e) {
+            err = err || e;
+          }
+        }
+      })
+    );
+  } finally {
+    await Promise.all(files.map(f => f.close().catch(() => {})));
+  }
+  if (err) throw err;
+  return out;
+}
 export async function fileSize(path) {
   return (await T().fs.stat(path)).size;
 }
@@ -287,6 +350,17 @@ export async function makeDir(path) {
     /* exists */
   }
 }
+
+// The file access of the data move (core/transferrun.js): the folders and files of the program, of another copy of it and of the backup files
+export const dataIo = () => ({
+  join,
+  list: async dir => ((await T().fs.readDir(dir)) || []).map(e => ({ name: e.name, isDirectory: !!e.isDirectory })),
+  read: path => T().fs.readFile(path),
+  write: (path, bytes) => T().fs.writeFile(path, bytes),
+  mkdir: path => makeDir(path),
+  exists: path => fileExists(path),
+  size: path => fileSize(path),
+});
 
 // Files dropped on the window. cb(files, {x, y}) on drop (x, y in CSS pixels); hover(true|false, {x, y}) while files are dragged over.
 // Desktop: Tauri reports file paths (its own drop handling replaces the browser's); browser: normal drag and drop.
@@ -389,6 +463,7 @@ function prefLater(name, write) {
 export function savePrefs(name, obj) {
   // written a moment after the last change (the map view changes all the time)
   prefLater(name, async () => {
+    if (frozen.has(name.toLowerCase())) return;
     try {
       const text = JSON.stringify(obj);
       if (isDesktop()) await T().fs.writeTextFile(join(await appDir(), name), text);
@@ -418,6 +493,7 @@ export function savePrefsSafe(name, obj) {
   prefLater(name, () => {
     // one write at a time: the next one waits for the one in progress
     safeChain[name] = (safeChain[name] || Promise.resolve()).then(async () => {
+      if (frozen.has(name.toLowerCase())) return;
       try {
         await safeSave(prefIo(), name, JSON.stringify(obj));
       } catch (e) {

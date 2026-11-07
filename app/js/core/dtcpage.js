@@ -1,6 +1,7 @@
 // Data Cartridge page: vertical list of sections, each one a page of cards. A card is read-only until its "Edit" button is pressed.
 // Everything here edits the lines of the open DTC (deps.S) and tells the rest of the program (deps.changed) so the map and the datacard follow.
 import { STPT_RANGE, WT_N } from './mapdtc.js';
+import { normStn } from './l16plan.js';
 export const SECTIONS = [
   ['stpt', 'Steerpoints'],
   ['tgt', 'Targets'],
@@ -119,7 +120,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
-    SYNC = { ews: true, icp: true, wpn: true }, // same as DCS0 (app/datacard.js)
+    SYNC = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true, radio: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
     EWSP = 0,
@@ -185,7 +186,7 @@ export function createDtcPage(deps) {
       [0, 'Off'],
     ]);
   const card = (id, title, body, o = {}) =>
-    `<div class="dcard${OPEN.has(o.ok || id) || o.live ? '' : ' ro'}${o.full ? ' full' : ''}${o.cls ? ' ' + o.cls : ''}" data-card="${id}"><h3>${title}<span class="sp"></span>${o.right || ''}${o.sync ? `<button type="button" class="dsw${SYNC[o.sync] ? ' on' : ''}" data-sync="${o.sync}" title="${esc(o.syncTip || 'Keep these values equal to the ones of the Datacard: what you type in the Datacard is written into the DTC')}"><i></i>from Datacard</button>` : ''}${o.noedit ? '' : `<button type="button" class="btn g sm dpen" data-edit="${id}">${OPEN.has(id) ? '✔ Done' : '✎ Edit'}</button>`}</h3>${body}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}</div>`;
+    `<div class="dcard${OPEN.has(o.ok || id) || o.live ? '' : ' ro'}${o.full ? ' full' : ''}${o.cls ? ' ' + o.cls : ''}${o.sync && !SYNC[o.sync] ? ' soff' : ''}" data-card="${id}"><h3>${title}<span class="sp"></span>${o.right || ''}${o.sync ? `<button type="button" class="dsw${SYNC[o.sync] ? ' on' : ''}" data-sync="${o.sync}" title="${esc(o.syncTip || 'Keep these values equal to the ones of the Datacard: what you type in the Datacard is written into the DTC')}"><i></i>from Datacard</button>` : ''}${o.noedit ? '' : `<button type="button" class="btn g sm dpen" data-edit="${id}">${OPEN.has(id) ? '✔ Done' : '✎ Edit'}</button>`}</h3>${body}${o.hint ? `<div class="hint">${o.hint}</div>` : ''}</div>`;
   const absent = (what, sec) =>
     `<div class="hint">${what} is not in this file${sec ? ' (section [' + sec + '])' : ''}.</div>`;
   const head = (t, sub, right) =>
@@ -448,7 +449,16 @@ export function createDtcPage(deps) {
           rows.length
             ? `<table class="dt"><tr><th>#</th><th>MHz</th><th>Note</th><th>Used by</th></tr>${rows.join('')}</table>`
             : absent('These presets'),
-          {}
+          pre === 'UHF'
+            ? {
+                sync: 'radio',
+                syncTip:
+                  'The presets follow the flight on the Datacard: 6 the UHF / VHF of your flight, 13 the first tanker, 5 the AWACS, UHF 15 the intra-flight UHF, VHF 15 on the flights of the package in the order of the Datacard. They are written when you open a flight and when you switch this on',
+                hint:
+                  '<span class="hon">Written from the flight on the Datacard: 5 AWACS, 6 your flight (the frequency for AWACS, FAC and JTAC), 13 the first tanker, UHF 15 the intra-flight UHF of the first flight, VHF 15, 16... the flights of the package in the order of the Datacard. The notes are the ones of BMS.</span>' +
+                  '<span class="hoff">Off: these presets are the ones BMS saved in this file, so they belong to the flight that was saved before and may not be the ones of the flight chosen here. Switch on to write the ones of the flight on the Datacard.</span>',
+              }
+            : {}
         );
       };
       const start = card(
@@ -575,7 +585,12 @@ export function createDtcPage(deps) {
       return (
         h +
         '<div class="dgrid">' +
-        card('iffs', 'Status', stat) +
+        card('iffs', 'Status', stat, {
+          sync: 'iff',
+          syncTip:
+            'The Mode 2 and Mode 3 codes follow the seat chosen on the Datacard: the codes of that aircraft (the Mode 3 codes of the time events too) are written into the DTC',
+          hint: 'Switch on to take the Mode 2 and Mode 3 codes of the seat you chose on the Datacard (press a round button there); off to type them here. The codes are the ones BMS saved in this file: they belong to the flight that was saved before, so they may not be the ones BMS gives to the flight chosen here.',
+        }) +
         card('iffp', 'Position event', pos) +
         card('ifft', 'Time event', tim) +
         '</div>'
@@ -584,13 +599,29 @@ export function createDtcPage(deps) {
     l16() {
       let h = head('Link 16', 'Link 16 files A and B.');
       if (!secOn('LINK16')) return h + absent('Link 16', 'LINK16');
+      // the plan of the flight on the datacard: who is in each slot (the chip beside the STN); only where the slot holds what the plan says
+      const info = deps.l16Info ? deps.l16Info() : null;
+      const chip = (ab, i, key) => {
+        const plan = info && info[ab],
+          c = plan && plan[i];
+        if (!c || normStn(val('LINK16', key)) !== c.stn) return '';
+        if (c.src === 'pin')
+          return `<span class="l16c pin" title="Typed by you: the slot stays as typed">${c.stn === '00000' ? 'empty' : 'typed'}<button type="button" class="l16x" data-l16x="${ab}:${i}:" title="Take the typed STN back: the slot follows the plan again">×</button></span>`;
+        const first = plan.findIndex(z => z && z.cs === c.cs) === i,
+          mine = c.cs === info.cs;
+        return `<span class="l16c ${c.src}" title="${esc(c.label)}: ${c.src === 'add' ? 'put here by you' : 'the plan of BMS'}${mine ? ' (your flight)' : ''}">${esc(c.label)}${first && !mine ? `<button type="button" class="l16x" data-l16x="${ab}:${i}:${esc(c.cs)}" title="Take ${esc(c.cs)} out of file ${ab} (all its slots)">×</button>` : ''}</span>`;
+      };
       const f = ab => {
         const K = k => `FILE_${ab}_${k}`,
           I = (k, w = 64) => inp('LINK16', K(k), { w }),
           r = (l, c) => row(l, c);
-        const stn = (t, pre, n) =>
+        const stn = (t, pre, n, base) =>
           `<h4>${t}</h4>` +
-          Array.from({ length: n }, (_, i) => r('#' + (i + 1), I(`${pre}_${i + 1}_STN`, 64))).join('');
+          Array.from(
+            { length: n },
+            (_, i) =>
+              `<div class="drow stn"><label>#${i + 1}</label>${I(`${pre}_${i + 1}_STN`, 64)}<span class="du l16s">${chip(ab, base + i, K(`${pre}_${i + 1}_STN`))}</span></div>`
+          ).join('');
         const left =
           r('Flight lead', onoff('LINK16', K('FLIGHT_LEAD'))) +
           r('ETR', onoff('LINK16', K('EXT_TIME_REFERENCE'))) +
@@ -598,9 +629,9 @@ export function createDtcPage(deps) {
           r('Number', I('CALLSIGN_NUMBER', 48)) +
           r('Voice A', I('VOICE_GROUP_A_CHANNEL', 48)) +
           r('Voice B', I('VOICE_GROUP_B_CHANNEL', 48)) +
-          r('Mission', I('MISSION_CHANNEL', 48)) +
-          r('Fighter', I('FIGHTER_CHANNEL', 48)) +
-          r('Special', I('SPECIAL_CHANNEL', 48)) +
+          r('<span title="Mission channel">MC</span>', I('MISSION_CHANNEL', 48)) +
+          r('<span title="Fighter channel">FC</span>', I('FIGHTER_CHANNEL', 48)) +
+          r('<span title="Special channel">SC</span>', I('SPECIAL_CHANNEL', 48)) +
           r(
             'TACAN',
             I('TACAN_CHANNEL', 40) +
@@ -610,13 +641,31 @@ export function createDtcPage(deps) {
                 ['Y', 'Y'],
               ])
           );
-        return `<div class="l16g"><div>${left}</div><div>${stn('Flight STNs', 'FLIGHT', 4)}${stn('Team STNs', 'TEAM', 4)}</div><div>${stn('Donor STNs', 'DONOR', 8)}</div></div>`;
+        return `<div class="l16g"><div>${left}</div><div>${stn('Flight STNs', 'FLIGHT', 4, 0)}${stn('Team STNs', 'TEAM', 4, 4)}</div><div>${stn('Donor STNs', 'DONOR', 8, 8)}</div></div>`;
       };
+      // "Back to auto" (file A: the plan of BMS) / "Clear" (file B: empty) once the pilot changed something in that file
+      const back = (ab, changed) =>
+        changed
+          ? `<button type="button" class="btn g sm l16bk" data-l16back="${ab}" title="${ab == 'A' ? 'Take back every change of yours: the plan of BMS again' : 'Take everything out of file B (it is empty by default)'}">${ab == 'A' ? 'Back to auto' : 'Clear'}</button>`
+          : '';
+      const why =
+        info && !info.can.ok && info.can.why
+          ? `<div class="hint l16why">${esc(info.can.why)} Nothing is written until then.</div>`
+          : '';
       return (
         h +
+        why +
         '<div class="dgrid one l16two">' +
-        card('l16a', 'File A', f('A'), {}) +
-        card('l16b', 'File B', f('B'), {}) +
+        card('l16a', 'File A', f('A'), {
+          sync: 'l16',
+          right: back('A', info && info.changedA),
+          syncTip: 'Callsign letters, number, flight lead and STNs follow the seat chosen on the Datacard.',
+          hint: 'Follows the seat chosen on the Datacard. To move a flight, click it on the Map and choose Add Link 16. An STN typed here stays.',
+        }) +
+        card('l16b', 'File B', f('B'), {
+          right: back('B', info && info.changedB),
+          hint: 'Empty unless you fill it: from the Map (Add Link 16, file B) or by typing an STN here.',
+        }) +
         '</div>'
       );
     },
@@ -645,7 +694,7 @@ export function createDtcPage(deps) {
             {
               sync: 'icp',
               syncTip: 'Bingo and ALOW follow the Datacard: what you type there is written into the DTC',
-              hint: 'Switch on to take bingo and ALOW from the Datacard; off to type them here (more simulative).',
+              hint: 'Switch on to take bingo and ALOW from the datacard; off to type them inside the plane (more simulative).',
             }
           )
         : card('icp', 'ICP', absent('The ICP data', 'ICP'), { noedit: 1 });
@@ -655,7 +704,13 @@ export function createDtcPage(deps) {
             'Laser',
             row('Laser start time', inp('Laser', 'LaserST', { t: 'int', w: 70 }), 's') +
               row('TGP code', inp('Laser', 'LaserTGP', { t: 'int', w: 70 })) +
-              row('LST code', inp('Laser', 'LaserLST', { t: 'int', w: 70 }))
+              row('LST code', inp('Laser', 'LaserLST', { t: 'int', w: 70 })),
+            {
+              sync: 'lsr',
+              syncTip:
+                'The TGP code follows the Datacard: the CONF-LSR code of the chosen seat is written into the DTC (the LST code and the start time are not touched)',
+              hint: 'Switch on to take the TGP code from the datacard (the CONF-LSR of the chosen seat); off to type it here. The start time and the LST code are always typed here.',
+            }
           )
         : card('laser', 'Laser', absent('The laser codes', 'Laser'), { noedit: 1 });
       h +=
@@ -1235,11 +1290,29 @@ export function createDtcPage(deps) {
         (b.onclick = () => {
           const g = b.dataset.sync;
           SYNC[g] = !SYNC[g];
-          view.querySelectorAll(`[data-sync="${g}"]`).forEach(x => x.classList.toggle('on', SYNC[g]));
+          view.querySelectorAll(`[data-sync="${g}"]`).forEach(x => {
+            x.classList.toggle('on', SYNC[g]);
+            const c = x.closest('.dcard');
+            if (c) c.classList.toggle('soff', !SYNC[g]); // the hint of a card can tell what the switch does in each state (.hon / .hoff)
+          });
           deps.sync(g, SYNC[g]);
           dots();
         })
     );
+    // the plan of Link 16: a flight (or a typed STN) taken out of a file, or all the changes of a file taken back
+    const l16Say = m => {
+      if (m && deps.toast) deps.toast(m);
+      render();
+    };
+    root.querySelectorAll('[data-l16x]').forEach(
+      b =>
+        (b.onclick = () => {
+          const [ab, i, ...r] = b.dataset.l16x.split(':'),
+            cs = r.join(':');
+          l16Say(cs ? deps.l16Remove(ab, cs) : deps.l16Unpin(ab, +i));
+        })
+    );
+    root.querySelectorAll('[data-l16back]').forEach(b => (b.onclick = () => l16Say(deps.l16Back(b.dataset.l16back))));
     root.querySelectorAll('input[data-g]').forEach(
       i =>
         (i.onchange = () => {
@@ -1429,6 +1502,13 @@ export function createDtcPage(deps) {
 
   // ---- drawing ---------------------------------------------------------------------------------
   function drawNav() {
+    const have = [...nav.querySelectorAll('button')];
+    if (have.length === SECTIONS.length && have.every((b, i) => b.dataset.k === SECTIONS[i][0])) {
+      // the buttons are already there: only the highlighted one changes, in place, so its colours change smoothly
+      have.forEach(b => b.classList.toggle('on', b.dataset.k == cur));
+      dots();
+      return;
+    }
     nav.innerHTML = SECTIONS.map(
       ([k, t]) => `<button type="button" data-k="${k}" class="${k == cur ? 'on' : ''}">${t}<i></i></button>`
     ).join('');
@@ -1496,5 +1576,9 @@ export function createDtcPage(deps) {
       return SYNC;
     },
     card: id => view.querySelector(`[data-card="${id}"]`),
+    // the Link 16 plan changed (an STN typed): drawn again if the page is the one on the screen
+    l16Draw() {
+      if (cur == 'l16' && has()) render();
+    },
   };
 }

@@ -203,14 +203,18 @@ export function atoSearch0() {
 export function flInfo(e) {
   const radio = [e.uhf && 'UHF ' + e.uhf, e.vhf && 'VHF ' + e.vhf].filter(Boolean).join(' · '),
     l16 = e.stn
-      ? ['STN ' + e.stn, e.fc !== '' && 'FC ' + e.fc, e.mc !== '' && 'MC ' + e.mc].filter(Boolean).join(' ')
+      ? ['STN ' + e.stn, e.fc !== '' && 'FC ' + e.fc, e.mc !== '' && 'MC ' + e.mc, e.sc !== '' && 'SC ' + e.sc]
+          .filter(Boolean)
+          .join(' ')
       : '';
   return `<b class="bl">${esc(e.callsign)}</b> · ${e.n}× ${esc(e.ac)} · ${esc(e.mission)}<div class="m">Pkg <span class="bl">${e.pkgNo}</span> · ${esc(e.teamName)} · ${esc(e.squadron)}${e.base ? ' · ' + esc(e.base) : ''} · TO ${e.takeoff || '--:--'} · TOT ${e.tot || '--:--'}</div>${e.target ? `<div class="m">${esc(e.target)}</div>` : ''}${radio ? `<div class="m">${radio}</div>` : ''}${l16 ? `<div class="m">${l16}</div>` : ''}`;
 }
 export function flLine(e) {
   const rad = [e.uhf && 'UHF ' + e.uhf, e.vhf && 'VHF ' + e.vhf].filter(Boolean),
     l16 = e.stn
-      ? ['STN ' + e.stn, e.fc !== '' && 'FC ' + e.fc, e.mc !== '' && 'MC ' + e.mc].filter(Boolean).join(' ')
+      ? ['STN ' + e.stn, e.fc !== '' && 'FC ' + e.fc, e.mc !== '' && 'MC ' + e.mc, e.sc !== '' && 'SC ' + e.sc]
+          .filter(Boolean)
+          .join(' ')
       : '';
   const a = [
     `${e.n}× ${esc(e.ac)}`,

@@ -1,4 +1,5 @@
 import { navRow } from '../core/weaponspage.js';
+import { iffModes, seatIffCode } from '../core/iffseat.js';
 import { mdcAuto } from './mdcfill.js';
 import { CAM } from '../core/cam-core.js';
 import { dtcKey, dtcValue, dtcEmpty } from '../core/mapdtc.js';
@@ -8,6 +9,7 @@ import { F, mirrorAll } from './datacard.js';
 import { $ } from './base.js';
 import { mapV } from './pages.js';
 import { draw } from './cardview.js';
+import { seatIdx, seatCodes } from './seat.js';
 
 // The datacard of a received mission is the sender's: what his DTC, his Link 16 / IFF files and his pilot list filled in (IFF, Link 16, laser, delivery data, pilots, MAR table...) is kept
 // whenever the card is built again on this computer (another DTC opened, the flight selected again). ST.MSFCARD = {C, key, vals} is set by msfLoad; values changed by hand here (ST.MANK) win.
@@ -21,6 +23,7 @@ export function msfFreeze(fl) {
 export function applyDTC(fl) {
   applyDTC0(fl);
   msfFreeze(fl);
+  seatCodes(); // B. CODE of the weapon profiles: the CONF-LSR code of the chosen seat
 }
 function applyDTC0(fl) {
   if (!lines.length) return;
@@ -38,9 +41,11 @@ function applyDTC0(fl) {
     F.bingo = String(Math.round(+bf));
     F.joker = String(Math.round(+bf) + 1000);
   }
+  // the laser: the TGP code of the DTC is the CONF-LSR code of the chosen seat (the B. CODE cells of the weapon profiles only show it: seatCodes)
+  const tgp = g('Laser', 'LaserTGP');
+  if (tgp !== '') F[`fl${seatIdx()}_5`] = tgp;
   const SUB = { 7: 'CCIP', 8: 'CCRP' },
-    FZ = { 0: 'NSTL', 1: 'NOSE', 2: 'TAIL' },
-    bc = g('Laser', 'LaserTGP');
+    FZ = { 0: 'NSTL', 1: 'NOSE', 2: 'TAIL' };
   [1, 2].forEach(n => {
     const k = s => g('FCC_AGB', `Profile${n}_${s}`);
     if (k('Submode') === '') return;
@@ -52,7 +57,6 @@ function applyDTC0(fl) {
     F[`wp${n}_ang`] = String(Math.round(+k('Release_Angle')));
     F[`wp${n}_rp`] = String(+k('Release_Pulse') + 1);
     F[`wp${n}_spc`] = String(Math.round(+k('Release_Spacing')));
-    if (bc) F[`wp${n}_bc`] = bc;
   });
   // the attack data of the card (Delivery section) are built again from the DTC and the Weapons page every time: what is no longer there (offsets cleared, another attack) must not stay on the card; values typed by hand (MANK) are kept
   [
@@ -137,18 +141,8 @@ function applyDTC0(fl) {
   }
   if (fl && ST.C && g('IFF', 'Mode2 Code') !== '') {
     const P = ST.IFFP && ST.IFFP[fl.owner],
-      B = [0, 1, 2, 3, 4, 7, 8],
-      tot = CAM.totMs(ST.C, fl);
-    let a2 = 1,
-      a4 = 1;
-    if (P && P.pm[fl.omis]) {
-      const pr = P.pm[fl.omis],
-        yy = +pr.slice(0, 2),
-        zz = +pr.slice(2),
-        m = yy != zz && fl.wps.some(p => !B.includes(p.act)) ? zz : yy;
-      a2 = m & 2 ? 1 : 0;
-      a4 = m & 8 ? 1 : 0;
-    }
+      tot = CAM.totMs(ST.C, fl),
+      { a2, a4 } = iffModes(P, fl);
     const DAY = 864e5,
       ap = fl.wps.map(p => p.arr).filter(Boolean),
       t0 = (fl.wps.find(p => p.act == 1) || { arr: ap[0] }).arr,
@@ -185,34 +179,15 @@ function applyDTC0(fl) {
         0,
         el.findIndex(e => e.id.n == fl.id.n && e.id.c == fl.id.c)
       ),
-      o = parseInt(g('IFF', 'Mode2 Code'), 8),
-      yy2 = o & 63,
-      xx = o >> 6,
-      bs = [4, 24, 44].find(b => yy2 >= b && yy2 - b < 20),
-      st2 = P && P.M2Setting !== undefined ? P.M2Setting : 0;
+      st2 = P && P.M2Setting !== undefined ? P.M2Setting : 0,
+      st3 = P && P.M3Setting !== undefined ? P.M3Setting : 0;
     const c3 = atAbs(tot, 'Mode3A Code');
-    const m2of = i => {
-      if (!(+g('IFF', 'Mode2 On') && a2)) return '';
-      if (st2 == 0) {
-        if (bs !== undefined && Math.floor((yy2 - bs) / 4) == fi)
-          return ((xx << 6) | (bs + fi * 4 + i)).toString(8).padStart(4, '0');
-      } else if (st2 == 1) return String(g('IFF', 'Mode2 Code')).padStart(4, '0');
-      return '';
-    };
-    const m3of = i => {
-      if (!c3) return '';
-      const o3 = parseInt(c3, 8),
-        y3 = o3 & 63,
-        x3 = o3 >> 6,
-        b3 = [4, 24, 44].find(b => y3 >= b && y3 - b < 20),
-        s3 = P && P.M3Setting !== undefined ? P.M3Setting : 0;
-      if (s3 == 0) {
-        if (b3 !== undefined && Math.floor((y3 - b3) / 4) == fi)
-          return ((x3 << 6) | (b3 + fi * 4 + i)).toString(8).padStart(4, '0');
-      } else if (s3 == 1) return c3.padStart(4, '0');
-      return '';
-    };
-    // the IFF cells of the MDC format (M1..M4) are the ones of the lead
+    // the code of each aircraft from the one of the DTC (core/iffseat.js): the same rule that writes the DTC for the chosen seat (app/seatdtc.js)
+    const m2of = i => (+g('IFF', 'Mode2 On') && a2 ? seatIffCode(g('IFF', 'Mode2 Code'), fi, i, st2) : '');
+    const m3of = i => (c3 ? seatIffCode(c3, fi, i, st3) : '');
+    // what the IFF files give to each seat (modes 2 and 3): the MDC format shows the one of the chosen seat (mdcAuto -> core/mdcfill.js); kept and saved with the card
+    for (let i = 0; i < 4; i++) F['fl' + i + '_m'] = i < CAM.nAcf(fl) ? [m2of(i), m3of(i)].join('|') : '';
+    // the IFF cells of the MDC format (M1..M4): the ones of the lead until mdcAuto puts the ones of the chosen seat
     F.m1 = +g('IFF', 'Mode1 On') ? atAbs(tot, 'Mode1 Code') : '';
     F.m2 = m2of(0);
     F.m3 = m3of(0);

@@ -1,5 +1,13 @@
 import { createWeatherPage } from '../core/weatherpage.js';
-import { join as joinPath, listDir, readBytes, isDesktop, pickFile } from '../platform/desktop.js';
+import {
+  join as joinPath,
+  listDir,
+  readBytes,
+  isDesktop,
+  pickFile,
+  saveConfig,
+  saveFailed,
+} from '../platform/desktop.js';
 import { CAM } from '../core/cam-core.js';
 import { toLL as mToLL, fromLL as mFromLL, theaterBounds as mBounds } from '../core/mapdata.js';
 import { parseLink16 } from '../parsers/link16.js';
@@ -87,19 +95,37 @@ export const landMs = f => {
   const w = ((f && f.wps) || []).find((p, i) => i > 0 && p.act == 7);
   return w ? w.arr : null;
 };
+// the forecast of the datacard: of the target or of the landing airbase (choice kept in the settings)
+export const tafMode = () => (ST.CFG.ui && ST.CFG.ui.wxTaf === 'LDG' ? 'LDG' : 'TGT');
+export function tafSite(f) {
+  const o = (F.__ab || [])[1],
+    arr = landMs(f);
+  if (tafMode() != 'LDG' || !o || arr == null) return null;
+  return { id: (o[1].match(/\((\w+)\)/) || [])[1] || o[1], x: o[2], y: o[3], arr, elev: +F.ab1_4 || 0 };
+}
+export const tafFor = f => {
+  const site = tafSite(f),
+    ta = (f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || {}).arr,
+    W = wxAt(site ? site.arr : ta);
+  return W ? CAM.tafText(ST.C, W, f, site || undefined) : '';
+};
+export function setTafMode(m) {
+  ST.CFG.ui = ST.CFG.ui || {};
+  ST.CFG.ui.wxTaf = m == 'LDG' ? 'LDG' : 'TGT';
+  saveConfig(ST.CFG).catch(e => saveFailed('config.json', e));
+}
 // ATIS, TAF and runways from the weather map of the right hour (the campaign map is the fallback); set(k,v) writes the field
 export function wxApply(i, set) {
   const f = ST.CL[i] && ST.CL[i].f;
   if (!f || !(ST.WX || WXS.size)) return;
   const d = F.__dep,
-    ta = (f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || {}).arr,
-    wt = wxAt(ta);
-  const taf = wt ? CAM.tafText(ST.C, wt, f) : '';
+    taf = tafFor(f);
   set('__taf', taf);
   const wd = wxAt(d && d[3]);
   if (wd && d) {
     set('atis', CAM.atisText(wd, d, F.ab0_4) + (taf ? '\n' + taf : ''));
-    set('matis', CAM.atisText(wd, d, F.ab0_4) + ' ' + CAM.wxColour(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only + its colour state
+    set('matis', CAM.atisText(wd, d, F.ab0_4)); // the MDC format: the METAR of the airbase only
+    set('matis_c', CAM.wxColour(wd, d, F.ab0_4)); // its colour code: shown instead of the METAR when this does not fit the cell at a size that can be read
   }
   (F.__ab || []).forEach((o, j) => {
     if (!o) return;
@@ -165,7 +191,6 @@ export function wxFlight() {
       atis: Wb && ms != null ? CAM.atisText(Wb, [id, o[2], o[3], ms], elev) : '',
     });
   });
-  const wt = wxAt(ta);
   return {
     title: x.label,
     wps: f.wps,
@@ -176,7 +201,9 @@ export function wxFlight() {
     land,
     hours,
     bases,
-    taf: wt ? CAM.tafText(ST.C, wt, f) : '',
+    taf: tafFor(f),
+    tafMode: tafMode(),
+    tafId: (tafSite(f) || {}).id || '',
   };
 }
 // force: write ATIS, TAF and runways again, also over what was typed by hand; fillState tells whether the datacard already holds them
@@ -423,6 +450,7 @@ export async function init14() {
     at: wxAt,
     fill: wxFill,
     fillState: wxFillState,
+    setTaf: setTafMode,
     attach: el => mapV.attach(el, true),
     detach: () => mapV.detach(),
     toLL: (x, y) => mToLL(x, y),

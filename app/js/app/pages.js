@@ -7,19 +7,19 @@ import { createWeaponsPage } from '../core/weaponspage.js';
 import { createSquadronPage } from '../core/squadron.js';
 import {
   isDesktop,
-  readRange,
   loadPrefs,
   savePrefs,
   loadPrefsSafe,
   savePrefsSafe,
   beforeClose,
   readBytes,
+  fileSize,
   listDir,
   findFiles,
   join as joinPath,
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
-import { heightsAt } from '../bmsdata/heightmap.js';
+import { msaOfFlight, msaOfBase } from './msafill.js';
 import { dtcPoints } from '../core/mapdtc.js';
 import { targetLine } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
@@ -36,11 +36,13 @@ export const nearName = (x, y) => {
 };
 import { ST } from './state.js';
 import { $, animOn, appToast, esc, jp } from './base.js';
-import { acFolder, misLoad, perfAcGet, terrain } from './gamefiles.js';
+import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
-import { PERFP, RLI, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
+import { isShipBase, shipKind } from '../core/carriers.js';
+import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
+import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
 import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
@@ -109,13 +111,31 @@ export async function init6() {
       apply(k);
       return true;
     },
+    // Link 16 of the DTC: a flight of the package put in a file from the map (app/l16link.js)
+    l16: {
+      mate: f => l16Mate(ATOL.find(z => z.f === f)),
+      can: l16Can,
+      plan: l16Plan,
+      has: l16Has,
+      preview: l16Preview,
+      add: l16Add,
+      remove: l16Remove,
+    },
     getC: () => ST.C,
     getWx: () => ST.WX,
     elev: async pts => {
       const t = await terrain();
-      return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+      return t ? heightsOf(t, pts) : null;
     },
     getSel: () => ST.ATOSEL,
+    msa: { route: msaOfFlight, base: msaOfBase },
+    // speed (Mach/TAS), MSA and minimum fuel of steerpoint i of flight f, as the datacard holds them (only for the flight selected there)
+    stp: (f, i) => {
+      const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0];
+      if (!x || x.f !== f) return null;
+      const g = j => String(F[`fp${i}_${j}`] == null ? '' : F[`fp${i}_${j}`]).trim();
+      return { speed: g(4), msa: g(11), fuel: g(6) };
+    },
     dtc: {
       points: () => dtcPoints(lines),
       wtargets: () => wtList(),
@@ -124,7 +144,7 @@ export async function init6() {
       elev: async t => {
         try {
           const tr = await terrain();
-          const h = tr ? await heightsAt((o, l) => readRange(tr.path, o, l), tr.spec, [t]) : null;
+          const h = tr ? await heightsOf(tr, [t]) : null;
           return h && h[0] !== null && h[0] !== undefined ? h[0] : 0;
         } catch (e) {
           return 0;
@@ -148,8 +168,14 @@ export async function init6() {
     satCfg: () => ST.CFG.map,
     loadPrefs: () => loadPrefs('mapprefs.json'),
     savePrefs: o => savePrefs('mapprefs.json', o),
-    localMap: async () => {
-      if (window.__localMap) return window.__localMap();
+    // The picture of the BMS folder, found but not read: its name and size (they are all that is needed to know whether the copies kept in the database are still
+    // good) and read(), which gives the whole file, only called when the picture has to be decoded (the first time, or after a change of the file).
+    localMapInfo: async () => {
+      if (window.__localMapInfo) return window.__localMapInfo();
+      if (window.__localMap) {
+        const f = await window.__localMap();
+        return { name: f.name, size: f.size, read: async () => f };
+      }
       if (!isDesktop()) throw new Error('Only in the desktop app.');
       const d = ST.CFG.paths.bmsInstall;
       if (!d) throw new Error('Set the BMS folder in Settings first.');
@@ -176,9 +202,13 @@ export async function init6() {
         f = dir && (await listDir(dir)).find(e => !e.isDirectory && /^8_kto_16k_skyvector/i.test(e.name));
         if (!f) throw new Error('8_KTO_16k_Skyvector not found in Docs\\05 Maps of the BMS folder.');
       }
-      return new File([await readBytes(jp(dir, f.name))], f.name, {
-        type: /\.jpe?g$/i.test(f.name) ? 'image/jpeg' : 'image/png',
-      });
+      const path = jp(dir, f.name);
+      return {
+        name: f.name,
+        size: await fileSize(path),
+        read: async () =>
+          new File([await readBytes(path)], f.name, { type: /\.jpe?g$/i.test(f.name) ? 'image/jpeg' : 'image/png' }),
+      };
     },
     canSelect: f => {
       const e = ATOL.find(z => z.f === f);
@@ -278,7 +308,7 @@ export async function init9() {
     },
     elev: async pts => {
       const t = await terrain();
-      return t ? heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts) : null;
+      return t ? heightsOf(t, pts) : null;
     },
     root: $('wp'),
     esc,
@@ -437,12 +467,14 @@ export async function init11() {
         const a = rwyAuto(d);
         return {
           id: d[0],
-          name: d[0] + (F.ab0_0 ? ' · ' + F.ab0_0 : ''),
+          name: baseName(d),
           ft: rwyFt(d),
           man: PERFP.rwy[d[0]] || 0,
           auto: a ? a.ft : 0,
           wid: a ? a.w : 0,
           info: RLI,
+          ship: isShipBase(F.__ab && F.__ab[0]),
+          kind: isShipBase(F.__ab && F.__ab[0]) ? shipKind(F.__ab[0][1]) : '',
         };
       },
       set: v => {
@@ -455,12 +487,21 @@ export async function init11() {
       },
     },
     prefs: {
-      get: () => ({ reserve: PERFP.reserve, joker: PERFP.joker, ohalt: PERFP.ohalt, ohspd: PERFP.ohspd }),
+      get: () => ({
+        reserve: PERFP.reserve,
+        joker: PERFP.joker,
+        ohalt: PERFP.ohalt,
+        ohspd: PERFP.ohspd,
+        lmode: PERFP.lmode,
+        lstores: PERFP.lstores,
+      }),
       set: o => {
         PERFP.reserve = o.reserve;
         PERFP.joker = o.joker;
         PERFP.ohalt = o.ohalt;
         PERFP.ohspd = o.ohspd;
+        PERFP.lmode = o.lmode || 'ovhd';
+        PERFP.lstores = o.lstores || 'on';
         perfSave();
         clearTimeout(ST.PFT);
         ST.PFT = setTimeout(() => perfFill(+$('fsel').value || 0), 500);

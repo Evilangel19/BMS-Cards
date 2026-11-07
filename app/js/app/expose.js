@@ -4,19 +4,21 @@ import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { MFD, draw, gapless } from './cardview.js';
 import { KBLIB, KBS, KBTH, dcPage, kbKept } from './kneeboard.js';
-import { mapV, pfPage, sqPage } from './pages.js';
+import { harmPage, mapV, pfPage, sqPage } from './pages.js';
 import { WXS, loadFmap, loadIFF, loadL16, loadTwx, wxAt, wxKey, wxKeys, wxPage } from './campaign.js';
-import { CYC, F, FD, TOPOWER, cycle, setField, ptChoices, ptPick, dtcChanged } from './datacard.js';
+import { CYC, F, FD, TOPOWER, cycle, setField, ptChoices, ptPick, dtcChanged, dcSync } from './datacard.js';
 import { MSFSIG, msfBuild, msfLoad, msfSig, unsaved } from './mission.js';
 import { dtcSet } from './dtcapply.js';
 import { $, IO } from './base.js';
 import { dtcOut, lines, parse } from './dtcfile.js';
 import { apply, loadCam } from './selection.js';
-import { applyFormToggle, closeEd, openEd } from './editor.js';
+import { SX, SY, applyFormToggle, boxOf, closeEd, openEd } from './editor.js';
 import { perfFill } from './perf.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { TDATA } from './dtctargets.js';
 import { GAMEDATA } from './gamedata.js';
+import { goFlight, pickSeat, seatIdx, seatMe } from './seat.js';
+import { l16Add, l16Back, l16Info, l16Plan, l16Recs, l16Remove, l16Unpin } from './l16link.js';
 
 // run 19: statements that run when the program starts (in the order of the original file)
 export async function init19() {
@@ -27,6 +29,7 @@ export async function init19() {
     ptChoices,
     ptPick,
     dtcChanged,
+    dcSync,
     MFD,
     kbKept,
     get KBTH() {
@@ -34,6 +37,15 @@ export async function init19() {
     },
     dcState: () => dcPage.state(),
     openEd: k => openEd(FD.find(z => z.k == k)),
+    // where a cell of the card (or of the MDC format) is on the screen: {x, y, w, h} in the pixels of the page
+    cellRect: k => {
+      const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);
+      if (!d) return null;
+      const r = $('cv').getBoundingClientRect(),
+        kk = r.width / 2048,
+        b = boxOf(d);
+      return { x: r.left + b.x * SX * kk, y: r.top + b.y * SY * kk, w: b.w * SX * kk, h: b.h * SY * kk };
+    },
     get KBS() {
       return KBS;
     },
@@ -50,6 +62,16 @@ export async function init19() {
       } catch (e) {}
     },
     sq: sqPage,
+    seat: { pick: pickSeat, go: goFlight, idx: seatIdx, me: seatMe },
+    l16: {
+      info: l16Info,
+      plan: l16Plan,
+      recs: l16Recs,
+      add: l16Add,
+      remove: l16Remove,
+      unpin: l16Unpin,
+      back: l16Back,
+    },
     wxPage,
     unsaved: () => unsaved(),
     msfSig: () => msfSig(),
@@ -108,6 +130,9 @@ export async function init19() {
     },
     get msPage() {
       return ST.msPage;
+    },
+    get harmPage() {
+      return harmPage;
     },
     get pfPage() {
       return pfPage;
