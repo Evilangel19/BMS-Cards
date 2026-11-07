@@ -50,7 +50,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 - Added: TGT / LDG switch on the Weather page (forecast of the target or of the landing airbase).
 - Changed: BVR timeline: a missile menu for each enemy class, its own altitude and speed, kt or Mach, classes corrected with the Threat Guide; surface-to-air missiles and training rounds are no longer in the BVR shot list.
 
-### Speed
+### Optimizations
 
 - Changed: MSA and the heights of the terrain are read in far fewer exchanges; the BMS folder map picture (16K) is cut into blocks and saved in the program's database, so the next starts do not read the whole file and the window does not freeze.
 
@@ -62,9 +62,3 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 - Added: startup logo.
 - Changed: `config.json` is no longer in the portable folder (the program makes it at the first start).
 - Fixed: the invitation codes of the Squadron page, the Kneeboard page at the minimum width, the Weapons and HARM state of an older mission.
-
-## Known limits
-
-- The Link 16, IFF and radio values were compared with the Data Cartridge of the game for a few flights of one campaign (EvilKorea); the rules for other flights come from a pilot's description.
-- The touchdown speed of aircraft other than the F-16 and the F-15 is an estimate.
-- The real Tauri window (file dialogs, permissions) was not tried in the development environment: check it on a real PC.
