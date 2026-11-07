@@ -41,6 +41,8 @@ Dropped: Balkans coastlines and AIP, briefing import, MDC autofill (manual is fi
 
 ## To implement
 
+- **For 1.2 (noted 2026-11-07): faster map with all the objects and the political layer on.** Measure first (drawing or reading of the files?). Then, in this order: draw the dots on one canvas (Leaflet canvas renderer) instead of one HTML marker each; a minimum zoom for each type (villages from a medium zoom, towns a little before, cities always); draw only what is in the view, on moveend; create the markers in chunks so that the switch does not freeze the page; create tooltips and windows when needed; read the structure files of the damaged objectives in the background, only those in view.
+
 1. **Squadron page**: still to do: squadron window: experience, morale, supply and mission rating are left out for now (no campaign with known in-game values; notes in ARCHITECTURE v110); logbook `.lbk`: medals and campaign counters read and checked against the game's logbook editor; test sending / receiving missions, mission leader and roster sync with real pilots.
 2. **MDC format autofill** of the cells that have no Datacard value (M1-M4, audio presets, data link, NAV, AIRSPACE/TGT, srv): filled by hand for now.
 3. **Game briefing import** (feasible, to decide): BMS writes `User\Briefings\briefing.txt` (plain text) when "Briefing output to file" is ON and "HTML Briefings" OFF, after Briefing > Print on the 2D map. It would give what the campaign file lacks (the flight and seat the pilot chose, callsigns, roster, package, comms, weapons). Needs a real `briefing.txt` sample to write the parser (the UOAF `bms_html_briefing` project and EZBoards both read it).
