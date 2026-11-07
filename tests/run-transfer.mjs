@@ -629,6 +629,45 @@ function makeMine(fs) {
   );
 }
 
+// the missions folder is inside the older program folder: the path must not tie this copy to it
+{
+  // 1) the settings carry the absolute path of the missions folder of the older copy
+  const fs = memfs();
+  makeOld(fs);
+  freshApp(fs);
+  const oc = clone(oldCfg);
+  oc.paths.missions = J(OLD, 'missions');
+  fs.put(J(OLD, 'config.json'), JSON.stringify(oc));
+  const src = await sourceFromFolder(fs.io, OLD);
+  const info = await describeSource(src, { missionsDir: J(OLD, 'missions') });
+  ok('inside the older folder is never "the same folder"', info.items.find(i => i.k === 'missions').same === false);
+  const r = await run(fs, src, ['settings', 'missions'], 'replace');
+  ok(
+    'settings and missions: the path stays automatic and the missions are copied here',
+    JSON.parse(fs.text(J(NEW, 'config.json'))).paths.missions === '' &&
+      fs.text(J(NEW, 'missions', 'A', 'A.bcrd')) === 'MISSION-A' &&
+      r.missionsDir === J(NEW, 'missions') &&
+      r.rows.find(x => x.k === 'missions').state === 'done'
+  );
+  // 2) this copy is already tied to the older one (an import of the first kind was made before): it is put right
+  const fs2 = memfs();
+  makeOld(fs2);
+  freshApp(fs2);
+  const tied = clone(DEFAULTS);
+  tied.paths.missions = J(OLD, 'missions');
+  fs2.put(J(NEW, 'config.json'), JSON.stringify(tied, null, 2) + '\n');
+  const r2 = await run(fs2, await sourceFromFolder(fs2.io, OLD), ['missions'], 'replace', {
+    config: tied,
+    missionsDir: J(OLD, 'missions'),
+  });
+  ok(
+    'already tied to the older folder: back to the folder of this copy, the missions copied',
+    JSON.parse(fs2.text(J(NEW, 'config.json'))).paths.missions === '' &&
+      fs2.text(J(NEW, 'missions', 'A', 'A.bcrd')) === 'MISSION-A' &&
+      r2.missionsDir === J(NEW, 'missions')
+  );
+}
+
 // ---------- a backup file
 {
   const fs = memfs();
