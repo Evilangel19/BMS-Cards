@@ -291,7 +291,7 @@ export function createMap(host, deps) {
     map.on('tooltipclose', e => TIPS.delete(e.tooltip));
     const tipSweep = () =>
       TIPS.forEach(t => {
-        if (!t.options.permanent) map.closeTooltip(t);
+        if (!t.options.permanent && !t.options.plk) map.closeTooltip(t); // plk: the tooltip of the political places, which follows the mouse on its own (plHooks)
       });
     map.getContainer().addEventListener('mousemove', e => {
       if (
@@ -2076,7 +2076,7 @@ export function createMap(host, deps) {
     PLHOOK = true;
     const L = window.L,
       ct = map.getContainer();
-    PLT = L.tooltip({ direction: 'top', offset: [0, -6] });
+    PLT = L.tooltip({ direction: 'top', offset: [0, -6], plk: true }); // plk: not closed by the sweep of the left-over tooltips (the canvas is not an element under the mouse)
     const over = ev =>
       ev &&
       ev.target &&
@@ -2262,52 +2262,79 @@ export function createMap(host, deps) {
     objClear();
     OSEL = o.id;
     OSL = [];
-    const first = map.getZoom() < NAMEZ - 0.01 || map.getCenter().distanceTo(ll) > 2;
-    map.setView(ll, Math.max(map.getZoom(), NAMEZ), { animate: an });
+    // One smooth zoom to the final view (the sub-objectives filling it), instead of a jump to zoom 13 and then a second zoom: the sub-objectives are
+    // read first (the zoom waits for them a quarter of a second at most; if they are slower the old two steps are kept). The zoom is the light
+    // animation of the map (the picture is scaled), also for more than 4 levels, where the map would jump without animation; the
+    // sub-objectives are put on the map when the zoom has ended, so that the animation does not move them.
+    const zoomTo = (c, z, done) => {
+      const th = map.options.zoomAnimationThreshold;
+      map.options.zoomAnimationThreshold = 20;
+      let ok = false;
+      const end = () => {
+        if (ok) return;
+        ok = true;
+        map.options.zoomAnimationThreshold = th;
+        if (done) done();
+      };
+      const moving = map.getZoom() != z || map.getCenter().distanceTo(c) > 0.5;
+      if (moving) map.once('moveend', end);
+      map.setView(c, z, { animate: an });
+      if (!moving) end();
+      else setTimeout(end, 1500); // a lost moveend never blocks the sub-objectives
+    };
+    const target = fs => {
+      if (!fs || !fs.length) return [ll, Math.max(map.getZoom(), NAMEZ)];
+      // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
+      const bd = L.latLngBounds([ll]);
+      fs.forEach(f => bd.extend(toLL(f.e / FT_KM, f.n / FT_KM)));
+      return [bd.getCenter(), Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50])))];
+    };
+    const show = fs => {
+      if (OSEL !== o.id) return;
+      fs.forEach((f, k) => {
+        const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0,
+          txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '',
+          fl = toLL(f.e / FT_KM, f.n / FT_KM);
+        OSL.push({ ll: fl, name: f.name });
+        L.marker(fl, { icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150 })
+          .bindTooltip(deps.esc(f.name) + txt, { direction: 'top', offset: [0, -4] })
+          .bindPopup(() => objPopup(o.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {
+            className: 'mpop',
+            closeButton: false,
+            autoPan: false,
+            minWidth: 200,
+          })
+          .addTo(OSUB);
+      });
+      objLabels();
+    };
+    const fail = () => toast('The sub-objectives could not be read.', true);
+    let late = false;
+    const slow = setTimeout(() => {
+      late = true;
+      if (OSEL === o.id) zoomTo(...target(null));
+    }, 250);
     deps.objects
       .features(o)
       .then(fs => {
+        clearTimeout(slow);
         if (OSEL !== o.id) return;
-        fs.forEach((f, k) => {
-          const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0,
-            txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '',
-            fl = toLL(f.e / FT_KM, f.n / FT_KM);
-          OSL.push({ ll: fl, name: f.name });
-          L.marker(fl, { icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150 })
-            .bindTooltip(deps.esc(f.name) + txt, { direction: 'top', offset: [0, -4] })
-            .bindPopup(() => objPopup(o.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {
-              className: 'mpop',
-              closeButton: false,
-              autoPan: false,
-              minWidth: 200,
-            })
-            .addTo(OSUB);
-        });
-        if (fs.length) {
-          // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
-          const bd = L.latLngBounds([ll]);
-          OSL.forEach(r => bd.extend(r.ll));
+        if (!late) zoomTo(...target(fs), () => show(fs));
+        else {
+          // slower than the quarter of a second: the first zoom is running or done, the second one goes to the sub-objectives
           const go = () => {
-            const z = Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50])));
-            map.setView(bd.getCenter(), z, { animate: an });
+            if (OSEL !== o.id) return;
+            if (fs.length) zoomTo(...target(fs), () => show(fs));
+            else show(fs);
           };
-          if (!first) go();
-          else {
-            let done = false;
-            const once = () => {
-              if (!done) {
-                done = true;
-                go();
-              }
-            };
-            map.once('moveend', once);
-            setTimeout(once, 900);
-          } // wait for the first move (a second setView during it is lost)
+          if (map._animatingZoom) map.once('zoomend', go);
+          else go();
         }
-        objLabels();
       })
       .catch(() => {
-        toast('The sub-objectives could not be read.', true);
+        clearTimeout(slow);
+        if (!late && OSEL === o.id) zoomTo(...target(null));
+        fail();
       });
   }
   function objPopup(name, sub, n, e, short) {

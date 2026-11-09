@@ -68,6 +68,9 @@ try:
         check('the places are not elements of the page: they are drawn on a canvas', pg.evaluate("()=>document.querySelectorAll('#mpmap .nobj.pl').length") == 0 and pg.evaluate("()=>!!document.querySelector('#mpmap .leaflet-placeP-pane canvas')") and pt('Test City') is not None)
         c = pt('Test City'); pg.mouse.move(c[0] + 3, c[1] + 2); pg.wait_for_timeout(400)
         check('the mouse over a place: its tooltip, and the hand cursor', 'Test City' in pg.evaluate("()=>[...document.querySelectorAll('.leaflet-tooltip')].map(e=>e.textContent).join('|')") and pg.evaluate("()=>document.querySelector('#mpmap').classList.contains('plh')"))
+        for dx, dy in ((4, 3), (2, 4), (5, 1), (3, 3)):
+            pg.mouse.move(c[0] + dx, c[1] + dy); pg.wait_for_timeout(120)
+        check('...it stays while the mouse moves over the place', 'Test City' in pg.evaluate("()=>[...document.querySelectorAll('.leaflet-tooltip')].map(e=>e.textContent).join('|')"))
         pg.mouse.move(c[0] + 200, c[1] + 200); pg.wait_for_timeout(400)
         check('...and away: no tooltip', 'Test City' not in pg.evaluate("()=>[...document.querySelectorAll('.leaflet-tooltip')].map(e=>e.textContent).join('|')"))
         z0 = pg.evaluate("()=>__app.mapV.leaflet.getZoom()")
@@ -88,6 +91,20 @@ try:
         ring(); pg.evaluate("()=>document.querySelector('#mpocol').click()"); pg.wait_for_timeout(300); r1 = ring()
         pg.evaluate("()=>document.querySelector('#mpocol').click()"); pg.wait_for_timeout(300); r2 = ring()
         check('Colour by owner: an allied place gets the blue ring, and loses it when switched off %s %s' % (r1, r2), r1 is not None and r1[0] in ('#4f8cff', '#38d6f2') and r1[1] and r2 is None)
+        # first click on an objective: ONE zoom to the view filled by its sub-objectives, which are put on the map when it ends
+        def opn(delay, nth):
+            pg.evaluate("""d=>{const L=window.__targetData;window.__targetData={objectives:L.objectives,features:async o=>{await new Promise(r=>setTimeout(r,d));const f=k=>({name:'Bldg '+k,n:o.n+(k-1)*300,e:o.e+(k%2)*400});return [f(0),f(1),f(2)]}}}""", delay)
+            pg.evaluate("()=>{document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape'}));__app.mapV.leaflet.closePopup();__app.mapV.leaflet.setView([36.3,127.4],8,{animate:false})}"); pg.wait_for_timeout(500)
+            return pg.evaluate("""async(NTH)=>{const m=__app.mapV.leaflet;let zs=0,za=0;const f=()=>zs++,g=()=>za++;m.on('zoomstart',f);m.on('zoomanim',g);const T=[];m.eachLayer(l=>{if(l._tooltip&&/^Obj /.test(l._tooltip._content)&&l._map&&l.options.icon)T.push(l)});
+              T[NTH].fire('click');await new Promise(r=>setTimeout(r,2500));m.off('zoomstart',f);m.off('zoomanim',g);let subs=0;m.eachLayer(l=>{if(l.options&&l.options.icon&&/ sub/.test(l.options.icon.options.className||'')&&l._map)subs++});return {zs,za,z:m.getZoom(),subs}}""", nth)
+        o1 = opn(30, 0)
+        check('first click: one zoom straight to the sub-objectives (zoom 13 or more), the three buildings shown %s' % o1, o1['zs'] == 1 and o1['z'] >= 13 and o1['subs'] == 3)
+        o2 = opn(700, 5)
+        check('sub-objectives slow to come: the two zooms of before, the buildings shown in the end %s' % o2, o2['zs'] >= 1 and o2['z'] >= 13 and o2['subs'] == 3)
+        pg.emulate_media(reduced_motion='no-preference')
+        o3 = opn(30, 9)
+        check('with the animations on: that one zoom is animated (also over more than 4 levels, where the map would jump) %s' % o3, o3['zs'] == 1 and o3['za'] == 1 and o3['z'] >= 13 and o3['subs'] == 3)
+        pg.emulate_media(reduced_motion='reduce')
         check('no error in the page', not errs)
         br.close()
 finally:
