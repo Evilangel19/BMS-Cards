@@ -2220,7 +2220,8 @@ export function createMap(host, deps) {
               .setLatLng(ll)
               .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
               .openOn(map);
-          r.m = L.circleMarker(ll, { renderer: plRend(), interactive: false, halo: true, ...plStyle(r) });
+          r.m = L.circleMarker(ll, { renderer: plRend(), interactive: false, halo: true, tip, ...plStyle(r) });
+          r.m.pr = r; // (read by the tests: the ring, the record)
           g.addLayer(r.m);
           plRing(r);
           OJ.push(r);
