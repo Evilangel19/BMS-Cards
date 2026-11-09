@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Changed: the map is smoother in pan and zoom with all the Objects and the political layer on (nothing changes in what you see).
 - Added: when the package has no AWACS or JSTARS, the Datacard shows an allied aircraft on station during your flight, the nearest to your route, marked with an asterisk (`*`). An ELINT aircraft (E-8C, RC-135) goes to the JSTARS row; the AWACS row takes an AEW/ABCCC aircraft. The operating time is in the notes, as for the tankers.
 
 ## 1.1.0

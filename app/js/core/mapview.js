@@ -1890,37 +1890,74 @@ export function createMap(host, deps) {
     OSL = [],
     ABM = new Map(),
     ABACT = new Map();
+  // the names next to the objectives (from NAMEZ) and to the sub-objectives (from zoom 14), in the view: each label is made once and kept with its
+  // objective (r.lb), then only added or removed as the view moves (speed: no new elements at every move; the same labels as before)
   function objLabels() {
     if (!OLBL || !map) return;
-    OLBL.clearLayers();
     const z = map.getZoom();
-    if (z < NAMEZ - 0.01) return;
+    if (z < NAMEZ - 0.01) {
+      OLBL.clearLayers();
+      return;
+    }
     const bd = map.getBounds().pad(0.1),
-      L = window.L;
+      L = window.L,
+      want = new Set();
     let n = 0;
-    const lab = (ll, name, cls) =>
-      L.marker(ll, {
-        interactive: false,
-        keyboard: false,
-        icon: L.divIcon({
-          className: 'nobjl' + cls,
-          html: '<span>' + deps.esc(name) + '</span>',
-          iconSize: [0, 0],
-          iconAnchor: [-9, 7],
-        }),
-      }).addTo(OLBL);
+    const lab = (r, name, cls) => {
+      if (!r.lb)
+        r.lb = L.marker(r.ll, {
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({
+            className: 'nobjl' + cls,
+            html: '<span>' + deps.esc(name) + '</span>',
+            iconSize: [0, 0],
+            iconAnchor: [-9, 7],
+          }),
+        });
+      want.add(r.lb);
+    };
     OJ.forEach(r => {
       if (n > 400 || !bd.contains(r.ll) || !map.hasLayer(r.g)) return;
       n++;
-      lab(r.ll, r.o.name, '');
+      lab(r, r.o.name, '');
     });
     if (z >= 14)
       OSL.forEach(r => {
-        if (bd.contains(r.ll)) lab(r.ll, r.name, ' sl');
+        if (bd.contains(r.ll)) lab(r, r.name, ' sl');
       });
+    OLBL.eachLayer(m => {
+      if (!want.has(m)) OLBL.removeLayer(m);
+    });
+    want.forEach(m => {
+      if (!OLBL.hasLayer(m)) OLBL.addLayer(m);
+    });
   }
+  // only the dots in the view (and half a view around it, so that a pan does not show them appearing at the edges) are in the page: the others
+  // wait in their objective record (r.m) and come back, the same, when the view reaches them. Thousands of dots out of the view were moved by
+  // the map at every zoom and drawn at every pan for nothing.
+  function objCull() {
+    if (!map || !OJ.length || map._animatingZoom) return; // during a zoom animation the map is moving its markers: zoomend comes after it
+    const bd = map.getBounds().pad(0.5);
+    OJ.forEach(r => {
+      if (bd.contains(r.ll)) {
+        if (!r.in) {
+          r.g.addLayer(r.m);
+          r.in = true;
+        }
+      } else if (r.in) {
+        r.g.removeLayer(r.m);
+        r.in = false;
+      }
+    });
+  }
+  // the size of the dots follows the zoom; written only when it changes (a write makes the browser restyle every dot, and 'zoom' comes at every frame)
+  let OSZ = '';
   const objSize = () => {
-    host.style.setProperty('--os', dotSize() + 'px');
+    const v = dotSize() + 'px';
+    if (v === OSZ) return;
+    OSZ = v;
+    host.style.setProperty('--os', v);
     host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px');
   };
   function objDraw() {
@@ -1960,6 +1997,7 @@ export function createMap(host, deps) {
     }
     if (!OHOOK) {
       OHOOK = true;
+      map.on('moveend zoomend', objCull);
       map.on('moveend zoomend', objLabels);
       map.on('zoom zoomend', objSize);
       map.on('click', () => {
@@ -2010,9 +2048,8 @@ export function createMap(host, deps) {
           am.setTooltipContent(tip);
           return;
         } // an airfield: its own symbol is the clickable one, no dot over it
-        OJ.push({ t, o, ll, g });
         const pl = PLACE_LAYERS.find(p => p[0] == t); // a place: its buildings are not shown, a click opens the window at once
-        L.marker(ll, {
+        const m = L.marker(ll, {
           icon: dotIcon(state, false, side, pl ? pl[2] : 0),
           keyboard: false,
           zIndexOffset: pl ? 60 : 100,
@@ -2025,8 +2062,8 @@ export function createMap(host, deps) {
                 .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
                 .openOn(map);
             else objOpen(o, ll, lab);
-          })
-          .addTo(g); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
+          }); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
+        OJ.push({ t, o, ll, g, m, in: false }); // put in its layer by objCull when it is in the view
       });
     });
     if (C && C.objFeat)
@@ -2035,6 +2072,7 @@ export function createMap(host, deps) {
           o => on.some(([t]) => t == o.type) && !PLACE_LAYERS.some(p => p[0] == o.type) && objState(C.objFeat.get(o.id))
         )
       );
+    objCull();
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
