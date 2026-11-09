@@ -724,6 +724,7 @@ export function createMap(host, deps) {
       st.on.ocol = !st.on.ocol;
       save();
       host.classList.toggle('ocol', st.on.ocol);
+      plRestyle();
       const b = $('mpocol');
       b.classList.toggle('g', !st.on.ocol);
       b.textContent = 'Colour by owner: ' + (st.on.ocol ? 'On' : 'Off');
@@ -1754,6 +1755,12 @@ export function createMap(host, deps) {
     host.style.setProperty('--dtcl', pal.dtc.line);
     host.classList.toggle('lt', light || game);
     host.classList.toggle('game', game || light); // the BMS colours (and their outlines) for every light map
+    if (map)
+      try {
+        plRestyle(); // the places on the canvas take the colours of the map
+      } catch (e) {
+        /* the objects are not set up yet */
+      }
     if (ch && map) {
       refresh();
       plan(deps.getC(), deps.getSel());
@@ -1940,6 +1947,7 @@ export function createMap(host, deps) {
     if (!map || !OJ.length || map._animatingZoom) return; // during a zoom animation the map is moving its markers: zoomend comes after it
     const bd = map.getBounds().pad(0.5);
     OJ.forEach(r => {
+      if (r.cv) return; // a place: on the canvas, always in its layer
       if (bd.contains(r.ll)) {
         if (!r.in) {
           r.g.addLayer(r.m);
@@ -1959,6 +1967,161 @@ export function createMap(host, deps) {
     OSZ = v;
     host.style.setProperty('--os', v);
     host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px');
+    plRestyle();
+  };
+  // The political places (cities, towns, villages) are drawn on one canvas instead of one element each: they are most of the dots, and the
+  // browser moved and drew every one of them at every pan and zoom. They look as the other dots (the colours of .nobj in the css: white /
+  // grey / black, the other way round on light maps, the owner ring) without the soft shadow, and they stay below the other symbols as before.
+  // The canvas does not take the mouse (it would cover the lines and rings below it): the dot under the mouse is found here, over the same
+  // 22 px square as the other dots, for the tooltip and the click (a place opens its window at the first click).
+  let PLR = null,
+    PLT = null,
+    PLH = null,
+    PLHOOK = false;
+  const PLF = { 1: 1.25, 2: 0.9, 3: 0.62 };
+  const plRend = () => {
+    if (!PLR) {
+      const pn = map.createPane('placeP');
+      pn.style.zIndex = 590;
+      pn.style.pointerEvents = 'none';
+      // the soft dark shadow of the dots (box-shadow 0 0 2px #0008 in the css): a thin dark ring just outside each circle (a canvas blur would
+      // also darken the inside of the dot, which is a little transparent)
+      const Cv = window.L.Canvas.extend({
+        _fillStroke(ctx, layer) {
+          if (layer.options.halo) {
+            const p = layer._point,
+              r = layer._radius + layer.options.weight / 2 + 0.6;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.stroke();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, layer._radius, 0, Math.PI * 2);
+          }
+          window.L.Canvas.prototype._fillStroke.call(this, ctx, layer);
+        },
+      });
+      PLR = new Cv({ pane: 'placeP', padding: 0.5 });
+    }
+    return PLR;
+  };
+  const plStyle = r => {
+    const lt = host.classList.contains('lt'),
+      s = r.state || 0,
+      d = dotSize() * (PLF[r.pl] || 1);
+    return {
+      radius: Math.max(0.5, d / 2 - 0.25),
+      weight: 1,
+      opacity: 0.85,
+      fillOpacity: 0.85,
+      fillColor: (lt ? ['#000', '#8a8f98', '#fff'] : ['#fff', '#8a8f98', '#000'])[s],
+      color: (lt ? s == 0 : s == 2) ? '#ffffffdd' : '#000000cc',
+    };
+  };
+  // the owner ring (Colour by owner): 1.5 px around the dot, blue / red (cyan / orange-red on the BMS colours)
+  const plRing = r => {
+    const on = st.on.ocol && (r.side == 'a' || r.side == 'e');
+    if (!on) {
+      if (r.rg) {
+        r.g.removeLayer(r.rg);
+        r.rg = null;
+      }
+      return;
+    }
+    const game = host.classList.contains('game'),
+      c = r.side == 'a' ? (game ? '#38d6f2' : '#4f8cff') : game ? '#ff3b1e' : '#ff5d5d',
+      rad = (dotSize() * (PLF[r.pl] || 1)) / 2 + 0.75;
+    if (!r.rg) {
+      r.rg = window.L.circleMarker(r.ll, {
+        renderer: plRend(),
+        interactive: false,
+        fill: false,
+        weight: 1.5,
+        opacity: 0.85,
+        color: c,
+        radius: rad,
+      });
+      r.g.addLayer(r.rg);
+    } else r.rg.setStyle({ color: c }).setRadius(rad);
+  };
+  function plRestyle() {
+    OJ.forEach(r => {
+      if (!r.cv) return;
+      const y = plStyle(r);
+      r.m.setStyle(y).setRadius(y.radius);
+      plRing(r);
+    });
+  }
+  // the place under a point of the map container (the 22 px square of a dot), or null
+  const plAt = pt => {
+    let b = null,
+      bd = 1e9;
+    OJ.forEach(r => {
+      if (!r.cv || !map.hasLayer(r.g)) return;
+      const q = map.latLngToContainerPoint(r.ll),
+        dx = Math.abs(q.x - pt.x),
+        dy = Math.abs(q.y - pt.y);
+      if (dx <= 11 && dy <= 11 && dx + dy < bd) {
+        bd = dx + dy;
+        b = r;
+      }
+    });
+    return b;
+  };
+  const plHooks = () => {
+    if (PLHOOK) return;
+    PLHOOK = true;
+    const L = window.L,
+      ct = map.getContainer();
+    PLT = L.tooltip({ direction: 'top', offset: [0, -6] });
+    const over = ev =>
+      ev &&
+      ev.target &&
+      ev.target.closest &&
+      ev.target.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control, .leaflet-tooltip');
+    let raf = 0;
+    map.on('mousemove', e => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const r = over(e.originalEvent) ? null : plAt(e.containerPoint);
+        if (r === PLH) return;
+        PLH = r;
+        ct.classList.toggle('plh', !!r);
+        if (r) map.openTooltip(PLT.setContent(r.tip), r.ll);
+        else map.closeTooltip(PLT);
+      });
+    });
+    map.on('mouseout movestart zoomstart', () => {
+      PLH = null;
+      ct.classList.remove('plh');
+      map.closeTooltip(PLT);
+    });
+    // a click (or a double click) on a place is the place's, as on a dot: the map does not get it (no zoom, no click on what is below)
+    const take = ev => {
+      if (over(ev) || (map.dragging && map.dragging.moved())) return null;
+      return plAt(map.mouseEventToContainerPoint(ev));
+    };
+    ct.addEventListener(
+      'click',
+      ev => {
+        const r = take(ev);
+        if (!r) return;
+        ev.stopPropagation();
+        r.act();
+      },
+      true
+    );
+    ct.addEventListener(
+      'dblclick',
+      ev => {
+        if (take(ev)) ev.stopPropagation();
+      },
+      true
+    );
   };
   function objDraw() {
     const on = OBJ_ALL.filter(([t]) => st.on['o' + t]);
@@ -2049,6 +2212,20 @@ export function createMap(host, deps) {
           return;
         } // an airfield: its own symbol is the clickable one, no dot over it
         const pl = PLACE_LAYERS.find(p => p[0] == t); // a place: its buildings are not shown, a click opens the window at once
+        if (pl) {
+          plHooks();
+          const r = { t, o, ll, g, cv: true, state, side, pl: pl[2], tip, rg: null, m: null, in: true };
+          r.act = () =>
+            window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
+              .setLatLng(ll)
+              .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
+              .openOn(map);
+          r.m = L.circleMarker(ll, { renderer: plRend(), interactive: false, halo: true, ...plStyle(r) });
+          g.addLayer(r.m);
+          plRing(r);
+          OJ.push(r);
+          return;
+        }
         const m = L.marker(ll, {
           icon: dotIcon(state, false, side, pl ? pl[2] : 0),
           keyboard: false,

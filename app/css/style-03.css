@@ -443,6 +443,10 @@
   grid-template-columns: repeat(2, 34px);
   gap: 4px;
 }
+.leaflet-container.plh,
+.leaflet-container.plh.leaflet-grab {
+  cursor: pointer;
+}
 .nobj {
   --c: #fff;
   --b: #000c;
