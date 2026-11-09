@@ -21,7 +21,7 @@ import {
 } from './flight.js';
 import { tcnFor } from '../rules/airbase.js';
 import { geoLL } from '../rules/geo.js';
-import { pickTankers, svc } from '../rules/support.js';
+import { pickTankers, survRows, svc } from '../rules/support.js';
 import { ephem } from '../rules/ephemerides.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
@@ -319,19 +319,21 @@ function fillCard(C, f, ld = 0) {
     const mem = u => u === f || els.some(e => e.id.n == u.id.n && e.id.c == u.id.c),
       used = [],
       U = id => id && (id.kind ? id : C.byId[id.n + ':' + id.c]),
-      put = (id, i) => {
+      put = (id, i, est = false) => {
         const u = U(id);
         if (!u || u.kind != 'flight' || mem(u) || used.includes(u)) return false;
         used.push(u);
         sup(u, i);
+        if (est) F[`su${i}_0`] += '*'; // not assigned by the campaign: an allied flight on station, chosen by the program
         return true;
       };
     let r = 0;
     pickTankers(C, f, P).forEach(u => {
       if (r < 2 && put(u, r)) r++;
     });
-    put(P.awacs, 2);
-    put(P.jstar, 3);
+    // AWACS and JSTARS: the ones of the package, else an allied flight on station (an estimate, marked with an asterisk: survRows)
+    const pk = C.units.filter(u => u.kind == 'flight' && mem(u));
+    survRows(C, f, P, [...used, ...pk]).forEach(([u, i, est]) => put(u, i, est));
   }
   const sv = svc(C, f);
   if (sv) {

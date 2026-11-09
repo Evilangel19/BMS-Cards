@@ -82,6 +82,61 @@ function pickTankers(C, f, P) {
     .sort((x, y) => Number(pref(y)) - Number(pref(x)) || Number(y === asg) - Number(x === asg) || win(x)[0] - win(y)[0])
     .slice(0, 2);
 }
+// Surveillance support of a flight whose package has none assigned (the campaign leaves the AWACS or JSTARS of a package empty when it has none to give,
+// but in the game an allied aircraft on station can still be called). The candidates are the allied flights of one mission type (C.D.S name:
+// 'AEW/ABCCC' for the AWACS, 'ELINT' for the JSTARS: in BMS the ELINT mission is the JSTARS one, flown by the E-8C and the RC-135), on station during
+// the package (on-station window: the action waypoints, as opWin), the one whose station is nearest to the route of the package first.
+// `skip` = flights already on the card. The choice is an estimate: the card marks it with an asterisk.
+function pickSurv(C, f, mis, skip = []) {
+  const el = els0(C, f),
+    all = el.flatMap(e => e.wps || []),
+    ts = all.map(p => p.arr).filter(Boolean),
+    a = ts.length ? Math.min(...ts) : -1e15,
+    b = all.length ? Math.max(...all.map(p => p.dep || p.arr || 0)) : 1e15,
+    pts = all.filter(p => p.x != null);
+  const st = u => (u.wps || []).filter(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act) && p.arr);
+  const win = u => {
+    const w = st(u);
+    return w.length ? [Math.min(...w.map(p => p.arr)), Math.max(...w.map(p => p.dep || p.arr))] : null;
+  };
+  const dist = u => {
+    const w = st(u);
+    if (!w.length || !pts.length) return 1e9;
+    return Math.min(...w.flatMap(q => pts.map(p => Math.hypot(q.x - p.x, q.y - p.y))));
+  };
+  return (
+    C.units
+      .filter(u => {
+        if (u.kind != 'flight' || u === f || skip.includes(u) || el.includes(u)) return false;
+        if ((C.D.S[300 + u.omis] || '') != mis || !allyOf(C, u.owner, f.owner)) return false;
+        const w = win(u);
+        return !!w && w[0] <= b && w[1] >= a;
+      })
+      .map(u => ({ u, d: dist(u) }))
+      .sort((x, y) => x.d - y.d)
+      .map(x => x.u)[0] || null
+  );
+}
+// The AWACS and JSTARS rows of the card: [flight, row (2 AWACS, 3 JSTARS), estimate]. The flights assigned to the package first; when one is missing,
+// an allied flight on station (an estimate): JSTARS first, so an ELINT flight goes to the JSTARS row (it is not an AWACS: no Link 16 from it); the AWACS
+// row takes an AEW/ABCCC flight, an ELINT one only when a second one is on station. `skip` = flights already on the card (tankers, the package).
+function survRows(C, f, P, skip = []) {
+  const U = id => id && (id.kind ? id : C.byId[id.n + ':' + id.c]),
+    ok = u => !!u && u.kind == 'flight' && !skip.includes(u),
+    used = [...skip],
+    out = [];
+  const take = (u, row, est) => {
+    if (!ok(u) || used.includes(u)) return false;
+    used.push(u);
+    out.push([u, row, est]);
+    return true;
+  };
+  const aw = take(U(P && P.awacs), 2, false),
+    js = take(U(P && P.jstar), 3, false);
+  if (!js) take(pickSurv(C, f, 'ELINT', used), 3, true);
+  if (!aw) take(pickSurv(C, f, 'AEW/ABCCC', used) || pickSurv(C, f, 'ELINT', used), 2, true);
+  return out.sort((x, y) => x[1] - y[1]);
+}
 // the friendly ground unit that acts as JTAC of a CAS flight: {u, cat, name, d, loc} or null
 function jtacPick(C, f) {
   if (!/CAS$/.test(C.D.S[300 + f.omis] || '')) return null;
@@ -113,4 +168,4 @@ function jtac(C, f, uhf6) {
   const b = jtacPick(C, f);
   return b && { cat: b.cat, name: b.name, d: b.d, loc: b.loc };
 }
-export { svc, pickTankers, jtac, jtacPick };
+export { svc, pickTankers, pickSurv, survRows, jtac, jtacPick };
