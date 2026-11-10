@@ -16,6 +16,7 @@
     "app/js/rules/*.js",
     "app/js/core/mapdtc.js",
     "app/js/core/organization.js",
+    "app/js/core/briefroom.js",
     "app/js/core/prefs.js",
     "app/js/core/mapdata.js",
     "app/js/core/popup.js",

@@ -161,13 +161,13 @@ export function createMap(host, deps) {
     });
     persist();
   };
-  const $ = id => host.querySelector('#' + id);
+  const $ = id => host.querySelector('#' + id) || (away && away.querySelector('#' + id)); // the map (and its frame) may be borrowed by another page
 
   let home = null,
     away = null,
     MO = null;
   /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
-  const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo'];
+  const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo', 'shoting'];
   function mirror() {
     if (!away) return;
     away.classList.add('mpx');
@@ -209,6 +209,7 @@ export function createMap(host, deps) {
   }
   function detach() {
     if (!away || !map) return;
+    if (shotOn) shotStop(); // a frame opened on the page that borrowed the map goes with it
     if (MO) {
       MO.disconnect();
       MO = null;
@@ -4181,9 +4182,10 @@ export function createMap(host, deps) {
   function sizeFrame() {
     const fr = $('mpfr');
     if (!fr) return;
-    const fi = $('mpfi');
-    const W = host.clientWidth,
-      H = host.clientHeight,
+    const fi = $('mpfi'),
+      at = away || host;
+    const W = at.clientWidth,
+      H = at.clientHeight,
       ar = shotDim().w / shotDim().h,
       a = (shotAng * Math.PI) / 180,
       c = Math.abs(Math.cos(a)),
@@ -4214,9 +4216,12 @@ export function createMap(host, deps) {
     if (e.key == 'Escape') shotStop();
   };
   let ZO = null;
-  function shotStart(k) {
+  // opt.toast: where the message at the end goes (the Briefing page, which borrows the map, shows it on its own map)
+  let SHOTOPT = {};
+  function shotStart(k, opt) {
     if (!map || shotOn) return;
     shotOn = true;
+    SHOTOPT = opt || {};
     shotAng = 0;
     shotK = k || 'dc';
     host.classList.add('shoting');
@@ -4226,7 +4231,7 @@ export function createMap(host, deps) {
     fr.id = 'mpfr';
     fr.innerHTML =
       '<div id="mpfi"></div><div id="mpfb"><button class="btn" id="mpcap">Capture</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px" title="Turn the frame: the map inside it is straightened into the picture">Angle <input type="range" id="mpang" min="0" max="359" step="1" value="0" style="width:130px"><b id="mpangv" style="min-width:34px;text-align:right">0°</b></label><button class="btn g" id="mprot" title="Turn the frame by another quarter">+90°</button><button class="btn g" id="mpcan">Cancel</button></div>';
-    host.append(fr);
+    (away || host).append(fr); // a page that borrows the map (Briefing) frames it where it is
     sizeFrame();
     shotBtn();
     ZO = { snap: map.options.zoomSnap, wheel: map.options.wheelPxPerZoomLevel };
@@ -4377,11 +4382,14 @@ export function createMap(host, deps) {
       }
       deps.setShot(c, shotK);
       shotStop();
-      toast(warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.', !!warn);
+      (SHOTOPT.toast || toast)(
+        warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.',
+        !!warn
+      );
     } catch (e) {
       cap.disabled = false;
       cap.textContent = 'Capture';
-      toast('Screenshot failed: ' + ((e && e.message) || e), true);
+      (SHOTOPT.toast || toast)('Screenshot failed: ' + ((e && e.message) || e), true);
     }
   }
 

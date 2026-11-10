@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: **Squadron > Briefing**, a live briefing room on the map. A leader opens it and draws (pen, marker, arrows, shapes, text, the NATO symbols and radar tracks of the map, IP, CAP orbit, holding, threat rings, ruler and compass); he gives the pen to the pilots he wants. Everybody sees the cursors and follows the view of the briefer (or moves on his own). "Save a kneeboard card" keeps the drawings inside the kneeboard frame.
 - Fixed: placing a steerpoint, a line or an offset on the map near a city or an objective no longer opens its window instead.
 - Fixed: the weather colour code counts the scattered (SCT) cloud layers, as the military colour states do.
 - Fixed: aircraft refuelled with a probe (F-14, Tornado, Typhoon, Rafale, Mirage, EA-6B...) get the KC-130 first.

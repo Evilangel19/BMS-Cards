@@ -1,0 +1,670 @@
+/* Squadron > Briefing (core/briefing.js): the room list on the left, the tools and the borrowed map on the right. Every rule starts with .brw or a br- class. */
+.brw {
+  --br-card: var(--card, #1a1f27);
+  --br-card2: #232a34;
+  --br-line: var(--line, #2a313b);
+  --br-dim: #8b95a3;
+  --br-acc: #3ecf8e;
+  --br-warn: #f5c842;
+  --br-red: #ff5d5d;
+  position: relative;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 10px;
+  height: calc(100vh - 190px);
+  min-height: 540px;
+  font-size: 13px;
+}
+.brw .brside {
+  background: var(--br-card);
+  border: 1px solid var(--br-line);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.brw .brtop {
+  padding: 12px 14px 6px;
+}
+.brw .brtop h3 {
+  margin: 0 0 4px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--br-acc);
+}
+.brw .brmis {
+  font-size: 12px;
+  color: var(--br-dim);
+  line-height: 1.4;
+}
+.brw .brmis b {
+  color: var(--txt, #e6e9ee);
+  font-weight: 600;
+}
+.brw .brwarn {
+  color: var(--br-warn);
+}
+.brw .brlh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px 4px;
+  font-size: 11px;
+  color: var(--br-dim);
+  letter-spacing: 0.05em;
+}
+.brw .brlh input {
+  display: none;
+  margin-left: auto;
+  width: 104px;
+  padding: 3px 7px;
+  font-size: 11.5px;
+}
+.brw .brlh.many input {
+  display: block;
+}
+.brw .brlist {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 6px 6px;
+}
+.brw .pil {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 7px;
+  min-height: 34px;
+}
+.brw .pil:hover {
+  background: #20262f;
+}
+.brw .pil.me {
+  background: var(--br-card2);
+}
+.brw .pil.off {
+  opacity: 0.45;
+}
+.brw .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #64748b;
+  box-shadow: 0 0 0 2px #0006;
+}
+.brw .pil .n {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.2;
+}
+.brw .pil .n i {
+  font-style: normal;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.brw .pil .n small {
+  display: block;
+  color: var(--br-dim);
+  font-size: 10.5px;
+}
+.brw .bdg {
+  font-size: 10px;
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+  flex: none;
+}
+.brw .bdg.pen {
+  background: #f5c84222;
+  color: #f5c842;
+  border: 1px solid #f5c84255;
+}
+.brw .bdg.brf {
+  background: #3ecf8e22;
+  color: #3ecf8e;
+  border: 1px solid #3ecf8e55;
+}
+.brw .pil .act {
+  display: none;
+  gap: 4px;
+  flex: none;
+}
+.brw .pil:hover .act {
+  display: flex;
+}
+.brw .pil:hover .bdg {
+  display: none;
+}
+.brw .mini {
+  background: #2b3440;
+  border: 1px solid #3a4452;
+  color: inherit;
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.brw .mini:hover {
+  background: #344050;
+}
+.brw .bracts {
+  border-top: 1px solid var(--br-line);
+  padding: 8px 10px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #181d24;
+}
+.brw .bracts:empty {
+  display: none;
+}
+.brw .bracts .btn {
+  width: 100%;
+  margin: 0;
+}
+.brw .brred {
+  color: #f08a8a;
+}
+.brw .brnote {
+  font-size: 10.5px;
+  color: var(--br-dim);
+}
+.brw .brtog {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+.brw .brsw {
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: #3a4452;
+  position: relative;
+  cursor: pointer;
+  flex: none;
+  border: 0;
+  padding: 0;
+  transition: background 0.2s;
+}
+.brw .brsw::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  transition: left 0.2s;
+}
+.brw .brsw.on {
+  background: var(--br-acc);
+}
+.brw .brsw.on::after {
+  left: 16px;
+}
+.brw .brmain {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+}
+.brw .brtools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: wrap;
+  background: var(--br-card);
+  border: 1px solid var(--br-line);
+  border-radius: 10px;
+  padding: 4px 6px;
+}
+.brw .brtools .t {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  height: 40px;
+  border-radius: 7px;
+  font-size: 9.5px;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--txt, #e6e9ee);
+  background: none;
+  border: 0;
+  padding: 0 3px;
+  position: relative;
+  transition:
+    background 0.15s,
+    opacity 0.15s;
+}
+.brw .brtools .t:hover {
+  background: #252c36;
+}
+.brw .brtools .t svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.brw .brtools .t.on {
+  background: #2b3440;
+  box-shadow: inset 0 0 0 1px var(--br-acc);
+  color: var(--br-acc);
+}
+.brw .brtools .t.on span {
+  color: var(--txt, #e6e9ee);
+}
+.brw .brtools .t.dis {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+.brw .brtools .t.hide {
+  display: none;
+}
+.brw .brtools .t.er {
+  color: var(--br-red);
+}
+.brw .brtools .t.er.on {
+  box-shadow: inset 0 0 0 1px var(--br-red);
+}
+.brw .brtools .t.cl {
+  color: #ff8a8a;
+}
+.brw .brtools .t.solo::after {
+  content: 'you';
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  font-size: 8px;
+  color: var(--br-dim);
+}
+.brw .brtools.narrow .t span {
+  display: none;
+}
+.brw .brtools.narrow .t {
+  min-width: 32px;
+  height: 32px;
+}
+.brw .brtools .vs {
+  width: 1px;
+  height: 26px;
+  background: var(--br-line);
+  margin: 0 3px;
+}
+.brw .brtools .cols {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 4px;
+}
+.brw .brtools .col {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 0;
+  padding: 0;
+  box-shadow: 0 0 0 1px #0008;
+  transition: box-shadow 0.15s;
+}
+.brw .brtools .col.on {
+  box-shadow:
+    0 0 0 2px var(--br-card),
+    0 0 0 4px #fff;
+}
+.brw .brtools .wd {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+.brw .brtools .wd button {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.brw .brtools .wd button.on {
+  background: #2b3440;
+  box-shadow: inset 0 0 0 1px var(--br-acc);
+}
+.brw .brtools .wd i {
+  display: block;
+  background: #cfd6df;
+  border-radius: 4px;
+  width: 14px;
+}
+.brw .brmapw {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--br-line);
+  background: #0d1b2a;
+}
+.brw .brmap {
+  position: absolute;
+  inset: 0;
+}
+.brw .brmap.brdraw,
+.brw .brmap.brdraw .leaflet-container {
+  cursor: crosshair;
+}
+.brw .brmap.brerase,
+.brw .brmap.brerase .leaflet-container {
+  cursor: cell;
+}
+.brw .brmap.brsel .leaflet-container {
+  cursor: default;
+}
+.brw .brmap.brpan2 .leaflet-container {
+  cursor: grab;
+}
+/* while drawing the symbols of the map do not take the mouse (no popups, no tooltips) */
+.brw .brmap:is(.brdraw, .brerase, .brsel) :is(.leaflet-marker-pane, .leaflet-overlay-pane, .leaflet-tooltip-pane) * {
+  pointer-events: none !important;
+}
+.brw .brhdr {
+  position: absolute;
+  left: 52px;
+  top: 10px;
+  z-index: 900;
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+.brw .brhdr .chip {
+  background: #0f1318e0;
+  border: 1px solid #3a4452;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: br-pop 0.25s ease;
+}
+.brw .brhdr .chip .btn {
+  margin: 0;
+  padding: 2px 9px;
+  font-size: 11px;
+}
+@keyframes br-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.brw .brcurs {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 800;
+  overflow: hidden;
+}
+.brw .brcur {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+  transition: opacity 0.2s;
+}
+.brw .brcur svg {
+  display: block;
+  filter: drop-shadow(0 1px 1px #000a);
+}
+.brw .brcur b {
+  position: absolute;
+  left: 14px;
+  top: 15px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #0f1318;
+  border-radius: 5px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+.brw .brleg {
+  position: absolute;
+  right: 10px;
+  bottom: 22px;
+  z-index: 700;
+  background: #0f1318cc;
+  border: 1px solid #2f3a46;
+  border-radius: 7px;
+  padding: 3px 8px;
+  font-size: 10.5px;
+  color: var(--br-dim);
+  pointer-events: none;
+}
+.brw .brmapw:has(> .brmap.shoting) .brleg,
+.brw .brmapw:has(> .brmap.shoting) .brhdr {
+  display: none;
+}
+.brw .brtoast {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 2500;
+  background: #0f1318f0;
+  border: 1px solid #3a4452;
+  border-radius: 8px;
+  padding: 7px 12px;
+  font-size: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+  animation: br-pop 0.2s ease;
+}
+.brw .brpal {
+  position: absolute;
+  z-index: 1300;
+  width: 338px;
+  background: #1f2630;
+  border: 1px solid #3a4452;
+  border-radius: 10px;
+  padding: 8px 10px 10px;
+  box-shadow: 0 12px 30px #000a;
+  animation: br-pop 0.18s ease;
+}
+.brw .brpal .ph {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--br-dim);
+  margin: 6px 0 4px;
+  font-weight: 700;
+}
+.brw .brpal .rw {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.brw .brpal .it {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 50px;
+  border-radius: 7px;
+  background: #252c36;
+  cursor: pointer;
+  font-size: 9.5px;
+  color: var(--br-dim);
+  gap: 3px;
+  border: 0;
+  padding: 0;
+  transition: background 0.15s;
+}
+.brw .brpal .it:hover {
+  background: #2e3743;
+}
+.brw .brpal .it.on {
+  background: #2b3440;
+  box-shadow: inset 0 0 0 1px var(--br-acc);
+  color: var(--txt, #e6e9ee);
+}
+.brw .brpal .fr .it {
+  width: 75px;
+}
+.brw .brpal .tip {
+  font-size: 10.5px;
+  color: var(--br-dim);
+  margin-top: 8px;
+}
+.brw .bred {
+  position: absolute;
+  z-index: 1100;
+  background: #1f2630;
+  border: 1px solid #3a4452;
+  border-radius: 8px;
+  padding: 8px;
+  box-shadow: 0 10px 24px #000a;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  animation: br-pop 0.18s ease;
+}
+.brw .bred label {
+  display: flex;
+  flex-direction: column;
+  font-size: 10px;
+  color: var(--br-dim);
+  gap: 2px;
+}
+.brw .bred input {
+  width: 90px;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.brw .bred input.s {
+  width: 52px;
+}
+.brw .bred .btn {
+  margin: 0;
+}
+.brw .brtx {
+  position: absolute;
+  z-index: 1000;
+  background: #0f1318cc;
+  border: 1.5px dashed;
+  border-radius: 5px;
+  outline: none;
+  resize: none;
+  font-weight: 700;
+  font-style: italic;
+  padding: 3px 6px;
+  min-width: 120px;
+  line-height: 1.25;
+  overflow: hidden;
+  font-family: inherit;
+}
+.brw .brjoin {
+  position: absolute;
+  inset: 0;
+  z-index: 1500;
+  background: #0f1318c8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: br-pop 0.2s ease;
+}
+.brw .brjoin .box,
+.brw .brmodal .box {
+  background: var(--br-card);
+  border: 1px solid var(--br-line);
+  border-radius: 12px;
+  padding: 18px 20px;
+  width: 380px;
+  max-width: 92%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.brw .brjoin h2 {
+  margin: 0;
+  font-size: 16px;
+}
+.brw .brjoin p {
+  margin: 0;
+  color: var(--br-dim);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.brw .brjoin .btn {
+  align-self: flex-start;
+  margin: 0;
+}
+.brw .brmodal {
+  position: absolute;
+  inset: 0;
+  z-index: 3000;
+  background: #000a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: br-pop 0.2s ease;
+}
+.brw .brmodal span {
+  color: var(--br-dim);
+  line-height: 1.45;
+}
+.brw .brmodal .row2 {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.brw .brmodal .btn {
+  margin: 0;
+}
+.brw .brdanger {
+  background: #b42323 !important;
+  border-color: #b42323 !important;
+  color: #fff !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .brw *,
+  .brw *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+@media (max-width: 900px) {
+  .brw {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+  .brw .brside {
+    max-height: 40vh;
+  }
+  .brw .brmain {
+    height: 70vh;
+  }
+}

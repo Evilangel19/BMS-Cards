@@ -114,3 +114,45 @@ export function placeIcon(kind, sub, color) {
     html: `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 18 18"${kind == 'ab' ? ' class="ab"' : ''} style="--c:${color || (kind == 'ab' ? '#e6edf3' : '#6cb6ff')}"><g class="ol">${g}</g>${g}</svg>`,
   };
 }
+
+// The same symbols as a picture (an SVG with its colours written in it, for a canvas): the frames of unitSymbol plus the unknown one (a quatrefoil, yellow).
+// gk: the key of the inner sign (GLYPH_KEYS), side: 'friend' | 'hostile' | 'neutral' | 'unknown', px: the width. Used by the briefing board.
+export const SIDE_COL = { friend: '#4f8cff', hostile: '#ff5d5d', neutral: '#4cc38a', unknown: '#f5d742' };
+export const GLYPH_KEYS = Object.keys(G);
+export function symbolSvg(gk, side, px = 28) {
+  const col = SIDE_COL[side] || SIDE_COL.neutral,
+    g = G[gk] || G.unk;
+  let frame, w, h, cx, cy, sx, sy;
+  if (side == 'hostile') {
+    frame = '<path d="M14 2L26 14L14 26L2 14Z" class="fr"/>';
+    [w, h, cx, cy, sx, sy] = [28, 28, 14, 14, 5.5, 5.5];
+  } else if (side == 'unknown') {
+    frame = '<path d="M8 8A6 6 0 0 1 20 8A6 6 0 0 1 20 20A6 6 0 0 1 8 20A6 6 0 0 1 8 8Z" class="fr"/>';
+    [w, h, cx, cy, sx, sy] = [28, 28, 14, 14, 5.5, 5.5];
+  } else if (side == 'neutral') {
+    frame = '<rect x="4" y="2" width="20" height="20" class="fr"/>';
+    [w, h, cx, cy, sx, sy] = [28, 24, 14, 12, 6, 6];
+  } else {
+    frame = '<rect x="2" y="2" width="24" height="16" class="fr"/>';
+    [w, h, cx, cy, sx, sy] = [28, 20, 14, 10, 8, 5];
+  }
+  const inner = g.startsWith('T:')
+    ? `<text x="${cx}" y="${cy + 3.4}" text-anchor="middle" class="t">${g.slice(2)}</text>`
+    : `<g transform="translate(${cx} ${cy}) scale(${sx} ${sy})" class="gl">${g}</g>`;
+  const st = `<style>.fr{fill:#0d1b2ad9;stroke:${col};stroke-width:1.6}.gl *{fill:none;stroke:${col};stroke-width:1.4;vector-effect:non-scaling-stroke}.gl .f{fill:${col}}.t{fill:${col};font:700 8.5px system-ui,sans-serif}</style>`;
+  const k = px / 28;
+  return {
+    w: w * k,
+    h: h * k,
+    svg: `<svg xmlns="http://www.w3.org/2000/svg" width="${w * k}" height="${h * k}" viewBox="0 0 ${w} ${h}">${st}${frame}${inner}</svg>`,
+  };
+}
+// the airbase icon of the map as a picture (colour written in it)
+export function airbaseSvg(side, px = 20) {
+  const col = side == 'hostile' ? '#ff5d5d' : side == 'friend' ? '#ffffff' : side == 'unknown' ? '#f5d742' : '#9aa4b2';
+  const s = placeIcon('ab', null, col)
+    .html.replace('<svg ', `<svg width="${px}" height="${px}" `)
+    .replace(/width="18" height="18" /, '');
+  const st = `<style>.ol{display:none}.th{stroke:${col};stroke-width:2.4;fill:none}</style>`;
+  return { w: px, h: px, svg: s.replace('>', '>' + st) };
+}

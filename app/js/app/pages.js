@@ -406,6 +406,19 @@ export async function init11() {
     },
     campaign: () => ST.C,
     swarm: window.__swarmTest,
+    // the Briefing tab: the map of the Map page (not editable), its kneeboard frame, the flight chosen in the datacard and the theater
+    briefing: {
+      attach: el => mapV.attach(el, true),
+      detach: () => mapV.detach(),
+      shot: o => mapV.shotStart('kb', o),
+      mission: () => {
+        const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+          e = x && ATOL.find(z => z.f === x.f);
+        return e ? e.callsign + ' · ' + e.n + '× ' + e.ac + ' · ' + e.mission : '';
+      },
+      theater: () => (ST.TH ? ST.TH.name : ''),
+      wide: b => document.querySelector('main').classList.toggle('wide', !!b),
+    },
     buildMission: () => msfBuild(),
     loadMission: t => msfLoad(t, null),
     roleChanged: () => {

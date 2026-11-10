@@ -157,6 +157,7 @@ export async function init1() {
     b =>
       (b.onclick = () => {
         document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x == b));
+        if (b.dataset.t != 'sq' && sqPage) sqPage.leave(); // the Briefing gives the map back before another page takes it
         ['dtc', 'kb', 'kn', 'mp', 'wp', 'ms', 'pf', 'wx', 'sq', 'dc'].forEach(i =>
           $(i).classList.toggle('hide', i != b.dataset.t)
         );
@@ -165,7 +166,10 @@ export async function init1() {
         if (b.dataset.t != 'wx' && typeof wxPage != 'undefined' && wxPage) wxPage.leave();
         if (b.dataset.t == 'ms') ST.msPage.render();
         if (b.dataset.t == 'dtc') view();
-        if (b.dataset.t == 'sq') sqPage.refresh();
+        if (b.dataset.t == 'sq') {
+          sqPage.enter();
+          sqPage.refresh();
+        }
         if (b.dataset.t != 'wp' && ST.wpPage) ST.wpPage.leave();
         document.body.classList.toggle('onwp', b.dataset.t == 'wp');
         if (b.dataset.t == 'wp') ST.wpPage.render();
@@ -183,7 +187,8 @@ export async function init1() {
               b.dataset.t == 'ms' ||
               b.dataset.t == 'pf' ||
               b.dataset.t == 'wx' ||
-              b.dataset.t == 'dc'
+              b.dataset.t == 'dc' ||
+              (b.dataset.t == 'sq' && sqPage.wide())
           );
         if (b.dataset.t == 'pf') pfPage.render();
         if (b.dataset.t == 'dc') dcPage.render();

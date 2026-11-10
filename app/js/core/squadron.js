@@ -20,6 +20,8 @@ import {
   flightWarning,
 } from './organization.js';
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
+import { createBriefing } from './briefing.js';
+import { roleOf } from './briefroom.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -1773,6 +1775,7 @@ export function createSquadronPage(deps) {
           p.link.send(syncMsg(meta(q), q.roster, q.org));
           save();
         } else if (q.roster[p.uid]) {
+          if (brief && q === cur()) brief.peerLeft(p.uid);
           q.roster[p.uid].lastSeen = Date.now();
           say(label(p.profile) + ' went offline (' + q.name + ').');
           save();
@@ -1840,6 +1843,8 @@ export function createSquadronPage(deps) {
             r.av = m.av || '';
             drawAll();
           }
+        } else if (m.k == 'brf') {
+          if (brief && q === cur()) brief.onMessage(p.uid, m);
         } else if (m.k == 'mission') onRecv(m, p.profile, q.name);
         else if (m.k == 'gone') {
           if (q.owner && p.uid == q.owner) leave(q, 'The leader deleted the squadron ' + q.name + '.');
@@ -2785,6 +2790,7 @@ export function createSquadronPage(deps) {
   const TABS = [
     ['members', 'Members'],
     ['org', 'Organization'],
+    ['brief', 'Briefing'],
     ['missions', 'Missions'],
     ['me', 'Me'],
     ['settings', 'Settings'],
@@ -2794,7 +2800,15 @@ export function createSquadronPage(deps) {
     root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t));
     root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t));
     if (t == 'missions') drawSaved();
+    // the Briefing borrows the map of the Map page only while it is on screen
+    if (brief) {
+      brief.squadChanged();
+      if (t == 'brief' && active) brief.show();
+      else brief.hide();
+    }
   };
+  let brief = null,
+    active = false;
   const drawAll = () => {
     showTab();
     avDraw();
@@ -3176,6 +3190,7 @@ export function createSquadronPage(deps) {
 <div class="sqc" id="sqlost" hidden></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
+</div><div class="sqpane" data-pane="brief"><div id="sqbrief" class="sqbrief"></div>
 </div><div class="sqpane" data-pane="missions"><div class="sqtwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div></div>
 </div><div class="sqpane" data-pane="me">
@@ -3460,6 +3475,48 @@ export function createSquadronPage(deps) {
     drawAll();
   }
   build();
+  // ---- the Briefing tab (core/briefing.js): the room of the squadron chosen, through its swarm
+  {
+    const B = deps.briefing || {};
+    const sw = () => {
+      const q = cur();
+      return q ? swarms.get(q.id) : null;
+    };
+    brief = createBriefing({
+      root: $('#sqbrief'),
+      esc,
+      me: () => DB.uid,
+      name: uid => {
+        const q = cur();
+        return q ? nameOfIn(q)(uid) : 'Pilot';
+      },
+      role: uid => {
+        const q = cur();
+        return q ? roleOf(q, orgView(q), uid) : { role: 'Pilot', lead: false };
+      },
+      online: () => {
+        const w = sw();
+        return w ? [...new Set(w.online().map(p => p.uid))] : [];
+      },
+      send: m => {
+        const w = sw();
+        if (w) w.broadcast(m);
+      },
+      sendTo: (uid, m) => {
+        const w = sw(),
+          p = w && w.byUid(uid);
+        if (p) p.link.send(m);
+      },
+      squad: () => (cur() ? cur().id : null),
+      attach: el => (B.attach ? B.attach(el) : Promise.resolve(null)),
+      detach: () => B.detach && B.detach(),
+      shot: o => B.shot && B.shot(o),
+      mission: () => (B.mission ? B.mission() : ''),
+      theater: () => (B.theater ? B.theater() : ''),
+      wide: b => B.wide && B.wide(b),
+      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+    });
+  }
   // the saved squadrons, rosters and settings; the swarms start as soon as they are known
   async function init() {
     try {
@@ -3527,6 +3584,17 @@ export function createSquadronPage(deps) {
       if (!PB) loadPb();
       drawAll();
     },
+    // the page comes on screen / goes away (the Briefing tab holds the map only while it is seen)
+    enter: () => {
+      active = true;
+      showTab();
+    },
+    leave: () => {
+      active = false;
+      if (brief) brief.hide();
+    },
+    wide: () => active && DB.tab == 'brief',
+    briefing: () => brief,
     pilot: () => pilot,
     me,
     db: () => DB,
