@@ -23,6 +23,8 @@ import {
   writeBytes,
   saveBlob as saveFile,
   makeDir,
+  loadPrefs,
+  savePrefs,
 } from '../platform/desktop.js';
 import { pdfOpen, pdfRender, pdfRenderTo, pdfPageText } from '../platform/pdf.js';
 import * as PJ from '../core/mission.js';
@@ -382,9 +384,44 @@ export async function kbAddTray(blob, name) {
   kbRender(true);
   return it;
 }
+// "One map screenshot" (Settings > General): the new picture takes the place of the last map screenshot, in every slot that holds it (this theater, the others,
+// the default arrangement) or among the unused cards; the pages of the Docs and the other cards are not touched
+async function kbReplaceShot(blob) {
+  const old = [...KBLIB].reverse().find(i => /^Map screenshot/.test(i.name));
+  if (!old) return null;
+  const it = await kbMakeItem(blob, 'Map screenshot');
+  KBLIB = KBLIB.map(x => (x === old ? it : x));
+  const swap = a =>
+    (a || []).forEach(r =>
+      ['left', 'right'].forEach(k => {
+        if (r[k].kind == 'pic' && r[k].item === old) r[k] = { ...r[k], item: it };
+      })
+    );
+  swap(KBS);
+  swap(KBDEF);
+  Object.values(KBTH).forEach(swap);
+  for (const sd of ['left', 'right']) {
+    const row = KBS.findIndex(r => r[sd].kind == 'pic' && r[sd].item === it);
+    if (row >= 0) return { side: sd, row };
+  }
+  return { tray: true };
+}
 export async function kbAddShot(c) {
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   if (!blob) return alert('The screenshot could not be saved.');
+  if (ST.CFG && ST.CFG.ui && ST.CFG.ui.oneMapShot) {
+    const at = await kbReplaceShot(blob);
+    if (at) {
+      kbMemLater();
+      kbRender(true);
+      const st = $('kbst');
+      if (st)
+        st.textContent =
+          'Map screenshot replaced' +
+          (at.tray ? ' (among the unused cards).' : ' on the ' + at.side + ' column, card ' + (at.row + 1) + '.');
+      return;
+    }
+  }
   const n = KBLIB.filter(i => /^Map screenshot/.test(i.name)).length + 1,
     at = await kbAddPic(blob, 'Map screenshot ' + n);
   const st = $('kbst');
@@ -1117,6 +1154,7 @@ export async function kbSave() {
     $('kbprog').firstChild.style.width = '100%';
     st.textContent = 'Done: ' + done + ' file(s) written.';
     KBSAVED = kbSig();
+    kbMarkSaved();
     kbDefBtns();
     $('kbsave').classList.remove('flash');
     void $('kbsave').offsetWidth;
@@ -1141,6 +1179,103 @@ export async function kbSave() {
 }
 
 // run 17: statements that run when the program starts (in the order of the original file)
+// ---- "Kneeboard not saved": what the kneeboard would write now (the cards in the slots, the format, the files of the aircraft and, when the datacard pages are
+// on it, the datacard as it is drawn) against what the last Save wrote. Kept between sessions (kbsaved.json), so the same mission opened again is not "not saved".
+let KBLAST = null,
+  KBCVV = -1,
+  KBCVH = '';
+const fnv = (str, h = 2166136261) => {
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+};
+// the datacard as it is drawn (a small copy of the card, so any change of what is written on it counts)
+function cvHash() {
+  const c = $('cv');
+  if (!c || !c.width) return '';
+  const o = document.createElement('canvas');
+  o.width = o.height = 256;
+  const x = o.getContext('2d', { willReadFrequently: true });
+  x.drawImage(c, 0, 0, 256, 256);
+  const d = x.getImageData(0, 0, 256, 256).data;
+  let h = 2166136261;
+  for (let i = 0; i < d.length; i += 4) h = Math.imul(h ^ (d[i] | (d[i + 1] << 8) | (d[i + 2] << 16)), 16777619);
+  return (h >>> 0).toString(36);
+}
+const slotSig = sl => [
+  sl.kind,
+  sl.item ? sl.item.name + ':' + (sl.item.blob ? sl.item.blob.size : '') : '',
+  sl.mode || '',
+];
+export function kbNowSig() {
+  if (!KBS) return null;
+  const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
+  if (!rows.length) return null;
+  const dc = dcOnRows(rows);
+  if (dc && (ST.CVV || 0) !== KBCVV) {
+    KBCVV = ST.CVV || 0;
+    KBCVH = cvHash();
+  }
+  return (
+    fnv(
+      JSON.stringify([
+        KBFMT,
+        KBFIT,
+        kbSet().name,
+        kbDir() || '',
+        rows.map(i => [i, slotSig(KBS[i].left), slotSig(KBS[i].right)]),
+      ])
+    ) + (dc ? '.' + KBCVH : '')
+  );
+}
+function kbMarkSaved() {
+  KBLAST = kbNowSig();
+  savePrefs('kbsaved.json', { sig: KBLAST });
+  kbWarn();
+}
+// not saved: something is on the kneeboard and differs from the last Save (a datacard with no flight chosen does not count: there is nothing to save yet)
+export function kbUnsaved() {
+  const sig = kbNowSig();
+  if (!sig || sig === KBLAST) return false;
+  const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
+  if (dcOnRows(rows) && dcEmpty() && rows.every(i => ['left', 'right'].every(sd => KBS[i][sd].kind != 'pic')))
+    return false;
+  return true;
+}
+function kbWarn() {
+  const on = kbUnsaved(),
+    tab = document.querySelector('.tab[data-t=kn]');
+  if (tab) tab.classList.toggle('unsaved', on);
+  let b = $('kbwarn');
+  if (!b && on) {
+    b = document.createElement('button');
+    b.id = 'kbwarn';
+    b.type = 'button';
+    b.className = 'kbwarn';
+    b.title = 'The kneeboard changed since it was last saved to the BMS folder: click to save it now';
+    b.textContent = '⚠ Kneeboard not saved';
+    b.onclick = () => {
+      const t = document.querySelector('.tab[data-t=kn]');
+      if (t && $('kn').classList.contains('hide')) t.click();
+      setTimeout(() => kbSave(), 60);
+    };
+    const cfg = $('cfgbtn');
+    if (cfg && cfg.parentNode) cfg.parentNode.insertBefore(b, cfg);
+    else document.body.append(b);
+  }
+  if (b) b.hidden = !on;
+}
+export function kbWatch() {
+  loadPrefs('kbsaved.json')
+    .then(o => {
+      if (o && typeof o.sig == 'string') KBLAST = o.sig;
+    })
+    .catch(() => {})
+    .finally(() => {
+      kbWarn();
+      setInterval(kbWarn, 1500);
+    });
+}
+
 export async function init17() {
   KBS = DEFAULT_SLOTS();
   KBDEF = kbCopy(KBS);
@@ -1162,6 +1297,7 @@ export async function init17() {
     airports: dcIcaos,
     toast: appToast,
   });
+  kbWatch();
   onFilesDropped(
     (files, pos) => {
       if ($('kn').classList.contains('hide')) return;

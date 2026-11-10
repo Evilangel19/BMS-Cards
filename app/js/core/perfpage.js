@@ -24,6 +24,8 @@ const SL = {
   mach: ['Mach', '', 0.3, 2, 0.01],
   lres: ['Landing reserve', ' lb', 500, 4000, 100],
   jok: ['Joker above bingo', ' lb', 0, 2000, 100],
+  imch: ['IMC holding', ' min', 0, 30, 1],
+  imca: ['IMC alternate', ' lb', 0, 4000, 100],
   ohalt: ['Overhead altitude', ' ft', 500, 5000, 100],
   ohspd: ['Overhead speed', ' kt', 200, 450, 10],
   elev: ['Field elevation', ' ft', -500, 9000, 100],
@@ -51,6 +53,8 @@ const DEF = {
   rwy: 0,
   lres: 1500,
   jok: 1000,
+  imch: 10,
+  imca: 1000,
   ohalt: 1500,
   ohspd: 300,
   lmode: 'ovhd',
@@ -584,6 +588,7 @@ export function createPerfPage(deps) {
         jokerMargin: st.jok,
         loaded: st.fuel,
         wind: deps.wind,
+        imc: fp.imc ? { ...fp.imc, hold: st.imch, alt: st.imca } : null,
       },
       pl = fuelPlan(ac, fp.wps, o),
       alt = climbAltitude(fp.wps),
@@ -597,7 +602,7 @@ export function createPerfPage(deps) {
             ? Math.floor(s / 3600) + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0') + ' h'
             : Math.round(s / 60) + ' min';
       };
-    const tiles = `<div class="wpt">${tile('Fuel at take-off', fmt(pl.toFuel) + ' lb', bad ? 'short by ' + fmt(pl.short) + ' lb: only ' + fmt(st.fuel) + ' loaded' : 'loaded: ' + fmt(st.fuel) + ' lb')}${tile('Bingo', fmt(pl.bingo) + ' lb', 'Min.Fuel of STPT ' + (pl.bingoIdx + 1))}${tile('Joker', fmt(pl.joker) + ' lb', '+' + fmt(st.jok) + ' lb over the bingo')}${tile('Mil climb', cl ? fmt(cl.cas) + ' / .' + String(Math.round(cl.mach * 100)).padStart(2, '0') : '—', cl ? 'to ' + fmt(alt) + ' ft: ' + cl.minutes.toFixed(1) + ' min, ' + fmt(cl.fuel) + ' lb' : 'no climb')}</div>`;
+    const tiles = `<div class="wpt">${tile('Fuel at take-off', fmt(pl.toFuel) + ' lb', bad ? 'short by ' + fmt(pl.short) + ' lb: only ' + fmt(st.fuel) + ' loaded' : 'loaded: ' + fmt(st.fuel) + ' lb')}${tile('Bingo', fmt(pl.bingo) + ' lb' + (pl.imc ? ' IMC' : ''), 'Min.Fuel of STPT ' + (pl.bingoIdx + 1) + (pl.imc ? ' + IMC at ' + pl.imc.field + ' (' + pl.imc.code + '): ' + pl.imc.hold + ' min hold ' + fmt(pl.imc.holdLb) + ' lb, alternate ' + fmt(pl.imc.alt) + ' lb' : ''))}${tile('Joker', fmt(pl.joker) + ' lb', '+' + fmt(st.jok) + ' lb over the bingo')}${tile('Mil climb', cl ? fmt(cl.cas) + ' / .' + String(Math.round(cl.mach * 100)).padStart(2, '0') : '—', cl ? 'to ' + fmt(alt) + ' ft: ' + cl.minutes.toFixed(1) + ' min, ' + fmt(cl.fuel) + ' lb' : 'no climb')}</div>`;
     const windTxt = w =>
       String(Math.round(w.hdg) % 360 || 360).padStart(3, '0') +
       '/' +
@@ -645,7 +650,7 @@ export function createPerfPage(deps) {
           ? s(['alt', 'reserve', 'mach']) +
             `<div class="wrow"><button class="btn g" type="button" data-bestm>Best range Mach</button></div>`
           : st.mode == 'plan'
-            ? s(['lres', 'jok', 'ohalt', 'ohspd']) +
+            ? s(['lres', 'jok', 'imch', 'imca', 'ohalt', 'ohspd']) +
               `<div class="wrow"><label>Landing</label>${seg(
                 'lmode',
                 [
@@ -664,7 +669,7 @@ export function createPerfPage(deps) {
                     st.lstores
                   )}</div>`
                 : '') +
-              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. Overhead: the altitude and speed above go in the landing steerpoint. Direct: the airfield elevation and the estimated touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
+              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. IMC: when the landing field is GRN or worse at the landing time (cloud of 3/8 or more under 1500 ft or visibility under 5 km), the Bingo also carries the holding (10,000 ft above the field, Mach .5) and the alternate fuel. Overhead: the altitude and speed above go in the landing steerpoint. Direct: the airfield elevation and the estimated touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
             : `${
                 noAb()
                   ? ''
@@ -765,6 +770,8 @@ export function createPerfPage(deps) {
   const prefs = () => ({
     reserve: st.lres,
     joker: st.jok,
+    imcHold: st.imch,
+    imcAlt: st.imca,
     ohalt: st.ohalt,
     ohspd: st.ohspd,
     lmode: st.lmode,
@@ -773,7 +780,7 @@ export function createPerfPage(deps) {
   function wire(root, partial) {
     const upd = f => {
       save();
-      if (deps.prefs && (f == 'lres' || f == 'jok' || f == 'ohalt' || f == 'ohspd')) deps.prefs.set(prefs());
+      if (deps.prefs && ['lres', 'jok', 'imch', 'imca', 'ohalt', 'ohspd'].includes(f)) deps.prefs.set(prefs());
       const g = root.querySelector('[data-gw]');
       if (g) g.textContent = fmt(gw()) + ' lb';
       draw(true);
@@ -874,6 +881,8 @@ export function createPerfPage(deps) {
         if (p) {
           if (p.reserve != null) st.lres = p.reserve;
           if (p.joker != null) st.jok = p.joker;
+          if (p.imcHold != null) st.imch = p.imcHold;
+          if (p.imcAlt != null) st.imca = p.imcAlt;
           if (p.ohalt != null) st.ohalt = p.ohalt;
           if (p.ohspd != null) st.ohspd = p.ohspd;
           if (p.lmode != null) st.lmode = p.lmode;

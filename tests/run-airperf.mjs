@@ -171,6 +171,31 @@ ok(
   fp.rows.every(r => r.min % 100 === 0),
   'values rounded up to 100 lb'
 );
+// the landing field in IMC: a holding (computed with the flight model) and a fixed amount for an alternate on top of the Bingo
+const fpI = fuelPlan(ac, plan, {
+  stores: 2500,
+  di: 30,
+  reserve: 1500,
+  jokerMargin: 500,
+  imc: { hold: 10, alt: 1000, code: 'GRN', field: 'RKJK' },
+});
+ok(fp.imc === null, 'VMC: no IMC fuel in the Bingo');
+ok(
+  fpI.imc &&
+    fpI.imc.holdLb > 300 &&
+    fpI.imc.holdLb < 2500 &&
+    fpI.bingo % 100 === 0 &&
+    fpI.bingo >= fp.bingo + 1000 + fpI.imc.holdLb - 100 &&
+    fpI.bingo <= fp.bingo + 1000 + fpI.imc.holdLb + 100 &&
+    fpI.joker === fpI.bingo + 500 &&
+    fpI.toFuel === fp.toFuel,
+  'IMC: Bingo + 10 min hold (' +
+    (fpI.imc && fpI.imc.holdLb) +
+    ' lb) + 1000 lb alternate: ' +
+    fp.bingo +
+    ' -> ' +
+    fpI.bingo
+);
 const fp2 = fuelPlan(ac, plan, { stores: 2500, di: 30, reserve: 3000 });
 ok(fp2.toFuel > fp.toFuel + 1200, 'a bigger reserve needs more fuel at take-off');
 const fp3 = fuelPlan(ac, plan, { stores: 2500, di: 30, reserve: 1500, loaded: 5000 });

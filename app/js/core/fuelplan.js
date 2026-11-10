@@ -28,6 +28,19 @@ function legBurn(ac, W, o, a0, a1, distNm, tSec, hw) {
     ff = pw.ff;
   return { burn: (ff * tSec) / 3600, mach: M, ab: pw.mode == 'ab' && !P.powerFor(ac, hm, M, treq) };
 }
+// the IMC part of the Bingo: o.imc.hold minutes of holding (10,000 ft above the field, Mach .5, at the landing weight: empty + stores + reserve + the alternate fuel)
+// and o.imc.alt lb for an alternate (a fixed amount: the alternate airfield itself is not chosen). null when the landing field is not in IMC.
+export const IMC_HOLD_FT = 10000,
+  IMC_HOLD_M = 0.5;
+export function imcExtra(ac, o, fieldFt) {
+  const m = o && o.imc;
+  if (!m) return null;
+  const hold = Math.max(0, +m.hold || 0),
+    alt = Math.max(0, +m.alt || 0),
+    W = (o.empty || 0) + (o.stores || 0) + (o.reserve || 0) + alt;
+  const holdLb = hold > 0 ? Math.round(dwellBurn(ac, W, o, (fieldFt || 0) + IMC_HOLD_FT, IMC_HOLD_M, hold * 60)) : 0;
+  return { hold, holdLb, alt, total: holdLb + alt, code: m.code || '', field: m.field || '' };
+}
 // holding / orbiting: at the speed of the leg that brought the aircraft there, but not faster than Mach .85 nor slower than Mach .5
 function dwellBurn(ac, W, o, alt, mach, tSec) {
   if (!(tSec > 0)) return 0;
@@ -119,8 +132,10 @@ export function fuelPlan(ac, wps0, o) {
   wps.forEach((p, i) => {
     if (!BASIC.includes(p.act)) last = i;
   });
-  const bi = last >= 0 ? Math.min(n - 1, last + 1) : Math.max(1, n - 2),
-    bingo = rows[bi].min,
+  const bi = last >= 0 ? Math.min(n - 1, last + 1) : Math.max(1, n - 2);
+  // the landing field in IMC (o.imc = {hold: minutes, alt: lb}): the Bingo also carries a holding at the field and a fixed amount for an alternate
+  const imc = imcExtra(ac, o, wps[n - 1] ? wps[n - 1].z * 10 : 0),
+    bingo = imc ? up100(rows[bi].minExact + imc.total) : rows[bi].min,
     joker = jokerFor(bingo, o.jokerMargin);
   const toFuel = rows[0].min;
   wps0.slice(n).forEach((p, k) =>
@@ -143,6 +158,7 @@ export function fuelPlan(ac, wps0, o) {
     toFuel,
     bingo,
     bingoIdx: bi,
+    imc,
     joker,
     reserve,
     flags,

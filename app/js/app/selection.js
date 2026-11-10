@@ -10,7 +10,7 @@ import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/des
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
 import { MFD, draw } from './cardview.js';
-import { perfFill } from './perf.js';
+import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 import { seatCheck, seatEnter } from './seat.js';
@@ -163,6 +163,7 @@ export function apply(i, mode) {
   perfFill(i);
   wxPrep(i);
   msaFill(i);
+  bvrAuto(i);
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),

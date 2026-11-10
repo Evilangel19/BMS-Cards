@@ -155,8 +155,11 @@ export function createMissilesPage(deps) {
     b.shotPct = num(b.shotPct, 20, 100, 100);
     b.tgtSize = ['small', 'fighter', 'bomber'].includes(b.tgtSize) ? b.tgtSize : 'fighter';
   }
+  let fromSession = false,
+    touched = false; // touched: the page was changed (by the pilot or by a mission) before the file of the last session was read
   try {
     const o = JSON.parse(sessionStorage.getItem(KEY) || 'null');
+    fromSession = !!o;
     if (o)
       st = {
         ...st,
@@ -172,12 +175,43 @@ export function createMissilesPage(deps) {
   }
   norm();
   const save = () => {
+    touched = true;
     try {
       sessionStorage.setItem(KEY, JSON.stringify(st));
     } catch (e) {
       /* none */
     }
+    // deps.prefs: the page is remembered from one session to the next (the BVR page: the classes, their missiles and conditions, the units); a mission opened still wins
+    if (deps.prefs)
+      try {
+        deps.prefs.save({ ...st, mode: undefined });
+      } catch (e) {
+        /* not saved */
+      }
   };
+  if (deps.prefs && !fromSession)
+    Promise.resolve()
+      .then(() => deps.prefs.load())
+      .then(o => {
+        if (!o || typeof o != 'object' || touched) return;
+        st = {
+          ...st,
+          ...o,
+          harm: { ...st.harm, ...(o.harm && typeof o.harm == 'object' ? o.harm : {}) },
+          bvr: mergeBvr(st.bvr, o.bvr),
+          tl: mergeTl(st.tl, o.tl),
+          map: { ...st.map, ...(o.map && typeof o.map == 'object' ? o.map : {}) },
+          mode: deps.only || st.mode,
+        };
+        norm();
+        try {
+          sessionStorage.setItem(KEY, JSON.stringify(st));
+        } catch (e) {
+          /* none */
+        }
+        if (deps.root.isConnected && !deps.root.closest('.hide') && deps.root.querySelector('.wpg')) draw(false);
+      })
+      .catch(() => {});
   let DB = { ...D0.mfb },
     asked = false,
     M = null,
@@ -197,17 +231,18 @@ export function createMissilesPage(deps) {
           (kind == 'harm' ? DB[k].params.seekerType === 2 : [1, 6].includes(DB[k].params.seekerType))
       )
       .sort();
+  let loadP = null; // the missile files being read (the BVR rows of the datacard wait for them)
   function load() {
-    if (asked || !deps.missiles) return;
+    if (asked || !deps.missiles) return loadP;
     asked = true;
-    Promise.resolve(deps.missiles())
+    return (loadP = Promise.resolve(deps.missiles())
       .then(m => {
         if (m && Object.keys(m).length) {
           DB = { ...DB, ...m };
           if (deps.root.querySelector('.wpg')) draw(false);
         }
       })
-      .catch(() => {});
+      .catch(() => {}));
   }
 
   function emitters() {
@@ -1235,6 +1270,11 @@ export function createMissilesPage(deps) {
   return {
     refresh,
     rows: tlRows,
+    // the rows of the timeline once the missile files are read (the datacard fills its BVR box with them)
+    rowsReady: async () => {
+      await load();
+      return tlRows();
+    },
     calc: c => {
       load();
       if (!c) return null;

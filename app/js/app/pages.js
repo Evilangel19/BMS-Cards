@@ -39,7 +39,7 @@ import { $, animOn, appToast, esc, jp } from './base.js';
 import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
 import { isShipBase, shipKind } from '../core/carriers.js';
-import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
+import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt, imcOpt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
 import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
@@ -470,7 +470,7 @@ export async function init11() {
     flightPlan: () => {
       const x = ST.C && ST.CL[+$('fsel').value];
       if (!x || !x.f.wps) return null;
-      return { wps: x.f.wps, labels: x.f.wps.map((_, i) => F['fp' + i + '_0'] || '') };
+      return { wps: x.f.wps, labels: x.f.wps.map((_, i) => F['fp' + i + '_0'] || ''), imc: imcOpt(x.f) };
     },
     env: { get: perfEnv },
     runway: {
@@ -507,8 +507,12 @@ export async function init11() {
         ohspd: PERFP.ohspd,
         lmode: PERFP.lmode,
         lstores: PERFP.lstores,
+        imcHold: PERFP.imcHold,
+        imcAlt: PERFP.imcAlt,
       }),
       set: o => {
+        if (o.imcHold != null) PERFP.imcHold = o.imcHold;
+        if (o.imcAlt != null) PERFP.imcAlt = o.imcAlt;
         PERFP.reserve = o.reserve;
         PERFP.joker = o.joker;
         PERFP.ohalt = o.ohalt;
@@ -537,6 +541,7 @@ export async function init13() {
     missiles: misLoad,
     only: 'bvr',
     key: 'msmissiles1b',
+    prefs: { load: () => loadPrefs('bvrprefs.json'), save: o => savePrefs('bvrprefs.json', o) }, // kept from one session to the next
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
     toggleEdit: () => mapV.toggleEdit(),

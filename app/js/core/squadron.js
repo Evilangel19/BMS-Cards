@@ -1689,7 +1689,16 @@ export function createSquadronPage(deps) {
         ts: orgClock(q),
         lastSeen: Date.now(),
       };
-    else Object.assign(r, { name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av });
+    // the logbook may not be read yet (or not found this time): what is known of the pilot is kept, never made empty (the roster of the datacard
+    // listed him by his callsign, and the empty name went to the other pilots too)
+    else
+      Object.assign(r, {
+        name: m.name || r.name || '',
+        callsign: m.callsign || r.callsign || '',
+        pilotSquadron: m.squadron || r.pilotSquadron || '',
+        stats: m.st || r.stats || null,
+        av: m.av,
+      });
   };
 
   const avDraw = () => {
@@ -3546,6 +3555,12 @@ export function createSquadronPage(deps) {
     if ($('#sqturn')) $('#sqturn').value = DB.turn || '';
     if ($('#sqstun')) $('#sqstun').checked = !!DB.stun;
     if ($('#sqcs')) $('#sqcs').value = DB.cs || '';
+    // the logbook is read at the start (before, only when the Squadron page was opened): the name of the pilot is known from the first message
+    try {
+      if (deps.lbk) await loadLbks();
+    } catch (e) {
+      /* read later, from the page */
+    }
     save();
     drawAll();
     startAll();

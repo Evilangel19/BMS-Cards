@@ -4,6 +4,11 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: the Bingo carries a holding and an alternate fuel when the landing field is in IMC (GRN or worse at the landing time); minutes and pounds on the Performance page (10 min, 1000 lb), a small IMC beside the Bingo on the card.
+- Added: "Kneeboard not saved" in the tab bar (and a dot on the Kneeboard tab) when the kneeboard changed since its last save to BMS; a click saves it.
+- Added: Settings > General > One map screenshot: a new map screenshot takes the place of the last one, on the same kneeboard page (off by default).
+- Added: the BVR box of the datacard fills itself with the BVR timeline when it is empty; the BVR timeline is kept from one session to the next.
+- Fixed: the datacard roster sometimes listed a pilot by his callsign instead of his name (the logbook is read at the start).
 - Fixed (Briefing): lines no longer dotted at some zooms or while the map moves; sharp labels; bearings without the "T".
 - Added: **Squadron > Briefing**, a live briefing room on the map. A leader opens it and draws (pen, marker, arrows, shapes, text, the NATO symbols and radar tracks of the map, IP, CAP orbit, holding, threat rings, ruler and compass); he gives the pen to the pilots he wants. Everybody sees the cursors and follows the view of the briefer (or moves on his own). "Save a kneeboard card" keeps the drawings inside the kneeboard frame.
 - Fixed: placing a steerpoint, a line or an offset on the map near a city or an objective no longer opens its window instead.

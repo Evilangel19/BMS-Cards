@@ -54,7 +54,7 @@ export async function autoLoadLast() {
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
 const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data'];
-const SW_OF = { general: ['autoLoad', 'anim'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+const SW_OF = { general: ['autoLoad', 'anim', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -84,7 +84,7 @@ function readForm(dlg) {
 // the part of the values that belongs to a section
 const OF = {
   folders: v => v.paths,
-  general: v => [v.sw.autoLoad, v.sw.anim],
+  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.oneShot],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
@@ -176,6 +176,12 @@ export async function openSettings() {
       'Animations',
       'Short transitions (ignored when the system asks for reduced motion)',
       ui.animations !== false
+    ) +
+    sw(
+      'oneShot',
+      'One map screenshot',
+      'A new map screenshot for the kneeboard takes the place of the previous one, on the same page (or among the unused cards). Off: every screenshot is a new card.',
+      !!ui.oneMapShot
     ) +
     '</div>';
   const datacard =
@@ -375,7 +381,13 @@ export async function openSettings() {
     const v = readForm(dlg);
     const n = JSON.parse(JSON.stringify(ST.CFG));
     CFG_PATHS.forEach(([k]) => (n.paths[k] = v.paths[k]));
-    n.ui = { ...(n.ui || {}), animations: v.sw.anim, showMfd34: v.sw.mfd, autoLoad: v.sw.autoLoad };
+    n.ui = {
+      ...(n.ui || {}),
+      animations: v.sw.anim,
+      showMfd34: v.sw.mfd,
+      autoLoad: v.sw.autoLoad,
+      oneMapShot: v.sw.oneShot,
+    };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
     n.mission = {
       ...(n.mission || {}),

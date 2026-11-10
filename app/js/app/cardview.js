@@ -356,6 +356,7 @@ export function mdcDraw(x) {
   x.setTransform(1, 0, 0, 1, 0, 0);
 }
 export function draw() {
+  ST.CVV = (ST.CVV || 0) + 1; // the card was drawn again (the kneeboard checks then whether it changed since its last Save)
   draw0();
   if (ST.hlDraw) ST.hlDraw();
 }
@@ -525,6 +526,19 @@ function draw0() {
     }
     x.textAlign = 'left';
   });
+  // the Bingo carries the fuel for a holding and an alternate (the landing field in IMC): marked on the card
+  if (F.__bimc && F.bingo) {
+    const d = FD.find(z => z.k == 'bingo');
+    if (d) {
+      x.save();
+      x.font = 'bold 10px Arial';
+      x.fillStyle = '#c00000';
+      x.textAlign = 'right';
+      x.textBaseline = 'top';
+      x.fillText('IMC', d.x + d.w - 2, d.y - 11);
+      x.restore();
+    }
+  }
   if (ST.MAPSHOT) {
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.drawImage(ST.MAPSHOT, 1048, 1290, 564, 752);

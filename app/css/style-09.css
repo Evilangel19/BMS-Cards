@@ -72,3 +72,46 @@
 #busybar .ldb {
   margin-top: 6px;
 }
+
+/* the kneeboard changed since it was last saved to the BMS folder (app/kneeboard.js kbWarn): a button in the tab bar and a dot on the Kneeboard tab */
+.kbwarn {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #f5c84288;
+  background: #f5c8421f;
+  color: #f5c842;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: popin 0.25s ease-out;
+  transition: background-color 0.15s;
+}
+.kbwarn:hover {
+  background: #f5c84233;
+}
+.kbwarn[hidden] {
+  display: none;
+}
+.kbwarn:not([hidden]) + #cfgbtn {
+  margin-left: 0 !important;
+}
+.tab[data-t='kn'].unsaved {
+  position: relative;
+}
+.tab[data-t='kn'].unsaved::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f5c842;
+  box-shadow: 0 0 0 2px var(--bg, #0f1318);
+  animation: popin 0.25s ease-out;
+}
