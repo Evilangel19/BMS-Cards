@@ -368,6 +368,11 @@
   position: absolute;
   inset: 0;
 }
+/* the canvases of the map as on the Map page: no border (the general rule for canvas has one, and it shrank the picture: blurred letters) */
+.brw .brmap canvas {
+  border: 0;
+  border-radius: 0;
+}
 .brw .brmap.brdraw,
 .brw .brmap.brdraw .leaflet-container {
   cursor: crosshair;
@@ -451,20 +456,6 @@
   padding: 1px 6px;
   white-space: nowrap;
 }
-.brw .brleg {
-  position: absolute;
-  right: 10px;
-  bottom: 22px;
-  z-index: 700;
-  background: #0f1318cc;
-  border: 1px solid #2f3a46;
-  border-radius: 7px;
-  padding: 3px 8px;
-  font-size: 10.5px;
-  color: var(--br-dim);
-  pointer-events: none;
-}
-.brw .brmapw:has(> .brmap.shoting) .brleg,
 .brw .brmapw:has(> .brmap.shoting) .brhdr {
   display: none;
 }

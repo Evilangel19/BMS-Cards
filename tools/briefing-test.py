@@ -92,6 +92,9 @@ try:
         B.wait_for_timeout(800)
         kinds = B.evaluate("()=>__app.sq.briefing().objects().map(o=>o.k).sort().join(',')")
         check('the drawings reach the other pilot (pen, track, ruler): ' + kinds, kinds == 'pen,ruler,trk')
+        check('the board has its own canvas in its own pane (not the canvas of the map, whose dashes made the lines dotted)', A.evaluate("()=>{const r=__app.sq.briefing()._r.M.board._renderer;return r._container.parentNode.classList.contains('leaflet-brfP-pane')&&r!==__app.mapV.leaflet._renderer}"))
+        check('the canvases of the map have no border in the briefing (a border shrank the picture: blurred letters)', A.evaluate("()=>[...document.querySelectorAll('.brw .brmap canvas')].every(c=>getComputedStyle(c).borderTopWidth=='0px')"))
+        check('no bearing marked as true (BMS plans in true)', '°T' not in A.evaluate("()=>document.querySelector('.brw').innerText") and A.locator('.brw .brleg').count() == 0)
         check('the track keeps its name and heading', B.evaluate("()=>{const t=__app.sq.briefing().objects().find(o=>o.k=='trk');return t.cs=='Bandit'&&t.side=='hostile'&&t.hdg>90&&t.hdg<180}"))
         # the cursor of the briefer moves on the screen of the other
         m = mapbox(A); A.mouse.move(m['x'] + 400, m['y'] + 300); A.mouse.move(m['x'] + 420, m['y'] + 310, steps=4); B.wait_for_timeout(600)

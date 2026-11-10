@@ -227,7 +227,7 @@ class Room {
     const r = this.d.root;
     r.innerHTML = `<div class="brw"><div class="brside"><div class="brtop"><h3>BRIEFING ROOM</h3><div class="brmis"></div></div>
       <div class="brlh"><span class="brcnt">IN THE ROOM</span><input class="brfind" type="search" placeholder="Find a pilot" aria-label="Find a pilot"></div><div class="brlist"></div><div class="bracts"></div></div>
-      <div class="brmain"><div class="brtools"></div><div class="brmapw"><div class="brmap"></div><div class="brhdr"></div><div class="brcurs"></div><div class="brleg">Bearings true (°T) · distances NM, km, ft</div></div></div></div>`;
+      <div class="brmain"><div class="brtools"></div><div class="brmapw"><div class="brmap"></div><div class="brhdr"></div><div class="brcurs"></div></div></div></div>`;
     this.$ = s => r.querySelector(s);
     this.list = this.$('.brlist');
     this.acts = this.$('.bracts');
@@ -291,7 +291,9 @@ class Room {
         return false;
       },
     });
-    const board = new BoardPath({ interactive: false, renderer: map._brR });
+    const board = new BoardPath();
+    // its own canvas (pane brfP): on the canvas of the map the dashes of the other layers were left on the drawings
+    L.setOptions(board, { interactive: false, renderer: map._brR });
     board.addTo(map);
     const onMove = () => this.sendView(false),
       onEnd = () => this.sendView(true),
@@ -1554,6 +1556,8 @@ class Room {
   }
   paint(ctx) {
     if (!this.map) return;
+    ctx.setLineDash([]);
+    ctx.globalAlpha = 1;
     for (const o of this.objs.values()) this.draw(ctx, o);
     for (const o of this.drafts.values()) this.draw(ctx, o);
     if (this.myDraft) this.draw(ctx, this.myDraft);
@@ -1576,6 +1580,8 @@ class Room {
     ctx.lineJoin = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,.85)';
     ctx.lineWidth = 3.5;
+    x = Math.round(x);
+    y = Math.round(y); // whole pixels: sharp letters
     ctx.strokeText(s, x, y);
     ctx.fillStyle = col;
     ctx.fillText(s, x, y);
@@ -1912,7 +1918,7 @@ class Room {
       ctx.stroke();
     }
     const lab =
-      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(brg(o.a, o.b)) + '°T · ' + fmtNm(dist(o.a, o.b));
+      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(brg(o.a, o.b)) + '° · ' + fmtNm(dist(o.a, o.b));
     const lo = (o.k == 'hold' ? 0 : r) + 16,
       sg = o.k == 'hold' ? -1 : 1;
     this.text(
@@ -1974,12 +1980,12 @@ class Room {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     });
-    const l1 = fmtNm(d) + ' · ' + pad3(br) + '°T',
+    const l1 = fmtNm(d) + ' · ' + pad3(br) + '°',
       l2 = fmtKm(d) + ' · ' + fmtFt(d);
     ctx.font = '700 12px system-ui';
     const w = Math.max(ctx.measureText(l1).width, ((ctx.font = '500 11px system-ui'), ctx.measureText(l2).width)) + 16;
-    const x = b.x + 12,
-      y = b.y - 34;
+    const x = Math.round(b.x + 12),
+      y = Math.round(b.y - 34);
     ctx.fillStyle = 'rgba(15,19,24,.92)';
     ctx.strokeStyle = '#3a4452';
     ctx.lineWidth = 1;
@@ -2069,7 +2075,7 @@ class Room {
     ctx.fill();
     this.text(
       ctx,
-      pad3(br) + '°T · ' + fmtNm(d),
+      pad3(br) + '° · ' + fmtNm(d),
       e.x + 12 * Math.cos(an),
       e.y + 12 * Math.sin(an) + 4,
       '#fff',
