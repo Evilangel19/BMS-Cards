@@ -4,6 +4,17 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Fixed: placing a steerpoint, a line or an offset on the map near a city or an objective no longer opens its window instead.
+- Fixed: the weather colour code counts the scattered (SCT) cloud layers, as the military colour states do.
+- Fixed: aircraft refuelled with a probe (F-14, Tornado, Typhoon, Rafale, Mirage, EA-6B...) get the KC-130 first.
+- Fixed: a field elevation typed on the Datacard updates the take-off data, the Direct landing altitude and the TAF.
+- Fixed: the Data Cartridge page refuses radio and ILS frequencies outside their bands and IFF codes that are not octal.
+- Fixed: names written into the DTC use plain letters (accented names of the Balkans theater).
+- Fixed: the ATO is in time order across midnight.
+- Fixed: the Joker uses your margin also when the Bingo comes from the DTC.
+- Fixed: METAR and TAF show the day of the month of the mission date.
+- Fixed: a damaged or unreadable config.json is no longer replaced without asking.
+- Changed: the asterisk of an estimated AWACS/JSTARS sits after the callsign; no refusal speed for a ship on the Performance page.
 - Changed: the map is smoother in pan and zoom with all the Objects and the political layer on. The cities, towns and villages are drawn in a lighter way: they look and work as before, only during the zoom animation they are a little blurred for an instant.
 - Changed: the first click on an objective zooms in one smooth movement to its buildings (sub-objectives).
 - Added: when the package has no AWACS or JSTARS, the Datacard shows an allied aircraft on station during your flight, the nearest to your route, marked with an asterisk (`*`). An ELINT aircraft (E-8C, RC-135) goes to the JSTARS row; the AWACS row takes an AEW/ABCCC aircraft. The operating time is in the notes, as for the tankers.

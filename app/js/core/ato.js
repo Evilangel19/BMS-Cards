@@ -66,7 +66,9 @@ export function buildAto(C, L16) {
         squadron: (sq && C.squads && C.squads[sq.id.n]) || (sq ? ord(sq.nameId) + ' Sqn' : ''),
         base: ab ? clean(ab[1]) : '',
         takeoff: t0 ? hms(t0.arr).slice(0, 5) : '',
+        t0: t0 && t0.arr ? t0.arr : 0, // the take-off time with its day (ms of the campaign): the list is in this order, a flight after midnight comes after the evening
         tot: totMs(C, f) ? hms(totMs(C, f)).slice(0, 5) : '',
+        totMs: totMs(C, f) || 0,
         target: ob ? clean(ob[1]) : '',
         uhf: r[0],
         vhf: r[1],
@@ -79,8 +81,10 @@ export function buildAto(C, L16) {
         heli: isHeli(acOf(C, f)),
       });
     });
-  return out.sort((a, b) => (a.takeoff < b.takeoff ? -1 : a.takeoff > b.takeoff ? 1 : 0) || a.pkgNo - b.pkgNo);
+  return out.sort(byTime);
 }
+// in the order of the time of the campaign (day and hour), then of the package number
+const byTime = (a, b) => (a.t0 || 0) - (b.t0 || 0) || a.pkgNo - b.pkgNo;
 // "1430", "14:30", "930", "14" -> prefix to compare with hh:mm
 export function timePrefix(v) {
   const d = String(v || '')
@@ -116,7 +120,8 @@ export function groupPackages(list) {
     if (!g.has(e.pkg)) g.set(e.pkg, []);
     g.get(e.pkg).push(e);
   });
-  const first = a => a.filter(Boolean).sort()[0] || '';
+  // the first flight of the package to take off (the time with its day: 23:40 comes before 00:20 of the next day)
+  const firstOf = fl => fl.filter(e => e.t0).reduce((m, e) => (!m || e.t0 < m.t0 ? e : m), null);
   return [...g.values()]
     .map(fl => {
       fl.sort((a, b) => a.eo - b.eo);
@@ -131,11 +136,12 @@ export function groupPackages(list) {
         mission: h.mission,
         cat: h.cat,
         base: h.base,
-        takeoff: first(fl.map(e => e.takeoff)),
-        tot: first(fl.map(e => e.tot)),
+        takeoff: (firstOf(fl) || fl[0]).takeoff,
+        t0: (firstOf(fl) || fl[0]).t0 || 0,
+        tot: (fl.filter(e => e.tot).sort((a, b) => (a.totMs || 0) - (b.totMs || 0))[0] || {}).tot || '',
         target: (fl.find(e => e.target) || {}).target || '',
         flights: fl,
       };
     })
-    .sort((a, b) => (a.takeoff < b.takeoff ? -1 : a.takeoff > b.takeoff ? 1 : 0) || a.pkgNo - b.pkgNo);
+    .sort(byTime);
 }

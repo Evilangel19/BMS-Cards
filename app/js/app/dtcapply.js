@@ -10,6 +10,8 @@ import { $ } from './base.js';
 import { mapV } from './pages.js';
 import { draw } from './cardview.js';
 import { seatIdx, seatCodes } from './seat.js';
+import { PERFP } from './perf.js';
+import { jokerFor } from '../core/fuelplan.js';
 
 // The datacard of a received mission is the sender's: what his DTC, his Link 16 / IFF files and his pilot list filled in (IFF, Link 16, laser, delivery data, pilots, MAR table...) is kept
 // whenever the card is built again on this computer (another DTC opened, the flight selected again). ST.MSFCARD = {C, key, vals} is set by msfLoad; values changed by hand here (ST.MANK) win.
@@ -39,7 +41,7 @@ function applyDTC0(fl) {
   if (ms !== '') F.msl = String(Math.round(+ms));
   if (bf !== '') {
     F.bingo = String(Math.round(+bf));
-    F.joker = String(Math.round(+bf) + 1000);
+    F.joker = String(jokerFor(Math.round(+bf), PERFP.joker)); // the margin of the Performance page, as the fuel plan
   }
   // the laser: the TGP code of the DTC is the CONF-LSR code of the chosen seat (the B. CODE cells of the weapon profiles only show it: seatCodes)
   const tgp = g('Laser', 'LaserTGP');

@@ -324,7 +324,8 @@ function fillCard(C, f, ld = 0) {
         if (!u || u.kind != 'flight' || mem(u) || used.includes(u)) return false;
         used.push(u);
         sup(u, i);
-        if (est) F[`su${i}_0`] += '*'; // not assigned by the campaign: an allied flight on station, chosen by the program
+        // not assigned by the campaign: an allied flight on station, chosen by the program; the asterisk goes after the callsign ("Dragnet3* - RC-135W")
+        if (est) F[`su${i}_0`] = String(F[`su${i}_0`]).replace(/^(\S+)( - |$)/, '$1*$2');
         return true;
       };
     let r = 0;

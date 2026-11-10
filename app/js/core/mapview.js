@@ -2056,7 +2056,10 @@ export function createMap(host, deps) {
     });
   }
   // the place under a point of the map container (the 22 px square of a dot), or null
+  // while a point is placed on the map (a steerpoint, a line, an offset) the places do not take the click nor show the hand: the click is the map's
+  const placingNow = () => host.classList.contains('adding') || host.classList.contains('placing');
   const plAt = pt => {
+    if (placingNow()) return null;
     let b = null,
       bd = 1e9;
     OJ.forEach(r => {
@@ -3018,6 +3021,7 @@ export function createMap(host, deps) {
   }
   function offCancel() {
     OFFP = null;
+    host.classList.remove('placing');
     if (map) map.getContainer().style.cursor = '';
     toast('Placing cancelled.');
   }
@@ -3026,6 +3030,7 @@ export function createMap(host, deps) {
       [x, y] = fromLL(latlng.lat, latlng.lng);
     if (x < 0 || x > 1024 || y < 0 || y > 1024) return toast('That is outside the theater.', true);
     OFFP = null;
+    host.classList.remove('placing');
     map.getContainer().style.cursor = '';
     const pos = { n: y * FT_KM, e: x * FT_KM };
     deps.offs.set(o.n, o.at, o.key, pos);
@@ -3086,6 +3091,7 @@ export function createMap(host, deps) {
         b =>
           (b.onclick = later(() => {
             OFFP = { n: p.n, at, key: b.dataset.pl, mk };
+            host.classList.add('placing'); // the dots of the objects let the click through to the map while a point is placed (styles: .placing .nobj)
             map.closePopup();
             map.getContainer().style.cursor = 'crosshair';
             toast(

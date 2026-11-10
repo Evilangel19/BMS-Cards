@@ -1,5 +1,6 @@
 // Data Cartridge page: vertical list of sections, each one a page of cards. A card is read-only until its "Edit" button is pressed.
 // Everything here edits the lines of the open DTC (deps.S) and tells the rest of the program (deps.changed) so the map and the datacard follow.
+import { freqKhz, ilsVal, iffCode } from './dtcvalid.js';
 import { STPT_RANGE, WT_N } from './mapdtc.js';
 import { normStn } from './l16plan.js';
 export const SECTIONS = [
@@ -521,7 +522,8 @@ export function createDtcPage(deps) {
           ['Mode3A', 'M3', 'Mode3A Code', 'Mode3A On'],
         ]
           .map(
-            ([, l, ck, ok]) => `<tr><th>${l}</th><td>${onoff('IFF', ok)}</td><td>${inp('IFF', ck, { w: 64 })}</td></tr>`
+            ([, l, ck, ok]) =>
+              `<tr><th>${l}</th><td>${onoff('IFF', ok)}</td><td>${inp('IFF', ck, { w: 64, t: l == 'M1' ? 'iff1' : 'iff4' })}</td></tr>`
           )
           .join('')}
         <tr><th>M4</th><td>${onoff('IFF', 'Mode4 On')}</td><td>${seg('IFF', 'Mode4 Key', [
@@ -572,8 +574,8 @@ export function createDtcPage(deps) {
       const tim = nT.length
         ? row('Event', ev(nT.length, te, 'tim')) +
           `<div class="drow"><label>At (UTC)</label><input data-hm="${tk('Criteria')}" data-i="0" value="${Math.floor(cr / 100)}" style="width:44px"><span class="du">h</span><input data-hm="${tk('Criteria')}" data-i="1" value="${cr % 100}" style="width:44px"><span class="du">min</span></div>` +
-          row('M1', inp('IFF', tk('Mode1 Code'), { w: 64 })) +
-          row('M3', inp('IFF', tk('Mode3A Code'), { w: 64 })) +
+          row('M1', inp('IFF', tk('Mode1 Code'), { w: 64, t: 'iff1' })) +
+          row('M3', inp('IFF', tk('Mode3A Code'), { w: 64, t: 'iff4' })) +
           row(
             'M4',
             seg('IFF', tk('Mode4 Key'), [
@@ -1003,12 +1005,13 @@ export function createDtcPage(deps) {
     }
     if (t == 'mhz') {
       const n = num(x);
-      return n === null ? null : String(Math.round(n * 1000));
+      return n === null ? null : freqKhz(n);
     }
     if (t == 'ils') {
       const n = num(x);
-      return n === null ? null : String(Math.round(n * 100));
+      return n === null ? null : ilsVal(n);
     }
+    if (t == 'iff1' || t == 'iff4') return iffCode(x, t == 'iff1' ? 'm1' : 'm4');
     if (t == 'sec') {
       const n = num(x);
       return n === null ? null : like(old, n * 100);

@@ -55,6 +55,8 @@ function gndName(C, u) {
   const c = (C.D.gu && C.D.gu[u.c.i]) || (C.D.un && C.D.un[u.c.i] && C.D.un[u.c.i][0]) || '';
   return (ord(u.nameId) + ' ' + c + ' Battalion').replace(/\s+/g, ' ').trim();
 }
+const PROBE =
+  /F\/A-18|F-18|EF-18|CF-188|AV-8|Harrier|F-14|Tornado|Typhoon|EF-2000|Rafale|Mirage|^A-4|^A-6|EA-6|^S-3|Su-30|Su-33|J-15|MiG-29K|F-35[BC]/i;
 function pickTankers(C, f, P) {
   const el = els0(C, f),
     all = el.flatMap(e => e.wps),
@@ -68,7 +70,8 @@ function pickTankers(C, f, P) {
   };
   const asg = P && P.tanker && C.byId[P.tanker.n + ':' + P.tanker.c],
     ty = u => acOf(C, u),
-    probe = /F\/A-18|F-18|EF-18|CF-188|AV-8|Harrier/i.test(ty(f));
+    // aircraft refuelled with a probe (a drogue tanker: the KC-130 first); the others take the boom (KC-135, KC-10)
+    probe = PROBE.test(ty(f));
   const pref = u => (probe ? /^KC-130/.test(ty(u)) : /^KC-(135|10)/.test(ty(u)));
   const c = C.units.filter(
     u =>

@@ -6,14 +6,15 @@ import { CAM } from '../core/cam-core.js';
 import { FT_KM, WT_N, dtcPoints } from '../core/mapdtc.js';
 import { nearObj } from '../core/flight.js';
 import { ST } from './state.js';
-import { perfFill, perfLater } from './perf.js';
+import { perfFill, perfLater, PERFP } from './perf.js';
+import { jokerFor } from '../core/fuelplan.js';
 import { $, esc } from './base.js';
 import { G, S, lines } from './dtcfile.js';
 import { markMan } from './selection.js';
 import { MFD, draw } from './cardview.js';
 import { dtcBtns } from './dtcapply.js';
 import { mapV, sqPage } from './pages.js';
-import { wxAt } from './campaign.js';
+import { wxAt, tafFor, tafSite } from './campaign.js';
 import { mdcAuto } from './mdcfill.js';
 import { fpStart, fpSpan } from '../core/fpcols.js';
 import { seatIdx, seatCodes, seatToDtc } from './seat.js';
@@ -114,7 +115,7 @@ export function mirrorToCard(sec, key, quiet) {
     const d = dEl(k);
     if (d && d.el) d.el.value = v;
     if (k == 'bingo') {
-      F.joker = String(Math.round(+v) + 1000);
+      F.joker = String(jokerFor(Math.round(+v), PERFP.joker));
       if (ST.AUTO) ST.AUTO.joker = F.joker;
       ST.MANK.delete('joker');
       const j = dEl('joker');
@@ -271,7 +272,8 @@ export function setField(k, v, from) {
     return;
   }
   F[k] = v;
-  if (k == 'gw' || k == 'fuel' || k == 'drag' || k == 'ab0_5') perfLater();
+  // what the performance figures depend on: the take-off data (weights, drag, runway, field elevation) and the landing steerpoints of Direct (elevation of the landing and alternate fields)
+  if (['gw', 'fuel', 'drag', 'ab0_5', 'ab0_4', 'ab1_4', 'ab2_4'].includes(k)) perfLater();
   if (/^bv\d_0$/.test(k)) {
     const bi = +k[2];
     bvRow(bi, v);
@@ -289,6 +291,17 @@ export function setField(k, v, from) {
     F.matis_c = CAM.wxColour(wxAt(F.__dep[3]), F.__dep, F.ab0_4);
     const ea = dEl('atis');
     if (ea && ea.el) ea.el.value = F.atis;
+  }
+  // the elevation of the landing field: the forecast of the landing field (TAF on the landing field) is made again with it, unless the ATIS was typed
+  if (k == 'ab1_4' && !ST.MANK.has('atis') && F.__dep && wxAt(F.__dep[3])) {
+    const x = ST.CL && ST.CL[+$('fsel').value || 0];
+    if (x && tafSite(x.f)) {
+      F.__taf = tafFor(x.f);
+      F.atis = CAM.atisText(wxAt(F.__dep[3]), F.__dep, F.ab0_4) + (F.__taf ? '\n' + F.__taf : '');
+      if (ST.AUTO) ST.AUTO.atis = F.atis;
+      const ea = dEl('atis');
+      if (ea && ea.el) ea.el.value = F.atis;
+    }
   }
   if (/^fl\d_5$/.test(k)) seatCodes(); // B. CODE of the weapon profiles = the CONF-LSR code of the chosen seat, until one is typed
   const d = (ST.MDCON ? MFD : FD).find(z => z.k == k);

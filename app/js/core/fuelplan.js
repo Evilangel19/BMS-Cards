@@ -38,6 +38,8 @@ function dwellBurn(ac, W, o, alt, mach, tSec) {
   return (pw.ff * tSec) / 3600;
 }
 
+// the Joker: the Bingo and the margin of the pilot (Performance page, 1000 lb when none), up to the next 100 lb. The same wherever the Bingo comes from (the plan, the DTC)
+export const jokerFor = (bingo, margin) => Math.ceil((+bingo + (margin == null ? 1000 : +margin)) / 100 - 1e-9) * 100;
 export function fuelPlan(ac, wps0, o) {
   const end = wps0.findIndex((p, i) => i > 0 && p.act == 7),
     wps = end > 0 ? wps0.slice(0, end + 1) : wps0; // the plan ends at the first landing; what follows (alternate) is not counted
@@ -119,7 +121,7 @@ export function fuelPlan(ac, wps0, o) {
   });
   const bi = last >= 0 ? Math.min(n - 1, last + 1) : Math.max(1, n - 2),
     bingo = rows[bi].min,
-    joker = up100(bingo + (o.jokerMargin == null ? 1000 : o.jokerMargin));
+    joker = jokerFor(bingo, o.jokerMargin);
   const toFuel = rows[0].min;
   wps0.slice(n).forEach((p, k) =>
     rows.push({

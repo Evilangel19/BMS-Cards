@@ -9,6 +9,8 @@ import {
   onSaveFail,
   appDir,
   join,
+  freezeFiles,
+  writeBytes,
 } from '../platform/desktop.js';
 import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
@@ -585,6 +587,33 @@ onSaveFail((name, e) => {
   );
 });
 
+// config.json is there but could not be used (unreadable, or not valid JSON): the program runs with the default settings. The pilot chooses: the file is left
+// as it is (nothing is written to it in this session, it can be repaired by hand and the program started again), or the default settings take its place from now on
+// (a file that was read but is not valid JSON is kept as config.json.bad)
+async function configBlocked(r) {
+  const over = await confirm(
+    'Settings: ' +
+      r.warnings.join('\n') +
+      '.\n\nOK = use the default settings and write them into config.json from now on' +
+      (r.badText != null ? ' (the old file is kept as config.json.bad)' : '') +
+      '.\nCancel = leave config.json as it is: the changes made to the settings in this session are not saved (repair the file, then start the program again).'
+  );
+  if (!over) {
+    freezeFiles(['config.json']);
+    return;
+  }
+  if (r.badText != null)
+    try {
+      await writeBytes(join(await appDir(), 'config.json.bad'), new TextEncoder().encode(r.badText));
+    } catch (e) {
+      /* the copy could not be made: the file is replaced all the same, as chosen */
+    }
+  try {
+    await saveConfig(ST.CFG);
+  } catch (e) {
+    alert('config.json could not be written: ' + ((e && e.message) || e));
+  }
+}
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
@@ -592,7 +621,8 @@ export async function init18() {
     .then(async r => {
       ST.CFG = r.config;
       applyAnim();
-      if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
+      if (r.blocked) await configBlocked(r);
+      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
       kbMemLoad();
       await loadGameData();
       await fillCampaigns();

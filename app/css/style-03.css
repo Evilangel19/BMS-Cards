@@ -259,6 +259,10 @@
 :is(#mpbody, .mpx).adding .leaflet-container {
   cursor: crosshair;
 }
+/* while a point is placed (a steerpoint, a line, an offset) the dots of the objects let the click through to the map */
+:is(#mpbody, .mpx):is(.adding, .placing) .nobj {
+  pointer-events: none;
+}
 #mpadd {
   left: 50%;
   top: 44px;

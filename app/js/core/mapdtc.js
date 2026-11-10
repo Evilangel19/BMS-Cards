@@ -6,6 +6,7 @@
 //   ppt   STPT 56-70  ppt_0 ...                  "north, east, 0, range (ft), name"   (pre-planned threats: name = threat, range = ring)
 //   line  STPT 31-54  lineSTPT_0 .. lineSTPT_23  "north, east, 0"   F-16: 4 lines (LINE1-4) of up to 6 consecutive steerpoints each:
 //         LINE n uses rows 6(n-1) .. 6(n-1)+5
+import { toAscii } from './ascii.js';
 export const FT_KM = 3280.84,
   FT_NM = 6076.12;
 export const GROUPS = {
@@ -82,7 +83,7 @@ export function campaignIni(title, lines) {
   return (
     [
       '[MISSION]',
-      'title=' + title,
+      'title=' + toAscii(title),
       '[STPT]',
       ...bmsStptKeys().flatMap(([k, e]) => {
         const o = [k + '=' + (by.has(k) ? by.get(k) : e)];

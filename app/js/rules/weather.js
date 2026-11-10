@@ -1,5 +1,6 @@
 // @ts-check
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
+import { dayOfMonth } from './ephemerides.js';
 const p2w = n => String(n).padStart(2, '0'),
   mt = t => (t < 0 ? 'M' : '') + p2w(Math.abs(t));
 function wxCore(W, x, y, elev) {
@@ -59,7 +60,7 @@ function atisText(W, d, elev) {
   const k = wxCore(W, d[1], d[2], elev),
     ms = d[3] || 0,
     s = Math.floor(ms / 1000),
-    dd = Math.floor(s / 86400) + 1;
+    dd = dayOfMonth(ms); // the day of the month of the mission date (D1 on the Datacard)
   return `${d[0]} ${p2w(dd)}${p2w(((s % 86400) / 3600) | 0)}${p2w(((s % 3600) / 60) | 0)}Z ${k.wind} ${k.sky} ${mt(k.t)}/${mt(k.dp)} Q${k.q} A${k.a} NOSIG`;
 }
 // site {id, x, y, arr, elev}: the forecast of an airbase (the landing one) instead of the target
@@ -71,12 +72,12 @@ function tafText(C, W, f, site) {
   const H = 3600000,
     hh = ms => {
       const s = Math.floor(ms / 1000);
-      return p2w(Math.floor(s / 86400) + 1) + p2w(((s % 86400) / 3600) | 0);
+      return p2w(dayOfMonth(ms)) + p2w(((s % 86400) / 3600) | 0);
     },
     ms0 = a.arr - 3 * H,
     s0 = Math.floor(ms0 / 1000),
     k = wxCore(W, a.x, a.y, (site && site.elev) || 0),
-    tm = `${p2w(Math.floor(s0 / 86400) + 1)}${p2w(((s0 % 86400) / 3600) | 0)}${p2w(((s0 % 3600) / 60) | 0)}Z`;
+    tm = `${p2w(dayOfMonth(ms0))}${p2w(((s0 % 86400) / 3600) | 0)}${p2w(((s0 % 3600) / 60) | 0)}Z`;
   let o = `TAF ${site ? site.id : 'TGT'} ${tm} ${hh(Math.floor((a.arr - H) / H) * H)}/${hh(Math.ceil((a.arr + 2 * H) / H) * H)} ${k.wind} ${k.sky}`;
   if (k.c >= 2) {
     const w = k.wx ? (/^[-+]/.test(k.wx) ? '+' + k.wx.slice(1) : k.wx) : 'BR',
@@ -88,11 +89,12 @@ function tafText(C, W, f, site) {
   }
   return o;
 }
-// NATO colour state of an airfield (from the ceiling = lowest BKN/OVC, and the visibility): BLU best .. RED worst
+// NATO colour state of an airfield (military aerodromes): the base of the lowest cloud of 3/8 or more (SCT, BKN, OVC: FEW does not count) and the
+// visibility; BLU best .. RED worst (YLO1 and YLO2 are one YLO here)
 function wxColour(W, d, elev) {
   if (!W || !d) return '';
   const k = wxCore(W, d[1], d[2], elev),
-    ceil = k.hasCu && k.cov !== 'FEW' && k.cov !== 'SCT' ? k.agl : 99999;
+    ceil = k.hasCu && k.cov !== 'FEW' ? k.agl : 99999;
   /** @type {(string|number)[][]} */
   const L = [
     ['BLU', 2500, 8000],

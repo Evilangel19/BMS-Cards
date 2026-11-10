@@ -105,6 +105,22 @@ try:
         o3 = opn(30, 9)
         check('with the animations on: that one zoom is animated (also over more than 4 levels, where the map would jump) %s' % o3, o3['zs'] == 1 and o3['za'] == 1 and o3['z'] >= 13 and o3['subs'] == 3)
         pg.emulate_media(reduced_motion='reduce')
+        # placing a point on the map (a steerpoint, a line, an offset): the dots and the places let the click through to the map
+        pg.keyboard.press('Escape'); pg.evaluate("()=>{__app.mapV.leaflet.closePopup()}")
+        pg.evaluate("()=>{const m=__app.mapV.leaflet;let c=null;m.eachLayer(l=>{if(l.options&&l.options.halo&&/^Test City/.test(l.options.tip))c=l.getLatLng()});m.setView(c,10,{animate:false})}"); pg.wait_for_timeout(700)
+        host = "document.querySelector('#mpmap').closest('#mpbody, .mpx')"
+        clicks = lambda: pg.evaluate("()=>window.__mclk||0")
+        pg.evaluate("()=>{window.__mclk=0;__app.mapV.leaflet.on('click',()=>window.__mclk++)}")
+        for mode in ('adding', 'placing'):
+            pg.evaluate("m=>%s.classList.add(m)" % host, mode)
+            c = pt('Test City'); z0 = pg.evaluate("()=>__app.mapV.leaflet.getZoom()"); k0 = clicks()
+            pg.mouse.click(c[0], c[1]); pg.wait_for_timeout(400)
+            d = pg.evaluate("()=>{const m=__app.mapV.leaflet,b=m.getContainer().getBoundingClientRect(),v=m.getBounds();let p=null;m.eachLayer(l=>{if(!p&&l._icon&&/nobj( |$)/.test(l.options.icon.options.className)&&v.pad(-0.2).contains(l.getLatLng())){const q=m.latLngToContainerPoint(l.getLatLng());p=[b.left+q.x,b.top+q.y]}});return p}")
+            if d: pg.mouse.click(d[0], d[1]); pg.wait_for_timeout(400)
+            check('%s: a click on a place or on a dot goes to the map (no window, no zoom) %s' % (mode, (clicks() - k0, d is not None)), pg.locator('.mpop').count() == 0 and clicks() - k0 == (2 if d else 1) and pg.evaluate("()=>__app.mapV.leaflet.getZoom()") == z0)
+            pg.evaluate("m=>%s.classList.remove(m)" % host, mode)
+        c = pt('Test City'); pg.mouse.click(c[0], c[1]); pg.wait_for_timeout(400)
+        check('...and once the point is placed, the place opens its window again', pg.locator('.mpop').count() == 1)
         check('no error in the page', not errs)
         br.close()
 finally:

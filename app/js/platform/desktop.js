@@ -38,7 +38,21 @@ export async function loadConfig() {
     try {
       text = await T().fs.readTextFile(path);
     } catch (e) {
-      // first run: create the file with defaults
+      // the file is there but cannot be read (in use by another program, no permission): the program starts with the defaults and does not write over it
+      // unless the pilot says so (blocked: settings.js asks); only a missing file (the first start) is created
+      let there = false;
+      try {
+        there = !!(await T().fs.exists(path));
+      } catch (e3) {
+        there = true; // not known: the file is left alone
+      }
+      if (there)
+        return {
+          ...mergeConfig(undefined),
+          warnings: ['config.json could not be read (' + ((e && e.message) || e) + '): the default settings are used'],
+          location: path,
+          blocked: true,
+        };
       try {
         await T().fs.writeTextFile(path, JSON.stringify(DEFAULTS, null, 2) + '\n');
       } catch (e2) {
@@ -52,8 +66,10 @@ export async function loadConfig() {
     } catch (e) {
       return {
         ...mergeConfig(undefined),
-        warnings: ['config.json is not valid JSON; defaults used (the file was not changed)'],
+        warnings: ['config.json is not valid JSON: the default settings are used'],
         location: path,
+        blocked: true,
+        badText: text, // kept as config.json.bad when the pilot lets the program write the file again
       };
     }
     return { ...mergeConfig(user), location: path };
