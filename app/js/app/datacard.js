@@ -27,7 +27,7 @@ export const FD = [];
 // the keys of the cells that only the MDC format has (see cardview.js): not drawn on the datacard, but cleared, kept and saved with the other fields
 export const XD = [];
 // hidden keys of the card (not in a format): the Special channel of Link 16 and what the radio presets of the DTC need besides the cells of the card (core/radioplan.js)
-['dl0_sc', 'matis_c', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v'].forEach(k => XD.push(k));
+['dl0_sc', 'matis_c', 'rd_u15', 'su0_v', 'su1_v', 'su2_v', 'su3_v', 'roesel'].forEach(k => XD.push(k)); // roesel: the choices of the ROE / SOP menu (JSON)
 // the field (with its input) of a key in the format that is on the screen
 export const dEl = k => (ST.MDCON ? MFD : FD).find(z => z.k == k);
 export const ML = ['roe', 'free', 'eph'];
@@ -598,9 +598,9 @@ export async function init4() {
       ['DR', 1512, 40],
       ['DOR', 1556, 40],
     ].forEach(([c, x, w], j) => add(`bv${i}_${j}`, 'BVR ' + (i + 1) + ' ' + c, x, 793 + 28 * i, w, 'BVR timeline'));
-  add('roe', 'ROE', 1268, 931, 325, 'Free text');
-  add('free', 'Notes (airfield frequencies / backup)', 1272, 998, 320, 'Free text');
-  add('eph', 'Ephemerides (Sun / Moon)', 1272, 1153, 320, 'Free text');
+  add('roe', 'ROE / SOP', 1268, 931, 325, 'Free text');
+  add('free', 'Notes (airfield frequencies / backup)', 1272, 1043, 320, 'Free text');
+  add('eph', 'Ephemerides (Sun / Moon)', 1272, 1180, 320, 'Free text');
   [1, 2].forEach(n => {
     CYC[`wp${n}_mode`] = ['CCRP', 'CCIP'];
     CYC[`wp${n}_fuze`] = ['NSTL', 'NOSE', 'TAIL'];

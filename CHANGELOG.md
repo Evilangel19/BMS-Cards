@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: **ROE / SOP**: a click on the box opens a menu with the rules of engagement and the SOP of the squadron (ground, departure, en route, FENCE and comms, recovery, night, emergencies), personal presets that can be combined, and the short text written on the Datacard and in the MDC (the Overview box is now ROE / SOP).
+- Changed: Datacard: the ROE / SOP box is taller, the notes moved down, the ephemerides on one line.
 - Changed: MDC format: the pilots table without FCR, ID and OWN, six taller rows with wider cells.
 - Added: MDC format: TANK J/B (Joker / Bingo to the tanker) filled from the fuel plan.
 - Fixed: MDC format: the callsign was not written and the Bingo was not red (beta 14).

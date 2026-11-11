@@ -765,7 +765,7 @@ const TEXTS = [
   ['MAR', 1480, 760, 15, 0, 0, 0.82],
   ['DR', 1526, 760, 15, 0, 0, 0.82],
   ['DOR', 1564, 760, 15, 0, 0, 0.82],
-  ['ROE', 1418, 900, 15, 0, 0, 0.82],
+  ['ROE / SOP', 1393, 900, 15, 0, 0, 0.82],
 ];
 // flight plan: the columns of core/fpcols.js (narrower numbers, wider Action / TOS, and the MSA column next to Alt)
 {

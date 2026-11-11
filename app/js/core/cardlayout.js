@@ -155,6 +155,7 @@ export function buildLayout() {
     ]
   );
   at('AA2').t = 'ERAA';
+  at('V42').t = 'ROE / SOP';
   // link: shorter NDL, wider Donor
   xmap(
     [39, 41],
@@ -440,7 +441,8 @@ export function buildLayout() {
       ['Z', 'dn2', 'Donor 2'],
     ].forEach(([c, k, lab]) => field(c + y, `dl${i}_${k}`, `${lab} (${n})`, 'Link'));
   }
-  field('V43', 'ovw', 'Overview', 'Overview', {
+  // the Overview box of the blank is the ROE / SOP of the card (the same field as on the Datacard: the menu of ROE / SOP fills both)
+  field('V43', 'roe', 'ROE / SOP', 'ROE / SOP', {
     to: 'V53',
     multi: 1,
     all: Array.from({ length: 11 }, (_, i) => 'V' + (43 + i)),

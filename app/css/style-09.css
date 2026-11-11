@@ -271,3 +271,279 @@
   color: var(--mu);
   margin-top: 8px;
 }
+/* the menu of ROE / SOP (app/roepanel.js) */
+.rpbk {
+  position: fixed;
+  inset: 0;
+  z-index: 2900;
+  background: #0007;
+}
+.roepop {
+  position: fixed;
+  z-index: 2950;
+  left: 50%;
+  top: 4vh;
+  translate: -50% 0;
+  width: min(1100px, calc(100vw - 24px));
+  height: 92vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #000c;
+  color: var(--tx);
+  font-size: 12.5px;
+}
+.roepop .rph {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.roepop .rph b {
+  color: #3ddc84;
+  letter-spacing: 0.06em;
+}
+.roepop .rph .hint {
+  flex: 1;
+}
+.roepop .rpx {
+  background: none;
+  border: 0;
+  color: var(--mu);
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 0.15s;
+}
+.roepop .rpx:hover {
+  color: var(--tx);
+}
+.roepop .rpp {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.roepop .rpl {
+  color: var(--mu);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.roepop .rpqs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+}
+.roepop .rpq {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.roepop .rpq.on {
+  background: #16301f;
+  border-color: #3ddc84;
+}
+.roepop .rpq b {
+  color: var(--mu);
+  padding: 0 4px;
+  border-radius: 8px;
+}
+.roepop .rpq b:hover {
+  color: #ff6b6b;
+}
+.roepop .rpsv {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.roepop .rpsv input {
+  width: 140px;
+  padding: 3px 7px;
+  box-shadow: none;
+}
+.roepop .rpsv input.err {
+  border-color: #ff6b6b;
+}
+.roepop .rpsv .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.roepop .rpb {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 18px;
+  padding: 0 0 0 14px;
+  flex: 1;
+  min-height: 0;
+}
+.roepop .rpc {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 0 14px 10px 0;
+}
+@media (max-width: 760px) {
+  .roepop .rpb {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
+  }
+  .roepop .rpc {
+    overflow: visible;
+  }
+}
+.roepop h4 {
+  margin: 10px 0 6px;
+  color: #3ddc84;
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+}
+.roepop h4 small {
+  color: var(--mu);
+  font-weight: 400;
+  letter-spacing: 0;
+  margin-left: 6px;
+}
+.roepop .rps {
+  margin-bottom: 8px;
+}
+.roepop .rpt {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+.roepop .rpt small {
+  color: var(--mu);
+  font-weight: 400;
+  margin-left: 6px;
+}
+.roepop .rpo {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.roepop .rpk {
+  background: #1b222c;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s;
+}
+.roepop .rpk:hover {
+  border-color: #4a5a6c;
+}
+.roepop .rpk.on {
+  background: #16301f;
+  border-color: #3ddc84;
+  color: #c9f7dc;
+}
+.roepop textarea.rpfr {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  box-shadow: none;
+}
+.roepop .rpg {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 6px;
+  padding: 2px 8px 4px;
+}
+.roepop .rpg summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 4px 0;
+}
+.roepop .rpg summary em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: #062014;
+  background: #3ddc84;
+  border-radius: 8px;
+  padding: 0 6px;
+  margin-left: 8px;
+}
+.roepop .rpg summary em:empty {
+  display: none;
+}
+.roepop .rpr {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 4px 0;
+  border-top: 1px solid #ffffff0d;
+}
+.roepop .rpr select {
+  min-width: 0;
+  padding: 3px 5px;
+  font-size: 12px;
+}
+.roepop .rpr .rpn {
+  color: var(--mu);
+}
+.roepop .rpr.set .rpn {
+  color: var(--tx);
+}
+.roepop .rpon {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--mu);
+  cursor: pointer;
+}
+.roepop .rpon input {
+  width: auto;
+  box-shadow: none;
+}
+.roepop .rpd {
+  grid-column: 2 / 4;
+  color: var(--mu);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.roepop .rpd:empty {
+  display: none;
+}
+.roepop .rpd input {
+  padding: 3px 7px;
+  box-shadow: none;
+}
+.roepop .rpf {
+  border-top: 1px solid var(--line);
+  padding: 8px 14px 10px;
+}
+.roepop .rpv {
+  white-space: pre-wrap;
+  font-family: Arial, sans-serif;
+  background: #f4f4f0;
+  color: #111;
+  border-radius: 6px;
+  padding: 6px 9px;
+  margin: 4px 0 8px;
+  max-height: 96px;
+  overflow-y: auto;
+  font-size: 12.5px;
+}
+.roepop .rpf .bar {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+}

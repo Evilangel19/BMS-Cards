@@ -140,7 +140,7 @@ function ephem(C, f) {
     ill = Math.round(50 * (1 - Math.cos(el * R))),
     dt = new Date(t0),
     dd = String(dt.getUTCDate()).padStart(2, '0') + '/' + String(dt.getUTCMonth() + 1).padStart(2, '0');
-  return `Sun ${dd}: rise ${hz(sr)} set ${hz(ss)}\nMoon: rise ${hz(mr)} set ${hz(ms)} (${ill}%)`;
+  return `Sun ${dd} ${hz(sr)}-${hz(ss)} · Moon ${hz(mr)}-${hz(ms)} (${ill}%)`; // one line: rise-set
 }
 // the day of the month of a time of the campaign (ms from its start): the date of the first day is the one set on the Datacard (D1); without it the number of the day of the campaign (1, 2...)
 const dayOfMonth = ms => {

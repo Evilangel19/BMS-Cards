@@ -130,8 +130,8 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
 // The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
 // which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
 // When even at 11 the box is too short the lines get closer, and what is left out is counted in a last line "+N more".
-const FREE_ROOM = 140;
-export function freeLayout(x, v, w) {
+const FREE_ROOM = 132;
+export function freeLayout(x, v, w, room = FREE_ROOM) {
   const L = String(v).split('\n');
   const wrap = (t, fs) => {
     x.font = fs + 'px Arial';
@@ -153,20 +153,20 @@ export function freeLayout(x, v, w) {
   const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
   let fs = 14,
     R = rowsAt(fs);
-  while (fs > 11 && hOf(R, fs + 2, 7) > FREE_ROOM) R = rowsAt(--fs);
+  while (fs > 11 && hOf(R, fs + 2, 7) > room) R = rowsAt(--fs);
   let lh = fs + 2,
     gp = 7;
-  if (hOf(R, lh, gp) > FREE_ROOM) {
+  if (hOf(R, lh, gp) > room) {
     lh = fs + 0.5;
     gp = 4;
   }
   let more = 0;
-  while (R.length > 1 && hOf(R, lh, gp) > FREE_ROOM) {
+  while (R.length > 1 && hOf(R, lh, gp) > room) {
     const r = R.pop();
     if (!r.sep) more++;
   }
   if (more) {
-    while (R.length && (R[R.length - 1].sep || hOf(R, lh, gp) + lh > FREE_ROOM)) {
+    while (R.length && (R[R.length - 1].sep || hOf(R, lh, gp) + lh > room)) {
       const r = R.pop();
       if (!r.sep) more++;
     }
@@ -174,9 +174,10 @@ export function freeLayout(x, v, w) {
   }
   return { fs, lh, gp, rows: R };
 }
-export function freeDraw(x, v, d, cx) {
-  const { fs, lh, gp, rows } = freeLayout(x, v, d.w - 4);
-  let yy = d.y + 6 - lh / 2;
+// top: the top of the box (card units), room its height
+export function freeDraw(x, v, d, cx, room = FREE_ROOM, top = d.y) {
+  const { fs, lh, gp, rows } = freeLayout(x, v, d.w - 4, room);
+  let yy = top;
   rows.forEach(r => {
     if (r.sep) {
       const ry = yy + gp / 2;
@@ -522,8 +523,8 @@ function draw0() {
   x.fillStyle = '#fff';
   x.fillRect(1266, 1055, 329, 8);
   x.fillStyle = '#000';
-  x.fillRect(1261, 984, 339, 3);
-  x.fillRect(1261, 1134, 339, 3);
+  x.fillRect(1261, 1031, 339, 3); // ROE / SOP | notes | ephemerides (one line)
+  x.fillRect(1261, 1171, 339, 3);
   if (!YC) calcYC(x);
   drawLabels(x);
   x.textAlign = 'left';
@@ -543,7 +544,11 @@ function draw0() {
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
     if (d.k == 'free') {
-      freeDraw(x, v, d, cx);
+      freeDraw(x, v, d, cx, FREE_ROOM, 1037);
+    } else if (d.k == 'roe') {
+      // ROE / SOP: the same layout as the notes (biggest size that fits, long lines wrapped), from the left
+      x.textAlign = 'left';
+      freeDraw(x, v, d, d.x + 2, 104, 924);
     } else if (ML.includes(d.k) || d.k == 'atis') {
       v.split('\n').forEach((t, i) => {
         const fs = fitF(x, t, d.w - 4, 16, 12);
@@ -733,7 +738,7 @@ export async function init5() {
       ['DR', 1533],
       ['DOR', 1577],
     ].forEach(([t, x]) => a(t, x, 765));
-    a('ROE', 1431, 905);
+    a('ROE / SOP', 1431, 905);
     [
       ['Airbase', 15, 138],
       ['Flight', 15, 265],

@@ -6,11 +6,12 @@ import { MFD, YC, draw } from './cardview.js';
 import { sqPage } from './pages.js';
 import { markMan } from './selection.js';
 import { seatDraw } from './seat.js';
+import { roeOpen } from './roepanel.js';
 
 /* ---------- Direct editing on the card: click a cell, a larger colored field opens over it ---------- */
 export const SX = 2048 / 1600;
 export const SY = 2048 / 1200;
-export const BOX = { atis: [30, 76], roe: [918, 982], free: [986, 1134], eph: [1138, 1196] };
+export const BOX = { atis: [30, 76], roe: [921, 1031], free: [1034, 1171], eph: [1174, 1198] };
 export const boxOf = d => {
   if (d.mdc) return { x: d.x, y: d.y0, w: d.w, h: d.h };
   const b = BOX[d.k],
@@ -168,6 +169,7 @@ export function openNameMenu(d) {
 }
 export function openEd(d, sel = true) {
   closeEd(true);
+  if (d.k == 'roe') return roeOpen(); // ROE / SOP: the menu of the choices (its own text can still be typed there, as Other lines)
   const ed = $('ed'),
     c = $('cv'),
     k = c.getBoundingClientRect().width / 2048,
