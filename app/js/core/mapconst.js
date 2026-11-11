@@ -95,6 +95,7 @@ export const MAP_LAYERS = [
 export const MAP_OPTS = [
   ['sj', 'Only the JTAC unit of the selected CAS flight', 'Ground and naval units'],
   ['sx', 'Only enemy SAMs crossing the flight plan', 'SAM range'],
+  ['wz', 'WEZ exposure time (selected flight)', 'SAM range'],
   ['fs', 'Only support flights (tankers, AWACS...)', 'In flight'],
   ['names', 'Names', 'Names'],
 ];

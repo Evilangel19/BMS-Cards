@@ -649,3 +649,26 @@ dialog[open]::backdrop {
   filter: grayscale(0.7);
   cursor: not-allowed;
 }
+/* WEZ exposure time (map filter): the minutes of the selected flight inside an enemy SAM ring, written on the ring; the total is a line of the flight label */
+.wzl {
+  background: none;
+  border: 0;
+}
+.wzl span {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  white-space: nowrap;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  color: #ffb347;
+  background: #0d1b2acc;
+  border: 1px solid #ff9f1a88;
+  border-radius: 5px;
+  padding: 1px 6px;
+  pointer-events: none;
+  animation: fadein 0.2s ease-out;
+}
+.flb div i.wz {
+  color: #ffb347;
+}

@@ -4,8 +4,9 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: **WEZ exposure time**: after the TOT of the primary and of the secondary, the Datacard (and TOT / VUL of the MDC format) shows when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM crossed. On the map, the filter "WEZ exposure time (selected flight)" writes the minutes on every ring crossed and the total in the label of the flight.
 - Added: **Ready to fly** in the tab bar: it lists what is not saved yet (DTC, kneeboard, mission) with a button for each and "Write all"; green when everything is saved.
-- Added: a notice when a newer version of the program exists (checked once a day on GitHub; nothing is downloaded; Settings > General to switch it off).
+- Added: a notice when a newer version of the program exists (releases only, checked once a day on GitHub; nothing is downloaded; Settings > General to switch it off).
 - Changed: tooltips and descriptions brought up to date and shortened (the Automatic rules of the Datacard above all: pilot names, ATIS, MSA, Bingo with IMC, Joker margin, tankers, AWACS / JSTARS estimates, BVR box).
 - Added: weather in the Briefing: the briefer shows a weather filter (weather, wind with barbs, temperature, pressure, clouds, visibility) at the hour and altitude he chooses, the same for everybody in the room.
 - Added: the Bingo carries a holding and an alternate fuel when the landing field is in IMC (GRN or worse at the landing time); minutes and pounds on the Performance page (10 min, 1000 lb), a small IMC beside the Bingo on the card.

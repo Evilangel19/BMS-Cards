@@ -23,6 +23,8 @@ import { tcnFor } from '../rules/airbase.js';
 import { geoLL } from '../rules/geo.js';
 import { pickTankers, survRows, svc } from '../rules/support.js';
 import { ephem } from '../rules/ephemerides.js';
+import { mapUnits } from './mapdata.js';
+import { wezOf, wezText, wezSams } from './wez.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
 function fillCard(C, f, ld = 0) {
@@ -336,11 +338,30 @@ function fillCard(C, f, ld = 0) {
     const pk = C.units.filter(u => u.kind == 'flight' && mem(u));
     survRows(C, f, P, [...used, ...pk]).forEach(([u, i, est]) => put(u, i, est));
   }
+  // WEZ exposure time, after the TOT: from the entry into the first ring of an enemy SAM (spotted, radar alive: the rings of the map) to the exit from the last,
+  // the minutes really spent inside and the SAM with the largest ring crossed. For this flight (primary) and for the flight of the secondary.
+  let SAMS = null;
+  const wez = (e, name) => {
+    try {
+      if (!SAMS) SAMS = wezSams(mapUnits(C, f.owner));
+      return wezText(wezOf(e.wps, SAMS), name);
+    } catch (x) {
+      return '';
+    }
+  };
+  // room: the letters that fit the cell at a size that reads well; the name of the SAM is left out when the line would be longer
+  const withWez = (tm, e, room) => {
+    const full = [tm, wez(e, true)].filter(Boolean).join(' · ');
+    return full.length <= room ? full : [tm, wez(e, false)].filter(Boolean).join(' · ');
+  };
   const sv = svc(C, f);
   if (sv) {
     F.pri = sv.tgt;
-    F.d1 = sv.tm;
+    F.d1 = withWez(sv.tm, f, 40);
     F.ll1 = sv.ll;
+  } else {
+    const z = wez(f, true);
+    if (z) F.d1 = z;
   }
   const oth = els
     .filter(e => !(e.id.n == f.id.n && e.id.c == f.id.c))
@@ -348,7 +369,7 @@ function fillCard(C, f, ld = 0) {
     .filter(x => x.s);
   if (oth.length) {
     F.sec = oth[0].s.tgt;
-    F.d2 = oth[0].s.tm;
+    F.d2 = withWez(oth[0].s.tm, oth[0].e, 30);
     F.ll2 = oth[0].s.ll;
     if (oth.length > 1)
       F.free =

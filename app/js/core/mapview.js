@@ -1,4 +1,5 @@
 // Map page: Leaflet map of the theater with switchable base maps and layers. Leaflet is loaded the first time the page opens.
+import { wezOf, wezText, wezSams } from './wez.js';
 import { radarUnits, neededCells, coverage, CELL_KM } from './radarcov.js';
 import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
@@ -837,6 +838,10 @@ export function createMap(host, deps) {
           }
           if (i.dataset.k == 'sj') {
             samRows();
+          }
+          if (i.dataset.k == 'wz') {
+            sams(deps.getC(), deps.getSel());
+            plan(deps.getC(), deps.getSel());
           }
           if (i.dataset.k == 'fs') {
             samRows();
@@ -2486,6 +2491,28 @@ export function createMap(host, deps) {
       }).addTo(G[m.ally ? 'sf' : 'se']);
       if (!m.ally) SAMR.push(m);
     });
+    // WEZ exposure time of the selected flight: on every enemy ring it crosses, the minutes spent inside (the total is in the label of the flight)
+    if (st.on.wz && f && f.wps) {
+      const list = UL.filter(m => m.sam && !m.noFcr && m.hostile && m.spotted),
+        z = wezOf(
+          f.wps,
+          list.map(m => ({ x: m.u.x, y: m.u.y, rng: m.rng, name: m.name }))
+        );
+      (z ? z.per : []).forEach(p => {
+        const m = list[p.i],
+          min = p.ms / 60000;
+        L.marker(toLL(m.u.x, m.u.y + m.rng), {
+          icon: L.divIcon({
+            className: 'wzl',
+            html: `<span>${deps.esc(m.name)} · ${min < 10 ? min.toFixed(1) : Math.round(min)} min</span>`,
+            iconSize: [0, 0],
+          }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: 900,
+        }).addTo(G.se);
+      });
+    }
     unitVis();
   }
   // SAM units follow their range: visible when their unit layer is on, or their range layer is on (enemy: only the ones crossing the plan when that filter is on)
@@ -2795,6 +2822,12 @@ export function createMap(host, deps) {
         : [];
     return a.length ? '<br>' + a.map(deps.esc).join(' · ') : '';
   }
+  // the WEZ exposure time of the flight as a line of its label: the window and the minutes inside the enemy rings (filter "WEZ exposure time")
+  function wzLine(f) {
+    if (!st.on.wz || !f || !f.wps) return '';
+    const z = wezOf(f.wps, wezSams(UL));
+    return z ? '<i class="wz">' + deps.esc(wezText(z, false).replace(/ (\d+)'$/, ' · $1 min')) + '</i>' : '';
+  }
   function plan(C, f) {
     const L = window.L;
     ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers());
@@ -2885,7 +2918,7 @@ export function createMap(host, deps) {
     label(
       G.fd,
       ll,
-      `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}`,
+      `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}${wzLine(f)}`,
       '',
       0
     );

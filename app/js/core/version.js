@@ -1,5 +1,5 @@
 // Version of the program (the same as package.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml; tests/run-version.mjs checks it, with the two lock files)
-export const APP_VERSION = '1.2.0-beta.11';
+export const APP_VERSION = '1.2.0-beta.12';
 // the version of Falcon BMS the readers were checked with (the warnings about other files name it)
 export const BMS_TESTED = '4.38.1';
 // where the program is published: the notice of a newer version reads the tags of this repository (v1.2.0, v1.2.0-beta.3 ...)
@@ -30,14 +30,14 @@ export function cmpVer(a, b) {
   }
   return 0;
 }
-// the newest version among the tag names that is newer than cur ('' when there is none). A pilot on a release is not told about betas.
+// the newest release among the tag names that is newer than cur ('' when there is none). Betas are never announced, to anybody.
 export function newerVersion(tags, cur) {
   const me = parseVer(cur);
   if (!me) return '';
   let best = '';
   for (const t of tags || []) {
     const v = parseVer(t);
-    if (!v || (v.pre.length && !me.pre.length)) continue;
+    if (!v || v.pre.length) continue;
     const s = String(t).replace(/^v/, '');
     if (cmpVer(s, cur) > 0 && (!best || cmpVer(s, best) > 0)) best = s;
   }

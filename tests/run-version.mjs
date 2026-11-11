@@ -43,9 +43,10 @@ ok(
     newerVersion(['v1.3.0', 'v1.2.1'], '1.2.0') === '1.3.0'
 );
 ok(
-  'a pilot on a release is not told about betas; one on a beta is',
+  'only releases are announced, never a beta (not even to a pilot on a beta)',
   newerVersion(['v1.3.0-beta.1'], '1.2.0') === '' &&
-    newerVersion(['v1.2.0-beta.11'], '1.2.0-beta.10') === '1.2.0-beta.11'
+    newerVersion(['v1.2.0-beta.12'], '1.2.0-beta.11') === '' &&
+    newerVersion(['v1.2.0-beta.12', 'v1.2.0'], '1.2.0-beta.11') === '1.2.0'
 );
 ok('the version has the form 0.9.9-beta.N or x.y.z', /^\d+\.\d+\.\d+(-beta\.\d+)?$/.test(V));
 same('package.json', json('package.json').version);

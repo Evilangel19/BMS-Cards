@@ -214,8 +214,10 @@ export function ptPick(w, c) {
     return;
   }
   if (w < 3) {
+    // the WEZ exposure time belongs to the flight, not to the point: it stays after the TOT of the point picked
+    const wz = c.v.name ? (/WEZ \d\d:\d\d-.*$/.exec(A[K[1]] || '') || [''])[0] : '';
     setField(K[0], c.v.name);
-    setField(K[1], c.v.tot);
+    setField(K[1], [c.v.tot, wz].filter(Boolean).join(' · '));
     setField(K[2], c.v.ll);
   }
   // the target row of the MDC format (ST / lat / long / elev / description) follows the choice
