@@ -186,3 +186,15 @@ export function pilotColour(uid) {
   for (const c of String(uid)) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   return PILOT_COLS[h % PILOT_COLS.length];
 }
+
+// ---- the weather of the room (chosen by the briefer): the filter of the Weather page, the hour (ms of the campaign, null = the campaign map), the layer of the wind, the opacity
+export const WX_KINDS = ['off', 'cond', 'wind', 'temp', 'press', 'cloud', 'vis'];
+export function cleanWx(w) {
+  if (!w || typeof w != 'object' || !WX_KINDS.includes(w.mode)) return { mode: 'off', ms: null, lv: 0, op: 80 };
+  return {
+    mode: w.mode,
+    ms: Number.isFinite(w.ms) ? Math.round(w.ms) : null,
+    lv: Math.max(0, Math.min(9, Math.round(+w.lv || 0))),
+    op: Math.max(10, Math.min(100, Math.round(+w.op || 80))),
+  };
+}

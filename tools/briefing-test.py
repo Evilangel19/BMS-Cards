@@ -32,6 +32,10 @@ def tracker():
     threading.Thread(target=lambda: asyncio.run(main()), daemon=True).start()
 tracker()
 
+# a weather map made here (40 x 40 cells of 16 km): the condition, wind, temperature... change across it
+FAKEWX = """async()=>{const {ST}=await import('/app/js/app/state.js');const X=40,Y=40,cs=16,ALT=[0,3000,6000,9000,12000,18000,24000,30000,40000,50000];
+  const cell=(i,j,lv)=>({cond:(i+j)%4,spd:5+i+(lv||0)*3,hdg:(200+j*4)%360,t:20-j*0.6,p:1000+i*0.5,cu:i%3?3000:99999,dens:i%13,size:1,tcu:0,shower:0,fogEnd:5+j,fogZ:500});
+  ST.WX={X,Y,cs,cell,at:(x,y)=>cell(Math.floor(x/cs),Math.floor(y/cs),0),wind:(x,y,a)=>({hdg:270,spd:30,alt:a}),profile:()=>ALT.map((a,lv)=>({alt:a,lv,hdg:270,spd:10+lv*5}))}}"""
 def start(br, cs):
     ctx = br.new_context(viewport={'width': 1500, 'height': 950}); pg = ctx.new_page(); errs = []
     import dialogs; dialogs.install(pg)
@@ -123,6 +127,22 @@ try:
         A.click('.brtools [data-t=erase]'); n0 = len(A.evaluate("()=>__app.sq.briefing().objects()"))
         A.click('.brtools [data-t=undo]'); A.wait_for_timeout(500)
         check('Undo removes the last drawing of the briefer (the ruler) for both', A.evaluate("()=>!__app.sq.briefing().objects().some(o=>o.k=='ruler')") and B.evaluate("()=>!__app.sq.briefing().objects().some(o=>o.k=='ruler')"))
+        # the weather: chosen by the briefer, drawn by everybody from his own weather map (here a map made by the test, the campaign map of both)
+        for pg in (A, B): pg.evaluate(FAKEWX)
+        check('only the briefer has the Weather button', A.locator('.brtools [data-t=wx]:not(.hide)').count() == 1 and B.locator('.brtools [data-t=wx].hide').count() == 1)
+        A.click('.brtools [data-t=wx]'); A.wait_for_timeout(200)
+        check('the weather panel: Off and the six filters of the Weather page', A.locator('.brwxp [data-wx]').count() == 7)
+        A.click('.brwxp [data-wx=wind]'); B.wait_for_timeout(1200)
+        check('Wind for everybody: the cells and the barbs on the map of the other pilot, with its label', B.locator('.brw .leaflet-wxP-pane .wxcells').count() == 1 and B.locator('.brw .wxbb').count() > 5 and 'Wind' in B.inner_text('.brwxtag'))
+        A.evaluate("()=>{const e=document.querySelector('.brwxop');e.value=40;e.dispatchEvent(new Event('input'))}"); B.wait_for_timeout(900)
+        check('the opacity of the briefer reaches the other pilot', B.evaluate("()=>document.querySelector('.brw .leaflet-wxP-pane').style.opacity") == '0.4')
+        A.click('.brwxp [data-wx=cond]'); B.wait_for_timeout(900)
+        check('another filter: no barbs any more, the label follows', B.locator('.brw .wxbb').count() == 0 and B.locator('.brw .wxcells').count() == 1 and 'Weather' in B.inner_text('.brwxtag'))
+        B.evaluate("()=>{const r=__app.sq.briefing()._r;r.send({t:'room',room:{...r.room,v:r.room.v+5,wx:{mode:'temp',op:100,lv:0,ms:null}}})}"); A.wait_for_timeout(800)
+        check('a pilot who is not the briefer cannot change the weather', A.evaluate("()=>__app.sq.briefing().room().wx.mode") == 'cond')
+        A.click('.brwxp [data-wx=off]'); B.wait_for_timeout(900)
+        check('Off: the weather goes from both maps', B.locator('.brw .wxcells').count() == 0 and B.locator('.brwxtag').count() == 0 and A.locator('.brw .wxcells').count() == 0)
+        A.click('.brtools [data-t=wx]')
         # the kneeboard card: the frame of the map, in the briefing
         A.click('.brw [data-a=card]'); A.wait_for_timeout(400)
         check('Save a kneeboard card opens the frame of the map over the briefing map', A.is_visible('.brw #mpfr #mpcap') and A.locator('.brw .brmapw.shoting, .brw .brmap.shoting').count() >= 1)
@@ -144,6 +164,8 @@ try:
         check('the room is closed for the other pilot, who is told by whom', not R_(B, '!!r.me') and 'Evil closed the room' in B.inner_text('.brjoin'))
         B.click('[data-t=mp]'); B.wait_for_timeout(400)
         check('leaving the page gives the map back to the Map page', B.locator('#mpbody #mpmap').count() == 1)
+        B.evaluate(FAKEWX); B.click('[data-t=wx]'); B.wait_for_timeout(1200)
+        check('the Weather page still draws its map with the shared drawing (wxlayer.js)', B.locator('#wxbox .wxcells').count() == 1 and B.locator('#wxleg').count() == 1)
         check('no page errors %s %s' % (ea[:3], eb[:3]), not ea and not eb)
         br.close()
 finally:

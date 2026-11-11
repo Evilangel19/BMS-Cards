@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: weather in the Briefing: the briefer shows a weather filter (weather, wind with barbs, temperature, pressure, clouds, visibility) at the hour and altitude he chooses, the same for everybody in the room.
 - Added: the Bingo carries a holding and an alternate fuel when the landing field is in IMC (GRN or worse at the landing time); minutes and pounds on the Performance page (10 min, 1000 lb), a small IMC beside the Bingo on the card.
 - Added: "Kneeboard not saved" in the tab bar (and a dot on the Kneeboard tab) when the kneeboard changed since its last save to BMS; a click saves it.
 - Added: Settings > General > One map screenshot: a new map screenshot takes the place of the last one, on the same kneeboard page (off by default).

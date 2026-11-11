@@ -23,7 +23,7 @@ import { msaOfFlight, msaOfBase } from './msafill.js';
 import { dtcPoints } from '../core/mapdtc.js';
 import { targetLine } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
-import { flightRoute as mFlightRoute } from '../core/mapdata.js';
+import { flightRoute as mFlightRoute, toLL as mToLL } from '../core/mapdata.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
 export const nearName = (x, y) => {
@@ -49,7 +49,7 @@ import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
 import { kbAddShot, kbAddTray, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { SHOT } from '../core/cardlayout.js';
-import { dtcDir, wxWind } from './campaign.js';
+import { dtcDir, wxWind, wxAt, wxKey, wxLoadKeys, wxFlight } from './campaign.js';
 import { openSettings } from './settings.js';
 import { APP_VERSION } from '../core/version.js';
 import {
@@ -418,6 +418,16 @@ export async function init11() {
       },
       theater: () => (ST.TH ? ST.TH.name : ''),
       wide: b => document.querySelector('main').classList.toggle('wide', !!b),
+      // the weather of the room: the map of an hour (loaded from the weather files of the campaign), the hours of the flight of the briefer
+      wx: {
+        at: ms => wxAt(ms),
+        load: ms => wxLoadKeys([wxKey(ms)]),
+        flight: () => {
+          const f = wxFlight();
+          return f ? { hours: f.hours, dep: f.dep, tot: f.tot, land: f.land, alt: f.alt } : null;
+        },
+        toLL: (x, y) => mToLL(x, y),
+      },
     },
     buildMission: () => msfBuild(),
     loadMission: t => msfLoad(t, null),

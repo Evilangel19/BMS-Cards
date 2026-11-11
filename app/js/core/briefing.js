@@ -23,10 +23,19 @@ import {
   shiftObj,
   pilotColour,
   MAX_OBJS,
+  cleanWx,
 } from './briefroom.js';
+import { WX_MODES, legend as wxLegend, drawWx } from './wxlayer.js';
+import { WX_ALT, wxLevel } from '../parsers/fmap.js';
 import { symbolSvg, airbaseSvg, SIDE_COL } from './mapsymbols.js';
 
 const rad = d => (d * Math.PI) / 180;
+const hhmm = ms => {
+  const s = Math.floor(ms / 1000);
+  return (
+    String(Math.floor((s % 86400) / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0')
+  );
+};
 const TRK = { hostile: '#ff5d5d', friend: '#3ddc84', neutral: '#9aa4b2', unknown: '#f5d742' }; // the radar tracks of the map (dark palette)
 const RINGC = { hostile: '#ff9f1a', friend: '#4f8cff', neutral: '#4cc38a', unknown: '#f5d742' }; // the SAM rings of the map
 const UNITS = [
@@ -98,6 +107,8 @@ const TOOLS = [
     '<circle cx="12" cy="12" r="9"/><path d="M12 6l2 6-2 6-2-6z" fill="currentColor" fill-opacity=".35"/>',
     0,
   ],
+  '|',
+  ['wx', 'Weather', '<path d="M7 18h10a4 4 0 0 0 .6-7.95A5.5 5.5 0 0 0 7 9.5 4.25 4.25 0 0 0 7 18z"/>', 2],
   '|',
   ['curs', 'Cursors: all', '<path d="M5 3v14l4-3.5 3 6.5 2.5-1.2-3-6.3H17z"/>', 0],
 ];
@@ -301,6 +312,7 @@ class Room {
       onZe = () => {
         this.wrap.classList.remove('zooming');
         this.sendView(true);
+        if (this.room.wx && this.room.wx.mode == 'wind') this.wxSync(true); // the barbs follow the zoom
       },
       onDrag = () => this.goFree();
     map.on('move', onMove);
@@ -318,6 +330,8 @@ class Room {
     this.setTool(this.tool);
     if (this.following() && this.lastView) this.applyView(this.lastView, true);
     this.redraw();
+    this.wxSig = '';
+    this.wxSync(true);
   }
   hide() {
     this.visible = false;
@@ -325,12 +339,17 @@ class Room {
     this.d.wide && this.d.wide(false);
     this.closePal();
     this.closeEd();
+    this.closeWx();
     if (this.me) this.send({ t: 'cur', ll: null });
     if (!this.M) return;
     const { map, board } = this.M;
     try {
       this.M.off();
       board.remove();
+      if (this.M.wxg) this.M.wxg.remove();
+      const pn = map.getPane('wxP');
+      if (pn) pn.style.opacity = '';
+      this.wxSig = '';
       map.dragging.enable();
       this.box.classList.remove('brdraw', 'brerase', 'brsel', 'brpan');
     } catch (e) {
@@ -495,7 +514,8 @@ class Room {
     }
     switch (t) {
       case 'state': {
-        if (m.room && (from === m.room.briefer || roomNewer(this.room, m.room))) this.room = { ...m.room };
+        if (m.room && (from === m.room.briefer || roomNewer(this.room, m.room)))
+          this.room = { ...m.room, wx: cleanWx(m.room.wx) };
         (Array.isArray(m.objs) ? m.objs : []).slice(0, MAX_OBJS).forEach(x => {
           const o = cleanObj(x);
           if (o) this.objs.set(o.id, o);
@@ -515,7 +535,7 @@ class Room {
           ((!this.brieferHere() || n.v > this.room.v) && this.info(from).lead && n.briefer === from);
         if (!ok) break;
         const old = this.room;
-        this.room = { ...n, pens: Array.isArray(n.pens) ? n.pens.slice(0, 64) : [] };
+        this.room = { ...n, pens: Array.isArray(n.pens) ? n.pens.slice(0, 64) : [], wx: cleanWx(n.wx) };
         if (n.closed) return this.leave(this.d.name(from));
         const me = this.me.uid,
           had = (old.pens || []).includes(me),
@@ -628,6 +648,7 @@ class Room {
     this.renderTools();
     this.renderHdr();
     this.renderJoin();
+    this.wxSync();
   }
   renderTop() {
     const e = this.esc,
@@ -831,6 +852,161 @@ class Room {
       }
     );
   }
+  // ------------------------------------------------------------------- the weather (the filters of the Weather page, chosen by the briefer for everybody)
+  // every pilot draws it from the weather files of his own campaign: only the choice travels (filter, hour, layer of the wind, opacity)
+  wxNow() {
+    return cleanWx(this.room.wx);
+  }
+  setWx(ch) {
+    if (!this.isBriefer()) return;
+    this.room.wx = cleanWx({ ...this.wxNow(), ...ch });
+    this.wxSync();
+    this.renderWxPanel();
+    // a slider sends at most 8 times a second, the last position always
+    clearTimeout(this.wxT);
+    const now = performance.now();
+    if (now - (this.wxLast || 0) > 120) {
+      this.wxLast = now;
+      this.setRoom({});
+    } else
+      this.wxT = setTimeout(() => {
+        this.wxLast = performance.now();
+        this.setRoom({});
+      }, 120);
+  }
+  async wxSync(force) {
+    const M = this.M;
+    if (!M || !this.d.wx) return;
+    const w = this.me ? this.wxNow() : { mode: 'off' },
+      sig = JSON.stringify(w);
+    if (!force && sig === this.wxSig) return;
+    this.wxSig = sig;
+    if (!M.wxg) M.wxg = M.L.layerGroup().addTo(M.map);
+    const tag = this.wrap.querySelector('.brwxtag');
+    if (w.mode == 'off') {
+      M.wxg.clearLayers();
+      const pn = M.map.getPane('wxP');
+      if (pn) pn.style.opacity = '';
+      if (tag) tag.remove();
+      return;
+    }
+    const tok = (this.wxTok = (this.wxTok || 0) + 1);
+    try {
+      if (w.ms != null && this.d.wx.load) await this.d.wx.load(w.ms);
+    } catch (e) {
+      /* the campaign map is used */
+    }
+    if (tok !== this.wxTok || this.M !== M) return;
+    const W = this.d.wx.at(w.ms);
+    let t = this.wrap.querySelector('.brwxtag');
+    if (!t) {
+      t = document.createElement('div');
+      t.className = 'brwxtag';
+      this.wrap.appendChild(t);
+    }
+    const name = (WX_MODES.find(m => m[0] == w.mode) || [, ''])[1],
+      when =
+        w.ms != null ? ' · day ' + (Math.floor(w.ms / 864e5) + 1) + ' · ' + hhmm(w.ms) + 'Z' : ' · campaign weather',
+      at = w.mode == 'wind' ? ' · ' + (WX_ALT[w.lv] ? WX_ALT[w.lv].toLocaleString('en-US') + ' ft' : 'surface') : '';
+    if (!W) {
+      M.wxg.clearLayers();
+      t.innerHTML = `<b>${name}</b>${when}<br><span class="brwarn">No weather map here: open the campaign or the mission of the briefer.</span>`;
+      return;
+    }
+    drawWx({ L: M.L, map: M.map, group: M.wxg, W, lv: w.lv, mode: w.mode, op: w.op, toLL: this.d.wx.toLL });
+    t.innerHTML = `<b>${name}</b>${at}${when}<div class="wxleg">${wxLegend(w.mode, W, w.lv)}</div>`;
+  }
+  closeWx() {
+    if (this.wxPanel) {
+      this.wxPanel.remove();
+      this.wxPanel = null;
+    }
+  }
+  openWx(btn) {
+    this.closeWx();
+    this.closePal();
+    const host = this.d.root.querySelector('.brw'),
+      r = btn.getBoundingClientRect(),
+      H = host.getBoundingClientRect(),
+      p = (this.wxPanel = document.createElement('div'));
+    p.className = 'brpal brwxp';
+    p.style.left = Math.max(6, Math.min(r.left - H.left - 160, H.width - 360)) + 'px';
+    p.style.top = r.bottom - H.top + 6 + 'px';
+    host.appendChild(p);
+    this.renderWxPanel(true);
+  }
+  // the panel of the briefer: the filters, the hour (the hours of his flight), the layer of the wind, the opacity
+  renderWxPanel(full) {
+    const p = this.wxPanel;
+    if (!p) return;
+    const w = this.wxNow(),
+      fl = (this.d.wx && this.d.wx.flight && this.d.wx.flight()) || null,
+      hrs = fl && fl.hours && fl.hours.length ? fl.hours : [],
+      t0 = hrs.length ? hrs[0] : null,
+      t1 = hrs.length ? hrs[hrs.length - 1] + 3599000 : null;
+    if (!full && p.querySelector('[data-wx]')) {
+      p.querySelectorAll('[data-wx]').forEach(b => b.classList.toggle('on', b.dataset.wx == w.mode));
+      const tl = p.querySelector('.brwxt');
+      if (tl)
+        tl.textContent =
+          w.ms != null ? 'day ' + (Math.floor(w.ms / 864e5) + 1) + ' · ' + hhmm(w.ms) + 'Z' : 'campaign weather';
+      const ll = p.querySelector('.brwxl');
+      if (ll) ll.textContent = WX_ALT[w.lv] ? WX_ALT[w.lv].toLocaleString('en-US') + ' ft' : 'surface';
+      const ol = p.querySelector('.brwxo');
+      if (ol) ol.textContent = w.op + '%';
+      p.querySelector('.brwxlv').style.display = w.mode == 'wind' ? '' : 'none';
+      return;
+    }
+    const ms = w.ms != null && t0 != null ? Math.min(t1, Math.max(t0, w.ms)) : w.ms;
+    p.innerHTML = `<div class="ph">WEATHER · everybody in the room sees it</div><div class="rw">${[
+      ['off', 'Off'],
+      ...WX_MODES,
+    ]
+      .map(([k, n]) => `<button class="it brwxm ${k == w.mode ? 'on' : ''}" data-wx="${k}">${n}</button>`)
+      .join('')}</div>
+      <div class="ph">TIME <b class="brwxt">${ms != null ? 'day ' + (Math.floor(ms / 864e5) + 1) + ' · ' + hhmm(ms) + 'Z' : 'campaign weather'}</b></div>
+      ${
+        t0 != null
+          ? `<input type="range" class="brwxs" min="${t0}" max="${t1}" step="60000" value="${ms != null ? ms : fl.tot || fl.dep || t0}" aria-label="Time of the weather">${[
+              ['DEP', fl.dep],
+              ['TOT', fl.tot],
+              ['LAND', fl.land],
+            ]
+              .filter(x => x[1] != null && x[1] >= t0 && x[1] <= t1)
+              .map(([n, v]) => `<button class="mini" data-at="${v}">${n} ${hhmm(v)}</button>`)
+              .join(' ')}`
+          : '<div class="tip">No hourly weather maps for your flight: the campaign map is used.</div>'
+      }
+      <div class="brwxlv" style="${w.mode == 'wind' ? '' : 'display:none'}"><div class="ph">WIND AT <b class="brwxl">${WX_ALT[w.lv] ? WX_ALT[w.lv].toLocaleString('en-US') + ' ft' : 'surface'}</b></div><input type="range" class="brwxa" min="0" max="${WX_ALT.length - 1}" step="1" value="${w.lv}" aria-label="Altitude of the wind"></div>
+      <div class="ph">OPACITY <b class="brwxo">${w.op}%</b></div><input type="range" class="brwxop" min="10" max="100" step="5" value="${w.op}" aria-label="Opacity of the weather">`;
+    p.querySelectorAll('[data-wx]').forEach(
+      b =>
+        (b.onclick = () => {
+          const m = b.dataset.wx,
+            cur = this.wxNow();
+          // the first time on: the hour of the flight (TOT, else the take-off) and the layer nearest to its altitude
+          const first = cur.mode == 'off' && m != 'off';
+          this.setWx({
+            mode: m,
+            ...(first && cur.ms == null && fl ? { ms: fl.tot || fl.dep || null } : {}),
+            ...(first && fl && fl.alt ? { lv: wxLevel(fl.alt) } : {}),
+          });
+        })
+    );
+    const sl = p.querySelector('.brwxs');
+    if (sl) sl.oninput = () => this.setWx({ ms: +sl.value });
+    p.querySelectorAll('[data-at]').forEach(
+      b =>
+        (b.onclick = () => {
+          this.setWx({ ms: +b.dataset.at });
+          if (sl) sl.value = b.dataset.at;
+        })
+    );
+    const al = p.querySelector('.brwxa');
+    al.oninput = () => this.setWx({ lv: +al.value });
+    const op = p.querySelector('.brwxop');
+    op.oninput = () => this.setWx({ op: +op.value });
+  }
   // ------------------------------------------------------------------- the tools
   buildTools() {
     const T = this.toolsEl;
@@ -857,6 +1033,7 @@ class Room {
           if (d[3] && !this.can()) return this.toast('Ask the briefer for the pen');
           if (k == 'undo') return this.undo();
           if (k == 'clear') return this.clearBoard();
+          if (k == 'wx') return this.wxPanel ? this.closeWx() : this.openWx(b);
           if (k == 'sym') {
             if (this.tool == 'sym' && this.palEl) return this.closePal();
             this.setTool('sym');
@@ -887,6 +1064,7 @@ class Room {
   }
   renderTools() {
     if (!this.built) return;
+    if (!this.isBriefer()) this.closeWx();
     const can = this.can();
     this.toolsEl.querySelectorAll('.t').forEach(b => {
       const d = TOOLS.find(t => t[0] == b.dataset.t),

@@ -3523,6 +3523,7 @@ export function createSquadronPage(deps) {
       mission: () => (B.mission ? B.mission() : ''),
       theater: () => (B.theater ? B.theater() : ''),
       wide: b => B.wide && B.wide(b),
+      wx: B.wx || null,
       toast: t => (deps.toast ? deps.toast(t) : say(t)),
     });
   }

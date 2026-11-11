@@ -659,3 +659,53 @@
     height: 70vh;
   }
 }
+/* the weather of the room: the panel of the briefer and the label over the map */
+.brw .brwxp {
+  width: 360px;
+}
+.brw .brwxp .it.brwxm {
+  width: auto;
+  height: 30px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+.brw .brwxp .ph b {
+  color: var(--txt, #e6e9ee);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.brw .brwxp input[type='range'] {
+  width: 100%;
+  accent-color: var(--br-acc);
+}
+.brw .brwxp .mini {
+  margin-top: 4px;
+}
+.brw .brwxtag {
+  position: absolute;
+  left: 10px;
+  bottom: 26px;
+  z-index: 850;
+  max-width: min(420px, 70%);
+  background: #0f1318e0;
+  border: 1px solid #3a4452;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  color: var(--br-dim);
+  pointer-events: none;
+  animation: br-pop 0.2s ease;
+}
+.brw .brwxtag b {
+  color: var(--txt, #e6e9ee);
+}
+.brw .brwxtag .wxleg {
+  margin-top: 4px;
+  font-size: 11px;
+}
+.brw .brwxtag .wxlg i {
+  width: 110px;
+}
+.brw .brmapw:has(> .brmap.shoting) .brwxtag {
+  display: none;
+}
