@@ -62,19 +62,37 @@ try:
         check('the next session starts with the same timeline (classes and conditions)', st['cls'][0] == 'Mig-29A' and st['std']['alt'] == 30000)
         # ---- Kneeboard not saved
         pg.click('[data-t=kb]'); pg.wait_for_timeout(300)
-        check('nothing on the datacard: no warning (nothing to save yet)', not pg.is_visible('#kbwarn'))
+        check('nothing on the datacard: no button in the tab bar (nothing to save yet)', not pg.is_visible('#rdy'))
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';__app.F.pri='TGT BRIDGE';draw()}"); pg.wait_for_timeout(2000)
-        check('the datacard changed and is on the kneeboard: "Kneeboard not saved" and a dot on the tab', pg.is_visible('#kbwarn') and 'not saved' in pg.inner_text('#kbwarn') and pg.locator('.tab[data-t=kn].unsaved').count() == 1)
-        pg.click('#kbwarn'); pg.wait_for_timeout(7000)
-        check('a click saves it (the Kneeboard page opens, the files are written): the warning goes', desk.has('C:\\BMS\\kb\\7982.dds') and not pg.is_visible('#kbwarn') and pg.locator('.tab[data-t=kn].unsaved').count() == 0 and pg.is_visible('#kn'))
+        check('the datacard changed and is on the kneeboard: "Not saved: Kneeboard" in the tab bar and a dot on the tab', pg.is_visible('#rdy.warn') and 'Not saved' in pg.inner_text('#rdy') and 'Kneeboard' in pg.inner_text('#rdy') and pg.locator('.tab[data-t=kn].unsaved').count() == 1)
+        pg.click('#rdy'); pg.wait_for_timeout(300)
+        check('a click opens the three rows: DTC (no file), Kneeboard (to save, with its button), Mission', pg.locator('#rdypop .rdyr').count() == 3 and pg.locator('#rdypop .rdyr.todo [data-r=kb]').count() == 1 and 'No DTC file open' in pg.inner_text('#rdypop'))
+        pg.click('#rdypop [data-r=kb]'); pg.wait_for_timeout(7000)
+        check('Save kneeboard writes the files without leaving the page: the warning and the dot go', desk.has('C:\\BMS\\kb\\7982.dds') and not pg.is_visible('#rdy.warn') and pg.locator('.tab[data-t=kn].unsaved').count() == 0 and pg.is_visible('#kb'))
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3500';draw()}"); pg.wait_for_timeout(2000)
-        check('a new change of the datacard brings it back', pg.is_visible('#kbwarn'))
+        check('a new change of the datacard brings it back', pg.is_visible('#rdy.warn'))
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';draw()}"); pg.wait_for_timeout(2000)
-        check('the datacard back as it was saved: no warning', not pg.is_visible('#kbwarn'))
+        check('the datacard back as it was saved: no warning', not pg.is_visible('#rdy.warn'))
         pg.close()
         pg, errs3 = page(br)
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';__app.F.pri='TGT BRIDGE';draw()}"); pg.wait_for_timeout(2500)
-        check('the next session with the same datacard: no warning (the last save is remembered)', not pg.is_visible('#kbwarn'))
+        check('the next session with the same datacard: no warning (the last save is remembered)', not pg.is_visible('#rdy.warn'))
+        # ---- Ready to fly: the three things together, and Write all
+        r = pg.evaluate("""async()=>{const {ST}=await import('/app/js/app/state.js');const D=await import('/app/js/app/dtcfile.js');
+          const sel=document.getElementById('fsel');sel.innerHTML='<option value="">-</option><option value="0">Viper 1</option>';sel.value='0';
+          return __app.ready.items().map(x=>x.k+':'+x.st).join(',')}"""); pg.wait_for_timeout(1600)
+        check('a flight chosen, nothing saved yet as a mission: the mission waits too (%s)' % r, 'msf:todo' in r and pg.is_visible('#rdy.warn') and 'Mission' in pg.inner_text('#rdy'))
+        pg.evaluate("()=>{document.getElementById('fsel').innerHTML='<option>— select a flight —</option>'}"); pg.wait_for_timeout(1600)
+        check('all saved and no flight: the button goes away', not pg.is_visible('#rdy'))
+        # ---- the notice of a newer version (the answer of GitHub is made by the test)
+        v = pg.evaluate("""async()=>{const R=await import('/app/js/app/ready.js');localStorage.removeItem('bmscards.vercheck');
+          const f=async()=>({ok:true,json:async()=>[{name:'v1.1.0'},{name:'v9.0.0'},{name:'junk'}]});const v=await R.verLatest(f);R.verShow(v);return v}""")
+        check('a newer tag on GitHub: the notice in the tab bar (%s)' % v, v == '9.0.0' and pg.is_visible('#verchip') and '9.0.0' in pg.inner_text('#verchip'))
+        pg.click('#verchip'); pg.wait_for_timeout(200)
+        check('a click shows where to download it (the program does not update itself)', 'github.com/' in pg.input_value('#verpop input') and 'does not update itself' in pg.inner_text('#verpop'))
+        pg.click('#verchip')
+        check('asked once a day: the answer is remembered', pg.evaluate("async()=>{const R=await import('/app/js/app/ready.js');return await R.verLatest(async()=>{throw new Error('asked again')})}") == '9.0.0')
+        pg.evaluate("async()=>{const R=await import('/app/js/app/ready.js');R.verShow('')}")
         # ---- one map screenshot
         shot = """async()=>{const K=await import('/app/js/app/kneeboard.js');const c=document.createElement('canvas');c.width=1024;c.height=2048;const x=c.getContext('2d');x.fillStyle='#'+Math.floor(Math.random()*0xffffff).toString(16).padStart(6,'0');x.fillRect(0,0,1024,2048);await K.kbAddShot(c);
           const at=[];K.KBS.forEach((r,i)=>['left','right'].forEach(s=>{if(r[s].kind=='pic'&&/^Map screenshot/.test(r[s].item.name))at.push(s+i)}));return {n:K.KBLIB.filter(i=>/^Map screenshot/.test(i.name)).length,at}}"""
@@ -84,7 +102,7 @@ try:
         pg.click('#cfgbtn'); pg.wait_for_timeout(500)
         pg.click('#cfg [data-a=go][data-p=general]'); pg.wait_for_timeout(300)
         sw = pg.locator('#cfg [data-a=sw][data-k=oneShot]')
-        check('Settings > General: "One map screenshot"', sw.count() == 1 and 'One map screenshot' in pg.inner_text('#cfg'))
+        check('Settings > General: "One map screenshot" and "New version notice" (on by default)', sw.count() == 1 and 'One map screenshot' in pg.inner_text('#cfg') and pg.locator('#cfg [data-a=sw][data-k=upd].on').count() == 1)
         sw.click(); pg.click('#cfgsave'); pg.wait_for_timeout(800)
         check('the switch is saved in config.json', json.loads(desk.text(APP + '\\config.json'))['ui'].get('oneMapShot') is True)
         if pg.is_visible('#cfg'): pg.keyboard.press('Escape'); pg.wait_for_timeout(300)

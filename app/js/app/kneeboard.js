@@ -727,7 +727,7 @@ export function kbRender(keepMenu) {
   );
   $('kbinfo').onclick = () =>
     alert(
-      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}. "Kneeboard not saved" (top bar) shows when the cards or the datacard changed since the last Save. Settings > General > One map screenshot: a new map screenshot replaces the last one.`
+      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}. "Not saved: Kneeboard" (tab bar) shows when the cards or the datacard changed since the last Save. Settings > General > One map screenshot: a new map screenshot replaces the last one.`
     );
   $('kbdef').onclick = () => {
     KBDEF = kbCopy(KBS);
@@ -1097,6 +1097,7 @@ export const dcEmpty = () =>
 export const dcOnRows = rows =>
   rows.some(i => [KBS[i].left.kind, KBS[i].right.kind].some(k => k == 'dcl' || k == 'dcr'));
 export async function kbSave() {
+  if (!$('kbsave')) kbRender(); // saved from the "Ready to fly" button before the Kneeboard page was ever opened
   const dir = kbDir(),
     st = $('kbst'),
     rows = KBS.map((s, i) => i).filter(i => rowUsed(KBS[i], i)),
@@ -1155,6 +1156,7 @@ export async function kbSave() {
     st.textContent = 'Done: ' + done + ' file(s) written.';
     KBSAVED = kbSig();
     kbMarkSaved();
+    if ($('kn').classList.contains('hide')) appToast('Kneeboard saved: ' + done + ' file(s) written.');
     kbDefBtns();
     $('kbsave').classList.remove('flash');
     void $('kbsave').offsetWidth;
@@ -1241,28 +1243,10 @@ export function kbUnsaved() {
     return false;
   return true;
 }
+// the dot on the Kneeboard tab (the "Ready to fly" button of the tab bar, app/ready.js, lists it with the DTC and the mission)
 function kbWarn() {
-  const on = kbUnsaved(),
-    tab = document.querySelector('.tab[data-t=kn]');
-  if (tab) tab.classList.toggle('unsaved', on);
-  let b = $('kbwarn');
-  if (!b && on) {
-    b = document.createElement('button');
-    b.id = 'kbwarn';
-    b.type = 'button';
-    b.className = 'kbwarn';
-    b.title = 'The kneeboard changed since it was last saved to the BMS folder: click to save it now';
-    b.textContent = '⚠ Kneeboard not saved';
-    b.onclick = () => {
-      const t = document.querySelector('.tab[data-t=kn]');
-      if (t && $('kn').classList.contains('hide')) t.click();
-      setTimeout(() => kbSave(), 60);
-    };
-    const cfg = $('cfgbtn');
-    if (cfg && cfg.parentNode) cfg.parentNode.insertBefore(b, cfg);
-    else document.body.append(b);
-  }
-  if (b) b.hidden = !on;
+  const tab = document.querySelector('.tab[data-t=kn]');
+  if (tab) tab.classList.toggle('unsaved', kbUnsaved());
 }
 export function kbWatch() {
   loadPrefs('kbsaved.json')

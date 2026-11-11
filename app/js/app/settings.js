@@ -16,6 +16,7 @@ import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
 import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
+import { verCheck } from './ready.js';
 import { kbDir, kbMemLoad, kbRender } from './kneeboard.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
@@ -54,7 +55,7 @@ export async function autoLoadLast() {
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
 const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data'];
-const SW_OF = { general: ['autoLoad', 'anim', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+const SW_OF = { general: ['autoLoad', 'anim', 'upd', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -84,7 +85,7 @@ function readForm(dlg) {
 // the part of the values that belongs to a section
 const OF = {
   folders: v => v.paths,
-  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.oneShot],
+  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
@@ -176,6 +177,12 @@ export async function openSettings() {
       'Animations',
       'Short transitions (ignored when the system asks for reduced motion)',
       ui.animations !== false
+    ) +
+    sw(
+      'upd',
+      'New version notice',
+      'Once a day the program asks GitHub whether a newer version exists and shows a notice. Nothing is downloaded or installed.',
+      ui.checkUpdates !== false
     ) +
     sw(
       'oneShot',
@@ -387,6 +394,7 @@ export async function openSettings() {
       showMfd34: v.sw.mfd,
       autoLoad: v.sw.autoLoad,
       oneMapShot: v.sw.oneShot,
+      checkUpdates: v.sw.upd,
     };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
     n.mission = {
@@ -424,6 +432,7 @@ export async function openSettings() {
       const changed = n.paths.bmsInstall !== ST.CFG.paths.bmsInstall;
       const trk = n.squadron.trackers !== ((ST.CFG.squadron && ST.CFG.squadron.trackers) || '');
       ST.CFG = n;
+      verCheck();
       if (v.sw.form !== !!ST.FORMON) {
         closeEd(true);
         ST.FORMON = v.sw.form;

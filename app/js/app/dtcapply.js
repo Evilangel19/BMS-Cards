@@ -275,6 +275,8 @@ export function dtcClear(g, slot, fromPage) {
   S('STPT', k, dtcEmpty(g));
   afterDtc(k, fromPage);
 }
+// the open DTC holds something that is not in its file yet (a change, the route of the flight, copies of a line to merge)
+export const dtcToWrite = () => lines.length > 0 && (lines.some(l => l.dirty) || routeDiffers() || MERGED.length > 0);
 export function dtcBtns() {
   const d = lines.some(l => l.dirty);
   [

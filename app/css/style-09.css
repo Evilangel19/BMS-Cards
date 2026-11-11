@@ -73,32 +73,127 @@
   margin-top: 6px;
 }
 
-/* the kneeboard changed since it was last saved to the BMS folder (app/kneeboard.js kbWarn): a button in the tab bar and a dot on the Kneeboard tab */
-.kbwarn {
+/* "Ready to fly" (app/ready.js): a button in the tab bar (amber: something is not saved; green: all saved) and its panel; a dot on the Kneeboard tab */
+.rdy {
   align-self: center;
   margin-left: auto;
   margin-right: 8px;
   padding: 5px 11px;
   border-radius: 999px;
-  border: 1px solid #f5c84288;
-  background: #f5c8421f;
-  color: #f5c842;
+  border: 1px solid #3ecf8e77;
+  background: #3ecf8e1c;
+  color: #3ecf8e;
   font:
     600 12px system-ui,
     sans-serif;
   cursor: pointer;
   white-space: nowrap;
   animation: popin 0.25s ease-out;
-  transition: background-color 0.15s;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
-.kbwarn:hover {
-  background: #f5c84233;
+.rdy.warn {
+  border-color: #f5c84288;
+  background: #f5c8421f;
+  color: #f5c842;
 }
-.kbwarn[hidden] {
+.rdy:hover {
+  filter: brightness(1.15);
+}
+.rdy[hidden] {
   display: none;
 }
-.kbwarn:not([hidden]) + #cfgbtn {
+.rdy:not([hidden]) ~ #cfgbtn,
+.verchip:not([hidden]) ~ #cfgbtn {
   margin-left: 0 !important;
+}
+.rdypop {
+  position: fixed;
+  z-index: 9000;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  background: var(--card, #1a1f27);
+  border: 1px solid var(--line, #2a313b);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 14px 34px #000a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: popin 0.18s ease-out;
+}
+.rdypop .rdyr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rdypop .rdyr i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #3ecf8e;
+}
+.rdypop .rdyr.todo i {
+  background: #f5c842;
+}
+.rdypop .rdyr.none i {
+  background: #64748b;
+}
+.rdypop .rdyr > div {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.rdypop .rdyr b {
+  display: block;
+  font-size: 13px;
+}
+.rdypop .rdyr span {
+  font-size: 11.5px;
+  color: var(--mu, #8b95a3);
+}
+.rdypop .btn {
+  margin: 0;
+  white-space: nowrap;
+}
+.rdypop .hint {
+  margin: 0;
+  min-height: 0;
+  font-size: 11px;
+}
+/* a newer version of the program exists (app/ready.js verCheck) */
+.verchip {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #7cc4ff77;
+  background: #7cc4ff1c;
+  color: #7cc4ff;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: popin 0.25s ease-out;
+  transition: filter 0.15s;
+}
+.verchip:hover {
+  filter: brightness(1.15);
+}
+.verchip[hidden] {
+  display: none;
+}
+.rdy:not([hidden]) ~ .verchip {
+  margin-left: 0;
+}
+.rdypop input {
+  width: 100%;
+  font-size: 12px;
 }
 .tab[data-t='kn'].unsaved {
   position: relative;

@@ -34,6 +34,8 @@ Pilots of a squadron find each other through public trackers that only pass the 
 
 To open that direct connection the other pilots' programs must learn how to reach you, so **the address of your computer on your local network (LAN) and your public IP address are visible to the pilots of the squadron you connect to**. Do not join a squadron you do not trust. Browsers and Windows may hide the LAN address behind a `.local` name; in that case pilots on the same virtual LAN cannot reach each other and the connection goes through the public address. The Squadron page has a connection test.
 
+Once a day the program asks GitHub (api.github.com) whether a newer version exists and shows a notice; nothing is downloaded or installed. It can be switched off in Settings > General.
+
 ## Safety
 The desktop program only loads its own scripts (Content Security Policy), reads files from your BMS folder and the program folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files, the `.zip` backup file). Programs, scripts and system folders are blocked for writing.
 
