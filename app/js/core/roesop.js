@@ -441,7 +441,8 @@ export const SOP_TOPICS = SOP.flatMap(([, t]) => t);
 export const emptySel = () => ({
   roe: Object.fromEntries(ROE.map(([id, , k]) => [id, k == 'many' ? [] : null])),
   sop: {},
-  free: '',
+  free: '', // other ROE lines
+  sfree: '', // other SOP lines
 });
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 // a choice that comes from outside (a file, a preset, the network) is checked: unknown ids are dropped
@@ -465,10 +466,18 @@ export function cleanSel(s) {
     if (t.o || t.t) o.sop[id] = t;
   });
   o.free = str(s.free, 600);
+  o.sfree = str(s.sfree, 600);
   return o;
 }
+const joinLines = (a, b) => {
+  const L = a ? a.split('\n') : [];
+  (b ? b.split('\n') : []).forEach(l => {
+    if (l.trim() && !L.includes(l)) L.push(l);
+  });
+  return L.join('\n');
+};
 // several presets together: a single choice (weapons status, commit, a SOP topic) is the one of the last preset that has it, the lists are joined
-// without repeats, a topic is on the card when one of them puts it there, the free lines are joined without repeats
+// without repeats, a topic is on the card when one of them puts it there, the other lines are joined without repeats
 export function mergeSel(list) {
   const o = emptySel();
   (list || []).map(cleanSel).forEach(s => {
@@ -480,11 +489,8 @@ export function mergeSel(list) {
       const was = o.sop[id];
       o.sop[id] = { ...t, c: t.c || !!(was && was.c) };
     }
-    const L = o.free ? o.free.split('\n') : [];
-    (s.free ? s.free.split('\n') : []).forEach(l => {
-      if (l.trim() && !L.includes(l)) L.push(l);
-    });
-    o.free = L.join('\n');
+    o.free = joinLines(o.free, s.free);
+    o.sfree = joinLines(o.sfree, s.sfree);
   });
   return o;
 }
@@ -495,8 +501,8 @@ export function sopShort(topic, v) {
   const p = topic[3].find(x => x[0] === v.o);
   return p ? p[2] : '';
 }
-// the text of the cell ROE / SOP: one line "ROE: ...", one "SOP: ..." with the topics on the card, then the free lines (the card breaks the long lines)
-export function cardText(sel) {
+// the ROE box of the card: one rule a line ("WPN TIGHT", "ID: AWACS DECLARE+L16", "COMMIT 40NM", "BUGOUT: BINGO/WINCH", ...), then the other ROE lines
+export function roeText(sel) {
   const s = cleanSel(sel),
     R = [];
   ROE.forEach(([id, , k, tag, opts]) => {
@@ -508,12 +514,46 @@ export function cardText(sel) {
       else R.push(...v);
     } else if (s.roe[id]) R.push((tag ? tag + ' ' : '') + sh(s.roe[id]));
   });
-  const S = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]])).map(
-    t => t[2] + ': ' + sopShort(t, s.sop[t[0]])
-  );
-  return [R.length ? 'ROE: ' + R.join(' · ') : '', S.length ? 'SOP: ' + S.join(' · ') : '', s.free.trim()]
-    .filter(Boolean)
-    .join('\n');
+  if (s.free.trim()) R.push(...s.free.split('\n').filter(l => l.trim()));
+  return R.join('\n');
+}
+// the SOP box: one topic a line ("LTS: FLASH MOVING"), only the topics ticked for the card, then the other SOP lines
+export function sopText(sel) {
+  const s = cleanSel(sel),
+    R = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]])).map(
+      t => t[2] + ': ' + sopShort(t, s.sop[t[0]])
+    );
+  if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
+  return R.join('\n');
+}
+// the mission categories a squadron preset can be the default of (the categories of the ATO, core/ato.js)
+export const ROE_CATS = [
+  'Offensive Counter Air',
+  'Defensive Counter Air',
+  'SEAD',
+  'Airstrike',
+  'Air Interdiction',
+  'CAS',
+  'C3I',
+  'Countersea',
+  'Support',
+  'Other',
+];
+// the squadron presets: [{name, sel, cats}], cats = the mission categories it is the default of
+export function cleanSqPresets(a) {
+  return (Array.isArray(a) ? a : [])
+    .filter(p => p && typeof p.name == 'string' && p.name.trim())
+    .slice(0, 50)
+    .map(p => ({
+      name: str(p.name.trim(), 40),
+      sel: cleanSel(p.sel),
+      cats: Array.isArray(p.cats) ? [...new Set(p.cats.filter(c => ROE_CATS.includes(c)))] : [],
+    }));
+}
+// the default of a mission category: the squadron presets marked for it, joined in their order; null when there is none
+export function defaultFor(presets, cat) {
+  const L = cleanSqPresets(presets).filter(p => p.cats.includes(cat));
+  return L.length ? mergeSel(L.map(p => p.sel)) : null;
 }
 // the personal presets: [{name, sel}], checked (names up to 40 letters, 50 presets at most)
 export function cleanPresets(a) {

@@ -155,7 +155,13 @@ export function buildLayout() {
     ]
   );
   at('AA2').t = 'ERAA';
-  at('V42').t = 'ROE / SOP';
+  at('V42').t = 'ROE';
+  {
+    // a heading SOP in the middle of the box, like the ROE one above
+    const h = at('V48'),
+      t = at('V42');
+    Object.assign(h, { fill: t.fill, t: 'SOP', sz: t.sz, bold: t.bold, ha: t.ha, va: t.va, b: [...t.b] });
+  }
   // link: shorter NDL, wider Donor
   xmap(
     [39, 41],
@@ -441,12 +447,9 @@ export function buildLayout() {
       ['Z', 'dn2', 'Donor 2'],
     ].forEach(([c, k, lab]) => field(c + y, `dl${i}_${k}`, `${lab} (${n})`, 'Link'));
   }
-  // the Overview box of the blank is the ROE / SOP of the card (the same field as on the Datacard: the menu of ROE / SOP fills both)
-  field('V43', 'roe', 'ROE / SOP', 'ROE / SOP', {
-    to: 'V53',
-    multi: 1,
-    all: Array.from({ length: 11 }, (_, i) => 'V' + (43 + i)),
-  });
+  // the Overview box of the blank holds the ROE (top) and the SOP (bottom) of the card: the same fields as on the Datacard, filled by the menu of ROE / SOP
+  field('V43', 'roe', 'ROE', 'ROE / SOP', { to: 'V47', multi: 1, all: ['V43', 'V44', 'V45', 'V46', 'V47'] });
+  field('V49', 'sop', 'SOP', 'ROE / SOP', { to: 'V53', multi: 1, all: ['V48', 'V49', 'V50', 'V51', 'V52', 'V53'] });
   {
     const all = [];
     for (let r = 42; r <= 59; r++) for (let c = 1; c <= 21; c++) all.push(L(c, r));

@@ -492,8 +492,35 @@
 }
 .roepop .rpr select {
   min-width: 0;
-  padding: 3px 5px;
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font: inherit;
   font-size: 12px;
+  color-scheme: dark;
+  cursor: pointer;
+}
+.roepop .rpq.sq {
+  border-color: #2c4a74;
+}
+.roepop .rpq.sq.on {
+  background: #14243a;
+  border-color: #4f8cff;
+}
+.roepop .rpp > input.rpnm {
+  width: 200px;
+  padding: 3px 7px;
+  box-shadow: none;
+}
+.roepop .rpnm.err {
+  border-color: #ff6b6b;
+}
+.roepop .rpvw {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
 .roepop .rpr .rpn {
   color: var(--mu);
@@ -546,4 +573,38 @@
   display: flex;
   gap: 8px;
   margin: 0;
+}
+/* Squadron > ROE / SOP */
+.sqroe {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+}
+.sqroeh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sqroeh .btn {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+.sqroeb {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 6px;
+}
+.sqroeb p {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--tx);
+}
+.sqroe .rpl,
+.sqroeb .rpl {
+  color: var(--mu);
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }

@@ -66,6 +66,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
+import { roeOpen } from './roepanel.js';
 
 export let mapV;
 const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
@@ -354,6 +355,7 @@ export async function init9() {
 export async function init11() {
   sqPage = createSquadronPage({
     esc,
+    roeEdit: (preset, onSave) => roeOpen({ preset, onSave }), // a ROE / SOP preset of the squadron, in the menu of ROE / SOP
     root: $('sq'),
     toast: appToast,
     lbk: isDesktop()

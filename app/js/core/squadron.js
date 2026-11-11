@@ -22,6 +22,7 @@ import {
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 import { createBriefing } from './briefing.js';
 import { roleOf } from './briefroom.js';
+import { cleanSqPresets, roeText, sopText } from './roesop.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -1736,6 +1737,7 @@ export function createSquadronPage(deps) {
     leader: q.leader,
     mc: q.mc || '',
     logo: q.logo || '',
+    roe: cleanSqPresets(q.roe), // the ROE / SOP presets of the squadron (the commander sets them)
     ts: q.ts,
   });
   function swarmStart(q) {
@@ -1804,6 +1806,7 @@ export function createSquadronPage(deps) {
               leader: m.squad.leader || '',
               mc: typeof m.squad.mc == 'string' ? m.squad.mc : '',
               logo: okImg(m.squad.logo) ? m.squad.logo : '',
+              roe: cleanSqPresets(m.squad.roe),
               ts: m.squad.ts,
             });
             ch = true;
@@ -2451,6 +2454,63 @@ export function createSquadronPage(deps) {
         };
     }
   }
+  // ROE / SOP: the presets of the squadron. The commander makes, edits and deletes them (in the menu of ROE / SOP) and marks the kinds of mission
+  // they are the default of; the others see them here and choose them in their menu. They travel with the squadron (meta.roe).
+  function drawRoe() {
+    const box = $('#sqroe'),
+      bar = $('#sqroebar');
+    if (!box) return;
+    const q = cur(),
+      own = owns(q),
+      L = q ? cleanSqPresets(q.roe) : [];
+    if (bar)
+      bar.innerHTML =
+        own && deps.roeEdit
+          ? '<button class="btn g gn" id="sqroenew" title="A new preset of ROE / SOP for the squadron">＋ New preset</button>'
+          : '';
+    if (!q) {
+      box.innerHTML = '<div class="hint">No squadron: create one or join one (Me).</div>';
+      return;
+    }
+    const txt = t => (t ? esc(t).replace(/\n/g, '<br>') : '<i>—</i>');
+    box.innerHTML = L.length
+      ? L.map(
+          (p, i) =>
+            `<div class="sqroe"><div class="sqroeh"><b>${esc(p.name)}</b>${p.cats.length ? `<span class="hint" style="min-height:0">default for ${esc(p.cats.join(', '))}</span>` : ''}<span style="flex:1"></span>${own && deps.roeEdit ? `<button class="btn g" data-roeup="${i}" title="Move up (the order in the menu; with several defaults the later one wins a single choice)"${i ? '' : ' disabled'}>↑</button><button class="btn g bl" data-roeed="${i}">Edit</button><button class="btn g rd" data-roedel="${i}">Delete</button>` : ''}</div><div class="sqroeb"><div><span class="rpl">ROE</span><p>${txt(roeText(p.sel))}</p></div><div><span class="rpl">SOP</span><p>${txt(sopText(p.sel))}</p></div></div></div>`
+        ).join('')
+      : `<div class="hint">${own ? 'No presets yet: New preset makes one. Every pilot of the squadron gets it in his ROE / SOP menu.' : 'The commander has not set any preset yet.'}</div>`;
+    const put = list => {
+      q.roe = cleanSqPresets(list);
+      touchSquad(q);
+      drawRoe();
+    };
+    if (!own || !deps.roeEdit) return;
+    $('#sqroenew').onclick = () => deps.roeEdit({ name: '', sel: null, cats: [] }, p => put([...L, p]));
+    box.querySelectorAll('[data-roeed]').forEach(
+      b =>
+        (b.onclick = () => {
+          const i = +b.dataset.roeed;
+          deps.roeEdit(L[i], p => put(L.map((x, j) => (j == i ? p : x))));
+        })
+    );
+    box.querySelectorAll('[data-roeup]').forEach(
+      b =>
+        (b.onclick = () => {
+          const i = +b.dataset.roeup,
+            M = L.slice();
+          [M[i - 1], M[i]] = [M[i], M[i - 1]];
+          put(M);
+        })
+    );
+    box.querySelectorAll('[data-roedel]').forEach(
+      b =>
+        (b.onclick = async () => {
+          const i = +b.dataset.roedel;
+          if (await confirm('Delete the squadron preset "' + L[i].name + '"? Every pilot loses it.'))
+            put(L.filter((_, j) => j != i));
+        })
+    );
+  }
   function drawMis() {
     const box = $('#sqrecv');
     if (!box) return;
@@ -2801,6 +2861,7 @@ export function createSquadronPage(deps) {
     ['org', 'Organization'],
     ['brief', 'Briefing'],
     ['missions', 'Missions'],
+    ['roe', 'ROE / SOP'],
     ['me', 'Me'],
     ['settings', 'Settings'],
   ];
@@ -2825,6 +2886,7 @@ export function createSquadronPage(deps) {
     drawOrg();
     drawLost();
     drawMis();
+    drawRoe();
     drawCamp();
     drawMine();
     drawSettings();
@@ -3202,6 +3264,7 @@ export function createSquadronPage(deps) {
 </div><div class="sqpane" data-pane="brief"><div id="sqbrief" class="sqbrief"></div>
 </div><div class="sqpane" data-pane="missions"><div class="sqtwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div></div>
+</div><div class="sqpane" data-pane="roe"><div class="sqc"><div class="sqhd"><h3>ROE / SOP <small>the presets of the squadron, in the ROE / SOP menu of every pilot</small></h3><div class="sqhr" id="sqroebar"></div></div><div id="sqroe"></div></div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
 <div class="sqc"><h3>Squadron in the campaign</h3><div id="sqcamp"></div></div>
@@ -3594,6 +3657,10 @@ export function createSquadronPage(deps) {
     role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
     rosterOf,
     roster: () => rosterOf().map(x => x.label),
+    roePresets: () => {
+      const q = cur();
+      return q ? cleanSqPresets(q.roe) : [];
+    },
     flush,
     refresh: () => {
       if (!pilot) loadLbks();

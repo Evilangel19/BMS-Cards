@@ -1,5 +1,16 @@
 // ROE / SOP (core/roesop.js): the text on the card, the check of what comes from outside, several presets together
-import { ROE, SOP_TOPICS, cardText, cleanSel, mergeSel, cleanPresets, emptySel } from '../app/js/core/roesop.js';
+import {
+  ROE,
+  SOP_TOPICS,
+  roeText,
+  sopText,
+  cleanSel,
+  mergeSel,
+  cleanPresets,
+  emptySel,
+  cleanSqPresets,
+  defaultFor,
+} from '../app/js/core/roesop.js';
 let bad = 0,
   n = 0;
 const ok = (m, c) => {
@@ -15,7 +26,7 @@ ok(
   'every option has a long and a short text',
   [...ROE.map(r => r[4]), ...SOP_TOPICS.map(t => t[3])].every(o => o.every(p => p[0] && p[1] && p[2]))
 );
-ok('nothing chosen: nothing on the card', cardText(emptySel()) === '');
+ok('nothing chosen: nothing on the card', roeText(emptySel()) === '' && sopText(emptySel()) === '');
 const a = {
   roe: { ws: 'tight', id: ['awacs', 'l16'], commit: 'n40', abort: ['bingo', 'winch'], extra: ['mez'] },
   sop: {
@@ -26,11 +37,16 @@ const a = {
   },
   free: 'Divert: Osan',
 };
-const t = cardText(a);
+a.sfree = 'Overhead 1500 MSL';
+const t1 = roeText(a),
+  t2 = sopText(a);
 ok(
-  'the card text: ROE, the SOP topics on the card (the one typed by hand too), the free lines\n' + t,
-  t ==
-    'ROE: WPN TIGHT · ID: AWACS DECLARE+L16 · COMMIT 40NM · BUGOUT: BINGO/WINCH · NO FIRE IN FRND MEZ\nSOP: LTS: FLASH MOVING · T/O: 20S · REC: Spiral down\nDivert: Osan'
+  'the ROE box: one rule a line, then the other ROE lines\n' + t1,
+  t1 == 'WPN TIGHT\nID: AWACS DECLARE+L16\nCOMMIT 40NM\nBUGOUT: BINGO/WINCH\nNO FIRE IN FRND MEZ\nDivert: Osan'
+);
+ok(
+  'the SOP box: the topics ticked for the card (the own text too), then the other SOP lines\n' + t2,
+  t2 == 'LTS: FLASH MOVING\nT/O: 20S\nREC: Spiral down\nOverhead 1500 MSL'
 );
 const c = cleanSel({
   roe: { ws: 'nuke', id: ['vid', 'x', 'vid'] },
@@ -52,5 +68,20 @@ ok(
 );
 const P = cleanPresets([{ name: '  Strike ', sel: a }, { name: '' }, null, { name: 'x'.repeat(60), sel: {} }]);
 ok('presets: names checked, empty ones dropped', P.length == 2 && P[0].name == 'Strike' && P[1].name.length == 40);
+const SQ = cleanSqPresets([
+  { name: 'A-A', sel: { roe: { ws: 'free' } }, cats: ['Defensive Counter Air', 'Nope'] },
+  { name: 'Base', sel: { sop: { lights: { o: 'move', c: true } } }, cats: ['Defensive Counter Air', 'Airstrike'] },
+]);
+ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 'Defensive Counter Air');
+const d1 = defaultFor(SQ, 'Defensive Counter Air'),
+  d2 = defaultFor(SQ, 'Airstrike');
+ok(
+  'the default of a kind of mission: the presets marked for it, joined',
+  d1.roe.ws == 'free' &&
+    d1.sop.lights.o == 'move' &&
+    d2.roe.ws === null &&
+    d2.sop.lights &&
+    defaultFor(SQ, 'CAS') === null
+);
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} ROE / SOP checks`);
 process.exit(bad ? 1 : 0);

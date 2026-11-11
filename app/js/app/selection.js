@@ -9,6 +9,7 @@ import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
+import { roeAuto } from './roepanel.js';
 import { MFD, draw } from './cardview.js';
 import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
@@ -121,6 +122,7 @@ export function apply(i, mode) {
   seatCheck(); // the seat chosen must exist in this flight
   applyDTC(ST.CL[i].f);
   mdcAuto();
+  roeAuto(ST.CL[i].f); // ROE / SOP: the default of the squadron for this kind of mission
   dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
   [
     ['ab', 3, 7],

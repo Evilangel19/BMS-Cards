@@ -130,7 +130,7 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
 // The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
 // which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
 // When even at 11 the box is too short the lines get closer, and what is left out is counted in a last line "+N more".
-const FREE_ROOM = 132;
+const FREE_ROOM = 116;
 export function freeLayout(x, v, w, room = FREE_ROOM) {
   const L = String(v).split('\n');
   const wrap = (t, fs) => {
@@ -523,8 +523,9 @@ function draw0() {
   x.fillStyle = '#fff';
   x.fillRect(1266, 1055, 329, 8);
   x.fillStyle = '#000';
-  x.fillRect(1261, 1031, 339, 3); // ROE / SOP | notes | ephemerides (one line)
-  x.fillRect(1261, 1171, 339, 3);
+  x.fillRect(1261, 1024, 339, 3); // ROE | SOP, then the notes, then the ephemerides (two lines)
+  x.fillRect(1261, 1147, 339, 3);
+  x.fillRect(1430, 894, 3, 130);
   if (!YC) calcYC(x);
   drawLabels(x);
   x.textAlign = 'left';
@@ -544,11 +545,11 @@ function draw0() {
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
     if (d.k == 'free') {
-      freeDraw(x, v, d, cx, FREE_ROOM, 1037);
-    } else if (d.k == 'roe') {
-      // ROE / SOP: the same layout as the notes (biggest size that fits, long lines wrapped), from the left
+      freeDraw(x, v, d, cx, FREE_ROOM, 1029);
+    } else if (d.k == 'roe' || d.k == 'sop') {
+      // ROE and SOP side by side: the same layout as the notes (biggest size that fits, long lines wrapped), from the left
       x.textAlign = 'left';
-      freeDraw(x, v, d, d.x + 2, 104, 924);
+      freeDraw(x, v, d, d.x + 2, 97, 924);
     } else if (ML.includes(d.k) || d.k == 'atis') {
       v.split('\n').forEach((t, i) => {
         const fs = fitF(x, t, d.w - 4, 16, 12);
@@ -556,7 +557,7 @@ function draw0() {
         x.fillText(
           t,
           cx,
-          d.y + (d.k == 'atis' ? (v.includes('\n') ? -11 : 0) : 6) + i * (d.k == 'atis' ? 22 : 17),
+          d.y + (d.k == 'atis' ? (v.includes('\n') ? -11 : 0) : 6) + i * (d.k == 'atis' ? 22 : d.k == 'eph' ? 20 : 17),
           d.w
         ); // the METAR and the TAF well apart
       });
@@ -738,7 +739,8 @@ export async function init5() {
       ['DR', 1533],
       ['DOR', 1577],
     ].forEach(([t, x]) => a(t, x, 765));
-    a('ROE / SOP', 1431, 905);
+    a('ROE', 1347, 905);
+    a('SOP', 1515, 905);
     [
       ['Airbase', 15, 138],
       ['Flight', 15, 265],

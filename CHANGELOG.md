@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: Squadron > ROE / SOP: the commander sets the presets of the squadron, every pilot finds them in his menu; a preset can be the default of kinds of mission (a BARCAP flight gets the Defensive Counter Air one by itself).
+- Changed: ROE and SOP in two boxes (side by side on the Datacard, one above the other on the MDC); ephemerides back on two lines.
+- Fixed: the drop-downs of the SOP menu did not open.
 - Added: **ROE / SOP**: a click on the box opens a menu with the rules of engagement and the SOP of the squadron (ground, departure, en route, FENCE and comms, recovery, night, emergencies), personal presets that can be combined, and the short text written on the Datacard and in the MDC (the Overview box is now ROE / SOP).
 - Changed: Datacard: the ROE / SOP box is taller, the notes moved down, the ephemerides on one line.
 - Changed: MDC format: the pilots table without FCR, ID and OWN, six taller rows with wider cells.
