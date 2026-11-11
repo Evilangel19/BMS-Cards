@@ -28,7 +28,7 @@ for (const k of [
   'm1',
   'm4',
   'ps9',
-  'fl7_5',
+  'fl5_5',
   'fp14_11',
   't2_4',
   't2_4',
@@ -181,5 +181,9 @@ ok(
   );
   ok('Airspace / TGT: the primary target', q.airsp == 'SA-2 Site Kuum-ni');
 }
+ok(
+  'pilots: six rows, no FCR / ID / OWN cells',
+  keys.includes('fl5_0') && !keys.includes('fl6_0') && !keys.some(k => /^fl\d_[fio]$/.test(k))
+);
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

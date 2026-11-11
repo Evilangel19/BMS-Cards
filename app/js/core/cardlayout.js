@@ -263,6 +263,30 @@ export function buildLayout() {
     ],
     true
   );
+  // pilots: no FCR, ID and OWN columns (not used), their room goes to the others; six rows instead of eight (the flight has four aircraft, two are left to write by hand),
+  // as tall as the eight were together
+  {
+    const inP = sh => !page2(sh) && rowOf(sh.a) >= 10 && rowOf(sh.a) <= 18 && sh.r[2] <= 792.5,
+      gone = ['G', 'J', 'M'].map(c => colOf(c + '1')),
+      X = { A: [11, 250], D: [250, 380], F: [380, 450], K: [450, 540], O: [540, 670], S: [670, 792.3] };
+    const P = shapes.filter(sh => inP(sh) && rowOf(sh.a) >= 11),
+      top = Math.min(...P.map(sh => sh.r[1])),
+      bot = Math.max(...P.map(sh => sh.r[3])),
+      h = (bot - top) / 6,
+      lastB = new Map(P.filter(sh => rowOf(sh.a) == 18).map(sh => [sh.a.replace(/\d+$/, ''), sh.b[3]]));
+    for (let i = shapes.length; i--;) {
+      const sh = shapes[i];
+      if (inP(sh) && (gone.includes(colOf(sh.a)) || rowOf(sh.a) >= 17)) shapes.splice(i, 1);
+    }
+    shapes.forEach(sh => {
+      if (!inP(sh)) return;
+      const c = sh.a.replace(/\d+$/, ''),
+        row = rowOf(sh.a);
+      if (X[c]) sh.r = [X[c][0], sh.r[1], X[c][1], sh.r[3]];
+      if (row >= 11) sh.r = [sh.r[0], top + (row - 11) * h, sh.r[2], top + (row - 10) * h];
+      if (row == 16 && lastB.has(c)) sh.b = [sh.b[0], sh.b[1], sh.b[2], lastB.get(c)];
+    });
+  }
   // heights. Page 2: the Known EOB / AO update tables take the room of the two roll call rows removed; then the whole page is scaled to the new top.
   // Page 1: the white band above is smaller and the room goes to the rows of the flight plan.
   {
@@ -363,19 +387,16 @@ export function buildLayout() {
     (p, i) => field('X' + (7 + i), `ps${i}`, 'Preset ' + p, 'Audio presets')
   );
   ['W18', 'Y18', 'AA18'].forEach((a, j) => field(a, `nav0_${j}`, 'NAV ' + (j + 1), 'NAV'));
-  // pilots (8 rows: the first four are the flight)
+  // pilots (6 rows: the first four are the flight)
   const PC = [
     ['A', 'fl%_0', 'Pilot'],
     ['D', 'fl%_c', 'Callsign'],
     ['F', 'fl%_2', 'TCN'],
-    ['G', 'fl%_f', 'FCR'],
-    ['J', 'fl%_i', 'ID'],
     ['K', 'fl%_1', 'IDM'],
-    ['M', 'fl%_o', 'OWN'],
     ['O', 'fl%_s', 'STN'],
     ['S', 'fl%_5', 'Laser (conf-lsr code)'],
   ];
-  for (let r = 0; r < 8; r++)
+  for (let r = 0; r < 6; r++)
     PC.forEach(([c, k, lab]) => field(c + (11 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Pilots'));
   // steerpoints (15 rows)
   const SC = [

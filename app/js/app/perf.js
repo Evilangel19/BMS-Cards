@@ -2,7 +2,7 @@ import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
-import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
+import { climbAltitude, fuelPlan, tankerJB } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
 import { isShipBase } from '../core/carriers.js';
 import { isStovl } from '../core/flight.js';
@@ -358,6 +358,11 @@ export async function perfFill(i) {
   // the Bingo carries the IMC fuel: a small IMC beside it on the card (not when the Bingo was typed by hand)
   F.__bimc = r.plan.imc && !ST.MANK.has('bingo') ? r.plan.imc : null;
   put('joker', r.plan.joker);
+  {
+    // TANK J/B of the MDC: Joker / Bingo to the tanker, when the flight has one (core/fuelplan.js tankerJB)
+    const t = F.su0_0 ? tankerJB(r.plan, ST.CL[i].f.wps, F.__tkxy, PERFP.joker) : null;
+    put('tk_jb', t ? t.joker + ' / ' + t.bingo : '');
+  }
   r.plan.rows.forEach((x, j) => {
     if (j < 24 && x.min != null) put(`fp${j}_6`, x.min);
   });

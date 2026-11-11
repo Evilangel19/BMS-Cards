@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Changed: MDC format: the pilots table without FCR, ID and OWN, six taller rows with wider cells.
+- Added: MDC format: TANK J/B (Joker / Bingo to the tanker) filled from the fuel plan.
 - Fixed: MDC format: the callsign was not written and the Bingo was not red (beta 14).
 - Changed: MDC format: wider Tanker, TOT / VUL, flight plan columns, Aircraft and Target of the roll call, Type / Lat / Long of the Known EOB; Airspace / TGT filled with the primary target; the loadout written shorter and bigger.
 - Added: the elevation of the target steerpoints after Lat&Long on the Datacard; METAR and TAF further apart; tanks without the aircraft name (Tank 600gal).

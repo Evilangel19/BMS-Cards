@@ -165,6 +165,28 @@ export function fuelPlan(ac, wps0, o) {
     short: o.loaded != null && toFuel > o.loaded ? toFuel - o.loaded : 0,
   };
 }
+// Joker / Bingo to the tanker (TANK J/B of the MDC): the fuel at which to go to the tanker. A flight with a Refuel steerpoint in its plan: the Min.Fuel of the
+// steerpoint before it (the plan arrives there with `arrive` lb). Otherwise: the fuel to fly from the last activity to the tanker track (track = [x, y], km of the
+// campaign) at the mean burn per NM of the plan (the take-off leg left out), plus `arrive`. Joker = Bingo + the margin of the pilot. null when there is nothing to go on
+export function tankerJB(plan, wps, track, margin, arrive = 1000) {
+  if (!plan || !wps) return null;
+  const k = wps.findIndex((p, i) => i > 0 && p.act == 4);
+  let b = null;
+  if (k > 0 && plan.rows[k - 1] && plan.rows[k - 1].min != null) b = plan.rows[k - 1].min;
+  else if (track) {
+    let last = -1;
+    wps.forEach((p, i) => {
+      if (!BASIC.includes(p.act)) last = i;
+    });
+    const R = plan.rows.filter(r => r.i > 1 && r.nm > 0 && r.burn > 0 && r.min != null),
+      nm = R.reduce((s, r) => s + r.nm, 0),
+      lb = R.reduce((s, r) => s + r.burn, 0);
+    if (last < 0 || !(nm > 0)) return null;
+    const d = Math.hypot(track[0] - wps[last].x, track[1] - wps[last].y) * NM_KM;
+    b = up100(arrive + (d * lb) / nm);
+  }
+  return b == null ? null : { bingo: b, joker: jokerFor(b, margin) };
+}
 // the altitude to climb to: the highest steerpoint altitude from the first one to the first activity, at least 15 000 ft (a low-level flight still gets a climb speed)
 export function climbAltitude(wps) {
   let h = 0;

@@ -321,10 +321,12 @@ function fillCard(C, f, ld = 0) {
           u.wps.find(p => [24, 4].includes(p.act) && p.z) ||
           u.wps.find(p => ![0, 1, 2, 3, 7, 8].includes(p.act) && p.z);
         F.tk_alt = az ? String(az.z * 10) : '';
+        F.__tkxy = az ? [az.x, az.y] : null; // the track of the tanker: TANK J/B (Performance, app/perf.js)
       }
       F[`sn${i}`] = opWin(u);
     }
   };
+  F.__tkxy = null;
   if (P) {
     const mem = u => u === f || els.some(e => e.id.n == u.id.n && e.id.c == u.id.c),
       used = [],
