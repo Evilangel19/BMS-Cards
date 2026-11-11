@@ -11,6 +11,18 @@ const shortW = t => {
   w = k ? 'TK' + k[1] : w.split(/\s+/)[0];
   return m[1] + ' ' + w;
 };
+// the escorted flights in the short form of the MDC: the two letters of Link 16 (first and last letter of the callsign) and the number:
+// "Escort Devil 3, Panther 4, Jaguar 2" -> "ESC DL3 PR4 JR2"; any other text stays as it is
+export function escShort(t) {
+  const m = /^escort\s+(.+)$/i.exec(String(t || '').trim());
+  if (!m) return t;
+  const L = m[1].split(/\s*,\s*/).map(cs => {
+    const k = /^(.*?)[\s-]*(\d+)$/.exec(cs),
+      w = (k ? k[1] : cs).replace(/[^A-Za-z]/g, '').toUpperCase();
+    return w.length >= 2 ? w[0] + w[w.length - 1] + (k ? k[2] : '') : cs;
+  });
+  return 'ESC ' + L.join(' ');
+}
 const clean = v => (v && v !== '---' ? String(v) : '');
 
 /** @param {Record<string, any>} F @param {number} [seat] the chosen seat of the flight (0 = the leader, also when no seat is chosen) @returns {Record<string, string>} */
@@ -75,7 +87,7 @@ export function mdcDerive(F, seat = 0) {
     o[`${p}_1`] = m ? m[1] : '';
     o[`${p}_2`] = m ? m[2] : '';
     o[`${p}_3`] = m ? n(k + '_alt') : '';
-    o[`${p}_4`] = d;
+    o[`${p}_4`] = escShort(d);
   });
   return o;
 }

@@ -1,4 +1,4 @@
-import { mdcDerive, pptRows } from '../app/js/core/mdcfill.js';
+import { mdcDerive, pptRows, escShort } from '../app/js/core/mdcfill.js';
 import { LAYOUT, SHOT } from '../app/js/core/cardlayout.js';
 let bad = 0,
   n = 0;
@@ -158,5 +158,14 @@ ok(
     o.t0_3 == '420'
 );
 ok('no secondary target: the second row is empty', o.t1_0 == '' && o.t1_4 == '');
+ok(
+  'escort in the MDC: the Link 16 letters and the number of each flight',
+  escShort('Escort Devil 3, Panther 4, Jaguar 2, Weasel 2') == 'ESC DL3 PR4 JR2 WL2'
+);
+ok('any other target stays as it is', escShort('SA-2 Site Kuum-ni') == 'SA-2 Site Kuum-ni' && escShort('') == '');
+ok(
+  'the primary of an escort flight is short in the target table',
+  mdcDerive({ pri: 'Escort Cobra 6, Viper 2', ll1: '' }).t0_4 == 'ESC CA6 VR2'
+);
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

@@ -916,11 +916,19 @@ class Room {
     drawWx({ L: M.L, map: M.map, group: M.wxg, W, lv: w.lv, mode: w.mode, op: w.op, toLL: this.d.wx.toLL });
     t.innerHTML = `<b>${name}</b>${at}${when}<div class="wxleg">${wxLegend(w.mode, W, w.lv)}</div>`;
   }
-  closeWx() {
-    if (this.wxPanel) {
-      this.wxPanel.remove();
-      this.wxPanel = null;
-    }
+  closeWx(fade) {
+    const p = this.wxPanel;
+    if (!p) return;
+    this.wxPanel = null;
+    if (fade && !document.documentElement.classList.contains('noanim') && p.animate)
+      p.animate(
+        [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: 'translateY(-6px)' },
+        ],
+        { duration: 140, easing: 'ease-in' }
+      ).onfinish = () => p.remove();
+    else p.remove();
   }
   openWx(btn) {
     this.closeWx();
@@ -994,6 +1002,7 @@ class Room {
             ...(first && cur.ms == null && fl ? { ms: fl.tot || fl.dep || null } : {}),
             ...(first && fl && fl.alt ? { lv: wxLevel(fl.alt) } : {}),
           });
+          if (m == 'off') this.closeWx(true); // Off: the weather goes and the panel closes
         })
     );
     const sl = p.querySelector('.brwxs');

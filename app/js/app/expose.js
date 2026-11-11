@@ -19,11 +19,13 @@ import { TDATA } from './dtctargets.js';
 import { GAMEDATA } from './gamedata.js';
 import { goFlight, pickSeat, seatIdx, seatMe } from './seat.js';
 import { readyWatch, verCheck, verShow, readyItems } from './ready.js';
+import { longTips } from './longtip.js';
 import { l16Add, l16Back, l16Info, l16Plan, l16Recs, l16Remove, l16Unpin } from './l16link.js';
 
 // run 19: statements that run when the program starts (in the order of the original file)
 export async function init19() {
   readyWatch();
+  longTips();
   setTimeout(verCheck, 4000);
   window.__app = {
     ST,

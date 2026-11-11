@@ -127,6 +127,78 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
   x.font = fs + 'px Arial';
   return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
 };
+// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
+// which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
+// When even at 11 the box is too short the lines get closer, and what is left out is counted in a last line "+N more".
+const FREE_ROOM = 140;
+export function freeLayout(x, v, w) {
+  const L = String(v).split('\n');
+  const wrap = (t, fs) => {
+    x.font = fs + 'px Arial';
+    if (x.measureText(t).width <= w) return [t];
+    const out = [];
+    let cur = '';
+    t.split(' ').forEach(wd => {
+      const q = cur ? cur + ' ' + wd : wd;
+      if (cur && x.measureText(q).width > w) {
+        out.push(cur);
+        cur = wd;
+      } else cur = q;
+    });
+    out.push(cur);
+    return out;
+  };
+  const rowsAt = fs =>
+    L.flatMap(t => (t === '' ? [{ sep: 1 }] : wrap(t, fs).map(r => ({ t: r, h: /^UHF2 backup$/.test(t) }))));
+  const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
+  let fs = 14,
+    R = rowsAt(fs);
+  while (fs > 11 && hOf(R, fs + 2, 7) > FREE_ROOM) R = rowsAt(--fs);
+  let lh = fs + 2,
+    gp = 7;
+  if (hOf(R, lh, gp) > FREE_ROOM) {
+    lh = fs + 0.5;
+    gp = 4;
+  }
+  let more = 0;
+  while (R.length > 1 && hOf(R, lh, gp) > FREE_ROOM) {
+    const r = R.pop();
+    if (!r.sep) more++;
+  }
+  if (more) {
+    while (R.length && (R[R.length - 1].sep || hOf(R, lh, gp) + lh > FREE_ROOM)) {
+      const r = R.pop();
+      if (!r.sep) more++;
+    }
+    R.push({ t: '+' + more + ' more', more: 1 });
+  }
+  return { fs, lh, gp, rows: R };
+}
+export function freeDraw(x, v, d, cx) {
+  const { fs, lh, gp, rows } = freeLayout(x, v, d.w - 4);
+  let yy = d.y + 6 - lh / 2;
+  rows.forEach(r => {
+    if (r.sep) {
+      const ry = yy + gp / 2;
+      x.save();
+      x.strokeStyle = '#999';
+      x.lineWidth = 0.6;
+      x.beginPath();
+      x.moveTo(d.x + 30, ry);
+      x.lineTo(d.x + d.w - 30, ry);
+      x.stroke();
+      x.restore();
+      yy += gp;
+      return;
+    }
+    x.save();
+    x.font = (r.h ? 'bold ' + (fs - 2) : r.more ? 'italic ' + (fs - 1) : fs) + 'px Arial';
+    if (r.h || r.more) x.fillStyle = '#555';
+    x.fillText(r.t, cx, yy + lh / 2, d.w);
+    x.restore();
+    yy += lh;
+  });
+}
 export const vy = (d, fs) => (!d.mdc && YC && YC[d.k] !== undefined ? YC[d.k] : d.y) + 0.358 * fs;
 export function calcYC(x) {
   YC = {};
@@ -345,16 +417,12 @@ export function mdcDraw(x) {
     let v = F[d.k];
     if (!v || (v === '---' && /^fl\d_/.test(d.k))) return;
     if (d.k == 'd1') {
-      const W = d.w - 8 - (CENTERK.test(d.k) ? 0 : seatInd(d)),
-        rows = d.multi ? Math.max(1, Math.floor((d.h - (d.lt ? 15 : 6)) / 12)) : 1;
-      v = wezFit(x, v, W * rows * (rows > 1 ? 0.8 : 1), 11, d.multi ? 0.82 : 0.75);
-    }
-    x.fillStyle = d.red ? '#c00000' : '#000';
-    if (LOAD.includes(d.k)) {
-      drawLoad(x, v, d);
-      x.textAlign = 'left';
-      x.fillStyle = '#000';
-      return;
+      // TOT / VUL of the MDC: the times to the minute ("03:58-04:02 · WEZ 03:55-04:13 11'"); the SAM only when the line still reads well
+      v = String(v)
+        .replace(/(\d\d:\d\d):\d\d/g, '$1')
+        .replace(/\s+-\s+/g, '-');
+      const W = d.w - 8 - (CENTERK.test(d.k) ? 0 : seatInd(d));
+      v = d.multi ? wezFit(x, v, W * 1.6, 11, 0.82) : wezFit(x, v, W, Math.max(9, Math.min(15, d.h - 4)) - 1, 0.85);
     }
     mdcText(x, v, d);
   });
@@ -465,43 +533,7 @@ function draw0() {
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
     if (d.k == 'free') {
-      const L = v.split('\n'),
-        nb = L.filter(t => t === '').length,
-        n = L.length - nb;
-      let lh = 16,
-        gp = 10;
-      const room = 140,
-        tot = n * lh + nb * gp;
-      if (tot > room) {
-        const k = Math.max(0.8, room / tot);
-        lh *= k;
-        gp *= k;
-      }
-      let fs = 14;
-      L.forEach(t => {
-        if (t !== '') fs = Math.min(fs, fitF(x, t, d.w - 4, 14, 10));
-      });
-      if (lh < 14) fs = Math.min(fs, Math.floor(lh) - 1);
-      x.font = fs + 'px Arial';
-      let yy = 0,
-        first = true;
-      L.forEach(t => {
-        if (t === '') {
-          const ry = d.y + 6 + yy - lh / 2 + gp / 2 + (first ? 0 : 0);
-          x.save();
-          x.strokeStyle = '#777';
-          x.lineWidth = 0.8;
-          x.beginPath();
-          x.moveTo(d.x + 8, ry);
-          x.lineTo(d.x + d.w - 8, ry);
-          x.stroke();
-          x.restore();
-          yy += gp - lh + lh;
-          return;
-        }
-        x.fillText(t, cx, d.y + 6 + yy, d.w);
-        yy += lh;
-      });
+      freeDraw(x, v, d, cx);
     } else if (ML.includes(d.k) || d.k == 'atis') {
       v.split('\n').forEach((t, i) => {
         const fs = fitF(x, t, d.w - 4, 16, 12);

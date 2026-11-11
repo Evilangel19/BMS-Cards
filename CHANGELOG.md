@@ -4,6 +4,10 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Fixed: the Automatic rules of the Datacard were cut ("the..."): a click on ⓘ now opens the whole text in a panel with its sections.
+- Changed: the notes of the Datacard are tidier and always readable with big packages (UHF2 backup two flights a line, long lines wrapped, "+N more" when nothing else helps).
+- Changed: MDC format: TOT / VUL to the minute, and the escorted flights in short form (ESC DL3 PR4).
+- Changed: Pop-up/HADB/TOSS/HARM is now a Display filter of the Map; Off in the Briefing weather also closes its panel.
 - Changed: the Map filters are easier to read: one line per filter (details in the tooltips), Enemy before Friendly, Display in a side panel like Objects, Names as a button beside Clear filters.
 - Changed: TOT is now TOT/VUL on the Datacard; the WEZ keeps the SAM name wherever the cell has room (each card format decides for itself).
 - Changed: the weather buttons of the Briefing are all the same size, Off in red.

@@ -142,8 +142,8 @@ try:
         B.evaluate("()=>{const r=__app.sq.briefing()._r;r.send({t:'room',room:{...r.room,v:r.room.v+5,wx:{mode:'temp',op:100,lv:0,ms:null}}})}"); A.wait_for_timeout(800)
         check('a pilot who is not the briefer cannot change the weather', A.evaluate("()=>__app.sq.briefing().room().wx.mode") == 'cond')
         A.click('.brwxp [data-wx=off]'); B.wait_for_timeout(900)
+        check('Off also closes the weather panel', A.locator('.brwxp').count() == 0)
         check('Off: the weather goes from both maps', B.locator('.brw .wxcells').count() == 0 and B.locator('.brwxtag').count() == 0 and A.locator('.brw .wxcells').count() == 0)
-        A.click('.brtools [data-t=wx]')
         # the kneeboard card: the frame of the map, in the briefing
         A.click('.brw [data-a=card]'); A.wait_for_timeout(400)
         check('Save a kneeboard card opens the frame of the map over the briefing map', A.is_visible('.brw #mpfr #mpcap') and A.locator('.brw .brmapw.shoting, .brw .brmap.shoting').count() >= 1)

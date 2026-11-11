@@ -25,6 +25,7 @@ import { pickTankers, survRows, svc } from '../rules/support.js';
 import { ephem } from '../rules/ephemerides.js';
 import { mapUnits } from './mapdata.js';
 import { wezOf, wezText, wezSams } from './wez.js';
+import { escShort } from './mdcfill.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
 function fillCard(C, f, ld = 0) {
@@ -76,17 +77,20 @@ function fillCard(C, f, ld = 0) {
           )
           .replace(/\s+/g, ' ')
           .trim() || clean(o[1])
-      }: TWR ${q(a[5])}/${q(a[6])} ATIS ${q(a[15])}`;
+      } TWR ${q(a[5])}/${q(a[6])} ATIS ${q(a[15])}`;
     })
     .join('\n');
   {
     const bk = els0(C, f)
       .map(e => {
         const r = rmf(C, csOf(C, e))[2];
-        return r ? csOf(C, e) + ' UHF2 (backup) ' + r : '';
+        return r ? csOf(C, e) + ' ' + r : '';
       })
       .filter(Boolean);
-    if (bk.length) F.free += '\n\n' + bk.join('\n');
+    // the backup frequencies under one heading, two flights a line
+    const rows = [];
+    for (let i = 0; i < bk.length; i += 2) rows.push(bk.slice(i, i + 2).join(' · '));
+    if (bk.length) F.free += '\n\nUHF2 backup\n' + rows.join('\n');
   }
   const nAc = nAcf(f);
   for (let i = 0; i < 4; i++)
@@ -141,8 +145,8 @@ function fillCard(C, f, ld = 0) {
       act && act.z ? String(act.z * 10) : '',
       rmf(C, csOf(C, e))[0],
       at(2) ? hm(at(2)) : '',
-      (sv0 && sv0.tgt) || '',
-      (sv0 && sv0.tm) || (e.wps ? opWin(e) : ''),
+      escShort((sv0 && sv0.tgt) || ''),
+      String((sv0 && sv0.tm) || (e.wps ? opWin(e) : '')).replace(/\s+-\s+/g, '-'),
     ].forEach((v, j) => (F[`rc${i}_${j}`] = v));
   });
   w.forEach((p, i) => {
@@ -373,7 +377,16 @@ function fillCard(C, f, ld = 0) {
         (F.free ? F.free + '\n\n' : '') +
         oth
           .slice(1)
-          .map(x => csOf(C, x.e) + ': ' + x.s.tgt + ' ' + x.s.tm)
+          .map(
+            x =>
+              csOf(C, x.e) +
+              ': ' +
+              x.s.tgt +
+              ' ' +
+              String(x.s.tm || '')
+                .replace(/(\d\d:\d\d):00\b/g, '$1')
+                .replace(/\s+-\s+/g, '-')
+          )
           .join('\n');
   }
   {

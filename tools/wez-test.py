@@ -33,6 +33,7 @@ try:
         check('the filter "WEZ exposure time" is in the SAM range section, off', row.count() == 1 and not row.is_checked() and 'WEZ exposure time' in pg.inner_text('#mpbar [data-row=wz]'))
         order = pg.evaluate("()=>[...document.querySelectorAll('#mpbar .mpsb[data-sec=\"SAM range\"] label[data-row]')].map(e=>e.dataset.row+(e.classList.contains('sub')?'*':''))")
         check('SAM range: enemy first, its "only" and WEZ sub-rows under it, then friendly %s' % order, order == ['se', 'sx*', 'wz*', 'sf'])
+        check('Pop-up/HADB/TOSS/HARM is in the Display panel, no longer among the DTC filters', pg.locator('#mpdsp input[data-k=da]').count() == 1 and pg.locator('#mpdfrows input[data-k=da]').count() == 0)
         one = pg.evaluate("()=>[...document.querySelectorAll('#mpbar label.mpr[data-row]')].filter(e=>e.offsetParent).every(e=>e.getBoundingClientRect().height<26)")
         check('every filter row of the menu is one line', one)
         fit = pg.evaluate("""async()=>{const m=await import('/app/js/app/cardview.js'),x=document.createElement('canvas').getContext('2d'),v="12:00 · WEZ 12:41-13:05 9' SA-6";return [m.wezFit(x,v,400,13),m.wezFit(x,v,120,13),m.wezFit(x,'12:00',10,13)]}""")

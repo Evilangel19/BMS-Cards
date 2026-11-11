@@ -83,11 +83,11 @@ export const MAP_LAYERS = [
   ['dp', 'Precision targets (STPT ' + STPT_RANGE.prec + ')', true, 'DTC steerpoints'],
   ['dq', 'Pre-planned (STPT ' + STPT_RANGE.ppt + ')', true, 'DTC steerpoints'],
   ['dl', 'Geo lines (LINE1-4, STPT ' + STPT_RANGE.line + ')', true, 'DTC steerpoints'],
-  ['da', 'Pop-up/HADB/TOSS/HARM', true, 'DTC steerpoints'],
   ['fe', 'Enemy flights', true, 'In flight'],
   ['ff', 'Friendly flights', true, 'In flight'],
   ['rc', 'Enemy radar coverage', false, 'Display'],
   ['msa', 'MSA and ERAA', false, 'Display'],
+  ['da', 'Pop-up/HADB/TOSS/HARM', true, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
