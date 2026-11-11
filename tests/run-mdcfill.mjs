@@ -167,5 +167,19 @@ ok(
   'the primary of an escort flight is short in the target table',
   mdcDerive({ pri: 'Escort Cobra 6, Viper 2', ll1: '' }).t0_4 == 'ESC CA6 VR2'
 );
+{
+  const q = mdcDerive({
+    aa: '2x AIM-9X, 2x AIM-120C',
+    ag: '4x GBU-31(v)1/B',
+    ecm: '1x AAQ-33, 1x AAQ-13',
+    tanks: '1x Tank F-15C 600gal',
+    pri: 'SA-2 Site Kuum-ni',
+  });
+  ok(
+    'loadout of an F-15E: no aircraft in the tank, no "(v)1/B", no "1x"',
+    q.cfg == '2x AIM-9X · 2x AIM-120C · 4x GBU-31 · AAQ-33 · AAQ-13 · TK600'
+  );
+  ok('Airspace / TGT: the primary target', q.airsp == 'SA-2 Site Kuum-ni');
+}
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

@@ -220,7 +220,11 @@ function fillCard(C, f, ld = 0) {
   LG.ids.forEach((id, k) => {
     const c = LG.cn[k];
     if (id && c && id != 492) {
-      const n = D.wn[id] || '#' + id;
+      // a fuel tank keeps its size, not the aircraft it is made for: "Tank F-15C 600gal" -> "Tank 600gal"
+      const n = String(D.wn[id] || '#' + id).replace(
+        /^((?:Fuel\s+)?Tank)\s+(?:[A-Z]{1,3}(?:\/[A-Z]{1,2})?-?\d+[A-Z]*\s+)+(?=\d)/i,
+        '$1 '
+      );
       ws[n] = (ws[n] || 0) + c;
     }
   });

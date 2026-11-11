@@ -424,6 +424,13 @@ export function mdcDraw(x) {
       const W = d.w - 8 - (CENTERK.test(d.k) ? 0 : seatInd(d));
       v = d.multi ? wezFit(x, v, W * 1.6, 11, 0.82) : wezFit(x, v, W, Math.max(9, Math.min(15, d.h - 4)) - 1, 0.85);
     }
+    x.fillStyle = d.red ? '#c00000' : '#000';
+    if (LOAD.includes(d.k)) {
+      drawLoad(x, v, d);
+      x.textAlign = 'left';
+      x.fillStyle = '#000';
+      return;
+    }
     mdcText(x, v, d);
   });
   if (ST.MAPSHOT) {
@@ -529,6 +536,9 @@ function draw0() {
       x.textAlign = 'left';
       return;
     }
+    // the elevation of the target steerpoint (STPT 99 / 98: the Elev of the target table of the MDC) after its coordinates
+    if ((d.k == 'll1' || d.k == 'll2') && /^\d+$/.test(String(F[d.k == 'll1' ? 't0_3' : 't1_3'] || '').trim()))
+      v += ' · ' + Number(F[d.k == 'll1' ? 't0_3' : 't1_3']).toLocaleString('en-US') + ' ft';
     const CT = !/^(ews\d|wp\d_mode|atis|ab\d_0|fl\d_[03]|pk\d_[016]|su\d_0|sn\d|pri|sec|d1|d2|ll1|ll2)$/.test(d.k),
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
@@ -538,7 +548,12 @@ function draw0() {
       v.split('\n').forEach((t, i) => {
         const fs = fitF(x, t, d.w - 4, 16, 12);
         x.font = fs + 'px Arial';
-        x.fillText(t, cx, d.y + (d.k == 'atis' ? (v.includes('\n') ? -8 : 0) : 6) + i * 17, d.w);
+        x.fillText(
+          t,
+          cx,
+          d.y + (d.k == 'atis' ? (v.includes('\n') ? -11 : 0) : 6) + i * (d.k == 'atis' ? 22 : 17),
+          d.w
+        ); // the METAR and the TAF well apart
       });
     } else if (/^fl\d_3$/.test(d.k)) {
       const W = d.w - 8,

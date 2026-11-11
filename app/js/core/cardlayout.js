@@ -200,6 +200,69 @@ export function buildLayout() {
       }
     });
   }
+  // widths asked by the pilots (beta 1.2): a wider Tanker (from Track / ARCT); narrow M1-M4 (two to four digits) and a wider TOT / VUL; flight plan: narrower ST and
+  // Description, the room shared by the other columns; roll call: a narrower Callsign for Aircraft and Target; Known EOB: narrower PPT for Type, Lat and Long
+  xmap(
+    [4, 5],
+    [
+      [11, 11],
+      [150.7, 150.7],
+      [307.8, 335],
+      [475.3, 475.3],
+      [994, 994],
+    ]
+  );
+  xmap(
+    [8, 9],
+    [
+      [11, 11],
+      [98.4, 66],
+      [203.1, 141],
+      [307.8, 216],
+      [360.1, 256],
+      [619.4, 619.4],
+      [994, 994],
+    ]
+  );
+  {
+    const E = [11, 84.1, 215.4, 320.1, 435.3, 521.8, 584.7, 710.6, 805.1, 868, 931, 994],
+      N = [11, 57, 162],
+      g = (E[2] - E[0] - (N[2] - N[0])) / (E.length - 3);
+    for (let i = 3; i < E.length; i++) N.push(N[i - 1] + (E[i] - E[i - 1]) + g);
+    xmap(
+      [19, 34],
+      E.map((x, i) => [x, N[i]])
+    );
+  }
+  xmap(
+    [1, 22],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1221, 1195], // CALLSIGN (the round button of the flight is at its left: a long callsign like "Overlord 11" is squeezed a little)
+      [1301, 1288], // ACFT
+      [1415, 1402],
+      [1495, 1482],
+      [1585, 1572],
+      [1665, 1652], // TGT from here
+      [1911, 1911],
+      [2035, 2035],
+    ],
+    true
+  );
+  xmap(
+    [24, 33],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1105.1, 1087], // PPT
+      [1177.2, 1167], // TYPE
+      [1299, 1292], // LAT
+      [1422, 1422], // LONG
+      [2035, 2035],
+    ],
+    true
+  );
   // heights. Page 2: the Known EOB / AO update tables take the room of the two roll call rows removed; then the whole page is scaled to the new top.
   // Page 1: the white band above is smaller and the room goes to the rows of the flight plan.
   {

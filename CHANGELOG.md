@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Fixed: MDC format: the callsign was not written and the Bingo was not red (beta 14).
+- Changed: MDC format: wider Tanker, TOT / VUL, flight plan columns, Aircraft and Target of the roll call, Type / Lat / Long of the Known EOB; Airspace / TGT filled with the primary target; the loadout written shorter and bigger.
+- Added: the elevation of the target steerpoints after Lat&Long on the Datacard; METAR and TAF further apart; tanks without the aircraft name (Tank 600gal).
 - Fixed: the Automatic rules of the Datacard were cut ("the..."): a click on ⓘ now opens the whole text in a panel with its sections.
 - Changed: the notes of the Datacard are tidier and always readable with big packages (UHF2 backup two flights a line, long lines wrapped, "+N more" when nothing else helps).
 - Changed: MDC format: TOT / VUL to the minute, and the escorted flights in short form (ESC DL3 PR4).

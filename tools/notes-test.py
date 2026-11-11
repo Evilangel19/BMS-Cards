@@ -30,6 +30,13 @@ try:
         check('far too much text: still in the box, the rest counted in "+N more" %s' % r2, r2['H'] <= 140 and len(r2['more']) == 1 and r2['fs'] == 11)
         r3 = pg.evaluate(JS, ['Daegu TWR 365.000/126.200 ATIS 127.650', False])
         check('one airfield: the biggest size (14) %s' % r3, r3['fs'] == 14 and not r3['more'])
+        # MDC: every cell is written in black (the first one, the callsign, was white on white in beta 14), the Bingo in red; the loadout in its short form
+        mdc = pg.evaluate("""async()=>{const cv=await import('/app/js/app/cardview.js'),dc=await import('/app/js/app/datacard.js');
+          const ink=(x,d,red)=>{const s=2048/1600,t=2048/1200,id=x.getImageData(Math.round(d.x*s),Math.round(d.y0*t),Math.round(d.w*s),Math.round(d.h*t)).data;let n=0;for(let i=0;i<id.length;i+=4)if(red?id[i]>150&&id[i+1]<80:id[i]<100&&id[i+1]<100)n++;return n};
+          const c=document.createElement('canvas');c.width=c.height=2048;const x=c.getContext('2d');
+          const keep={cs:dc.F.cs,bingo:dc.F.bingo};dc.F.cs='';dc.F.bingo='';cv.mdcDraw(x);const D=k=>cv.MFD.find(d=>d.k==k);const e0=ink(x,D('cs')),b0=ink(x,D('bingo'),1);
+          dc.F.cs='Gator 1';dc.F.bingo='3200';cv.mdcDraw(x);const r={cs:ink(x,D('cs'))-e0,bingo:ink(x,D('bingo'),1)-b0};Object.assign(dc.F,keep);return r}""")
+        check('MDC: the callsign is written (black ink in its cell) and the Bingo is red %s' % mdc, mdc['cs'] > 30 and mdc['bingo'] > 10)
         # the long ⓘ of the Automatic rules opens a panel with the whole text
         pg.evaluate("()=>{const e=[...document.querySelectorAll('.wtip')].find(e=>/Automatic rules/.test(e.textContent));e.dispatchEvent(new MouseEvent('mouseover',{bubbles:true}));e.click()}"); pg.wait_for_timeout(400)
         t = pg.evaluate("()=>{const p=document.querySelector('.ltpop');return p?{h:[...p.querySelectorAll('h4')].map(e=>e.textContent),txt:p.textContent,tit:p.querySelector('.lth b').textContent}:null}")
