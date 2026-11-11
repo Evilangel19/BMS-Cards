@@ -25,9 +25,9 @@ try:
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(1200)
         r = pg.evaluate(JS, [BIG, bool(shots)])
         if shots: pg.locator('canvas').first.screenshot(path=shots + '/notes.png')
-        check('a package of five flights: the notes fit the box at 11 px or more, no line wider than the box, nothing left out %s' % r, r['fs'] >= 11 and r['H'] <= 132 and not r['wide'] and not r['more'])
+        check('a package of five flights: the notes fit the box at 10 px or more, no line wider than the box, nothing left out %s' % r, r['fs'] >= 10 and r['H'] <= 116 and not r['wide'] and not r['more'])
         r2 = pg.evaluate(JS, [BIG + '\n\n' + '\n'.join('Flight %d: Some Long Target Name Battalion 04:%02d' % (i, i) for i in range(12)), False])
-        check('far too much text: still in the box, the rest counted in "+N more" %s' % r2, r2['H'] <= 132 and len(r2['more']) == 1 and r2['fs'] == 11)
+        check('far too much text: still in the box, the rest counted in "+N more" %s' % r2, r2['H'] <= 116 and len(r2['more']) == 1 and r2['fs'] == 10)
         r3 = pg.evaluate(JS, ['Daegu TWR 365.000/126.200 ATIS 127.650', False])
         check('one airfield: the biggest size (14) %s' % r3, r3['fs'] == 14 and not r3['more'])
         # MDC: every cell is written in black (the first one, the callsign, was white on white in beta 14), the Bingo in red; the loadout in its short form

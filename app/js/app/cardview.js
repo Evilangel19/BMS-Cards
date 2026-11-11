@@ -127,7 +127,7 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
   x.font = fs + 'px Arial';
   return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
 };
-// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
+// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 (10 as a last step) at
 // which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
 // When even at 11 the box is too short the lines get closer, and what is left out is counted in a last line "+N more".
 const FREE_ROOM = 116;
@@ -159,6 +159,12 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
   if (hOf(R, lh, gp) > room) {
     lh = fs + 0.5;
     gp = 4;
+  }
+  if (hOf(R, lh, gp) > room) {
+    // a last step before leaving lines out: 10 px, closer still
+    R = rowsAt((fs = 10));
+    lh = 10.5;
+    gp = 3;
   }
   let more = 0;
   while (R.length > 1 && hOf(R, lh, gp) > room) {
