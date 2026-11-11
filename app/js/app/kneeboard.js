@@ -727,7 +727,7 @@ export function kbRender(keepMenu) {
   );
   $('kbinfo').onclick = () =>
     alert(
-      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}`
+      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}. "Kneeboard not saved" (top bar) shows when the cards or the datacard changed since the last Save. Settings > General > One map screenshot: a new map screenshot replaces the last one.`
     );
   $('kbdef').onclick = () => {
     KBDEF = kbCopy(KBS);

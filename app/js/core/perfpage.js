@@ -619,7 +619,7 @@ export function createPerfPage(deps) {
       .join('');
     return {
       tiles,
-      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is the fuel needed at each steerpoint to fly the rest of the plan and land with the reserve. Burn uses the planned speed and altitude with the BMS tables; holds at Mach .5-.85; 1000 lb at a tanker; wind aloft from the weather map. Stops at the first landing.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
+      body: `<div class="wcard"><h3>Fuel along the flight plan · ${fmt(gw())} lb<span class="wtip" title="Worked back from the landing: Min.Fuel is what each steerpoint needs to fly the rest of the plan and land with the reserve. Burn: planned speed and altitude with the BMS tables, the wind aloft of the weather maps and the temperature (ISA deviation) of the departure; holds at Mach .5-.85; 1000 lb at a tanker. Stops at the first landing. Bingo: the steerpoint after the last activity, plus holding and alternate fuel when the landing field is IMC.">ⓘ</span></h3><div class="wtbl"><table><tr><th>STPT</th><th style="text-align:left">Action</th><th>Alt (ft)</th><th>nm</th><th>Time</th><th>Mach</th><th>Wind aloft</th><th>Burn (lb)</th><th>Min.Fuel (lb)</th></tr>${rows}</table></div></div>`,
     };
   }
   function inputs() {
@@ -669,7 +669,7 @@ export function createPerfPage(deps) {
                     st.lstores
                   )}</div>`
                 : '') +
-              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. IMC: when the landing field is GRN or worse at the landing time (cloud of 3/8 or more under 1500 ft or visibility under 5 km), the Bingo also carries the holding (10,000 ft above the field, Mach .5) and the alternate fuel. Overhead: the altitude and speed above go in the landing steerpoint. Direct: the airfield elevation and the estimated touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
+              `<p class="hint wnote">Reserve and Joker margin feed Min.Fuel, Bingo and Joker on the Datacard. IMC (landing field GRN or worse at the landing time): the Bingo also carries the holding (10,000 ft above the field, Mach .5) and the alternate fuel. Landing steerpoint: Overhead = the altitude and speed above; Direct = the field elevation and the touchdown speed (${st.lmode == 'direct' && st.lstores == 'off' ? 'empty + reserve' : 'empty + reserve + stores on board'}).</p>`
             : `${
                 noAb()
                   ? ''

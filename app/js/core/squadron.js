@@ -2572,7 +2572,7 @@ export function createSquadronPage(deps) {
     box.innerHTML = `<div style="overflow-x:auto"><table class="dt sqdt"><tr><th rowspan="2">Squadron</th><th colspan="4" class="gc">Squadron</th><th colspan="3" class="gc">Losses and missions</th><th colspan="5" class="gf">Kills</th></tr>
       <tr><th class="gc">Owner</th><th class="gc">Base</th><th class="gc">Pilots</th><th class="gc">Aces</th><th class="gc">Missions</th><th class="gc">Aircraft lost</th><th class="gc">Pilots lost</th><th class="gf">A-A</th><th class="gf">A-G</th><th class="gf">Naval</th><th class="gf">Stationary</th><th class="gf">Share</th></tr>
       <tr><td><b>${esc(s.name)}</b></td><td>${n(info.owner)}</td><td>${n(info.base)}</td><td>${s.pilotsN}</td><td>${s.aces.length}</td><td>${n(q && q.missions)}</td><td>${n(q && q.acLoss)}</td><td>${n(q && q.pilotLoss)}</td><td>${k.aa}</td><td>${k.ag}</td><td>${k.as}</td><td>${k.an}</td><td>${Math.round(s.share * 1000) / 10}%</td></tr></table></div>
-      <div class="hint">Kills are the sum of the pilot records of the squadron (aces: 5 or more air kills). Aircraft, experience, morale, supply and mission rating are not read yet.</div>`;
+      <div class="hint">Kills are the sum of the pilot records of the squadron (aces: 5 or more air kills). Aircraft, experience, morale, supply and mission rating are not shown (no checked values in the campaign file).</div>`;
   }
 
   // ----- ME: my squadrons -----

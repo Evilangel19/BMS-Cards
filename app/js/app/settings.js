@@ -180,7 +180,7 @@ export async function openSettings() {
     sw(
       'oneShot',
       'One map screenshot',
-      'A new map screenshot for the kneeboard takes the place of the previous one, on the same page (or among the unused cards). Off: every screenshot is a new card.',
+      'A new map screenshot replaces the last one, on the same kneeboard page. Off: each screenshot is a new card.',
       !!ui.oneMapShot
     ) +
     '</div>';
@@ -191,7 +191,7 @@ export async function openSettings() {
     sw(
       'others',
       'Other factions',
-      'Read the ATO and the map of the other factions (only without a squadron: in a squadron, only its commander can). Just for immersion: in BMS you can start the campaign as the other side.',
+      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side.',
       !!ST.OBSERVER
     ) +
     sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
