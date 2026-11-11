@@ -42,11 +42,24 @@
 #mpbaseb i {
   font-style: normal;
 }
-#mpclr {
-  float: right;
+#mpbar > .mph {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+#mpclr,
+#mpnm {
   padding: 2px 8px;
   font-size: 11px;
   margin: 0;
+}
+#mpclr {
+  margin-left: auto;
+}
+#mpnm {
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }
 .rch {
   background: none;
@@ -471,7 +484,7 @@
 :is(#mpbody, .mpx).game.ocol .nobj i.oe {
   --oc: #ff3b1e;
 }
-#mpobj {
+.mpfly {
   position: absolute;
   right: 100%;
   margin-right: 8px;
@@ -484,35 +497,45 @@
   box-shadow: 0 8px 28px #000a;
   box-sizing: border-box;
 }
-#mpobj .mph {
+.mpfly .mph {
   display: flex;
   gap: 10px;
   align-items: center;
   margin-bottom: 6px;
 }
-#mpobj .mph .btn {
+.mpfly .mph .btn {
   padding: 3px 10px;
   font-size: 11.5px;
   margin-left: 6px;
 }
-#mpobj .mph b {
+.mpfly .mph b {
   color: #3ddc84;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.07em;
 }
-#mpobj .mph a {
+.mpfly .mph a {
   color: var(--mu);
   font-size: 11px;
   cursor: pointer;
 }
-#mpobj .mph a {
+.mpfly .mph a {
   transition: color 0.15s;
 }
-#mpobj .mph a.on {
+.mpfly .mph a.on {
   color: #3ddc84;
 }
-#mpobj .mpps {
+#mpdsp {
+  width: 300px;
+}
+#mpbar .mpr .lt,
+.mpfly .mpr .lt {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.mpfly .mpps {
   margin: 8px 0 4px;
   padding-top: 8px;
   border-top: 1px solid var(--line);

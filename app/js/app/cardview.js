@@ -119,6 +119,14 @@ export const fitF = (x, t, w, s0, m) => {
   }
   return m;
 };
+// the WEZ exposure time after the TOT carries the name of the SAM ("WEZ 12:41-13:05 9' SA-6"): each card format drops the name where the cell is too short
+// for the whole line at a size that reads well (fs, with the horizontal squeeze sq of the MDC)
+const WEZ_NAME = /(WEZ \d\d:\d\d-\d\d:\d\d \d+') .+$/;
+export const wezFit = (x, v, w, fs, sq = 1) => {
+  if (!WEZ_NAME.test(v)) return v;
+  x.font = fs + 'px Arial';
+  return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
+};
 export const vy = (d, fs) => (!d.mdc && YC && YC[d.k] !== undefined ? YC[d.k] : d.y) + 0.358 * fs;
 export function calcYC(x) {
   YC = {};
@@ -334,8 +342,13 @@ export function mdcDraw(x) {
   x.textBaseline = 'middle';
   x.textAlign = 'left';
   MFD.forEach(d => {
-    const v = F[d.k];
+    let v = F[d.k];
     if (!v || (v === '---' && /^fl\d_/.test(d.k))) return;
+    if (d.k == 'd1') {
+      const W = d.w - 8 - (CENTERK.test(d.k) ? 0 : seatInd(d)),
+        rows = d.multi ? Math.max(1, Math.floor((d.h - (d.lt ? 15 : 6)) / 12)) : 1;
+      v = wezFit(x, v, W * rows * (rows > 1 ? 0.8 : 1), 11, d.multi ? 0.82 : 0.75);
+    }
     x.fillStyle = d.red ? '#c00000' : '#000';
     if (LOAD.includes(d.k)) {
       drawLoad(x, v, d);
@@ -427,7 +440,7 @@ function draw0() {
     x.fillStyle = '#c0c0c0';
     x.fillRect(rx, 225, 76, 23);
     x.fillStyle = '#000';
-    x.fillText('TOT', cx, 236);
+    x.fillText('TOT/VUL', cx, 236);
   });
   x.textAlign = 'left';
   x.fillStyle = '#000';
@@ -441,7 +454,7 @@ function draw0() {
   x.textAlign = 'left';
   x.fillStyle = '#000';
   FD.forEach(d => {
-    const v = F[d.k];
+    let v = F[d.k];
     if (!v) return;
     if (LOAD.includes(d.k)) {
       drawLoad(x, v, d);
@@ -513,8 +526,9 @@ function draw0() {
         }
       }
     } else {
-      const ind = CT ? 0 : seatInd(d),
-        fs = fitF(x, v, d.w - 4 - ind, 16, 11);
+      const ind = CT ? 0 : seatInd(d);
+      if (d.k == 'd1' || d.k == 'd2') v = wezFit(x, v, d.w - 4 - ind, 13);
+      const fs = fitF(x, v, d.w - 4 - ind, 16, 11);
       x.textBaseline = 'alphabetic';
       let yy = vy(d, fs);
       if (!/[A-Z0-9]/.test(v)) {
@@ -623,8 +637,8 @@ export async function init5() {
     ].forEach((r, i) => r.forEach((t, j) => a(t, [865, 1145, 1305, 1470][j], 94 + 28 * i)));
     a('Primary', 881, 207);
     a('Secondary', 1304, 207);
-    a('TOT', 880, 235);
-    a('TOT', 1305, 235);
+    a('TOT/VUL', 880, 235);
+    a('TOT/VUL', 1305, 235);
     a('Lat&Long', 881, 262);
     a('Lat&Long', 1304, 262);
     a('EWS = THR', 880, 290);

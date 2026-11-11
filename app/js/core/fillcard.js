@@ -349,15 +349,12 @@ function fillCard(C, f, ld = 0) {
       return '';
     }
   };
-  // room: the letters that fit the cell at a size that reads well; the name of the SAM is left out when the line would be longer
-  const withWez = (tm, e, room) => {
-    const full = [tm, wez(e, true)].filter(Boolean).join(' · ');
-    return full.length <= room ? full : [tm, wez(e, false)].filter(Boolean).join(' · ');
-  };
+  // the whole line: each card format drops the name of the SAM when its cell is too short (cardview wezFit)
+  const withWez = (tm, e) => [tm, wez(e, true)].filter(Boolean).join(' · ');
   const sv = svc(C, f);
   if (sv) {
     F.pri = sv.tgt;
-    F.d1 = withWez(sv.tm, f, 40);
+    F.d1 = withWez(sv.tm, f);
     F.ll1 = sv.ll;
   } else {
     const z = wez(f, true);
@@ -369,7 +366,7 @@ function fillCard(C, f, ld = 0) {
     .filter(x => x.s);
   if (oth.length) {
     F.sec = oth[0].s.tgt;
-    F.d2 = withWez(oth[0].s.tm, oth[0].e, 30);
+    F.d2 = withWez(oth[0].s.tm, oth[0].e);
     F.ll2 = oth[0].s.ll;
     if (oth.length > 1)
       F.free =

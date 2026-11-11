@@ -663,11 +663,32 @@
 .brw .brwxp {
   width: 360px;
 }
+.brw .brwxp .rw.brwxg {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
 .brw .brwxp .it.brwxm {
   width: auto;
   height: 30px;
-  padding: 0 10px;
+  padding: 0 6px;
   font-size: 11px;
+  white-space: nowrap;
+  transition:
+    background-color 0.15s,
+    box-shadow 0.15s,
+    color 0.15s;
+}
+.brw .brwxp .it.brwxm.off {
+  background: #4a1d22;
+  color: #ffb3b3;
+}
+.brw .brwxp .it.brwxm.off:hover {
+  background: #5c242b;
+}
+.brw .brwxp .it.brwxm.off.on {
+  box-shadow: inset 0 0 0 1px #ff5d5d;
+  color: #fff;
 }
 .brw .brwxp .ph b {
   color: var(--txt, #e6e9ee);

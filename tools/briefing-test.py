@@ -132,6 +132,7 @@ try:
         check('only the briefer has the Weather button', A.locator('.brtools [data-t=wx]:not(.hide)').count() == 1 and B.locator('.brtools [data-t=wx].hide').count() == 1)
         A.click('.brtools [data-t=wx]'); A.wait_for_timeout(200)
         check('the weather panel: Off and the six filters of the Weather page', A.locator('.brwxp [data-wx]').count() == 7)
+        check('the weather buttons all have the same size, Off is red', A.evaluate("()=>{const b=[...document.querySelectorAll('.brwxp [data-wx]')].map(e=>e.getBoundingClientRect());const o=getComputedStyle(document.querySelector('.brwxp [data-wx=off]')).backgroundColor;return b.every(r=>Math.abs(r.width-b[0].width)<1&&Math.abs(r.height-b[0].height)<1)&&o=='rgb(74, 29, 34)'}"))
         A.click('.brwxp [data-wx=wind]'); B.wait_for_timeout(1200)
         check('Wind for everybody: the cells and the barbs on the map of the other pilot, with its label', B.locator('.brw .leaflet-wxP-pane .wxcells').count() == 1 and B.locator('.brw .wxbb').count() > 5 and 'Wind' in B.inner_text('.brwxtag'))
         A.evaluate("()=>{const e=document.querySelector('.brwxop');e.value=40;e.dispatchEvent(new Event('input'))}"); B.wait_for_timeout(900)

@@ -522,8 +522,8 @@ export async function init4() {
   [
     ['pri', 'Primary', 925, 207, 330],
     ['sec', 'Secondary', 1350, 207, 240],
-    ['d1', 'TOT Primary', 925, 235, 330],
-    ['d2', 'TOT Secondary', 1350, 235, 240],
+    ['d1', 'TOT/VUL Primary', 925, 235, 330],
+    ['d2', 'TOT/VUL Secondary', 1350, 235, 240],
     ['ll1', 'Lat&Long 1', 925, 262, 330],
     ['ll2', 'Lat&Long 2', 1350, 262, 240],
   ].forEach(a => add(a[0], a[1], a[2], a[3], a[4], 'Target'));

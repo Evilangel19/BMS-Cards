@@ -958,11 +958,14 @@ class Room {
       return;
     }
     const ms = w.ms != null && t0 != null ? Math.min(t1, Math.max(t0, w.ms)) : w.ms;
-    p.innerHTML = `<div class="ph">WEATHER · everybody in the room sees it</div><div class="rw">${[
+    p.innerHTML = `<div class="ph">WEATHER · everybody in the room sees it</div><div class="rw brwxg">${[
       ['off', 'Off'],
       ...WX_MODES,
     ]
-      .map(([k, n]) => `<button class="it brwxm ${k == w.mode ? 'on' : ''}" data-wx="${k}">${n}</button>`)
+      .map(
+        ([k, n]) =>
+          `<button class="it brwxm${k == 'off' ? ' off' : ''}${k == w.mode ? ' on' : ''}" data-wx="${k}">${n}</button>`
+      )
       .join('')}</div>
       <div class="ph">TIME <b class="brwxt">${ms != null ? 'day ' + (Math.floor(ms / 864e5) + 1) + ' · ' + hhmm(ms) + 'Z' : 'campaign weather'}</b></div>
       ${

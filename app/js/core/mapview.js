@@ -465,12 +465,30 @@ export function createMap(host, deps) {
 
   // The panel works like the ATO list: every section folds and unfolds with a short animation (the choice is remembered)
   const SAMTXT = {
-    se: ['Enemy SAM range (spotted)', 'Enemy SAM range · flight plan only'],
-    sx: 'Only those crossing the flight plan',
+    se: ['Enemy SAM range', 'Enemy SAM range · route only'],
+    sx: 'Only crossing the flight plan',
+    wz: 'WEZ exposure time',
     ff: ['Friendly flights', 'Friendly flights · support only'],
-    fs: 'Only support (tankers, AWACS...)',
+    fs: 'Only support',
     uf: ['Friendly units', 'Friendly units · JTAC only'],
-    sj: 'Only the JTAC of the selected CAS flight',
+    sj: 'Only the JTAC of the flight',
+  };
+  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA' };
+  // the details of the filters, in the tooltips (the rows stay on one line)
+  const TIP = {
+    nav: 'VOR and TACAN stations',
+    fp: 'The line and the steerpoints of the selected flight',
+    fd: 'The label of the selected flight and the distances between its steerpoints',
+    ue: 'Only the units your side has spotted',
+    se: 'The rings of the spotted enemy SAMs',
+    sx: 'Only the enemy SAMs whose ring crosses the flight plan of the selected flight',
+    wz: 'WEZ exposure time of the selected flight: when and how long the route is inside each enemy SAM ring, and the total along the route (also on the flight label)',
+    sf: 'The rings of the friendly SAMs',
+    sj: 'Only the JTAC unit of the selected CAS flight',
+    fs: 'Only support flights: tankers, AWACS, JSTARS...',
+    fe: 'Only the enemy flights your side has spotted',
+    rc: 'Approximate coverage of the enemy radars at the chosen altitude',
+    msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
   function samRows() {
@@ -565,11 +583,10 @@ export function createMap(host, deps) {
       i.indeterminate = n > 0 && n < k.length;
     });
     objBtns();
-    const oc = $('mpoc');
-    if (oc) {
-      const n = secKeys('Objects').filter(x => st.on[x]).length;
-      oc.textContent = n ? n + ' on' : '';
-    }
+    host.querySelectorAll('#mpbar .mpo').forEach(r => {
+      const n = secKeys(r.dataset.sec).filter(x => st.on[x]).length;
+      r.querySelector('.mpcn').textContent = n ? n + ' on' : '';
+    });
     clrLabel();
   }
   function setLayers(keys, on) {
@@ -597,7 +614,7 @@ export function createMap(host, deps) {
     });
   };
   const layerRow = l =>
-    `<label class="mpr${l[3] ? ' sub' : ''}" data-row="${l[0]}"><input type="checkbox" data-k="${l[0]}"${st.on[l[0]] ? ' checked' : ''}> <span class="lt">${fe(l[1])}</span></label>`;
+    `<label class="mpr${l[3] ? ' sub' : ''}" data-row="${l[0]}"${TIP[l[0]] ? ` title="${TIP[l[0]]}"` : ''}><input type="checkbox" data-k="${l[0]}"${st.on[l[0]] ? ' checked' : ''}> <span class="lt">${fe(l[1])}</span></label>`;
   // a menu that opens from a button (like LEVELS): open state kept in st[key]; up = the menu opens upward
   function ddown(b, m, key, up) {
     const show = o => {
@@ -636,46 +653,49 @@ export function createMap(host, deps) {
     show(!!st[key]);
     return set;
   }
-  // The object types open in a panel beside the filter menu (it keeps the menu short): 2 columns, all / none, and the owner colouring of the dots
+  // Side panels beside the filter menu (they keep the menu short): Objects (object types, political, owner colouring) and Display (radar coverage, MSA / ERAA).
+  // A row of the menu (.mpo[data-fly=id]) opens its panel; one panel at a time; a click outside or Escape closes it.
   let OFLY = false;
-  function objFly(el) {
+  const FLY_IDS = ['mpobj', 'mpdsp'];
+  const flyAn = () => !(deps.anim && !deps.anim());
+  function flyHide(g) {
+    if (!g || g.style.display == 'none') return;
+    if (flyAn())
+      g.animate(
+        [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: 'translateX(8px)' },
+        ],
+        { duration: 110, easing: 'ease-in' }
+      ).onfinish = () => {
+        if (g.dataset.o != '1') g.style.display = 'none';
+      };
+    else g.style.display = 'none';
+  }
+  function flyShut(id) {
+    const g = $(id);
+    if (g) {
+      g.dataset.o = '';
+      flyHide(g);
+    }
+    const r = document.querySelector(`#mpbar .mpo[data-fly=${id}]`);
+    if (r) {
+      r.classList.remove('act');
+      r.querySelector('i').textContent = '◂';
+    }
+  }
+  function fly(el, id, html) {
     const w = $('mpfilw'),
-      row = el.querySelector('.mpo');
-    if (!w || !row) return;
-    let f = $('mpobj');
+      row = el.querySelector(`.mpo[data-fly=${id}]`);
+    if (!w || !row) return null;
+    let f = $(id);
     if (f) f.remove();
     f = document.createElement('div');
-    f.id = 'mpobj';
+    f.id = id;
+    f.className = 'mpfly';
     f.style.display = 'none';
-    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
+    f.innerHTML = html;
     w.appendChild(f);
-    const an = () => !(deps.anim && !deps.anim()),
-      hide = g => {
-        if (g.style.display == 'none') return;
-        if (an())
-          g.animate(
-            [
-              { opacity: 1, transform: 'none' },
-              { opacity: 0, transform: 'translateX(8px)' },
-            ],
-            { duration: 110, easing: 'ease-in' }
-          ).onfinish = () => {
-            if (g.dataset.o != '1') g.style.display = 'none';
-          };
-        else g.style.display = 'none';
-      };
-    const shut = () => {
-      const g = $('mpobj');
-      if (g) {
-        g.dataset.o = '';
-        hide(g);
-      }
-      const r = document.querySelector('#mpbar .mpo');
-      if (r) {
-        r.classList.remove('act');
-        r.querySelector('i').textContent = '◂';
-      }
-    };
     const place = () => {
       const wt = w.getBoundingClientRect().top,
         mb = el.getBoundingClientRect().bottom - wt;
@@ -683,11 +703,12 @@ export function createMap(host, deps) {
       f.style.top = Math.max(0, mb - f.offsetHeight) + 'px';
     }; // the bottom edge lines up with the bottom of the filter menu
     const open = o => {
+      if (o) FLY_IDS.filter(x => x != id).forEach(flyShut);
       f.dataset.o = o ? '1' : '';
       if (o) {
         f.style.display = '';
         place();
-        if (an())
+        if (flyAn())
           f.animate(
             [
               { opacity: 0, transform: 'translateX(8px)' },
@@ -695,7 +716,7 @@ export function createMap(host, deps) {
             ],
             { duration: 150, easing: 'ease-out' }
           );
-      } else hide(f);
+      } else flyHide(f);
       row.classList.toggle('act', o);
       row.querySelector('i').textContent = o ? '▸' : '◂';
     };
@@ -713,6 +734,27 @@ export function createMap(host, deps) {
           sync();
         })
     );
+    if (!OFLY) {
+      OFLY = true;
+      document.addEventListener('mousedown', e => {
+        FLY_IDS.forEach(x => {
+          const g = $(x);
+          if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) flyShut(x);
+        });
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key == 'Escape') FLY_IDS.forEach(flyShut);
+      });
+    }
+    return f;
+  }
+  function objFly(el) {
+    const f = fly(
+      el,
+      'mpobj',
+      `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy ones a red ring; neutral and unknown stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`
+    );
+    if (!f) return;
     // one button for all / none of the objects (the label says what the next click does), one for the political layer only
     f.querySelectorAll('a[data-a]').forEach(
       a =>
@@ -731,30 +773,41 @@ export function createMap(host, deps) {
       b.classList.toggle('g', !st.on.ocol);
       b.textContent = 'Colour by owner: ' + (st.on.ocol ? 'On' : 'Off');
     };
-    if (!OFLY) {
-      OFLY = true;
-      document.addEventListener('mousedown', e => {
-        const g = $('mpobj');
-        if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) shut();
-      });
-      document.addEventListener('keydown', e => {
-        if (e.key == 'Escape') shut();
-      });
-    }
+  }
+  // Display: radar coverage with its altitude, MSA / ERAA with the opacity of the bands
+  function dspFly(el) {
+    const f = fly(
+      el,
+      'mpdsp',
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>`
+    );
+    if (!f) return;
+    const lab2 = () => {
+      $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft';
+    };
+    lab2();
+    $('mprca').oninput = () => {
+      st.on.rcalt = RC_LEVELS[+$('mprca').value];
+      save();
+      lab2();
+      if (st.on.rc) radarCov();
+    };
+    $('mpmsao').oninput = () => {
+      st.on.msaop = +$('mpmsao').value;
+      save();
+      msaDraw();
+    };
   }
   function panel() {
     const el = $('mpbar'),
       ITEMS = [];
-    MAP_LAYERS.filter(l => l[3] != 'DTC steerpoints').forEach(l => {
+    // sub-rows ("only ..." switches, the WEZ labels) sit under their layer
+    const SUBS = { uf: ['sj'], se: ['sx', 'wz'], ff: ['fs'] };
+    MAP_LAYERS.filter(l => !['DTC steerpoints', 'Display'].includes(l[3])).forEach(l => {
       ITEMS.push([l[0], l[1], l[3]]);
-      if (l[0] == 'uf') ITEMS.push(['sj', SAMTXT.sj, 'Ground and naval units', 1]);
-      if (l[0] == 'se') ITEMS.push(['sx', SAMTXT.sx, 'SAM range', 1]);
-      if (l[0] == 'ff') ITEMS.push(['fs', SAMTXT.fs, 'In flight', 1]);
+      (SUBS[l[0]] || []).forEach(k => ITEMS.push([k, SAMTXT[k], l[3], 1]));
     });
-    MAP_OPTS.filter(o => !['sx', 'fs', 'sj'].includes(o[0])).forEach(o => ITEMS.push(o));
-    const secs = [...new Set(ITEMS.map(l => l[2]))]
-      .filter(n => n != 'Names' && n != 'Objects' && n != 'Political')
-      .sort((a, b) => (a == 'Display') - (b == 'Display')); // Display, then Objects; the Names switch is the very last row
+    const secs = [...new Set(ITEMS.map(l => l[2]))].filter(n => n != 'Objects' && n != 'Political');
     const secHtml = n => {
       const closed = st.closed.includes(n);
       return `<div class="mps${MACRO.includes(n) ? ' mac' : ''}" data-sec="${n}"><i>${closed ? '▸' : '▾'}</i>${MACRO.includes(n) ? `<input type="checkbox" class="mst" data-sec="${n}" title="All of ${n}">` : ''}<span>${n}</span></div><div class="mpsb" data-sec="${n}"${closed ? ' style="display:none"' : ''}>${ITEMS.filter(
@@ -763,14 +816,13 @@ export function createMap(host, deps) {
         .map(layerRow)
         .join('')}</div>`;
     };
+    const flyRow = (id, n, tip) =>
+      `<div class="mps mac mpo" data-sec="${n}" data-fly="${id}" title="${tip}"><i>◂</i><input type="checkbox" class="mst" data-sec="${n}" title="All of ${n}"><span>${n}</span><em class="mpcn"></em></div>`;
     el.innerHTML =
-      `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button> <button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` +
+      `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button><button class="btn${st.on.names ? '' : ' g'}" id="mpnm" title="Names of airbases, steerpoints and objects on the map">Names</button><button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` +
       secs.map(secHtml).join('') +
-      `<div class="mps mac mpo" data-sec="Objects" title="Choose the object types in a panel beside this menu"><i>◂</i><input type="checkbox" class="mst" data-sec="Objects" title="All of Objects"><span>Objects</span><em id="mpoc"></em></div><div class="mpl">${ITEMS.filter(
-        l => l[2] == 'Names'
-      )
-        .map(layerRow)
-        .join('')}</div>`;
+      flyRow('mpdsp', 'Display', 'Radar coverage and MSA / ERAA, in a panel beside this menu') +
+      flyRow('mpobj', 'Objects', 'Choose the object types in a panel beside this menu');
     const sb = el.querySelector('.mpsb[data-sec="SAM range"]'); // transparency of the colour inside the SAM unit rings
     if (sb) {
       sb.insertAdjacentHTML(
@@ -784,38 +836,14 @@ export function createMap(host, deps) {
         DT.forEach(e => e.it.group == 'ppt' && e.ring && e.ring.setStyle({ fillOpacity: st.on.ringfill / 100 }));
       };
     }
-    const rcRow = el.querySelector('input[data-k=rc]'); // altitude of the radar coverage
-    if (rcRow) {
-      const lab = rcRow.closest('label') || rcRow.parentElement;
-      lab.insertAdjacentHTML(
-        'afterend',
-        `<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>`
-      );
-      const lab2 = () => {
-        $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft';
-      };
-      lab2();
-      $('mprca').oninput = () => {
-        st.on.rcalt = RC_LEVELS[+$('mprca').value];
-        save();
-        lab2();
-        if (st.on.rc) radarCov();
-      };
-    }
-    const msaRow = el.querySelector('input[data-k=msa]'); // opacity of the MSA / ERAA bands
-    if (msaRow) {
-      const lab = msaRow.closest('label') || msaRow.parentElement;
-      lab.insertAdjacentHTML(
-        'afterend',
-        `<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>`
-      );
-      $('mpmsao').oninput = () => {
-        st.on.msaop = +$('mpmsao').value;
-        save();
-        msaDraw();
-      };
-    }
+    $('mpnm').onclick = () => {
+      st.on.names = !st.on.names;
+      save();
+      masters();
+      sync();
+    };
     el.querySelectorAll('.mps:not(.mpo)').forEach(h => (h.onclick = () => toggleSec(h)));
+    dspFly(el);
     objFly(el);
     el.querySelectorAll('input.mst').forEach(i => {
       i.onclick = e => e.stopPropagation();
@@ -825,7 +853,7 @@ export function createMap(host, deps) {
       i =>
         (i.onchange = () => {
           st.on[i.dataset.k] = i.checked;
-          const par = { sx: 'se', fs: 'ff', sj: 'uf' }[i.dataset.k];
+          const par = { sx: 'se', wz: 'se', fs: 'ff', sj: 'uf' }[i.dataset.k];
           if (i.checked && par && !st.on[par]) {
             st.on[par] = true;
             const c = el.querySelector(`input[data-k=${par}]`);
@@ -937,7 +965,7 @@ export function createMap(host, deps) {
   const filterKeys = () =>
     MAP_LAYERS.filter(l => l[3] != 'DTC steerpoints')
       .map(l => l[0])
-      .concat(['sx', 'fs', 'sj', 'names']); // layers and the "only ..." switches (not the DTC filters)
+      .concat(['sx', 'wz', 'fs', 'sj', 'names']); // layers and the "only ..." switches (not the DTC filters)
   const clrLabel = () => {
     const b = $('mpclr');
     if (b) b.textContent = SAVED || !filterKeys().some(k => st.on[k]) ? 'All filters' : 'Clear filters';
@@ -955,7 +983,7 @@ export function createMap(host, deps) {
       SAVED = null;
     } // brings the previous choice back
     else if (!keys.some(k => st.on[k]))
-      put(k => !['sx', 'fs', 'sj', 'names'].includes(k)); // everything is off: switch every layer on
+      put(k => !['sx', 'wz', 'fs', 'sj', 'names'].includes(k)); // everything is off: switch every layer on
     else {
       SAVED = Object.fromEntries(keys.map(k => [k, !!st.on[k]]));
       put(() => false);
@@ -2382,6 +2410,8 @@ export function createMap(host, deps) {
   function sync() {
     unitVis();
     host.classList.toggle('names', !!st.on.names);
+    const nb = $('mpnm');
+    if (nb) nb.classList.toggle('g', !st.on.names);
     host.classList.toggle('nofd', !st.on.fd);
     host.classList.toggle('ocol', !!st.on.ocol);
     MAP_LAYERS.forEach(([k]) => {

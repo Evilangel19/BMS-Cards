@@ -4,7 +4,10 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
-- Added: **WEZ exposure time**: after the TOT of the primary and of the secondary, the Datacard (and TOT / VUL of the MDC format) shows when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM crossed. On the map, the filter "WEZ exposure time (selected flight)" writes the minutes on every ring crossed and the total in the label of the flight.
+- Changed: the Map filters are easier to read: one line per filter (details in the tooltips), Enemy before Friendly, Display in a side panel like Objects, Names as a button beside Clear filters.
+- Changed: TOT is now TOT/VUL on the Datacard; the WEZ keeps the SAM name wherever the cell has room (each card format decides for itself).
+- Changed: the weather buttons of the Briefing are all the same size, Off in red.
+- Added: **WEZ exposure time**: after the TOT of the primary and of the secondary, the Datacard (and TOT / VUL of the MDC format) shows when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM crossed. On the map, the filter "WEZ exposure time" writes the minutes on every ring crossed and the total in the label of the flight.
 - Added: **Ready to fly** in the tab bar: it lists what is not saved yet (DTC, kneeboard, mission) with a button for each and "Write all"; green when everything is saved.
 - Added: a notice when a newer version of the program exists (releases only, checked once a day on GitHub; nothing is downloaded; Settings > General to switch it off).
 - Changed: tooltips and descriptions brought up to date and shortened (the Automatic rules of the Datacard above all: pilot names, ATIS, MSA, Bingo with IMC, Joker margin, tankers, AWACS / JSTARS estimates, BVR box).
