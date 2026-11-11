@@ -9,7 +9,7 @@ import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
-import { roeAuto } from './roepanel.js';
+import { roeAuto, roeRefresh } from './roepage.js';
 import { MFD, draw } from './cardview.js';
 import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
@@ -166,6 +166,7 @@ export function apply(i, mode) {
   wxPrep(i);
   msaFill(i);
   bvrAuto(i);
+  roeRefresh(); // the page ROE / SOP shows this flight
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),

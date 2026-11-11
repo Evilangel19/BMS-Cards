@@ -6,7 +6,7 @@ import { MFD, YC, draw } from './cardview.js';
 import { sqPage } from './pages.js';
 import { markMan } from './selection.js';
 import { seatDraw } from './seat.js';
-import { roeOpen } from './roepanel.js';
+import { roeGo } from './roepage.js';
 
 /* ---------- Direct editing on the card: click a cell, a larger colored field opens over it ---------- */
 export const SX = 2048 / 1600;
@@ -169,7 +169,7 @@ export function openNameMenu(d) {
 }
 export function openEd(d, sel = true) {
   closeEd(true);
-  if (d.k == 'roe' || d.k == 'sop') return roeOpen(); // ROE / SOP: the menu of the choices (own lines can still be typed there)
+  if (d.k == 'roe' || d.k == 'sop') return roeGo(); // ROE / SOP: the page Squadron > ROE / SOP, on this flight
   const ed = $('ed'),
     c = $('cv'),
     k = c.getBoundingClientRect().width / 2048,

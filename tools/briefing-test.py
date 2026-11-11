@@ -58,7 +58,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br, 'Evil'); B, eb = start(br, 'Wing2')
-        check('the Squadron page has a Briefing tab between Organization and Missions', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Briefing', 'Missions', 'ROE / SOP', 'Me', 'Settings'])
+        check('the Squadron page has a Briefing tab between Organization and Missions (ROE / SOP after Members)', A.locator('#sqtabs button').all_text_contents() == ['Members', 'ROE / SOP', 'Organization', 'Briefing', 'Missions', 'Me', 'Settings'])
         brief(A)
         check('without a squadron the room says to join or create one first', 'squadron first' in A.inner_text('.brjoin'))
         check('the Briefing holds the map of the Map page (not editable)', A.locator('.brw .brmap #mpmap').count() == 1 and A.evaluate('()=>__app.mapV.isEdit()') is False)

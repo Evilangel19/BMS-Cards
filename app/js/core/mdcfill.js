@@ -14,15 +14,22 @@ const shortW = t => {
 };
 // the escorted flights in the short form of the MDC: the two letters of Link 16 (first and last letter of the callsign) and the number:
 // "Escort Devil 3, Panther 4, Jaguar 2" -> "ESC DL3 PR4 JR2"; any other text stays as it is
+// a callsign in the short form of Link 16: "Devil 3" -> "DL3"
+export function csShort(cs) {
+  const k = /^(.*?)[\s-]*(\d+)$/.exec(String(cs || '').trim()),
+    w = (k ? k[1] : String(cs || '')).replace(/[^A-Za-z]/g, '').toUpperCase();
+  return w.length >= 2 ? w[0] + w[w.length - 1] + (k ? k[2] : '') : String(cs || '');
+}
 export function escShort(t) {
   const m = /^escort\s+(.+)$/i.exec(String(t || '').trim());
   if (!m) return t;
-  const L = m[1].split(/\s*,\s*/).map(cs => {
-    const k = /^(.*?)[\s-]*(\d+)$/.exec(cs),
-      w = (k ? k[1] : cs).replace(/[^A-Za-z]/g, '').toUpperCase();
-    return w.length >= 2 ? w[0] + w[w.length - 1] + (k ? k[2] : '') : cs;
-  });
-  return 'ESC ' + L.join(' ');
+  return (
+    'ESC ' +
+    m[1]
+      .split(/\s*,\s*/)
+      .map(csShort)
+      .join(' ')
+  );
 }
 const clean = v => (v && v !== '---' ? String(v) : '');
 

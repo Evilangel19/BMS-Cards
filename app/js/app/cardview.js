@@ -127,9 +127,9 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
   x.font = fs + 'px Arial';
   return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
 };
-// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 (10 as a last step) at
+// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
 // which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
-// When even at 11 the box is too short the lines get closer, and what is left out is counted in a last line "+N more".
+// When even at 11 the box is too short the lines get closer; what still does not fit is left out (no smaller text).
 const FREE_ROOM = 116;
 export function freeLayout(x, v, w, room = FREE_ROOM) {
   const L = String(v).split('\n');
@@ -160,24 +160,9 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
     lh = fs + 0.5;
     gp = 4;
   }
-  if (hOf(R, lh, gp) > room) {
-    // a last step before leaving lines out: 10 px, closer still
-    R = rowsAt((fs = 10));
-    lh = 10.5;
-    gp = 3;
-  }
-  let more = 0;
-  while (R.length > 1 && hOf(R, lh, gp) > room) {
-    const r = R.pop();
-    if (!r.sep) more++;
-  }
-  if (more) {
-    while (R.length && (R[R.length - 1].sep || hOf(R, lh, gp) + lh > room)) {
-      const r = R.pop();
-      if (!r.sep) more++;
-    }
-    R.push({ t: '+' + more + ' more', more: 1 });
-  }
+  // what does not fit at 11 is left out (the notes of a big package use the short callsigns, so this is rare; the text stays in the cell)
+  while (R.length > 1 && hOf(R, lh, gp) > room) R.pop();
+  while (R.length && R[R.length - 1].sep) R.pop();
   return { fs, lh, gp, rows: R };
 }
 // top: the top of the box (card units), room its height
@@ -199,8 +184,8 @@ export function freeDraw(x, v, d, cx, room = FREE_ROOM, top = d.y) {
       return;
     }
     x.save();
-    x.font = (r.h ? 'bold ' + (fs - 2) : r.more ? 'italic ' + (fs - 1) : fs) + 'px Arial';
-    if (r.h || r.more) x.fillStyle = '#555';
+    x.font = (r.h ? 'bold ' + (fs - 2) : fs) + 'px Arial';
+    if (r.h) x.fillStyle = '#555';
     x.fillText(r.t, cx, yy + lh / 2, d.w);
     x.restore();
     yy += lh;

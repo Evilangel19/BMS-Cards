@@ -25,7 +25,7 @@ import { pickTankers, survRows, svc } from '../rules/support.js';
 import { ephem } from '../rules/ephemerides.js';
 import { mapUnits } from './mapdata.js';
 import { wezOf, wezText, wezSams } from './wez.js';
-import { escShort } from './mdcfill.js';
+import { escShort, csShort } from './mdcfill.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
 function fillCard(C, f, ld = 0) {
@@ -80,16 +80,20 @@ function fillCard(C, f, ld = 0) {
       } TWR ${q(a[5])}/${q(a[6])} ATIS ${q(a[15])}`;
     })
     .join('\n');
+  // a big package (more than three flights): the callsigns of the notes in the short form of Link 16 ("Devil 3" -> "DL3"), so that the notes keep a size that reads
+  const many = els0(C, f).length > 3,
+    csN = e => (many ? csShort(csOf(C, e)) : csOf(C, e));
   {
     const bk = els0(C, f)
       .map(e => {
         const r = rmf(C, csOf(C, e))[2];
-        return r ? csOf(C, e) + ' ' + r : '';
+        return r ? csN(e) + ' ' + r : '';
       })
       .filter(Boolean);
-    // the backup frequencies under one heading, two flights a line
-    const rows = [];
-    for (let i = 0; i < bk.length; i += 2) rows.push(bk.slice(i, i + 2).join(' · '));
+    // the backup frequencies under one heading, two flights a line (three in the short form)
+    const rows = [],
+      per = many ? 3 : 2;
+    for (let i = 0; i < bk.length; i += per) rows.push(bk.slice(i, i + per).join(' · '));
     if (bk.length) F.free += '\n\nUHF2 backup\n' + rows.join('\n');
   }
   const nAc = nAcf(f);
@@ -385,9 +389,9 @@ function fillCard(C, f, ld = 0) {
           .slice(1)
           .map(
             x =>
-              csOf(C, x.e) +
+              csN(x.e) +
               ': ' +
-              x.s.tgt +
+              (many ? escShort(x.s.tgt) : x.s.tgt) +
               ' ' +
               String(x.s.tm || '')
                 .replace(/(\d\d:\d\d):00\b/g, '$1')

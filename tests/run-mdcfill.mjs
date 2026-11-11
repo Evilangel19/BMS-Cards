@@ -1,4 +1,4 @@
-import { mdcDerive, pptRows, escShort } from '../app/js/core/mdcfill.js';
+import { mdcDerive, pptRows, escShort, csShort } from '../app/js/core/mdcfill.js';
 import { LAYOUT, SHOT } from '../app/js/core/cardlayout.js';
 let bad = 0,
   n = 0;
@@ -161,6 +161,10 @@ ok('no secondary target: the second row is empty', o.t1_0 == '' && o.t1_4 == '')
 ok(
   'escort in the MDC: the Link 16 letters and the number of each flight',
   escShort('Escort Devil 3, Panther 4, Jaguar 2, Weasel 2') == 'ESC DL3 PR4 JR2 WL2'
+);
+ok(
+  'a callsign in the short form of Link 16',
+  csShort('Devil 3') == 'DL3' && csShort('Rumble 1') == 'RE1' && csShort('X') == 'X'
 );
 ok('any other target stays as it is', escShort('SA-2 Site Kuum-ni') == 'SA-2 Site Kuum-ni' && escShort('') == '');
 ok(

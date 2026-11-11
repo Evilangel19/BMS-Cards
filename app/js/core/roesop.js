@@ -1,5 +1,5 @@
 // ROE / SOP of the Datacard and of the MDC (the cell ROE / SOP): the choices of the menu, the text they write on the card, the presets.
-// Pure: no screen, testable in Node. The menu is app/roepanel.js.
+// Pure: no screen, testable in Node. The page is app/roepage.js (Squadron > ROE / SOP).
 // ROE: the rules of engagement (weapons status, ID criteria, commit, bugout, other rules). SOP: the habits of the squadron, phase by phase, written in the
 // long form in the menu and in a short form on the card (only the topics marked "on card"). Values from the RoKAF F-16 Basic Employment Manual and the
 // 8th FW / 51st FW in-flight guides (Kunsan, Osan); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
@@ -526,6 +526,32 @@ export function sopText(sel) {
   if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
   return R.join('\n');
 }
+// each box of the card holds BOX_MAX lines (one rule or one topic a line; a long one may wrap on the card, it still counts once)
+export const BOX_MAX = 5;
+const nl = t => (t ? t.split('\n').filter(l => l.trim()).length : 0);
+// a choice cut to the boxes: the last SOP topics on the card lose the tick, the last ROE choices of the lists go, then the other lines
+export function capSel(sel) {
+  const s = cleanSel(sel);
+  let n = nl(sopText(s));
+  const T = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]]));
+  const sf = s.sfree.split('\n').filter(l => l.trim());
+  while (n > BOX_MAX && sf.length) {
+    sf.pop();
+    n--;
+  }
+  s.sfree = sf.join('\n');
+  for (let i = T.length - 1; i >= 0 && n > BOX_MAX; i--, n--) s.sop[T[i][0]].c = false;
+  const rf = s.free.split('\n').filter(l => l.trim());
+  while (nl(roeText(s)) > BOX_MAX && rf.length) {
+    rf.pop();
+    s.free = rf.join('\n');
+  }
+  for (const [id, , kind] of [...ROE].reverse()) {
+    while (kind == 'many' && s.roe[id].length && nl(roeText(s)) > BOX_MAX) s.roe[id].pop();
+  }
+  for (const [id, , kind] of [...ROE].reverse()) if (kind == 'one' && nl(roeText(s)) > BOX_MAX) s.roe[id] = null;
+  return s;
+}
 // the mission categories a squadron preset can be the default of (the categories of the ATO, core/ato.js)
 export const ROE_CATS = [
   'Offensive Counter Air',
@@ -553,7 +579,7 @@ export function cleanSqPresets(a) {
 // the default of a mission category: the squadron presets marked for it, joined in their order; null when there is none
 export function defaultFor(presets, cat) {
   const L = cleanSqPresets(presets).filter(p => p.cats.includes(cat));
-  return L.length ? mergeSel(L.map(p => p.sel)) : null;
+  return L.length ? capSel(mergeSel(L.map(p => p.sel))) : null;
 }
 // the personal presets: [{name, sel}], checked (names up to 40 letters, 50 presets at most)
 export function cleanPresets(a) {
