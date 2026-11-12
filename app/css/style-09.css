@@ -673,3 +673,69 @@
 .rsmodal .err {
   border-color: #ff6b6b;
 }
+.rsq .rsl {
+  position: sticky; /* Editing, Presets and On the card stay in sight while the SOP scroll */
+  top: 8px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+.rsq .rstool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rsq .rstool .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.rsq .seg {
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.rsq .seg button {
+  background: none;
+  border: 0;
+  color: var(--mu);
+  padding: 5px 11px;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.rsq .seg button.on {
+  background: #16301f;
+  color: #c9f7dc;
+}
+.rsq .rscust {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px dashed #3ddc8455;
+  border-radius: 12px;
+  padding: 10px;
+}
+.rsq .rsct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rsq .rsct h3 {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #3ddc84;
+}
+.rsq .rsct .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+@media (max-width: 1100px) {
+  .rsq .rsl {
+    position: static;
+    max-height: none;
+  }
+}

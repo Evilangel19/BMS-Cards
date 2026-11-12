@@ -300,8 +300,10 @@ function render0(box) {
   };
   const myIds = new Set(MY.map(c => c.id)),
     sqIds = new Set((SQS || []).map(c => c.id));
-  const phases = sopAll().map(([ph, T, ctag, cid]) => {
+  const only = !!LS.get('bmsroeonly', false); // Show: chosen only (the topics not chosen are hidden)
+  const phaseCard = ([ph, T, ctag, cid]) => {
     const n = T.filter(t => R.sel.sop[t[0]]).length,
+      TT = only ? T.filter(t => R.sel.sop[t[0]]) : T,
       mine = cid && myIds.has(cid),
       sq = cid && sqIds.has(cid),
       ed = mine || (sq && own);
@@ -310,10 +312,19 @@ function render0(box) {
       esc(ph),
       (cid ? `<span class="rsbadge${sq ? ' sq' : ''}">${mine ? 'mine' : 'squadron'} · ${esc(ctag)}</span> ` : '') +
         (n || ''),
-      T.length ? T.map(row).join('') : '<div class="hint">No topics yet: ✎ to add them.</div>',
+      TT.length
+        ? TT.map(row).join('')
+        : `<div class="hint">${T.length ? 'Nothing chosen here.' : 'No topics yet: ✎ to add them.'}</div>`,
       ed ? `<button type="button" class="rsed" data-sec="${esc(cid)}" title="Edit this section">✎</button>` : ''
     );
-  });
+  };
+  const ALL = sopAll().filter(([, T]) => !only || T.some(t => R.sel.sop[t[0]])),
+    custom = ALL.filter(x => x[3]).map(phaseCard),
+    phases = ALL.filter(x => !x[3]).map(phaseCard),
+    cols = L =>
+      `<div class="rspg"><div class="rsg">${L.filter((_, i) => i % 2 == 0).join('')}</div><div class="rsg">${L.filter((_, i) => i % 2 == 1).join('')}</div></div>`;
+  const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Only the topics chosen: your SOP at a glance">Chosen only</button></div><span style="flex:1"></span><button type="button" class="btn g" data-a="foldall" title="Fold every SOP section">Fold all</button><button type="button" class="btn g" data-a="unfoldall" title="Unfold every SOP section">Unfold all</button></div>`;
+  const customBlock = `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>${custom.length ? cols(custom) : ''}</div>`;
   const pchip = (k, name, title, extra) =>
     `<span class="rpq${R.on.has(k) ? ' on' : ''}${k[0] == 'q' ? ' sq' : ''}" data-k="${k}" title="${esc(title)}">${esc(name)}${extra}</span>`;
   const cs = F.cs || (ST.CL && ST.CL.length ? 'flight' : '');
@@ -375,9 +386,9 @@ function render0(box) {
     'other',
     'Other SOP lines',
     'one a line, they count too',
-    `<textarea class="rpfr" data-f="sfree" rows="2" maxlength="600" placeholder="Written in the SOP box as they are">${esc(R.sel.sfree)}</textarea><div class="rsbar"><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>`
+    `<textarea class="rpfr" data-f="sfree" rows="2" maxlength="600" placeholder="Written in the SOP box as they are">${esc(R.sel.sfree)}</textarea>`
   );
-  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${editCard}${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss"><div class="rspg"><div class="rsg">${phases.filter((_, i) => i % 2 == 0).join('')}</div><div class="rsg">${phases.filter((_, i) => i % 2 == 1).join('')}</div></div>${other}</div></div>`; // Other SOP lines right under the phases (folded or not)
+  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${editCard}${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss">${tools}${customBlock}${cols(phases)}${other}</div></div>`; // the custom sections above the standard ones; Other SOP lines right under the phases (folded or not)
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   box.querySelector('.rpv1').textContent = roeText(R.sel);
   box.querySelector('.rpv2').textContent = sopText(R.sel);
@@ -553,6 +564,11 @@ function wire(box) {
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
     if (ed) return editSection(ed.dataset.sec);
+    const ob = e.target.closest('[data-only]');
+    if (ob) {
+      LS.set('bmsroeonly', ob.dataset.only == '1');
+      return render();
+    }
     if (fold && !e.target.closest('button')) {
       const c = fold.closest('.rsk'),
         kk = c.dataset.k,
@@ -632,6 +648,13 @@ function wire(box) {
       return;
     }
     if (act == 'kb') return addCards();
+    if (act == 'foldall' || act == 'unfoldall') {
+      const S = CLOSED(),
+        K = [...box.querySelectorAll('.rss .rsk')].map(c => c.dataset.k).filter(k => k != 'other');
+      K.forEach(k => (act == 'foldall' ? S.add(k) : S.delete(k)));
+      LS.set('bmsroeclosed', [...S]);
+      return render();
+    }
     if (act == 'newsec') return editSection(null);
     if (act == 'save') {
       const nm = box.querySelector('.rssv .rpnm'),

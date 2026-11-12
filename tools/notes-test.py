@@ -30,7 +30,7 @@ try:
         check('a package of five flights: every line at the biggest size that fits (13 px), in the box %s' % r, r['fs'] == 13 and r['h'] <= 116 and r['n'] == 7)
         check('the labels in their column on the left, the backups in columns that line up %s' % r, r['lab'] == [14, 14, 14] and r['cols'][0] == r['cols'][2] and r['cols'][1] == r['cols'][3] and r['cols'][1] > r['cols'][0] + 80)
         r2 = pg.evaluate(JS, [BIG + '\n' + '\n'.join('\tFlight %d Some Long Target Name Bn 04:%02d' % (i, i) for i in range(6)), False])
-        check('more lines: 12 px, closer, still in the box, never smaller %s' % {k: r2[k] for k in ('fs', 'h', 'n')}, r2['fs'] == 12 and r2['h'] <= 116 and r2['n'] >= 9)
+        check('more lines: 12 px, closer, still in the box, never smaller %s' % {k: r2[k] for k in ('fs', 'h', 'n')}, r2['fs'] == 12 and r2['h'] <= 116 and r2['n'] >= 8)
         r3 = pg.evaluate(JS, ['Notes typed by hand', False])
         check('notes typed by hand (no labels): from the left edge, at the size of the other cells (16 px) when there is room %s' % r3, r3['fs'] == 16 and r3['gut'] == 0)
         # MDC: every cell is written in black (the first one, the callsign, was white on white in beta 14), the Bingo in red; the loadout in its short form

@@ -195,11 +195,11 @@ export function notesLayout(x, v, room = NOTES_ROOM) {
   // the biggest size from 16 (the size of the other cells) to 12 at which every line fits
   let fs = 16,
     lh = 18,
-    gp = 3;
+    gp = 5;
   while (fs > 12 && H(lh, gp) > room) lh = --fs + 2;
   if (H(lh, gp) > room) {
     lh = 12.5;
-    gp = 1.5;
+    gp = 3;
   }
   while (rows.length > 1 && H(lh, gp) > room) rows.pop();
   // the cells of a section share their columns
@@ -233,7 +233,12 @@ export function notesDraw(x, v, d, top, room = NOTES_ROOM) {
       yy += 4;
       return;
     }
-    if (r.sec) yy += L.gp;
+    if (r.sec) {
+      // a thin grey line between two sections
+      x.fillStyle = '#aaa';
+      x.fillRect(x0, yy + L.gp / 2 - 0.5, d.w - 4, 1);
+      yy += L.gp;
+    }
     const cy = yy + L.lh / 2;
     if (r.lab) {
       x.font = 'bold ' + (L.fs - 2) + 'px Arial';
@@ -594,8 +599,9 @@ function draw0() {
   });
   x.textAlign = 'left';
   x.fillStyle = '#000';
+  // the right column under the ROE / SOP heading is drawn again from white (the blank had two cells there: its line in between left black marks)
   x.fillStyle = '#fff';
-  x.fillRect(1266, 1055, 329, 8);
+  x.fillRect(1264, 921, 334, 277);
   x.fillStyle = '#000';
   x.fillRect(1261, 1024, 339, 3); // ROE | SOP, then the notes, then the ephemerides (two lines)
   x.fillRect(1261, 1147, 339, 3);

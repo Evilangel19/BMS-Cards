@@ -24,10 +24,10 @@ export const ROE = [
     'ID',
     [
       ['vid', 'Visual identification (VID)', 'VID'],
-      ['awacs', 'AWACS DECLARE (hostile)', 'AWACS DECLARE'],
+      ['awacs', 'AWACS / GCI declares the group HOSTILE (DECLARE)', 'AWACS DECLARE'],
       ['l16', 'Link 16: surveillance track or PPLI', 'L16'],
       ['nctr', 'NCTR (radar print)', 'NCTR'],
-      ['iff', 'IFF: no Mode 4 reply', 'M4 NEG'],
+      ['iff', 'IFF: no Mode 4 reply (one source, not hostile by itself)', 'M4 NEG'],
       ['two', 'Two independent sources', '2 SRC'],
     ],
   ],
@@ -52,7 +52,7 @@ export const ROE = [
     [
       ['bingo', 'Bingo fuel', 'BINGO'],
       ['winch', 'Winchester (no weapons left)', 'WINCH'],
-      ['spike', 'Unknown SAM spike', 'SAM SPIKE'],
+      ['spike', 'MUD SPIKE: a surface threat on the RWR that is not known', 'MUD SPIKE'],
       ['sa', 'Loss of SA', 'NO SA'],
       ['cms', 'No countermeasures left', 'NO CMS'],
     ],
@@ -69,10 +69,72 @@ export const ROE = [
       ['fox', 'FOX call on every shot', 'FOX CALLS'],
     ],
   ],
+  [
+    'restr',
+    'Restrictions',
+    'many',
+    '',
+    [
+      ['cbu', 'No cluster munitions in urban areas', 'NO CBU URBAN'],
+      [
+        'nostrike',
+        'No attack on the no-strike list: hospitals, places of worship, schools, protected sites',
+        'NO-STRIKE LIST',
+      ],
+      ['jtac', 'CAS: no release without the clearance of the JTAC ("cleared hot")', 'CAS: JTAC CLR'],
+      ['border', 'No fire across the border / beyond the FLOT', 'NO FIRE X-BORDER'],
+      ['minrls', 'Minimum release altitude 15,000 ft (out of the MANPADS)', 'MIN RLS 15K'],
+    ],
+  ],
 ];
 
 // SOP: [phase, [[id, label, tag, options [id, long, short]], ...]]
 export const SOP = [
+  [
+    'Mission',
+    [
+      [
+        'push',
+        'Push / TOT window',
+        'PUSH',
+        [
+          ['30', '±30 s', '±30S'],
+          ['60', '±1 min', '±1MIN'],
+          ['120', '±2 min', '±2MIN'],
+        ],
+      ],
+      [
+        'spare',
+        'Ground abort / spare',
+        'SPARE',
+        [
+          ['takes', 'The spare launches and takes the place', 'TAKES PLACE'],
+          ['short', 'The flight goes short', 'GO SHORT'],
+          ['wait', 'The flight waits for the spare', 'WAIT'],
+        ],
+      ],
+      ['abortcw', 'Abort codeword', 'ABORT', [['brief', 'As briefed', 'AS BRIEFED']]],
+      [
+        'bda',
+        'BDA',
+        'BDA',
+        [
+          ['fence', 'Called at FENCE out', 'AT FENCE OUT'],
+          ['awacs', 'Passed to AWACS', 'TO AWACS'],
+          ['debrief', 'At the debrief', 'DEBRIEF'],
+        ],
+      ],
+      [
+        'iff',
+        'IFF',
+        'IFF',
+        [
+          ['m4', 'Mode 4 checked at FENCE in, Mode 3 as in the plan', 'M4 CHK FENCE IN'],
+          ['plan', 'Modes as in the plan', 'AS PLANNED'],
+        ],
+      ],
+    ],
+  ],
   [
     'Ground',
     [
@@ -134,7 +196,7 @@ export const SOP = [
         'Line-up',
         'LINEUP',
         [
-          ['ech', 'Echelon, 3-5 ft wingtip spacing', 'ECHELON'],
+          ['ech', 'Echelon on the runway, wingtip clearance as briefed', 'ECHELON'],
           ['slot', '#3 in the slot', '#3 SLOT'],
         ],
       ],
@@ -256,9 +318,9 @@ export const SOP = [
         'Rendezvous',
         'AAR',
         [
-          ['pp', 'Point parallel: the tanker turns in front of the flight', 'POINT PARALLEL'],
-          ['enr', 'En route: the flight joins the tanker on its route', 'EN ROUTE'],
-          ['anchor', 'Anchor / track: the tanker orbits on its track', 'ANCHOR'],
+          ['pp', 'Point parallel (RV Delta): the tanker turns in front of the flight', 'POINT PARALLEL'],
+          ['enr', 'En route (RV Golf): the flight joins the tanker on its route', 'EN ROUTE'],
+          ['anchor', 'Anchor (RV Alpha): the tanker orbits on its track', 'ANCHOR'],
         ],
       ],
       [
@@ -266,7 +328,7 @@ export const SOP = [
         'Observation position',
         'AAR',
         [
-          ['left', 'Left wing of the tanker, then to the boom in order', 'OBS LEFT'],
+          ['left', 'Left wing of the tanker (the standard), then to the boom in order', 'OBS LEFT'],
           ['right', 'Right wing of the tanker, then to the boom in order', 'OBS RIGHT'],
         ],
       ],
@@ -285,7 +347,7 @@ export const SOP = [
         'AAR',
         [
           ['full', 'Full tanks', 'FULL'],
-          ['plan', 'As planned (TANK J/B of the MDC)', 'AS PLANNED'],
+          ['plan', 'As planned in the fuel plan', 'AS PLANNED'],
           ['topoff', 'Top off to the Joker of the mission, then cycle', 'TOP OFF'],
         ],
       ],
@@ -293,13 +355,19 @@ export const SOP = [
         'aarlost',
         'Lost wingman at the tanker',
         'AAR',
-        [['std', 'Away from the tanker and down 1,000 ft, call; rejoin when cleared', 'LOST: AWAY -1000FT']],
+        [['std', 'Turn away from the tanker, down 1,000 ft, call; rejoin only when cleared', 'LOST: AWAY -1000FT']],
       ],
       [
         'aarnordo',
         'NORDO refuelling',
         'AAR',
-        [['std', 'Visual signals of the tanker, boom ops silent (EMCON)', 'NORDO: VISUAL']],
+        [['std', 'Visual signals of the tanker, silent boom ops (EMCON)', 'NORDO: VISUAL']],
+      ],
+      [
+        'breakaway',
+        'BREAKAWAY',
+        'AAR',
+        [['std', 'On "BREAKAWAY": the receiver down and back, the tanker up and forward', 'BREAKAWAY: DOWN AFT']],
       ],
       [
         'aarjoin',
@@ -338,7 +406,7 @@ export const SOP = [
         'CHATTERMARK',
         'CHATTER',
         [
-          ['lead', 'Called by the flight lead, on the AUX', 'LEAD, AUX'],
+          ['lead', 'Called by the flight lead: the briefed anti-jam comm plan', 'LEAD'],
           ['mc', 'Called by the mission commander', 'MC'],
         ],
       ],
@@ -409,7 +477,13 @@ export const SOP = [
         'sep',
         'Landing separation',
         'LDG SEP',
-        [['std', '3,000 ft by day (same type), 6,000 ft at night and between formation elements', '3000/6000FT']],
+        [
+          [
+            'std',
+            '3,000 ft by day (same type, dry runway); 6,000 ft at night, on a wet runway and between formation elements',
+            '3000/6000FT',
+          ],
+        ],
       ],
       [
         'formland',
@@ -453,9 +527,14 @@ export const SOP = [
         'CLR',
         [
           [
-            'std',
-            '5-10,000 ft MSL: 1,000 ft above, 500 ft below, 2,000 ft horizontal, 3 NM; above 10,000 ft: 1,000 ft vertical, 1 SM horizontal, 5 NM',
-            'VFR CLR',
+            'icao',
+            'ICAO (Korea): below FL100 1,500 m horizontal, 1,000 ft vertical, 5 km; at and above FL100 the same, 8 km',
+            'ICAO VMC',
+          ],
+          [
+            'faa',
+            'FAA: below 10,000 ft MSL 500 ft below, 1,000 ft above, 2,000 ft horizontal, 3 SM; above 10,000 ft 1,000 ft vertical, 1 SM horizontal, 5 SM',
+            'FAA VMC',
           ],
         ],
       ],
@@ -540,6 +619,62 @@ export const SOP = [
     ],
   ],
   [
+    'Training',
+    [
+      [
+        'kio',
+        'Knock-it-off / Terminate',
+        'KIO',
+        [
+          [
+            'std',
+            '"Knock it off" stops all the flight, "Terminate" one engagement; acknowledged by callsign',
+            'KIO / TERMINATE',
+          ],
+        ],
+      ],
+      [
+        'floor',
+        'Training floor',
+        'FLOOR',
+        [
+          ['5k', '5,000 ft AGL', '5000AGL'],
+          ['10k', '10,000 ft AGL', '10000AGL'],
+        ],
+      ],
+      [
+        'bubble',
+        'Bubble',
+        'BUBBLE',
+        [
+          ['1000', '1,000 ft around each aircraft', '1000FT'],
+          ['500', '500 ft around each aircraft', '500FT'],
+        ],
+      ],
+      [
+        'marm',
+        'Master arm',
+        'M-ARM',
+        [
+          ['sim', 'SIMULATE', 'SIM'],
+          ['off', 'OFF', 'OFF'],
+        ],
+      ],
+      [
+        'gawe',
+        'G-awareness',
+        'G-AWE',
+        [['std', 'G-awareness exercise before the first engagement', 'BEF 1ST ENGAGEMENT']],
+      ],
+      [
+        'shots',
+        'Shots',
+        'SHOTS',
+        [['std', 'Simulated shots called "Fox", the kill called with the position of the target', 'FOX + KILL CALL']],
+      ],
+    ],
+  ],
+  [
     'Emergencies',
     [
       [
@@ -549,6 +684,27 @@ export const SOP = [
         [['std', "Change altitude by 1,000 ft or more from the lead's last altitude, and call", '±1000FT + CALL']],
       ],
       ['nordo', 'NORDO', 'NORDO', [['std', 'Lights on, rendezvous and escort as briefed', 'LTS ON, BRIEFED']]],
+      [
+        'csar',
+        'Ejection / CSAR',
+        'CSAR',
+        [
+          [
+            'std',
+            'Squawk 7700, call on Guard; the wingmen stay above the spot while the fuel allows and pass it to AWACS',
+            '7700, GUARD, CAP',
+          ],
+        ],
+      ],
+      [
+        'jett',
+        'Jettison',
+        'JETT',
+        [
+          ['area', 'In the briefed jettison area', 'BRIEFED AREA'],
+          ['sea', 'Over the sea, away from the route', 'SEA'],
+        ],
+      ],
     ],
   ],
 ];
@@ -697,6 +853,8 @@ export function roeText(sel) {
 // the SOP box: one line a phase with the topics ticked for the card, joined in the short form ("T/O: 20S · AB · DEP COMBAT"), then the other SOP lines.
 // A word goes before the short form of the topics that would not read alone (MINI); the phase has its own short name (PHASE_TAG).
 export const PHASE_TAG = {
+  Mission: 'MSN',
+  Training: 'TRNG',
   Ground: 'GND',
   'Take-off and departure': 'T/O',
   'En route': 'ENR',
@@ -739,6 +897,17 @@ export const MINI = {
   wxdep: 'WX DEP',
   imc: 'IMC',
   wxvfr: 'VFR',
+  push: 'PUSH',
+  spare: 'SPARE',
+  abortcw: 'ABORT',
+  bda: 'BDA',
+  iff: 'IFF',
+  floor: 'FLOOR',
+  bubble: 'BUBBLE',
+  marm: 'M-ARM',
+  gawe: 'G-AWE',
+  csar: 'CSAR',
+  jett: 'JETT',
 };
 export const phaseOf = id => (sopAll().find(([, T]) => T.some(t => t[0] == id)) || [''])[0];
 export function sopText(sel) {

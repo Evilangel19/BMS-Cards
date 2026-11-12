@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: ROE Restrictions (no cluster munitions in urban areas and more); SOP sections Mission and Training; ejection / CSAR and jettison; tanker BREAKAWAY.
+- Changed: SOP checked against the manuals (brevity, tanker rendezvous names, ICAO / FAA cloud clearance...); ROE / SOP page: Chosen only, Fold all, custom sections on top, the left column stays in sight.
+- Fixed: black marks at the edges of the notes of the Datacard.
 - Fixed: ROE / SOP page: Other SOP lines stayed far down with the sections folded; the drop-down of the custom section window was white.
 - Added: ROE / SOP: Tanker and Weather sections, custom sections (yours or the squadron's), "Add card" (the whole ROE and SOP on Kneeboard cards), a warning before losing unsaved choices, folding sections, presets copied between yours and the squadron's.
 - Changed: notes up to 16 px when there is room; the tick "card" is now off by default; clearer short forms.

@@ -59,6 +59,18 @@ try:
         lay = pg.evaluate('''()=>{const P=[...document.querySelectorAll('#sqroe .rspg .rsk')];P.forEach(c=>c.classList.add('shut'));
           const b=Math.max(...P.map(c=>c.getBoundingClientRect().bottom)),o=document.querySelector('#sqroe .rsk[data-k=other]').getBoundingClientRect().top;P.forEach(c=>c.classList.remove('shut'));return [Math.round(b),Math.round(o)]}''')
         check('with the phases folded, Other SOP lines stays right under them %s' % lay, 0 <= lay[1] - lay[0] <= 20)
+        secs = pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rss .rspg .rsk h3')].map(e=>e.textContent)")
+        check('the SOP sections: Mission first, Training before Emergencies %s' % secs, secs[0] == 'Mission' and 'Training' in secs and 'Tanker' in secs and 'Weather' in secs)
+        check('ROE Restrictions: no cluster bombs in urban areas', pg.locator(B + '.rpk[data-r=restr][data-v=cbu]').count() == 1)
+        pg.click(B + '[data-only="1"]'); pg.wait_for_timeout(200)
+        vis = pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rpr')].map(r=>r.dataset.t)")
+        check('Chosen only: only the topics chosen are shown %s' % vis, set(vis) == {'lights', 'rec'})
+        pg.click(B + '[data-only="0"]'); pg.wait_for_timeout(200)
+        pg.click(B + '[data-a=foldall]'); pg.wait_for_timeout(200)
+        fa = pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rspg .rsk')].every(c=>c.classList.contains('shut'))")
+        pg.click(B + '[data-a=unfoldall]'); pg.wait_for_timeout(200)
+        check('Fold all / Unfold all', fa and not pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rspg .rsk')].some(c=>c.classList.contains('shut'))"))
+        check('the custom sections block is above the standard ones, with its button', pg.evaluate("()=>{const c=document.querySelector('#sqroe .rscust'),p=document.querySelector('#sqroe .rss > .rspg');return !!c&&!!p&&c.getBoundingClientRect().top<p.getBoundingClientRect().top&&!!c.querySelector('[data-a=newsec]')}"))
         check('a click on the title folds a card and unfolds it %s' % f1, f1 == [True, 'none'] and not pg.evaluate("()=>document.querySelector('#sqroe .rsk[data-k=roe]').classList.contains('shut')"))
         # 5 lines a box, one line a phase: topics of the same phase share a line; the sixth phase cannot go on the card
         for t, v in (('takeoff', 's20'), ('dep', 'combat'), ('fuel', 'rtb'), ('form2', 'wedge'), ('nlights', 'overt')):
