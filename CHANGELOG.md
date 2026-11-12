@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: ROE / SOP: Tanker and Weather sections, custom sections (yours or the squadron's), "Add card" (the whole ROE and SOP on Kneeboard cards), a warning before losing unsaved choices, folding sections, presets copied between yours and the squadron's.
+- Changed: notes up to 16 px when there is room; the tick "card" is now off by default; clearer short forms.
 - Changed: the notes of the Datacard are laid out in sections (TWR, UHF2, TGT) with the frequencies in columns, at 13 px.
 - Changed: the SOP box writes one line a phase with its topics joined (T/O: 20S · AB · DEP COMBAT).
 - Changed: ROE / SOP is a page of the Squadron (between Members and Organization); a click on the boxes of the card opens it. 5 lines a box, with a warning when full.

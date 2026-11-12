@@ -64,7 +64,7 @@ export const ROE = [
     '',
     [
       ['mez', 'No fire into a friendly SAM MEZ', 'NO FIRE IN FRND MEZ'],
-      ['pid', 'Positive ID of the target before release', 'PID B4 RLS'],
+      ['pid', 'Positive ID of the target before release', 'PID BEF RLS'],
       ['lines', 'No release over friendly lines', 'NO RLS OVER FRND'],
       ['fox', 'FOX call on every shot', 'FOX CALLS'],
     ],
@@ -81,10 +81,10 @@ export const SOP = [
         'Anti-collision / flash',
         'LTS',
         [
-          ['start', 'On / flash at engine start, when ready', 'FLASH AT START'],
+          ['start', 'On / flash at engine start, when ready', 'FLASH START'],
           ['move', 'Flash as soon as the aircraft moves', 'FLASH MOVING'],
-          ['hold', 'Flash after the holding position', 'FLASH AT HOLD'],
-          ['rwy', 'Steady while taxiing, flash on the runway', 'FLASH ON RWY'],
+          ['hold', 'Flash after the holding position', 'FLASH HOLD'],
+          ['rwy', 'Steady while taxiing, flash on the runway', 'FLASH RWY'],
         ],
       ],
       [
@@ -92,12 +92,8 @@ export const SOP = [
         'Taxi / landing light',
         'TAXI/LDG LT',
         [
-          [
-            'taxi',
-            'Taxi light while taxiing, landing light at line-up and with the gear down',
-            'TAXI LT, LDG AT LINEUP',
-          ],
-          ['ldg', 'Landing light at line-up and with the gear down only', 'LDG AT LINEUP'],
+          ['taxi', 'Taxi light while taxiing, landing light at line-up and with the gear down', 'TAXI LT, LDG LINEUP'],
+          ['ldg', 'Landing light at line-up and with the gear down only', 'LDG LINEUP'],
         ],
       ],
       [
@@ -105,8 +101,8 @@ export const SOP = [
         'Taxi',
         'TAXI',
         [
-          ['stag', 'Staggered, 150 ft; 25 kt max, 10 kt in turns', 'STAGGERED 150FT'],
-          ['single', 'Single file, 300 ft; 25 kt max, 10 kt in turns', 'SINGLE FILE 300FT'],
+          ['stag', 'Staggered, 150 ft; 25 kt max, 10 kt in turns', 'STAG 150FT'],
+          ['single', 'Single file, 300 ft; 25 kt max, 10 kt in turns', 'SINGLE 300FT'],
         ],
       ],
       [
@@ -114,8 +110,8 @@ export const SOP = [
         'Radio check-in',
         'CHK-IN',
         [
-          ['start', 'At engine start: "(callsign) check-in" - "2" - "3" (PRI UHF, AUX VHF)', 'AT START'],
-          ['taxi', 'Before taxi, then call Ground with the ATIS, departure and formation', 'BEFORE TAXI'],
+          ['start', 'At engine start: "(callsign) check-in" - "2" - "3" (PRI UHF, AUX VHF)', 'START'],
+          ['taxi', 'Before taxi, then call Ground with the ATIS, departure and formation', 'BEF TAXI'],
         ],
       ],
       [
@@ -124,6 +120,7 @@ export const SOP = [
         'EOR',
         [
           ['arm', 'Arming and de-arming at the EOR', 'ARM/DE-ARM'],
+          ['hold', 'Hold for take-off at the EOR instead of on the taxiway', 'HOLD'],
           ['none', 'No EOR', 'NONE'],
         ],
       ],
@@ -146,7 +143,7 @@ export const SOP = [
         'Take-off',
         'T/O',
         [
-          ['form', 'Formation take-off (element)', 'FORMATION'],
+          ['form', 'Formation take-off (element)', 'FORM'],
           ['s10', 'Single ship, 10 s interval', '10S'],
           ['s20', 'Single ship, 20 s interval (nonstandard)', '20S'],
           ['s30', 'Single ship, 30 s interval', '30S'],
@@ -166,8 +163,8 @@ export const SOP = [
         'Chaff / flares',
         'CMS',
         [
-          ['before', 'Armed before take-off (combat only)', 'ARMED B4 T/O'],
-          ['fence', 'Armed at FENCE in', 'AT FENCE IN'],
+          ['before', 'Armed before take-off (combat only)', 'ARM BEF T/O'],
+          ['fence', 'Armed at FENCE in', 'FENCE IN'],
         ],
       ],
       [
@@ -244,9 +241,73 @@ export const SOP = [
         'Ops check',
         'OPS CHK',
         [
-          ['fence', 'At FENCE in', 'AT FENCE IN'],
+          ['fence', 'At FENCE in', 'FENCE IN'],
           ['push', 'At every push', 'EACH PUSH'],
-          ['t30', 'Every 30 minutes', 'EVERY 30MIN'],
+          ['t30', 'Every 30 minutes', '30 MIN'],
+        ],
+      ],
+    ],
+  ],
+  [
+    'Tanker',
+    [
+      [
+        'rv',
+        'Rendezvous',
+        'AAR',
+        [
+          ['pp', 'Point parallel: the tanker turns in front of the flight', 'POINT PARALLEL'],
+          ['enr', 'En route: the flight joins the tanker on its route', 'EN ROUTE'],
+          ['anchor', 'Anchor / track: the tanker orbits on its track', 'ANCHOR'],
+        ],
+      ],
+      [
+        'obs',
+        'Observation position',
+        'AAR',
+        [
+          ['left', 'Left wing of the tanker, then to the boom in order', 'OBS LEFT'],
+          ['right', 'Right wing of the tanker, then to the boom in order', 'OBS RIGHT'],
+        ],
+      ],
+      [
+        'order',
+        'Refuelling order',
+        'AAR',
+        [
+          ['num', 'By number: #1, #2, #3, #4', 'BY NUMBER'],
+          ['low', 'Lowest fuel first', 'LOW FUEL FIRST'],
+        ],
+      ],
+      [
+        'offload',
+        'Offload',
+        'AAR',
+        [
+          ['full', 'Full tanks', 'FULL'],
+          ['plan', 'As planned (TANK J/B of the MDC)', 'AS PLANNED'],
+          ['topoff', 'Top off to the Joker of the mission, then cycle', 'TOP OFF'],
+        ],
+      ],
+      [
+        'aarlost',
+        'Lost wingman at the tanker',
+        'AAR',
+        [['std', 'Away from the tanker and down 1,000 ft, call; rejoin when cleared', 'LOST: AWAY -1000FT']],
+      ],
+      [
+        'aarnordo',
+        'NORDO refuelling',
+        'AAR',
+        [['std', 'Visual signals of the tanker, boom ops silent (EMCON)', 'NORDO: VISUAL']],
+      ],
+      [
+        'aarjoin',
+        'After refuelling',
+        'AAR',
+        [
+          ['right', 'Right wing of the tanker until the whole flight is done', 'REJOIN RIGHT'],
+          ['dep', 'Depart and continue the mission, the lead calls the flight', 'DEPART ON CALL'],
         ],
       ],
     ],
@@ -260,7 +321,7 @@ export const SOP = [
         'FENCE',
         [
           ['full', 'In: master arm and chaff / flares armed, IFF set, lights off. Out: switches safe', 'FULL CHECK'],
-          ['arm', 'Master arm only after FENCE in', 'M-ARM AFTER FENCE'],
+          ['arm', 'Master arm only after FENCE in', 'M-ARM AFT FENCE'],
         ],
       ],
       [
@@ -363,6 +424,62 @@ export const SOP = [
     ],
   ],
   [
+    'Weather',
+    [
+      [
+        'wxvfr',
+        'VFR minimums',
+        'VFR MIN',
+        [
+          ['ovhd', 'Overhead / VFR pattern: 2,500 ft ceiling, 3 SM; rectangular: 2,000 ft, 3 SM', 'OVHD 2500/3'],
+          ['mra', 'Min-risk arrival: ceiling 1,000 ft above the MRA altitude, 5 NM visibility', 'MRA +1000/5NM'],
+        ],
+      ],
+      [
+        'wxdep',
+        'Departure in low weather',
+        'WX DEP',
+        [
+          [
+            'std',
+            'Below 1,500 ft ceiling or 3 NM: each aircraft climbs on runway heading, no turn below 1,000 ft AGL',
+            '<1500/3: RWY HDG',
+          ],
+        ],
+      ],
+      [
+        'wxclr',
+        'Cloud clearance (VFR)',
+        'CLR',
+        [
+          [
+            'std',
+            '5-10,000 ft MSL: 1,000 ft above, 500 ft below, 2,000 ft horizontal, 3 NM; above 10,000 ft: 1,000 ft vertical, 1 SM horizontal, 5 NM',
+            'VFR CLR',
+          ],
+        ],
+      ],
+      [
+        'imc',
+        'IMC formation',
+        'IMC',
+        [
+          ['route', 'Route formation, the wingman on the lead', 'ROUTE'],
+          ['trail', 'Radar trail, 2 NM', 'TRAIL 2NM'],
+        ],
+      ],
+      [
+        'recall',
+        'Weather recall / divert',
+        'RECALL',
+        [
+          ['recall', 'Weather recall below the minimums of the field: back to the field, the lead calls', 'RECALL'],
+          ['divert', 'Divert to the alternate when the field is below its minimums', 'DIVERT ALTN'],
+        ],
+      ],
+    ],
+  ],
+  [
     'Night',
     [
       [
@@ -386,7 +503,7 @@ export const SOP = [
         'Combat lights out',
         'LTS OUT',
         [
-          ['fence', 'At FENCE in', 'AT FENCE IN'],
+          ['fence', 'At FENCE in', 'FENCE IN'],
           ['no', 'No', 'NO'],
         ],
       ],
@@ -398,7 +515,7 @@ export const SOP = [
           [
             'std',
             'Goggle above 1,500 ft AGL; never for take-off, landing, IMC or refuelling; "De-goggle" and "XMAS tree" before landing',
-            '>1500AGL, DEGOG B4 LDG',
+            '>1500AGL, DEGOG BEF LDG',
           ],
         ],
       ],
@@ -431,11 +548,63 @@ export const SOP = [
         'LOST WG',
         [['std', "Change altitude by 1,000 ft or more from the lead's last altitude, and call", '±1000FT + CALL']],
       ],
-      ['nordo', 'NORDO', 'NORDO', [['std', 'Lights on, rendezvous and escort as briefed', 'LTS ON, AS BRIEFED']]],
+      ['nordo', 'NORDO', 'NORDO', [['std', 'Lights on, rendezvous and escort as briefed', 'LTS ON, BRIEFED']]],
     ],
   ],
 ];
 export const SOP_TOPICS = SOP.flatMap(([, t]) => t);
+
+// ---- custom sections (personal on this PC, and of the squadron): {id, name, tag, topics: [{id, label, tag, opts: [[id, long, short]]}]}
+// They join the SOP after the built-in phases; their topics are kept in the choices like the others (ids start with "x").
+const rid = () => 'x' + Math.random().toString(36).slice(2, 9);
+export function cleanCustom(list) {
+  const str2 = (v, n) =>
+    String(v == null ? '' : v)
+      .slice(0, n)
+      .trim();
+  return (Array.isArray(list) ? list : [])
+    .filter(c => c && typeof c == 'object' && str2(c.name, 40))
+    .slice(0, 20)
+    .map(c => ({
+      id: /^x[a-z0-9]{3,12}$/.test(c.id) ? c.id : rid(),
+      name: str2(c.name, 40),
+      tag: str2(c.tag, 8).toUpperCase() || str2(c.name, 6).toUpperCase(),
+      topics: (Array.isArray(c.topics) ? c.topics : [])
+        .filter(t => t && str2(t.label, 40))
+        .slice(0, 20)
+        .map(t => ({
+          id: /^x[a-z0-9]{3,12}$/.test(t.id) ? t.id : rid(),
+          label: str2(t.label, 40),
+          tag: str2(t.tag, 10).toUpperCase(),
+          opts: (Array.isArray(t.opts) ? t.opts : [])
+            .filter(o => Array.isArray(o) && str2(o[2], 30))
+            .slice(0, 12)
+            .map((o, i) => ['o' + i, str2(o[1], 200) || str2(o[2], 30), str2(o[2], 30).toUpperCase()]),
+        })),
+    }));
+}
+// "SHORT = full text" a line -> the options of a custom topic, and back
+export const optsFromText = t =>
+  String(t || '')
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean)
+    .map((l, i) => {
+      const k = l.indexOf('=');
+      return k < 0 ? ['o' + i, l, l] : ['o' + i, l.slice(k + 1).trim(), l.slice(0, k).trim()];
+    });
+export const optsToText = o => (o || []).map(x => (x[1] && x[1] != x[2] ? x[2] + ' = ' + x[1] : x[2])).join('\n');
+let CUSTOM = [];
+export function setCustom(list) {
+  CUSTOM = cleanCustom(list);
+}
+export const customs = () => CUSTOM;
+// the SOP with the custom sections: [phase, topics, tag] and every topic as [id, label, tag, options]
+export const sopAll = () => [
+  ...SOP.map(([ph, T]) => [ph, T, null]),
+  ...CUSTOM.map(c => [c.name, c.topics.map(t => [t.id, t.label, t.tag, t.opts]), c.tag, c.id]),
+];
+export const topicsAll = () => sopAll().flatMap(([, T]) => T);
 
 // an empty choice: nothing on the card
 export const emptySel = () => ({
@@ -455,7 +624,7 @@ export function cleanSel(s) {
     if (k == 'many') o.roe[id] = Array.isArray(v) ? [...new Set(v.filter(ok))] : [];
     else o.roe[id] = ok(v) ? v : null;
   });
-  SOP_TOPICS.forEach(([id, , , opts]) => {
+  topicsAll().forEach(([id, , , opts]) => {
     const v = s.sop && s.sop[id];
     if (!v || typeof v != 'object') return;
     const t = {
@@ -465,6 +634,13 @@ export function cleanSel(s) {
     };
     if (t.o || t.t) o.sop[id] = t;
   });
+  // the topics of custom sections not known here (a squadron section not loaded yet): kept as they are, checked for their form
+  if (s.sop && typeof s.sop == 'object')
+    for (const [id, v] of Object.entries(s.sop)) {
+      if (o.sop[id] || !/^x[a-z0-9]{3,12}$/.test(id) || !v || typeof v != 'object') continue;
+      const t = { o: /^o\d{1,2}$/.test(v.o) ? v.o : null, t: str(v.t, 120).trim(), c: !!v.c };
+      if (t.o || t.t) o.sop[id] = t;
+    }
   o.free = str(s.free, 600);
   o.sfree = str(s.sfree, 600);
   return o;
@@ -525,7 +701,9 @@ export const PHASE_TAG = {
   'Take-off and departure': 'T/O',
   'En route': 'ENR',
   'FENCE, comms and fuel': 'COMMS',
+  Tanker: 'AAR',
   Recovery: 'REC',
+  Weather: 'WX',
   Night: 'NIGHT',
   Emergencies: 'EMER',
 };
@@ -555,24 +733,31 @@ export const MINI = {
   nform: 'FORM',
   lost: 'LOST WG',
   nordo: 'NORDO',
+  obs: '',
+  offload: 'OFFLOAD',
+  order: 'ORDER',
+  wxdep: 'WX DEP',
+  imc: 'IMC',
+  wxvfr: 'VFR',
 };
-export const phaseOf = id => (SOP.find(([, T]) => T.some(t => t[0] == id)) || [''])[0];
+export const phaseOf = id => (sopAll().find(([, T]) => T.some(t => t[0] == id)) || [''])[0];
 export function sopText(sel) {
   const s = cleanSel(sel),
     R = [];
-  SOP.forEach(([ph, T]) => {
+  sopAll().forEach(([ph, T, ctag]) => {
     const items = T.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]])).map(t => {
-      const v = s.sop[t[0]];
-      return v.t || (MINI[t[0]] ? MINI[t[0]] + ' ' : '') + sopShort(t, v);
+      const v = s.sop[t[0]],
+        mini = ctag ? t[2] : MINI[t[0]];
+      return v.t || (mini ? mini + ' ' : '') + sopShort(t, v);
     });
-    if (items.length) R.push((PHASE_TAG[ph] || ph) + ': ' + items.join(' · '));
+    if (items.length) R.push((ctag || PHASE_TAG[ph] || ph) + ': ' + items.join(' · '));
   });
   if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
   return R.join('\n');
 }
 // a topic ticked for the card adds a line only when its phase has none yet
 export function sopPhaseOn(sel, id) {
-  const ph = SOP.find(([, T]) => T.some(t => t[0] == id));
+  const ph = sopAll().find(([, T]) => T.some(t => t[0] == id));
   return !!ph && ph[1].some(t => t[0] != id && sel.sop[t[0]] && sel.sop[t[0]].c);
 }
 // each box of the card holds BOX_MAX lines (one rule or one topic a line; a long one may wrap on the card, it still counts once)
@@ -587,7 +772,7 @@ export function capSel(sel) {
     s.sfree = sf.join('\n');
   }
   // the last phases on the card lose their ticks
-  const T = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c);
+  const T = topicsAll().filter(t => s.sop[t[0]] && s.sop[t[0]].c);
   for (let i = T.length - 1; i >= 0 && nl(sopText(s)) > BOX_MAX; i--) s.sop[T[i][0]].c = false;
   const rf = s.free.split('\n').filter(l => l.trim());
   while (nl(roeText(s)) > BOX_MAX && rf.length) {
@@ -635,4 +820,27 @@ export function cleanPresets(a) {
     .filter(p => p && typeof p.name == 'string' && p.name.trim())
     .slice(0, 50)
     .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel) }));
+}
+
+// the whole text of the choices (the card for the kneeboard): ROE by section with the full text of each choice, SOP by phase with the topic and the full
+// text of its option (every topic chosen, ticked for the card or not), then the other lines
+export function fullText(sel) {
+  const s = cleanSel(sel),
+    roe = [],
+    sop = [];
+  ROE.forEach(([id, lab, k, , opts]) => {
+    const L = (k == 'many' ? s.roe[id] : s.roe[id] ? [s.roe[id]] : [])
+      .map(v => (opts.find(o => o[0] === v) || [])[1])
+      .filter(Boolean);
+    if (L.length) roe.push([lab, L]);
+  });
+  sopAll().forEach(([ph, T]) => {
+    const L = T.filter(t => s.sop[t[0]] && (s.sop[t[0]].o || s.sop[t[0]].t)).map(t => {
+      const v = s.sop[t[0]];
+      return [t[1], v.t || (t[3].find(o => o[0] === v.o) || [])[1] || ''];
+    });
+    if (L.length) sop.push([ph, L]);
+  });
+  const lines = t => t.split('\n').filter(l => l.trim());
+  return { roe, sop, roeFree: lines(s.free), sopFree: lines(s.sfree) };
 }

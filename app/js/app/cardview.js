@@ -167,7 +167,7 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
 }
 // The notes of the Datacard: one section a label (TWR, UHF2, TGT, JTAC, IFF...), the label and the cells of a line divided by tabs (core/fillcard.js).
 // The labels in a narrow column on the left, the text from the left, the cells of a line in columns of the same width (the UHF2 backups line up); a
-// line too long is squeezed in width, never wrapped. 13 px, 12 when the lines do not fit; then closer lines; what still does not fit is left out.
+// line too long is squeezed in width, never wrapped. The biggest size from 16 to 12 that fits; then closer lines; what still does not fit is left out.
 export const NOTES_ROOM = 116,
   NOTES_GUT = 36;
 export function notesLayout(x, v, room = NOTES_ROOM) {
@@ -192,13 +192,11 @@ export function notesLayout(x, v, room = NOTES_ROOM) {
     });
   while (rows.length && rows[rows.length - 1].gap) rows.pop();
   const H = (lh, gp) => rows.reduce((s, r) => s + (r.gap ? 4 : lh + (r.sec ? gp : 0)), 0);
-  let fs = 13,
-    lh = 15,
+  // the biggest size from 16 (the size of the other cells) to 12 at which every line fits
+  let fs = 16,
+    lh = 18,
     gp = 3;
-  if (H(lh, gp) > room) {
-    fs = 12;
-    lh = 14;
-  }
+  while (fs > 12 && H(lh, gp) > room) lh = --fs + 2;
   if (H(lh, gp) > room) {
     lh = 12.5;
     gp = 1.5;

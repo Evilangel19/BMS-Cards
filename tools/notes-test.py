@@ -27,12 +27,12 @@ try:
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(1200)
         r = pg.evaluate(JS, [BIG, bool(shots)])
         if shots: pg.locator('#ntshot').screenshot(path=shots + '/notes.png'); pg.evaluate("()=>document.getElementById('ntshot').remove()")
-        check('a package of five flights: every line at 13 px, in the box %s' % r, r['fs'] == 13 and r['h'] <= 116 and r['n'] == 7)
+        check('a package of five flights: every line at the biggest size that fits (13 px), in the box %s' % r, r['fs'] == 13 and r['h'] <= 116 and r['n'] == 7)
         check('the labels in their column on the left, the backups in columns that line up %s' % r, r['lab'] == [14, 14, 14] and r['cols'][0] == r['cols'][2] and r['cols'][1] == r['cols'][3] and r['cols'][1] > r['cols'][0] + 80)
         r2 = pg.evaluate(JS, [BIG + '\n' + '\n'.join('\tFlight %d Some Long Target Name Bn 04:%02d' % (i, i) for i in range(6)), False])
         check('more lines: 12 px, closer, still in the box, never smaller %s' % {k: r2[k] for k in ('fs', 'h', 'n')}, r2['fs'] == 12 and r2['h'] <= 116 and r2['n'] >= 9)
         r3 = pg.evaluate(JS, ['Notes typed by hand', False])
-        check('notes typed by hand (no labels): from the left edge, 13 px %s' % r3, r3['fs'] == 13 and r3['gut'] == 0)
+        check('notes typed by hand (no labels): from the left edge, at the size of the other cells (16 px) when there is room %s' % r3, r3['fs'] == 16 and r3['gut'] == 0)
         # MDC: every cell is written in black (the first one, the callsign, was white on white in beta 14), the Bingo in red; the loadout in its short form
         mdc = pg.evaluate("""async()=>{const cv=await import('/app/js/app/cardview.js'),dc=await import('/app/js/app/datacard.js');
           const ink=(x,d,red)=>{const s=2048/1600,t=2048/1200,id=x.getImageData(Math.round(d.x*s),Math.round(d.y0*t),Math.round(d.w*s),Math.round(d.h*t)).data;let n=0;for(let i=0;i<id.length;i+=4)if(red?id[i]>150&&id[i+1]<80:id[i]<100&&id[i+1]<100)n++;return n};

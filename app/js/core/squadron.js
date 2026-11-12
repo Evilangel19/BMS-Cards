@@ -22,7 +22,7 @@ import {
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 import { createBriefing } from './briefing.js';
 import { roleOf } from './briefroom.js';
-import { cleanSqPresets } from './roesop.js';
+import { cleanSqPresets, cleanCustom } from './roesop.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -1738,6 +1738,7 @@ export function createSquadronPage(deps) {
     mc: q.mc || '',
     logo: q.logo || '',
     roe: cleanSqPresets(q.roe), // the ROE / SOP presets of the squadron (the commander sets them)
+    roeSec: cleanCustom(q.roeSec), // the custom SOP sections of the squadron
     ts: q.ts,
   });
   function swarmStart(q) {
@@ -1807,6 +1808,7 @@ export function createSquadronPage(deps) {
               mc: typeof m.squad.mc == 'string' ? m.squad.mc : '',
               logo: okImg(m.squad.logo) ? m.squad.logo : '',
               roe: cleanSqPresets(m.squad.roe),
+              roeSec: cleanCustom(m.squad.roeSec),
               ts: m.squad.ts,
             });
             ch = true;
@@ -2464,9 +2466,16 @@ export function createSquadronPage(deps) {
       squad: q ? q.name : '',
       own: owns(q),
       presets: q ? cleanSqPresets(q.roe) : [],
+      sections: q ? cleanCustom(q.roeSec) : [],
       save: list => {
         if (!q || !owns(q)) return;
         q.roe = cleanSqPresets(list);
+        touchSquad(q);
+        drawRoe();
+      },
+      saveSec: list => {
+        if (!q || !owns(q)) return;
+        q.roeSec = cleanCustom(list);
         touchSquad(q);
         drawRoe();
       },
@@ -3628,6 +3637,10 @@ export function createSquadronPage(deps) {
     roePresets: () => {
       const q = cur();
       return q ? cleanSqPresets(q.roe) : [];
+    },
+    roeSections: () => {
+      const q = cur();
+      return q ? cleanCustom(q.roeSec) : [];
     },
     flush,
     refresh: () => {
