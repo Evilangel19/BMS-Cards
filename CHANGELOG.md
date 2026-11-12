@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Fixed: Kneeboard: a card inserted between two slid every card from one place (now each card slides from where it was); ROE / SOP: Back to the datacard opened the Docs.
+- Changed: ROE / SOP page in the colours of the program (switches and chosen items green as in Weapons, the squadron's blue), Add card green, Flight / Squadron without icons.
 - Changed: ROE / SOP page: one section Presets with Flight / Squadron, the Standard first in each list; a click on a preset puts it on the datacard (no Apply), changes by hand go on the datacard at once and can be kept as a preset (name, Default for); delete with Undo; no more copies (→ME / →SQ) nor presets combined.
 - Changed: the ROE / SOP Kneeboard cards are two at most (ROE and SOP in one flow, the text smaller until it fits); the ROE / SOP boxes of the Datacard wrap after "+" and "/" and use every line before the text gets smaller.
 - Fixed: a Kneeboard with the datacard of no flight (only the cells the program fills by itself) no longer shows "Not saved".

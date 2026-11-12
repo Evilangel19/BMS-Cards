@@ -901,13 +901,16 @@ export function kbRender(keepMenu) {
               );
             }
           };
+          // a card is known by its picture (the object itself: as text every picture was the same "[object Object]", so every card slid from
+          // one place) or, for the datacard pages, by its kind
+          const ck = c => c.item || c.kind;
           const snap = () => {
             const m = new Map();
             KBS.forEach((row, r) =>
               ['left', 'right'].forEach(s => {
                 const c = row[s],
                   e = c && c.kind != 'empty' ? cell({ s, r }) : null;
-                if (e) m.set(c.kind + '|' + c.item, e.getBoundingClientRect());
+                if (e) m.set(ck(c), e.getBoundingClientRect());
               })
             );
             return m;
@@ -920,7 +923,7 @@ export function kbRender(keepMenu) {
                   e = c && c.kind != 'empty' ? cell({ s, r }) : null;
                 if (!e) return;
                 const n = e.getBoundingClientRect(),
-                  o = m.get(c.kind + '|' + c.item) || (c.kind == card.kind && c.item === card.item ? gfrom : null);
+                  o = c.kind == card.kind && c.item === card.item ? gfrom : m.get(ck(c)); // the card dropped comes from where it was let go
                 if (!o || Math.abs(o.left - n.left) + Math.abs(o.top - n.top) < 2) return;
                 e.animate(
                   [

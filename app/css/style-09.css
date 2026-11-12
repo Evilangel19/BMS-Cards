@@ -331,9 +331,9 @@
   border-color: #4a5a6c;
 }
 .rsq .rpk.on {
-  background: #16301f;
-  border-color: #3ddc84;
-  color: #c9f7dc;
+  background: #1f7a46;
+  border-color: #4cc38a;
+  color: #fff;
 }
 .rsq .rpk.off {
   opacity: 0.4;
@@ -446,16 +446,21 @@
     border-color 0.15s;
 }
 .rsq .rpq.on {
-  background: #16301f;
-  border-color: #3ddc84;
+  background: #1f7a46;
+  border-color: #4cc38a;
+  color: #fff;
 }
 .rsq .rpq.sq {
   border-color: #2c4a74;
   padding-right: 10px;
 }
 .rsq .rpq.sq.on {
-  background: #14243a;
-  border-color: #4f8cff;
+  background: #1d5f99;
+  border-color: #3a8fd6;
+  color: #fff;
+}
+.rsq .rpq.on b {
+  color: #ffffffb0;
 }
 .rsq .rpq b {
   color: var(--mu);
@@ -689,25 +694,31 @@
   font-size: 12px;
 }
 .rsq .seg {
-  display: flex;
+  display: inline-flex;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 7px;
   overflow: hidden;
 }
 .rsq .seg button {
-  background: none;
-  border: 0;
+  padding: 3px 10px;
   color: var(--mu);
-  padding: 5px 11px;
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
   font-size: 12px;
   cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
+}
+.rsq .seg button:last-child {
+  border-right: 0;
 }
 .rsq .seg button.on {
-  background: #16301f;
-  color: #c9f7dc;
+  background: #1f7a46;
+  color: #fff;
+}
+.rsq .seg button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
 }
 .rsq .rscust {
   display: flex;
@@ -743,34 +754,15 @@
 .rsq .rssrc {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 3px;
-  background: #0b0f14;
-  border-radius: 8px;
-  padding: 3px;
   margin-bottom: 6px;
 }
 .rsq .rssrc button {
-  border: 0;
-  background: none;
-  color: var(--mu);
-  border-radius: 6px;
   padding: 6px 4px;
-  font: inherit;
+  font-size: 12.5px;
   font-weight: 600;
-  cursor: pointer;
-  transition:
-    background-color 0.15s,
-    color 0.15s;
-}
-.rsq .rssrc button.on {
-  background: #16301f;
-  color: #d6f8e4;
-  box-shadow: inset 0 0 0 1px #3ddc84;
 }
 .rsq .rssrc button.on.sq {
-  background: #14243a;
-  color: #d6e9ff;
-  box-shadow: inset 0 0 0 1px #4f8cff;
+  background: #1d5f99;
 }
 .rsq .rswho {
   color: var(--mu);
@@ -812,15 +804,10 @@
   animation: fadein 0.2s;
 }
 .rsq .rsedit .rsdirty {
-  background: #2b2410;
-  border-color: #6b5a1c;
-  color: #f1d98a;
+  background: #3a2a10;
+  border-color: #6b4a14;
+  color: #ffd08a;
 }
 .rsq .rsedit .rsbar {
   flex-wrap: wrap;
-}
-.rsq .btn.rsb {
-  background: #2a5d8f;
-  border-color: #2a5d8f;
-  color: #fff;
 }

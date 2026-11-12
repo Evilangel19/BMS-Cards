@@ -135,7 +135,7 @@ try:
             pg.set_viewport_size({'width': 820, 'height': 1220}); pg.locator('#rcshot').screenshot(path=shots + '/roesop-kbcard.png'); pg.evaluate("()=>document.getElementById('rcshot').remove()"); pg.set_viewport_size({'width': 1600, 'height': 1000})
         pg.click(B + '[data-a=back]'); pg.wait_for_timeout(300)
         if pg.locator('.rsmodal').count(): pg.click('.rsmodal [data-m=go]'); pg.wait_for_timeout(300)
-        check('Back to the card goes to the Datacard', pg.evaluate("()=>document.querySelector('[data-t=dc]').classList.contains('on')"))
+        check('Back to the card goes to the Datacard', pg.evaluate("()=>document.querySelector('.tab[data-t=kb]').classList.contains('on')"))
         # the Kneeboard card: everything chosen still goes on two cards at most, ROE and SOP in one flow
         kc = pg.evaluate('''async()=>{const R=await import('/app/js/core/roesop.js'),C=await import('/app/js/app/roecard.js');const s=R.emptySel();
           R.ROE.forEach(([id,,k,,o])=>{s.roe[id]=k=='many'?o.map(p=>p[0]):o[0][0]});R.SOP_TOPICS.forEach(t=>s.sop[t[0]]={o:t[3][t[3].length-1][0]});

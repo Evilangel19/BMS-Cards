@@ -445,7 +445,7 @@ function render0(box) {
         cur && cur.std && !canNew()
           ? ''
           : `<div class="rpt">Name</div><input type="text" class="rpnm rsname" maxlength="40" value="${esc(R.name)}" placeholder="Name of the preset"><div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-      }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' rsb' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g" data-a="pdisc">Discard</button>' : ''}</div>${
+      }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' g bl' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g" data-a="pdisc">Discard</button>' : ''}</div>${
         !upd && !canNew()
           ? '<div class="hint">The squadron presets are changed by the commander: switch to Flight to keep these changes as your preset.</div>'
           : ''
@@ -457,7 +457,7 @@ function render0(box) {
     squad ? esc(squad) : 'on this PC',
     `${
       inSq()
-        ? `<div class="seg rssrc" role="group" aria-label="Presets of"><button type="button" data-src="me" class="${src == 'me' ? 'on' : ''}">✈ Flight</button><button type="button" data-src="sq" class="${src == 'sq' ? 'on sq' : ''}">⛨ Squadron</button></div>`
+        ? `<div class="seg rssrc" role="group" aria-label="Presets of"><button type="button" data-src="me" class="${src == 'me' ? 'on' : ''}">Flight</button><button type="button" data-src="sq" class="${src == 'sq' ? 'on sq' : ''}">Squadron</button></div>`
         : ''
     }<div class="rswho">${who}</div><div class="rpqs">${C.map(pchip).join('')}</div><div class="hint">A click puts a preset on the datacard${cur && cur.ed && !chg ? '; a click on the one chosen to rename it or change its Default for' : ''}.</div>${edit}`
   );
@@ -470,7 +470,7 @@ function render0(box) {
       warn.length
         ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
         : ''
-    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn g" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
+    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
     'other',
@@ -724,7 +724,7 @@ function wire(box) {
       return render();
     }
     if (act == 'back') {
-      const t = document.querySelector('[data-t=dc]');
+      const t = document.querySelector('.tab[data-t=kb]'); // the Datacard tab
       if (t) t.click();
       return;
     }
