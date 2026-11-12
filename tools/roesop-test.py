@@ -56,6 +56,9 @@ try:
         pg.click(B + '.rsk[data-k=roe] .rsh'); pg.wait_for_timeout(150)
         f1 = pg.evaluate("()=>[document.querySelector('#sqroe .rsk[data-k=roe]').classList.contains('shut'),getComputedStyle(document.querySelector('#sqroe .rsk[data-k=roe] .rsbd')).display]")
         pg.click(B + '.rsk[data-k=roe] .rsh'); pg.wait_for_timeout(150)
+        lay = pg.evaluate('''()=>{const P=[...document.querySelectorAll('#sqroe .rspg .rsk')];P.forEach(c=>c.classList.add('shut'));
+          const b=Math.max(...P.map(c=>c.getBoundingClientRect().bottom)),o=document.querySelector('#sqroe .rsk[data-k=other]').getBoundingClientRect().top;P.forEach(c=>c.classList.remove('shut'));return [Math.round(b),Math.round(o)]}''')
+        check('with the phases folded, Other SOP lines stays right under them %s' % lay, 0 <= lay[1] - lay[0] <= 20)
         check('a click on the title folds a card and unfolds it %s' % f1, f1 == [True, 'none'] and not pg.evaluate("()=>document.querySelector('#sqroe .rsk[data-k=roe]').classList.contains('shut')"))
         # 5 lines a box, one line a phase: topics of the same phase share a line; the sixth phase cannot go on the card
         for t, v in (('takeoff', 's20'), ('dep', 'combat'), ('fuel', 'rtb'), ('form2', 'wedge'), ('nlights', 'overt')):
@@ -103,6 +106,8 @@ try:
         check('a BARCAP flight gets the default of Defensive Counter Air, a strike nothing %s' % d, d[0].startswith('WPN FREE') and d[1] == '')
         # a custom section of my own: its topic in the page and on the card
         pg.click(B + '[data-a=clear]'); pg.click(B + '[data-a=newsec]'); pg.wait_for_timeout(250)
+        sb = pg.evaluate("()=>{const s=document.querySelector('.rsmodal select');return s?getComputedStyle(s).backgroundColor:'none'}")
+        check('the drop-downs of the custom section window are dark like the program (%s)' % sb, sb in ('rgb(11, 15, 20)', 'none'))
         pg.fill('.rsmodal .rssn', 'Range'); pg.fill('.rsmodal .rsst', 'RNG'); pg.fill('.rsmodal .rstl', 'Strobe'); pg.fill('.rsmodal .rsto', 'FLASH TAXI = Strobe flash while taxiing\nOFF = Strobe off on the range')
         pg.click('.rsmodal [data-m=ok]'); pg.wait_for_timeout(300)
         cid = pg.evaluate("()=>{const c=[...document.querySelectorAll('#sqroe .rsk')].find(e=>e.querySelector('h3').textContent=='Range');return c?c.querySelector('.rpr').dataset.t:null}")

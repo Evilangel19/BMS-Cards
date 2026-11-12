@@ -377,7 +377,7 @@ function render0(box) {
     'one a line, they count too',
     `<textarea class="rpfr" data-f="sfree" rows="2" maxlength="600" placeholder="Written in the SOP box as they are">${esc(R.sel.sfree)}</textarea><div class="rsbar"><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>`
   );
-  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${editCard}${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss"><div class="rsg">${phases.filter((_, i) => i % 2 == 0).join('')}</div><div class="rsg">${phases.filter((_, i) => i % 2 == 1).join('')}</div></div><div class="rsc rsx">${other}</div></div>`;
+  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${editCard}${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss"><div class="rspg"><div class="rsg">${phases.filter((_, i) => i % 2 == 0).join('')}</div><div class="rsg">${phases.filter((_, i) => i % 2 == 1).join('')}</div></div>${other}</div></div>`; // Other SOP lines right under the phases (folded or not)
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   box.querySelector('.rpv1').textContent = roeText(R.sel);
   box.querySelector('.rpv2').textContent = sopText(R.sel);
