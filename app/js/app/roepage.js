@@ -1,20 +1,20 @@
-// Squadron > ROE / SOP: the page of the rules of engagement and of the SOP of the squadron. What is edited: the ROE / SOP of the flight on the card,
-// or (the commander) a preset of the squadron. The presets of the squadron and the personal ones (this PC) can be combined and copied from one to the
-// other. The card gets the short form: 5 lines a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's
-// by the commander) join the SOP. "Add card" puts the whole text on a Kneeboard card. A click on the ROE or SOP box of the card opens this page.
+// Squadron > ROE / SOP: the page of the rules of engagement and of the SOP. The section Presets: two buttons, Flight (my presets) and Squadron (the
+// presets of the squadron, the commander changes them); the first of each list is the Standard (the squadron's, or mine without a squadron). A click on a
+// preset puts it on the datacard of the flight; what is changed by hand goes on the datacard at once and can be kept as a preset (a name, the kinds of
+// mission it is the default of). A flight just chosen gets its default by itself (the list of the button chosen wins). The datacard gets the short form:
+// 5 lines a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's by the commander) join the SOP.
+// "Add card" puts the whole text on Kneeboard cards. A click on the ROE or SOP box of the datacard opens this page.
 import {
   ROE,
   ROE_CATS,
   emptySel,
   cleanSel,
-  mergeSel,
   roeText,
   sopText,
   cleanPresets,
   sopShort,
-  defaultFor,
+  pickDefault,
   BOX_MAX,
-  capSel,
   sopPhaseOn,
   sopAll,
   topicsAll,
@@ -51,6 +51,13 @@ const LS = {
 };
 export const presetsLoad = () => cleanPresets(LS.get('bmsroepre', []));
 const presetsSave = P => LS.set('bmsroepre', cleanPresets(P));
+// my Standard (without a squadron, or a squadron with no Standard yet); the first time, my first preset
+const myStd = () => {
+  const v = LS.get('bmsroestd', null);
+  if (v) return cleanSel(v);
+  const P = presetsLoad();
+  return P.length ? P[0].sel : emptySel();
+};
 const mySecs = () => cleanCustom(LS.get('bmsroesec', []));
 const mySecsSave = L => LS.set('bmsroesec', cleanCustom(L));
 const sqGet = (f, d) => {
@@ -73,7 +80,7 @@ const handLines = (typed, made) => {
     .join('\n');
 };
 const lines = t => (t ? t.split('\n').filter(l => l.trim()).length : 0);
-// the choices of the flight on the card: F.roesel, with the lines typed by hand on the card; a flight with nothing yet starts from the last choices
+// the choices of the flight on the datacard: F.roesel, with the lines typed by hand on the datacard (a flight just chosen got its default: roeAuto)
 function flightSel() {
   let s;
   try {
@@ -81,7 +88,7 @@ function flightSel() {
   } catch (e) {
     s = emptySel();
   }
-  if (!F.roesel && !F.roe && !F.sop) return cleanSel(LS.get('bmsroelast', null));
+  if (!F.roesel && !F.roe && !F.sop) return emptySel();
   if (F.roe && F.roe !== roeText(s)) s.free = handLines(F.roe, roeText({ ...s, free: '' }));
   if (F.sop && F.sop !== sopText(s)) s.sfree = handLines(F.sop, sopText({ ...s, sfree: '' }));
   return s;
@@ -93,12 +100,13 @@ const R = {
   box: null,
   ctx: { squad: '', own: false, presets: [], sections: [], save: () => {}, saveSec: () => {} },
   sig: '',
-  mode: 'flight', // 'flight' | 'new' | the index of a squadron preset (the commander)
   sel: emptySel(),
-  base: '', // the choices as last kept (a preset saved, the card written, a preset loaded): different = unsaved
+  pick: null, // the preset chosen: 'std', 'q<i>' (squadron list), 'm<i>' (mine)
+  base: '', // its choices: different = changed by hand
   name: '',
   cats: [],
-  on: new Set(), // the presets combined: 'q0' (squadron), 'm0' (mine)
+  open: false, // the part to save it shown (a click on the preset chosen)
+  wrote: '', // the choices last written on the datacard
   cust: new Set(), // the SOP topics written with an own text
   flightKey: null,
 };
@@ -108,33 +116,66 @@ const setSel = (s, kept = true) => {
   R.cust = new Set(Object.keys(R.sel.sop).filter(k => R.sel.sop[k].t));
   if (kept) R.base = key(R.sel);
 };
-const dirty = () => key(R.sel) != R.base && (R.mode !== 'flight' || key(R.sel) != key(emptySel()));
+const dirty = () => key(R.sel) != R.base;
+// the list shown: Flight (mine) or Squadron (the squadron's); without a squadron, mine only
+const inSq = () => !!R.ctx.squad;
+const SRC = () => (inSq() && LS.get('bmsroesrc', 'sq') == 'sq' ? 'sq' : 'me');
+const sqStdI = () => R.ctx.presets.findIndex(p => p.std);
+// the Standard: the squadron's when it has one, else mine
+const stdSel = () => (sqStdI() >= 0 ? R.ctx.presets[sqStdI()].sel : myStd());
+// the presets of a list: [{k, name, sel, cats, ed (can be changed here), std}]
+function chips(src) {
+  const sqs = sqStdI() >= 0,
+    L = [{ k: 'std', name: 'Standard', sel: stdSel(), cats: [], std: 1, ed: src == 'sq' ? R.ctx.own : !sqs }];
+  if (src == 'sq') R.ctx.presets.forEach((p, i) => !p.std && L.push({ k: 'q' + i, ...p, ed: R.ctx.own }));
+  else presetsLoad().forEach((p, i) => L.push({ k: 'm' + i, ...p, ed: true }));
+  return L;
+}
+const chipOf = k => chips(SRC()).find(c => c.k == k);
+const canNew = () => SRC() == 'me' || R.ctx.own;
+// the preset the choices of now are: the one with the same choices (else none: changed by hand)
+function setPick(c) {
+  R.pick = c ? c.k : null;
+  R.base = c ? key(c.sel) : key(emptySel());
+  R.baseSel = c ? c.sel : emptySel(); // what Discard goes back to (kept when the other list is shown)
+  R.name = c && !c.std ? c.name : '';
+  R.cats = c ? [...(c.cats || [])] : [];
+  R.open = false;
+}
+function matchPick() {
+  const k = key(R.sel),
+    same = c => key(c.sel) == k;
+  setPick(chips(SRC()).find(same) || null);
+  // a preset of the other list (Flight / Squadron) is not "changed by hand" either: nothing to keep
+  if (!R.pick && inSq() && chips(SRC() == 'sq' ? 'me' : 'sq').some(same)) {
+    R.base = k;
+    R.baseSel = R.sel;
+  }
+}
+function loadFlight() {
+  R.flightKey = ST.CURK;
+  setSel(flightSel(), false);
+  R.wrote = key(R.sel);
+  matchPick();
+}
 // the squadron calls this when the page is drawn: the page is drawn again only when something it shows changed
 export function roeDraw(box, ctx) {
   const sig = JSON.stringify([ctx.squad, ctx.own, ctx.presets, ctx.sections]);
   R.ctx = ctx;
   syncCustom();
-  if (typeof R.mode == 'number' && !ctx.presets[R.mode]) R.mode = 'flight';
-  if (!ctx.own && R.mode !== 'flight') R.mode = 'flight';
-  if (R.mode === 'flight' && ST.CURK !== R.flightKey) {
-    R.flightKey = ST.CURK;
-    setSel(flightSel());
-    R.on = new Set();
-  }
+  if (ST.CURK !== R.flightKey || !R.box) loadFlight();
   if (box !== R.box || sig !== R.sig || !box.firstChild) {
+    if (sig !== R.sig && R.box && !dirty()) matchPick(); // the lists changed (saved here, or by the commander): the preset of now again
     R.box = box;
     R.sig = sig;
     render();
   }
   leaveGuard();
 }
-// the ROE or SOP box of the card was clicked: this page, on the flight
+// the ROE or SOP box of the datacard was clicked: this page, on the flight
 export function roeGo() {
   syncCustom();
-  R.mode = 'flight';
-  R.flightKey = ST.CURK;
-  setSel(flightSel());
-  R.on = new Set();
+  loadFlight();
   const t = document.querySelector('[data-t=sq]');
   if (t) t.click();
   if (sqPage && sqPage.tab) sqPage.tab('roe');
@@ -184,17 +225,65 @@ function modal(title, html, buttons, onAct) {
   if (f) f.focus();
   return p;
 }
-// my presets: keep the choices of now under a name (the same name is replaced)
-function savePreset(name) {
-  const P = presetsLoad(),
-    i = P.findIndex(x => x.name.toLowerCase() == name.toLowerCase());
-  if (i >= 0) P[i] = { name, sel: cleanSel(R.sel) };
-  else P.push({ name, sel: cleanSel(R.sel) });
-  presetsSave(P);
-  if (R.mode === 'flight') R.base = key(R.sel);
-  appToast('Preset "' + name + '" kept on this PC.');
+// keep the choices of now: in the preset chosen (c), or as a new preset of the list shown (c null: the name and the kinds of mission of the page)
+function savePick(c, name, cats) {
+  const sel = cleanSel(R.sel);
+  if (c && c.std) {
+    if (SRC() == 'sq' || sqStdI() >= 0) {
+      if (!R.ctx.own) return false;
+      const L = R.ctx.presets.slice(),
+        i = sqStdI();
+      if (i >= 0) L[i] = { ...L[i], sel };
+      else L.unshift({ name: 'Standard', sel, cats: [], std: true });
+      R.base = key(sel);
+      R.ctx.save(L);
+      appToast('Standard of the squadron saved and sent.');
+    } else {
+      LS.set('bmsroestd', sel);
+      R.base = key(sel);
+      appToast('Standard saved: every new flight starts from it.');
+    }
+    return true;
+  }
+  const sq = SRC() == 'sq';
+  if (sq && !R.ctx.own) return false;
+  const L = sq ? R.ctx.presets.slice() : presetsLoad(),
+    p = { name, sel, cats, ...(sq ? { std: false } : {}) };
+  let i = c ? +c.k.slice(1) : L.findIndex(x => !x.std && x.name.toLowerCase() == name.toLowerCase());
+  if (i >= 0) L[i] = p;
+  else {
+    L.push(p);
+    i = L.length - 1;
+  }
+  R.pick = (sq ? 'q' : 'm') + i;
+  R.base = key(sel);
+  R.name = name;
+  R.cats = cats;
+  R.open = false;
+  if (sq) R.ctx.save(L);
+  else presetsSave(L);
+  appToast('Preset "' + name + '" saved' + (sq ? ' and sent to the squadron.' : ' on this PC.'));
+  return true;
 }
-// leaving the page (another tab, Back to the card) with choices not kept: save them first?
+// a new preset: its name must not be taken in the list, or the pilot says to replace it
+function saveNew(name, cats, done) {
+  const sq = SRC() == 'sq',
+    L = sq ? R.ctx.presets : presetsLoad(),
+    j = L.findIndex(x => !x.std && x.name.toLowerCase() == name.toLowerCase());
+  if (j < 0) return savePick(null, name, cats) && done && done();
+  modal(
+    '"' + name + '" is already there',
+    '<p>Replace it with the choices of now?</p>',
+    [
+      { a: 'rep', label: 'Replace it' },
+      { a: 'no', label: 'Cancel', g: 1 },
+    ],
+    a => {
+      if (a == 'rep' && savePick({ k: (sq ? 'q' : 'm') + j }, name, cats) && done) done();
+    }
+  );
+}
+// leaving the page (another tab, Back to the datacard) with changes kept in no preset: keep them first?
 let GUARD = false;
 function leaveGuard() {
   if (GUARD) return;
@@ -207,25 +296,29 @@ function leaveGuard() {
       if (t.matches('[data-t=sq]') || t.dataset.tab == 'roe') return;
       e.preventDefault();
       e.stopPropagation();
+      const c = R.pick && chipOf(R.pick),
+        upd = c && c.ed;
       modal(
-        'Unsaved choices',
-        `<p>The choices on this page are not kept in a preset${R.mode === 'flight' ? ' nor written on the card' : ''}.</p>${R.mode === 'flight' ? '<input type="text" class="rpnm rslv" maxlength="40" placeholder="Name of the preset" value="My SOP">' : ''}`,
+        'Changes not in a preset',
+        `<p>The changes are on the datacard${F.cs ? ' of ' + esc(F.cs) : ''}, but in no preset.</p>${!upd && canNew() ? '<input type="text" class="rpnm rslv" maxlength="40" placeholder="Name of the new preset">' : ''}`,
         [
-          ...(R.mode === 'flight'
-            ? [{ a: 'save', label: 'Save as preset and go' }]
-            : [{ a: 'psave', label: 'Save the preset and go' }]),
+          ...(upd ? [{ a: 'upd', label: 'Save "' + (c.std ? 'Standard' : c.name) + '" and go' }] : []),
+          ...(!upd && canNew() ? [{ a: 'new', label: 'Save as preset and go' }] : []),
           { a: 'go', label: 'Leave anyway', g: 1, rd: 1 },
           { a: 'stay', label: 'Stay', g: 1 },
         ],
         (a, p) => {
           if (a == 'stay') return;
-          if (a == 'save') {
+          if (a == 'upd') savePick(c, R.name || c.name, R.cats);
+          if (a == 'new') {
             const n = p.querySelector('.rslv').value.trim();
             if (!n) return false;
-            savePreset(n);
+            savePick(null, n, []);
           }
-          if (a == 'psave' && !savePsq()) return;
-          if (a == 'go') R.base = key(R.sel);
+          if (a == 'go') {
+            R.pick = null;
+            R.base = key(R.sel);
+          }
           R.leaving = true;
           setTimeout(() => {
             t.click();
@@ -265,12 +358,10 @@ function counts() {
   return { r: lines(roeText(R.sel)), s: lines(sopText(R.sel)) };
 }
 function render0(box) {
-  if (R.mode === 'flight') LS.set('bmsroelast', cleanSel(R.sel)); // the last choices: a flight with nothing yet starts from them
+  if (flightOn() && key(R.sel) !== R.wrote) writeCard(); // every change goes on the datacard of the flight at once
   const st = [...box.querySelectorAll('.rsc')].map(c => c.scrollTop),
-    { own, presets: Q, squad, sections: SQS } = R.ctx,
-    P = presetsLoad(),
+    { own, squad, sections: SQS } = R.ctx,
     MY = mySecs(),
-    edit = R.mode !== 'flight',
     { r: nR, s: nS } = counts(),
     fullR = nR >= BOX_MAX,
     fullS = nS >= BOX_MAX;
@@ -330,62 +421,56 @@ function render0(box) {
       `<div class="rspg"><div class="rsg">${L.slice(0, Math.ceil(L.length / 2)).join('')}</div><div class="rsg">${L.slice(Math.ceil(L.length / 2)).join('')}</div></div>`; // in the order of the flight: down the left column, then the right one
   const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Only the topics chosen: your SOP at a glance">Chosen only</button></div><span style="flex:1"></span><button type="button" class="btn g" data-a="foldall" title="Fold every SOP section">Fold all</button><button type="button" class="btn g" data-a="unfoldall" title="Unfold every SOP section">Unfold all</button></div>`;
   const customBlock = `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>${custom.length ? cols(custom) : ''}</div>`;
-  const pchip = (k, name, title, extra) =>
-    `<span class="rpq${R.on.has(k) ? ' on' : ''}${k[0] == 'q' ? ' sq' : ''}" data-k="${k}" title="${esc(title)}">${esc(name)}${extra}</span>`;
-  const cs = F.cs || (ST.CL && ST.CL.length ? 'flight' : '');
-  const editCard = card(
-    'edit',
-    'Editing',
-    squad ? esc(squad) : '',
-    `${
-      own
-        ? `<select class="rsmode" aria-label="What is edited"><option value="flight"${R.mode === 'flight' ? ' selected' : ''}>Flight${cs ? ' · ' + esc(cs) : ''} (the card)</option>${Q.map((q, i) => `<option value="${i}"${R.mode === i ? ' selected' : ''}>Squadron preset · ${esc(q.name)}</option>`).join('')}<option value="new"${R.mode === 'new' ? ' selected' : ''}>＋ New squadron preset (from the choices of now)</option></select>`
-        : `<div class="rsflt">Flight${cs ? ' · <b>' + esc(cs) + '</b>' : ''} (the card)</div>`
-    }${
-      edit
-        ? `<div class="rpt">Name</div><input type="text" class="rpnm rsname" maxlength="40" value="${esc(R.name)}" placeholder="Name of the preset"><div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-        : `<div class="hint" style="margin-top:6px">${flightOn() ? 'The choices go on the card of this flight with Apply to card.' : 'Pick a flight in the ATO (Datacard) to write on its card; the presets can be made anyway.'}${own ? ' Choose a squadron preset above to edit it.' : ''}</div>`
-    }`
-  );
+  const src = SRC(),
+    C = chips(src),
+    cur = R.pick ? C.find(c => c.k == R.pick) : null,
+    chg = dirty(),
+    cs = F.cs || (ST.CL && ST.CL.length ? 'flight' : '');
+  const pchip = c => {
+    const on = c.k == R.pick,
+      tip = c.std
+        ? `The Standard${sqStdI() >= 0 ? ' of the squadron' : ''}: every flight starts from it${c.ed ? '' : ' (only the commander changes it)'}`
+        : c.cats.length
+          ? 'Default for ' + c.cats.join(', ')
+          : 'Default for no kind of mission';
+    return `<span class="rpq${src == 'sq' ? ' sq' : ''}${on ? ' on' : ''}${c.std ? ' std' : ''}" data-k="${c.k}" title="${esc(tip)}">${c.std ? '<i class="rpst">STANDARD</i>' : esc(c.name)}${on && chg ? '<i class="rpdot" title="Changed by hand"></i>' : ''}${c.std && !c.ed ? '<i class="rplk" title="Locked">🔒</i>' : ''}${!c.std && c.ed ? `<b data-del="${c.k}" title="Delete this preset">×</b>` : ''}</span>`;
+  };
+  const who = !flightOn()
+    ? 'Pick a flight in the ATO (Datacard): a preset clicked here goes on its datacard.'
+    : `Flight <b>${esc(cs)}</b>${LASTCAT ? ' (' + esc(LASTCAT) + ')' : ''} · ${src == 'sq' ? "the datacard gets the squadron's selection" : inSq() ? "the datacard gets this selection, the squadron's is ignored" : 'the datacard gets this selection'}`;
+  const upd = cur && cur.ed,
+    showEd = chg || (R.open && cur && cur.ed);
+  const edit = showEd
+    ? `<div class="rsedit">${chg ? `<div class="rsdirty">${flightOn() ? 'Changed by hand: already on the datacard.' : 'Changed: in no preset yet.'} Keep it as a preset?</div>` : ''}${
+        cur && cur.std && !canNew()
+          ? ''
+          : `<div class="rpt">Name</div><input type="text" class="rpnm rsname" maxlength="40" value="${esc(R.name)}" placeholder="Name of the preset"><div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
+      }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' rsb' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g" data-a="pdisc">Discard</button>' : ''}</div>${
+        !upd && !canNew()
+          ? '<div class="hint">The squadron presets are changed by the commander: switch to Flight to keep these changes as your preset.</div>'
+          : ''
+      }</div>`
+    : '';
   const presetCard = card(
     'presets',
     'Presets',
-    'several together',
+    squad ? esc(squad) : 'on this PC',
     `${
-      Q.length
-        ? `<div class="rpl">Squadron</div><div>${Q.map((q, i) => pchip('q' + i, q.name, 'Preset of the squadron (set by the commander)' + (q.cats.length ? ': default for ' + q.cats.join(', ') : ''), `<b data-cp="q${i}" title="Copy to my presets">→ME</b>`)).join('')}</div>`
+      inSq()
+        ? `<div class="seg rssrc" role="group" aria-label="Presets of"><button type="button" data-src="me" class="${src == 'me' ? 'on' : ''}">✈ Flight</button><button type="button" data-src="sq" class="${src == 'sq' ? 'on sq' : ''}">⛨ Squadron</button></div>`
         : ''
-    }<div class="rpl">Mine</div><div>${
-      P.length
-        ? P.map((q, i) =>
-            pchip(
-              'm' + i,
-              q.name,
-              'Your preset, on this PC',
-              `${own ? `<b data-cp="m${i}" title="Copy to the presets of the squadron">→SQ</b>` : ''}<b data-del="${i}" title="Delete this preset">×</b>`
-            )
-          ).join('')
-        : '<span class="hint" style="min-height:0">none yet: make your choices, then Save as preset</span>'
-    }</div><div class="rssv"><input type="text" class="rpnm" maxlength="40" placeholder="Name"><button type="button" class="btn g" data-a="save" title="Keep the choices of now as a preset on this PC">Save as preset</button></div>`
+    }<div class="rswho">${who}</div><div class="rpqs">${C.map(pchip).join('')}</div><div class="hint">A click puts a preset on the datacard${cur && cur.ed && !chg ? '; a click on the one chosen to rename it or change its Default for' : ''}.</div>${edit}`
   );
   const warn = [fullR ? 'ROE box full' : '', fullS ? 'SOP box full' : ''].filter(Boolean);
   const cardCard = card(
     'card',
-    edit ? 'Preview' : 'On the card',
+    'Preview',
     'Datacard · MDC',
     `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"></div><div class="b rpv2"></div></div><div class="rscnt"><span>ROE <b class="${fullR ? 'full' : ''}">${nR}/${BOX_MAX}</b></span><span>SOP <b class="${fullS ? 'full' : ''}">${nS}/${BOX_MAX}</b> (one line a phase)</span></div>${
       warn.length
         ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
         : ''
-    }${
-      dirty()
-        ? `<div class="rsdirty">${edit ? 'This squadron preset is not saved: Save preset.' : 'Unsaved choices: Save as preset (or Apply to card), so they are not lost.'}</div>`
-        : ''
-    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn g" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span>${
-      edit
-        ? `${typeof R.mode == 'number' ? `<button type="button" class="btn g" data-a="up" title="Move up in the list"${R.mode ? '' : ' disabled'}>↑</button><button type="button" class="btn g rd" data-a="del">Delete</button>` : ''}<button type="button" class="btn" data-a="psave" title="Keep the preset and send it to the squadron">Save preset</button>`
-        : `<button type="button" class="btn g" data-a="back" title="The Datacard">Back to the card</button><button type="button" class="btn" data-a="apply" title="Write ROE and SOP on the card of the flight"${flightOn() ? '' : ' disabled'}>Apply to card</button>`
-    }</div>`
+    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn g" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
     'other',
@@ -393,56 +478,14 @@ function render0(box) {
     'one a line, they count too',
     `<textarea class="rpfr" data-f="sfree" rows="2" maxlength="600" placeholder="Written in the SOP box as they are">${esc(R.sel.sfree)}</textarea>`
   );
-  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${editCard}${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss">${tools}${customBlock}${cols(phases)}${other}</div></div>`; // the custom sections above the standard ones; Other SOP lines right under the phases (folded or not)
+  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss">${tools}${customBlock}${cols(phases)}${other}</div></div>`; // the custom sections above the standard ones; Other SOP lines right under the phases (folded or not)
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   box.querySelector('.rpv1').textContent = roeText(R.sel);
   box.querySelector('.rpv2').textContent = sopText(R.sel);
   wire(box);
 }
-function fromPresets() {
-  const Q = R.ctx.presets,
-    P = presetsLoad();
-  // the boxes hold BOX_MAX lines: what is beyond is cut (the last ones)
-  setSel(
-    capSel(
-      mergeSel(
-        [...R.on]
-          .sort((a, b) => (a[0] == b[0] ? +a.slice(1) - +b.slice(1) : a[0] == 'q' ? -1 : 1)) // the squadron first, then mine
-          .map(k => (k[0] == 'q' ? Q : P)[+k.slice(1)])
-          .filter(Boolean)
-          .map(x => x.sel)
-      )
-    ),
-    R.mode === 'flight'
-  );
-  render();
-}
-// the squadron preset of now: saved and sent (false when it has no name)
-function savePsq() {
-  const nm = R.box && R.box.querySelector('.rsname'),
-    name = ((nm && nm.value) || R.name || '').trim();
-  if (!name) {
-    if (nm) {
-      nm.focus();
-      nm.classList.add('err');
-    }
-    return false;
-  }
-  const L = R.ctx.presets.slice(),
-    p = { name, sel: cleanSel(R.sel), cats: R.cats };
-  if (typeof R.mode == 'number') L[R.mode] = p;
-  else {
-    L.push(p);
-    R.mode = L.length - 1;
-  }
-  R.name = name;
-  R.base = key(R.sel);
-  R.ctx.save(L);
-  appToast('Squadron preset "' + name + '" saved and sent to the squadron.');
-  return true;
-}
-// the card of the flight: the two boxes and the choices
-function applyCard() {
+// the datacard of the flight: the two boxes and the choices (no word: every change goes there at once)
+function writeCard() {
   const t1 = roeText(R.sel),
     t2 = sopText(R.sel);
   setField('roesel', JSON.stringify(cleanSel(R.sel)));
@@ -457,9 +500,7 @@ function applyCard() {
   });
   markMan();
   draw();
-  R.base = key(R.sel);
-  appToast('ROE and SOP written on the card' + (F.cs ? ' of ' + F.cs : '') + '.');
-  render();
+  R.wrote = key(R.sel);
 }
 // Add card: the whole text on Kneeboard cards (two when one is not enough: ROE and SOP apart, the pilot is told first)
 async function addCards() {
@@ -469,7 +510,8 @@ async function addCards() {
   const x = c.getContext('2d'),
     plan = roeCardPlan(R.sel, x);
   if (!plan.length) return appToast('Nothing chosen yet: no card to add.');
-  const sub = R.mode === 'flight' ? (F.cs ? 'Flight ' + F.cs : '') : 'Squadron preset ' + (R.name || ''),
+  const c0 = R.pick && !dirty() && chipOf(R.pick),
+    sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '',
     go = async () => {
       for (const p of plan) {
         roeCardDraw(p, x, sub);
@@ -562,7 +604,7 @@ function wire(box) {
       cat = e.target.closest('.rpcat'),
       a = e.target.closest('[data-a]'),
       del = e.target.closest('[data-del]'),
-      cp = e.target.closest('[data-cp]'),
+      sb = e.target.closest('[data-src]'),
       q = e.target.closest('.rpq'),
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
@@ -585,47 +627,84 @@ function wire(box) {
       if (!shut && animOn()) c.querySelector('.rsbd').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 });
       return;
     }
-    if (cp) {
-      const kk = cp.dataset.cp,
-        P = presetsLoad();
-      if (kk[0] == 'q') {
-        const s = R.ctx.presets[+kk.slice(1)];
-        let name = s.name;
-        while (P.some(x => x.name.toLowerCase() == name.toLowerCase())) name += ' (sq)';
-        presetsSave([...P, { name, sel: s.sel }]);
-        appToast('"' + s.name + '" copied to your presets.');
-      } else {
-        const s = P[+kk.slice(1)];
-        R.ctx.save([...R.ctx.presets, { name: s.name, sel: s.sel, cats: [] }]);
-        appToast('"' + s.name + '" copied to the presets of the squadron.');
-      }
+    if (sb) {
+      if (sb.dataset.src == SRC()) return;
+      LS.set('bmsroesrc', sb.dataset.src);
+      if (!dirty()) matchPick();
+      else R.pick = null; // the changes stay; they are kept in the list now shown
       return render();
     }
     if (del) {
-      const P = presetsLoad(),
-        i = +del.dataset.del;
-      confirm(`Delete your preset "${P[i].name}"?`).then(y => {
+      const kk = del.dataset.del,
+        c = chipOf(kk),
+        sq = kk[0] == 'q',
+        i = +kk.slice(1);
+      if (!c) return;
+      confirm(`Delete the preset "${c.name}"?${sq ? ' Every pilot of the squadron loses it.' : ''}`).then(y => {
         if (!y) return;
-        P.splice(i, 1);
-        presetsSave(P);
-        R.on = new Set(
-          [...R.on].filter(x => x != 'm' + i).map(x => (x[0] == 'm' && +x.slice(1) > i ? 'm' + (+x.slice(1) - 1) : x))
-        );
+        const L = sq ? R.ctx.presets.slice() : presetsLoad(),
+          gone = L.splice(i, 1)[0],
+          was = R.pick;
+        const put = M => (sq ? R.ctx.save(M) : presetsSave(M));
+        put(L);
+        if (was == kk) R.pick = null;
+        if (!dirty() || was != kk) matchPick();
         render();
+        appToast(
+          'Preset "' + c.name + '" deleted.',
+          {
+            label: 'Undo',
+            fn: () => {
+              const M = sq ? R.ctx.presets.slice() : presetsLoad();
+              M.splice(Math.min(i, M.length), 0, gone);
+              put(M);
+              if (!dirty()) matchPick();
+              render();
+            },
+          },
+          10000
+        );
       });
       return;
     }
     if (q) {
-      const kk = q.dataset.k;
-      if (R.on.has(kk)) R.on.delete(kk);
-      else R.on.add(kk);
-      return fromPresets();
+      const kk = q.dataset.k,
+        c = chipOf(kk);
+      if (!c) return;
+      if (kk == R.pick && !dirty()) {
+        R.open = !R.open && c.ed && !c.std; // the one chosen: its name and Default for
+        return render();
+      }
+      const go = () => {
+        setSel(c.sel, false);
+        setPick(c);
+        render();
+        if (flightOn())
+          appToast((c.std ? 'Standard' : '"' + c.name + '"') + ' on the datacard' + (F.cs ? ' of ' + F.cs : '') + '.');
+      };
+      if (!dirty() || key(R.sel) == key(emptySel())) return go();
+      const cc = R.pick && chipOf(R.pick),
+        upd = cc && cc.ed;
+      modal(
+        'Changes not saved',
+        `<p>The datacard${F.cs ? ' of ' + esc(F.cs) : ''} has changes that are in no preset.</p>`,
+        [
+          ...(upd ? [{ a: 'save', label: 'Save "' + (cc.std ? 'Standard' : cc.name) + '" first' }] : []),
+          { a: 'disc', label: 'Discard', g: 1, rd: 1 },
+          { a: 'no', label: 'Cancel', g: 1 },
+        ],
+        a => {
+          if (a == 'no') return;
+          if (a == 'save') savePick(cc, R.name || cc.name, R.cats);
+          go();
+        }
+      );
+      return;
     }
     if (cat) {
       const c = cat.dataset.cat;
       R.cats = R.cats.includes(c) ? R.cats.filter(x => x != c) : [...R.cats, c];
       cat.classList.toggle('on', R.cats.includes(c));
-      R.base = '';
       return;
     }
     if (k && !k.disabled) {
@@ -642,7 +721,6 @@ function wire(box) {
     const act = a.dataset.a;
     if (act == 'clear') {
       setSel(emptySel(), false);
-      R.on = new Set();
       return render();
     }
     if (act == 'back') {
@@ -659,86 +737,33 @@ function wire(box) {
       return render();
     }
     if (act == 'newsec') return editSection(null);
-    if (act == 'save') {
-      const nm = box.querySelector('.rssv .rpnm'),
-        name = nm.value.trim();
+    if (act == 'psave' || act == 'pnew') {
+      const nm = box.querySelector('.rsname'),
+        name = ((nm && nm.value) || '').trim(),
+        c = R.pick && chipOf(R.pick);
+      if (act == 'psave' && c && c.std) {
+        savePick(c);
+        return render();
+      }
       if (!name) {
-        nm.focus();
-        nm.classList.add('err');
+        if (nm) {
+          nm.focus();
+          nm.classList.add('err');
+        }
         return;
       }
-      savePreset(name);
+      if (act == 'psave' && c && c.ed) savePick(c, name, R.cats);
+      else return saveNew(name, R.cats, () => render());
       return render();
     }
-    if (act == 'apply') {
-      if (!flightOn()) return;
-      // the first time, with no preset yet: keep the choices as a preset (recommended)
-      if (!presetsLoad().length && !LS.get('bmsroeasked', false)) {
-        LS.set('bmsroeasked', true);
-        modal(
-          'Save these choices as a preset?',
-          '<p>Recommended: a preset keeps your ROE and SOP for the next flights (several presets can be put together).</p><input type="text" class="rpnm rsfirst" maxlength="40" value="My SOP">',
-          [
-            { a: 'save', label: 'Save & apply' },
-            { a: 'apply', label: 'Apply only', g: 1 },
-          ],
-          (a2, p) => {
-            if (a2 == 'save') {
-              const n = p.querySelector('.rsfirst').value.trim();
-              if (!n) return false;
-              savePreset(n);
-            }
-            applyCard();
-          }
-        );
-        return;
-      }
-      return applyCard();
-    }
-    const L = R.ctx.presets.slice();
-    if (act == 'psave') {
-      if (savePsq()) render();
-      return;
-    }
-    if (act == 'up' && typeof R.mode == 'number' && R.mode > 0) {
-      const i = R.mode;
-      [L[i - 1], L[i]] = [L[i], L[i - 1]];
-      R.mode = i - 1;
-      R.ctx.save(L);
-      return;
-    }
-    if (act == 'del' && typeof R.mode == 'number') {
-      const i = R.mode;
-      confirm('Delete the squadron preset "' + L[i].name + '"? Every pilot loses it.').then(y => {
-        if (!y) return;
-        R.mode = 'flight';
-        setSel(flightSel());
-        R.ctx.save(L.filter((_, j) => j != i));
-      });
+    if (act == 'pdisc') {
+      setSel(R.baseSel || emptySel(), false);
+      R.base = key(R.sel);
+      R.open = false;
+      return render();
     }
   };
   box.onchange = e => {
-    if (e.target.classList.contains('rsmode')) {
-      const v = e.target.value;
-      R.on = new Set();
-      if (v == 'flight') {
-        R.mode = 'flight';
-        setSel(flightSel());
-      } else if (v == 'new') {
-        R.mode = 'new'; // a new squadron preset starts from the choices of now
-        R.name = '';
-        R.cats = [];
-        setSel(R.sel);
-        R.base = '';
-      } else {
-        const p = R.ctx.presets[+v];
-        R.mode = +v;
-        R.name = p.name;
-        R.cats = [...p.cats];
-        setSel(p.sel);
-      }
-      return render();
-    }
     if (e.target.classList.contains('rpfr')) {
       R.sel[e.target.dataset.f] = e.target.value.replace(/\r/g, '');
       limitText(e.target);
@@ -794,23 +819,29 @@ function limitText(ta) {
     );
   }
 }
-// a flight just chosen gets the default of the squadron for its kind of mission (the presets marked "Default for" it), as an automatic fill:
-// what the pilot chose for that flight stays (the hand changes come back over it)
+// a flight just chosen gets its default by itself: the preset marked "Default for" its kind of mission (the list of the button chosen wins: Squadron or
+// Flight), else the Standard; what the pilot changed on that flight stays (the hand changes come back over it)
+let LASTCAT = '';
 export function roeAuto(f) {
-  const Q = sqGet('roePresets', []);
-  if (!Q.length || !ST.C || !f) return;
+  if (!ST.C || !f) return;
   syncCustom();
-  const s = defaultFor(Q, categoryOf(ST.C.D.S[300 + f.omis] || ''));
-  if (!s) return;
-  F.roesel = JSON.stringify(s);
-  F.roe = roeText(s);
-  F.sop = sopText(s);
+  LASTCAT = categoryOf(ST.C.D.S[300 + f.omis] || '');
+  const Q = sqGet('roePresets', []),
+    d = pickDefault({
+      sq: Q,
+      mine: presetsLoad(),
+      myStd: LS.get('bmsroestd', null) || (presetsLoad()[0] || {}).sel || null,
+      src: Q.length ? LS.get('bmsroesrc', 'sq') : 'me',
+      cat: LASTCAT,
+    });
+  if (!d) return;
+  F.roesel = JSON.stringify(d.sel);
+  F.roe = roeText(d.sel);
+  F.sop = sopText(d.sel);
 }
 export const roeRefresh = () => {
-  if (R.box && R.mode === 'flight' && R.flightKey !== ST.CURK) {
-    R.flightKey = ST.CURK;
-    setSel(flightSel());
-    R.on = new Set();
+  if (R.box && R.flightKey !== ST.CURK) {
+    loadFlight();
     render();
   }
 };

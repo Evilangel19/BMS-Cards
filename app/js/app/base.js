@@ -120,7 +120,8 @@ export const jclone = o => {
     return null;
   }
 };
-export function appToast(m) {
+// act = {label, fn}: a button in the message (Undo); ms = how long it stays
+export function appToast(m, act, ms = 5000) {
   let t = document.getElementById('apptoast');
   if (!t) {
     t = document.createElement('div');
@@ -130,6 +131,19 @@ export function appToast(m) {
     document.body.append(t);
   }
   t.textContent = m;
+  if (act) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toastact';
+    b.textContent = act.label;
+    b.style.cssText =
+      'margin-left:14px;background:none;border:0;color:#5aa9ff;font-weight:700;cursor:pointer;font-size:13px;padding:0';
+    b.onclick = () => {
+      t.style.display = 'none';
+      act.fn();
+    };
+    t.append(b);
+  }
   t.style.opacity = '1';
   t.style.display = '';
   clearTimeout(t._t);
@@ -138,7 +152,7 @@ export function appToast(m) {
     t._t = setTimeout(() => {
       t.style.display = 'none';
     }, 300);
-  }, 5000);
+  }, ms);
 }
 export const esc = t =>
   String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

@@ -739,3 +739,88 @@
     max-height: none;
   }
 }
+/* ROE / SOP: the section Presets (Flight / Squadron, the presets as small buttons, the part to keep the changes) */
+.rsq .rssrc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+  background: #0b0f14;
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 6px;
+}
+.rsq .rssrc button {
+  border: 0;
+  background: none;
+  color: var(--mu);
+  border-radius: 6px;
+  padding: 6px 4px;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.rsq .rssrc button.on {
+  background: #16301f;
+  color: #d6f8e4;
+  box-shadow: inset 0 0 0 1px #3ddc84;
+}
+.rsq .rssrc button.on.sq {
+  background: #14243a;
+  color: #d6e9ff;
+  box-shadow: inset 0 0 0 1px #4f8cff;
+}
+.rsq .rswho {
+  color: var(--mu);
+  font-size: 11.5px;
+  margin: 2px 0 8px;
+}
+.rsq .rswho b {
+  color: var(--tx);
+}
+.rsq .rpqs {
+  display: flex;
+  flex-wrap: wrap;
+}
+.rsq .rpq.std {
+  padding-right: 10px;
+}
+.rsq .rpq .rpst {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.rsq .rpq .rpdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a640;
+  animation: fadein 0.2s;
+}
+.rsq .rpq .rplk {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.8;
+}
+.rsq .rsedit {
+  border-top: 1px dashed #3a4350;
+  margin-top: 8px;
+  padding-top: 4px;
+  animation: fadein 0.2s;
+}
+.rsq .rsedit .rsdirty {
+  background: #2b2410;
+  border-color: #6b5a1c;
+  color: #f1d98a;
+}
+.rsq .rsedit .rsbar {
+  flex-wrap: wrap;
+}
+.rsq .btn.rsb {
+  background: #2a5d8f;
+  border-color: #2a5d8f;
+  color: #fff;
+}

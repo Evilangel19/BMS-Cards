@@ -11,6 +11,7 @@ import {
   cleanSqPresets,
   defaultFor,
   capSel,
+  pickDefault,
 } from '../app/js/core/roesop.js';
 let bad = 0,
   n = 0;
@@ -107,6 +108,40 @@ ok(
   ok(
     'capSel: seven phases on the card are cut to 5 lines (the last phases lose the tick)',
     sopText(cap).split('\n').length == 5 && !cap.sop.lost.c && !cap.sop.nlights.c
+  );
+}
+{
+  const T = { roe: { ws: 'tight' } },
+    D = { roe: { ws: 'free' } },
+    M = { roe: { ws: 'hold' } };
+  const sq = [
+    { name: 'Std', sel: T, std: true },
+    { name: 'DCA', sel: D, cats: ['Defensive Counter Air'] },
+  ];
+  const mine = [{ name: 'Mine', sel: M, cats: ['Defensive Counter Air'] }];
+  const ws = r => (r ? r.k + ':' + r.sel.roe.ws : 'none');
+  const got = [
+    ws(pickDefault({ sq, mine, src: 'sq', cat: 'Defensive Counter Air' })),
+    ws(pickDefault({ sq, mine, src: 'sq', cat: 'Airstrike' })),
+    ws(pickDefault({ sq, mine, src: 'me', cat: 'Defensive Counter Air' })),
+    ws(pickDefault({ sq, mine, src: 'me', cat: 'Airstrike' })),
+    ws(pickDefault({ sq: [], mine, myStd: T, src: 'sq', cat: 'Defensive Counter Air' })),
+    ws(pickDefault({ sq: [], mine: [], myStd: null, src: 'me', cat: 'CAS' })),
+  ].join(' ');
+  ok(
+    'the default of a flight: the list of the button wins (its preset for the kind of mission), else the Standard; nothing set, nothing\n' +
+      got,
+    got == 'q1:free std:tight m0:hold std:tight m0:hold none'
+  );
+  const L = cleanSqPresets([
+    { name: '104 A-G', sel: T },
+    { name: '104 A-G (sq) (sq)', sel: T },
+    { name: 'X (sq)', sel: D },
+  ]);
+  ok(
+    'the copies made back and forth go: same name without " (sq)", same choices; a free name loses " (sq)"; the first is the Standard ' +
+      JSON.stringify(L.map(p => [p.name, p.std])),
+    JSON.stringify(L.map(p => [p.name, p.std])) == '[["104 A-G",true],["X",false]]'
   );
 }
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} ROE / SOP checks`);

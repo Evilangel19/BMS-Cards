@@ -1185,27 +1185,67 @@ export const ROE_CATS = [
   'Other',
 ];
 // the squadron presets: [{name, sel, cats}], cats = the mission categories it is the default of
+// a preset copied back and forth got " (sq)" added to its name: the same name without them, to find the copies
+const baseName = n => String(n || '').replace(/( \(sq\))+$/i, '');
+const catsOf = c => (Array.isArray(c) ? [...new Set(c.filter(x => ROE_CATS.includes(x)))] : []);
+// the same preset twice (same name without the " (sq)", same choices): the first stays; a name left with " (sq)" loses them when it is free
+function dedupe(L) {
+  const seen = new Set(),
+    out = [];
+  L.forEach(p => {
+    const k = baseName(p.name).toLowerCase() + '\u0000' + JSON.stringify(p.sel);
+    if (seen.has(k)) return;
+    seen.add(k);
+    out.push(p);
+  });
+  out.forEach(p => {
+    const b = baseName(p.name);
+    if (b != p.name && b && !out.some(q => q !== p && q.name.toLowerCase() == b.toLowerCase())) p.name = b;
+  });
+  return out;
+}
+// the squadron presets: [{name, sel, cats, std}]. One of them is the Standard of the squadron (std: every flight starts from it); in the lists saved
+// before there was a Standard, the first preset is it.
 export function cleanSqPresets(a) {
-  return (Array.isArray(a) ? a : [])
-    .filter(p => p && typeof p.name == 'string' && p.name.trim())
-    .slice(0, 50)
-    .map(p => ({
-      name: str(p.name.trim(), 40),
-      sel: cleanSel(p.sel),
-      cats: Array.isArray(p.cats) ? [...new Set(p.cats.filter(c => ROE_CATS.includes(c)))] : [],
-    }));
+  const L = dedupe(
+    (Array.isArray(a) ? a : [])
+      .filter(p => p && typeof p.name == 'string' && p.name.trim())
+      .slice(0, 50)
+      .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel), cats: catsOf(p.cats), std: !!p.std }))
+  );
+  const i = Math.max(
+    0,
+    L.findIndex(p => p.std)
+  );
+  L.forEach((p, j) => (p.std = j == i));
+  return L;
+}
+// the preset a flight gets by itself (pure): src 'sq' = the squadron's presets win, 'me' = mine (the squadron's are not looked at); the first preset
+// marked "Default for" the kind of mission of the flight, else the Standard (the squadron's when there is one, else mine). {k, sel}: k = 'q<i>' (in the
+// squadron list), 'm<i>' (in mine) or 'std'; null when there is nothing to put
+export function pickDefault({ sq = [], mine = [], myStd = null, src = 'sq', cat = '' }) {
+  const S = cleanSqPresets(sq),
+    M = cleanPresets(mine),
+    useSq = src == 'sq' && S.length;
+  const i = useSq ? S.findIndex(p => !p.std && p.cats.includes(cat)) : M.findIndex(p => p.cats.includes(cat));
+  if (cat && i >= 0) return { k: (useSq ? 'q' : 'm') + i, sel: capSel((useSq ? S : M)[i].sel) };
+  const st = S.find(p => p.std);
+  const sel = st ? st.sel : cleanSel(myStd);
+  return JSON.stringify(sel) == JSON.stringify(emptySel()) ? null : { k: 'std', sel: capSel(sel) };
 }
 // the default of a mission category: the squadron presets marked for it, joined in their order; null when there is none
 export function defaultFor(presets, cat) {
   const L = cleanSqPresets(presets).filter(p => p.cats.includes(cat));
   return L.length ? capSel(mergeSel(L.map(p => p.sel))) : null;
 }
-// the personal presets: [{name, sel}], checked (names up to 40 letters, 50 presets at most)
+// the personal presets: [{name, sel, cats}] (cats: the kinds of mission they are the default of), checked (names up to 40 letters, 50 presets at most)
 export function cleanPresets(a) {
-  return (Array.isArray(a) ? a : [])
-    .filter(p => p && typeof p.name == 'string' && p.name.trim())
-    .slice(0, 50)
-    .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel) }));
+  return dedupe(
+    (Array.isArray(a) ? a : [])
+      .filter(p => p && typeof p.name == 'string' && p.name.trim())
+      .slice(0, 50)
+      .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel), cats: catsOf(p.cats) }))
+  );
 }
 
 // the whole text of the choices (the card for the kneeboard): ROE by section with the full text of each choice, SOP by phase with the topic and the full
