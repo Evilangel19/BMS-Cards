@@ -2,7 +2,7 @@
 // Pure: no screen, testable in Node. The page is app/roepage.js (Squadron > ROE / SOP).
 // ROE: the rules of engagement (weapons status, ID criteria, commit, bugout, other rules). SOP: the habits of the squadron, phase by phase, written in the
 // long form in the menu and in a short form on the card (only the topics marked "on card"). Values from the RoKAF F-16 Basic Employment Manual and the
-// 8th FW / 51st FW in-flight guides (Kunsan, Osan); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
+// 8th FW / 51st FW in-flight guides (Kunsan, Osan) and AFMAN 11-2F-16V3 (its values added as more options, "AFMAN" where the others differ); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
 
 // [id, label, kind ('one' | 'many'), tag on the card, options [id, long, short]]
 export const ROE = [
@@ -84,6 +84,9 @@ export const ROE = [
       ['jtac', 'CAS: no release without the clearance of the JTAC ("cleared hot")', 'CAS: JTAC CLR'],
       ['border', 'No fire across the border / beyond the FLOT', 'NO FIRE X-BORDER'],
       ['minrls', 'Minimum release altitude 15,000 ft (out of the MANPADS)', 'MIN RLS 15K'],
+      ['radio', 'Training: no missile or gun firing without two-way radio', 'NO FIRE NORDO'],
+      ['nightcue', 'Night visual attack: one more cue besides the eyes (radar, TGP, GPS, marks)', 'NIGHT: +1 CUE'],
+      ['doubt', 'No release with any doubt on the friendlies or on the target', 'NO RLS IF DOUBT'],
     ],
   ],
 ];
@@ -165,6 +168,12 @@ export const SOP = [
         [
           ['stag', 'Staggered, 150 ft; 25 kt max, 10 kt in turns', 'STAG 150FT'],
           ['single', 'Single file, 300 ft; 25 kt max, 10 kt in turns', 'SINGLE 300FT'],
+          [
+            'afman',
+            'AFMAN: 150 ft staggered or 300 ft in trail; 30 kt max, 15 kt over a raised cable, 10 kt in turns',
+            '150/300FT 30KT',
+          ],
+          ['night', 'Night: single file 300 ft on the centerline, taxi light on', 'NIGHT 300FT CL'],
         ],
       ],
       [
@@ -198,6 +207,7 @@ export const SOP = [
         [
           ['ech', 'Echelon on the runway, wingtip clearance as briefed', 'ECHELON'],
           ['slot', '#3 in the slot', '#3 SLOT'],
+          ['afman', 'Wingtip clearance between all aircraft; 500 ft between separate elements', 'WINGTIP, 500FT ELEM'],
         ],
       ],
       [
@@ -206,8 +216,9 @@ export const SOP = [
         'T/O',
         [
           ['form', 'Formation take-off (element)', 'FORM'],
-          ['s10', 'Single ship, 10 s interval', '10S'],
-          ['s20', 'Single ship, 20 s interval (nonstandard)', '20S'],
+          ['s10', 'Single ship, 10 s interval (MIL)', '10S'],
+          ['s15', 'Single ship, 15 s interval (the AFMAN minimum in AB)', '15S'],
+          ['s20', 'Single ship, 20 s interval (live A-G ordnance or join-up on top)', '20S'],
           ['s30', 'Single ship, 30 s interval', '30S'],
         ],
       ],
@@ -218,6 +229,7 @@ export const SOP = [
         [
           ['ab', 'Afterburner', 'AB'],
           ['mil', 'Military power', 'MIL'],
+          ['auto', 'MIL; AB when the MIL take-off roll is over 50% of the runway', 'MIL, AB >50% RWY'],
         ],
       ],
       [
@@ -252,6 +264,11 @@ export const SOP = [
             'LOW TAC',
           ],
           ['hightac', 'High tactical: spiral climb within 3 NM of the field, up to 6,500 ft MSL', 'HIGH TAC'],
+          [
+            'trail3',
+            'Trail departure (AFMAN): 20 s, 350 KCAS, 30° of bank, 2-3 NM, 1,000 ft stack until "Tied", calls every 5,000 ft',
+            'TRAIL 20S/350',
+          ],
         ],
       ],
       [
@@ -261,6 +278,11 @@ export const SOP = [
         [
           ['turn', 'Turning rejoin: lead 350 KCAS, 30-45° of bank, wingmen about 400 kt', 'TURNING 350'],
           ['straight', 'Straight-ahead rejoin: lead 350 KCAS', 'STRAIGHT 350'],
+          [
+            'afman',
+            '350 KCAS in the climb, 300 KCAS level until joined; VFR below a ceiling 1,500 ft / 3 SM',
+            '350 CLB / 300 LVL',
+          ],
         ],
       ],
     ],
@@ -299,6 +321,30 @@ export const SOP = [
         ],
       ],
       [
+        'blind',
+        'Blind',
+        'BLIND',
+        [
+          [
+            'std',
+            '"Blind" + altitude ("Blind 16.9"), the other "Visual" and talks the eyes on; both blind: the lead deconflicts by 500 ft (1,000 ft above 5,000 ft AGL)',
+            'BLIND + ALT',
+          ],
+        ],
+      ],
+      [
+        'lchg',
+        'Lead change',
+        'LEAD CHG',
+        [
+          [
+            'std',
+            'From wings level, the wingman not aft of route or 30° back; not below 500 ft AGL over land, 1,000 ft over water',
+            '500/1000FT AGL',
+          ],
+        ],
+      ],
+      [
         'ops',
         'Ops check',
         'OPS CHK',
@@ -306,6 +352,11 @@ export const SOP = [
           ['fence', 'At FENCE in', 'FENCE IN'],
           ['push', 'At every push', 'EACH PUSH'],
           ['t30', 'Every 30 minutes', '30 MIN'],
+          [
+            'afman',
+            'At the level-off after take-off, when the tanks are dry ("tanks dry"), before each engagement and each range',
+            'LVL OFF/TANKS/ENG',
+          ],
         ],
       ],
     ],
@@ -339,6 +390,7 @@ export const SOP = [
         [
           ['num', 'By number: #1, #2, #3, #4', 'BY NUMBER'],
           ['low', 'Lowest fuel first', 'LOW FUEL FIRST'],
+          ['quick', 'Quick flow (ATP-56): the next receiver waits in pre-contact', 'QUICK FLOW'],
         ],
       ],
       [
@@ -428,6 +480,23 @@ export const SOP = [
           ['tanker', 'Bingo = to the tanker when one is planned', 'BINGO = TANKER'],
         ],
       ],
+      [
+        'fuelmin',
+        'Fuel minimums',
+        'FUEL MIN',
+        [
+          [
+            'b40',
+            'Block 40+: recovery fuel 1,200 lb at the initial / FAF, MIN FUEL 1,000 lb, EMER FUEL 800 lb; no AB below 2,000 lb or Bingo',
+            '1200/1000/800',
+          ],
+          [
+            'b30',
+            'Block 10-32: recovery fuel 1,000 lb at the initial / FAF, MIN FUEL 800 lb, EMER FUEL 600 lb; no AB below 2,000 lb or Bingo',
+            '1000/800/600',
+          ],
+        ],
+      ],
     ],
   ],
   [
@@ -483,6 +552,11 @@ export const SOP = [
             '3,000 ft by day (same type, dry runway); 6,000 ft at night, on a wet runway and between formation elements',
             '3000/6000FT',
           ],
+          [
+            'afman',
+            'AFMAN: 3,000 ft same type; 6,000 ft behind another type, a 13° approach, or with a crosswind below 8 kt (wake)',
+            '3000/6000 WAKE',
+          ],
         ],
       ],
       [
@@ -491,10 +565,45 @@ export const SOP = [
         'FORM LDG',
         [
           ['yes', 'Allowed with a crosswind below 15 kt on a dry runway', 'XW<15KT DRY'],
+          [
+            'afman',
+            'Formation approach: symmetric loads, 500 ft / 1.5 SM, the wingman upwind with more than 5 kt of crosswind, 10 ft wingtip',
+            'SYM, 500/1.5, UPWIND',
+          ],
           ['no', 'Not allowed', 'NO'],
         ],
       ],
-      ['hung', 'Hung ordnance', 'HUNG', [['esc', 'RTB escorted, tell the tower (live or training)', 'ESCORTED RTB']]],
+      [
+        'hung',
+        'Hung ordnance',
+        'HUNG',
+        [
+          ['esc', 'RTB escorted, tell the tower (live or training)', 'ESCORTED RTB'],
+          [
+            'afman',
+            'Check for damage, declare an emergency (not for inert), chase, away from towns, no trail; straight-in, no overhead with heavy ordnance',
+            'CHASE, STRAIGHT-IN',
+          ],
+        ],
+      ],
+      [
+        'bdchk',
+        'Battle damage check',
+        'BD CHK',
+        [['std', 'After expending any ordnance (20 mm too), on the way back', 'AFTER ANY RLS']],
+      ],
+      [
+        'gear',
+        'Gear call',
+        'GEAR',
+        [
+          [
+            'std',
+            'Gear down: 3 NM final VFR, the FAF / glide slope on instruments, the perch in the overhead, base key in an SFO',
+            '3NM/FAF/PERCH',
+          ],
+        ],
+      ],
     ],
   ],
   [
@@ -507,6 +616,7 @@ export const SOP = [
         [
           ['ovhd', 'Overhead / VFR pattern: 2,500 ft ceiling, 3 SM; rectangular: 2,000 ft, 3 SM', 'OVHD 2500/3'],
           ['mra', 'Min-risk arrival: ceiling 1,000 ft above the MRA altitude, 5 NM visibility', 'MRA +1000/5NM'],
+          ['join', 'Join-up below a ceiling: 1,500 ft / 3 SM by day, 3,000 ft / 5 SM at night', 'JOIN 1500/3, 3000/5'],
         ],
       ],
       [
@@ -575,7 +685,14 @@ export const SOP = [
         'strobe',
         'Strobe',
         'STROBE',
-        [['rla', 'On until in reduced-lighting airspace; lights on before leaving it', 'ON TO RLA']],
+        [
+          ['rla', 'On until in reduced-lighting airspace; lights on before leaving it', 'ON TO RLA'],
+          [
+            'last',
+            'After the join-up strobe OFF and position lights STEADY, except the last aircraft (strobe ON, FLASH)',
+            'LAST A/C ON',
+          ],
+        ],
       ],
       [
         'lightsout',
@@ -596,6 +713,11 @@ export const SOP = [
             'Goggle above 1,500 ft AGL; never for take-off, landing, IMC or refuelling; "De-goggle" and "XMAS tree" before landing',
             '>1500AGL, DEGOG BEF LDG',
           ],
+          [
+            'afman',
+            'AFMAN: up above 2,000 ft AGL in VMC after take-off; stowed 5 min before landing; stowed from the stern to the disconnect at the tanker',
+            '>2000AGL, STOW 5MIN',
+          ],
         ],
       ],
       [
@@ -615,6 +737,30 @@ export const SOP = [
         'Night formation',
         'NIGHT FORM',
         [['box', 'Box, elements 1.5-3 NM apart, 1,000 ft stack between wingmen', 'BOX, 1000FT STACK']],
+      ],
+      [
+        'nchg',
+        'Position changes',
+        'POS CHG',
+        [
+          [
+            'std',
+            'Not below 1,500 ft AGL without NVG (radar downwind excepted), called on the radio, from wings level',
+            '>1500AGL',
+          ],
+        ],
+      ],
+      [
+        'n30',
+        'NVG horizon check',
+        '30 UP/DN',
+        [
+          [
+            'std',
+            '"30 up, 30 down" after the G-Ex, before tactical maneuvering: 350 KCAS, 6,000 ft between aircraft, VMC above the MSA',
+            'AFTER G-EX',
+          ],
+        ],
       ],
     ],
   ],
@@ -658,13 +804,17 @@ export const SOP = [
         [
           ['sim', 'SIMULATE', 'SIM'],
           ['off', 'OFF', 'OFF'],
+          ['chk', 'SIMULATE, trigger check pointed away; "Check zero quantity, uncarted station"', 'SIM + TRIGGER CHK'],
         ],
       ],
       [
         'gawe',
         'G-awareness',
         'G-AWE',
-        [['std', 'G-awareness exercise before the first engagement', 'BEF 1ST ENGAGEMENT']],
+        [
+          ['std', 'G-awareness exercise before the first engagement', 'BEF 1ST ENGAGEMENT'],
+          ['afman', 'When the planned maneuvering is over 5 G; in VMC with a horizon only, else 5 G max', '>5G, VMC'],
+        ],
       ],
       [
         'shots',
@@ -672,6 +822,13 @@ export const SOP = [
         'SHOTS',
         [['std', 'Simulated shots called "Fox", the kill called with the position of the target', 'FOX + KILL CALL']],
       ],
+      [
+        'wxag',
+        'A-G weather',
+        'A-G WX',
+        [['std', 'Ceiling for climbing / diving deliveries 2,000 ft AGL, for level ones 1,500 ft AGL', '2000/1500AGL']],
+      ],
+      ['popup', 'Pop-up', 'POP-UP', [['std', 'Abort below 350 KCAS (300 KCAS above 10,000 ft AGL)', 'ABORT <350']]],
     ],
   ],
   [
@@ -681,9 +838,29 @@ export const SOP = [
         'lost',
         'Lost wingman',
         'LOST WG',
-        [['std', "Change altitude by 1,000 ft or more from the lead's last altitude, and call", '±1000FT + CALL']],
+        [
+          ['std', "Change altitude by 1,000 ft or more from the lead's last altitude, and call", '±1000FT + CALL'],
+          [
+            'afman',
+            'AFMAN: away 15° of bank for 15 s (#4 30° for 30 s) and call; outside the turn reverse, inside it power back; separate clearance, rejoin when cleared',
+            '15°/15S, #4 30/30',
+          ],
+        ],
       ],
-      ['nordo', 'NORDO', 'NORDO', [['std', 'Lights on, rendezvous and escort as briefed', 'LTS ON, BRIEFED']]],
+      [
+        'nordo',
+        'NORDO',
+        'NORDO',
+        [
+          ['std', 'Lights on, rendezvous and escort as briefed', 'LTS ON, BRIEFED'],
+          [
+            'join',
+            'Rejoin in route ~500 ft on a flight member, wait for the wing rock, visual signals; led home, formation approach to a drop-off',
+            'REJOIN, DROP-OFF',
+          ],
+          ['rv', 'Hold at the briefed rendezvous; nobody by Bingo: RTB or divert', 'RV TO BINGO'],
+        ],
+      ],
       [
         'csar',
         'Ejection / CSAR',
@@ -694,6 +871,11 @@ export const SOP = [
             'Squawk 7700, call on Guard; the wingmen stay above the spot while the fuel allows and pass it to AWACS',
             '7700, GUARD, CAP',
           ],
+          [
+            'afman',
+            'KIO; Squawk EMER; Talk: an on-scene commander, Guard; Mark the spot; Separate above the chutes; update the Bingo, never below it',
+            'SQUAWK/TALK/MARK/SEP',
+          ],
         ],
       ],
       [
@@ -703,6 +885,30 @@ export const SOP = [
         [
           ['area', 'In the briefed jettison area', 'BRIEFED AREA'],
           ['sea', 'Over the sea, away from the route', 'SEA'],
+        ],
+      ],
+      [
+        'airabort',
+        'Air abort',
+        'AIR ABORT',
+        [
+          [
+            'std',
+            'Abort for a flight control anomaly or departure, a flameout or engine shutdown, a lightning strike, moderate icing; escort when an emergency; the callsign numbers stay',
+            'MANDATORY, ESCORT',
+          ],
+        ],
+      ],
+      [
+        'toabort',
+        'Take-off abort',
+        'T/O ABORT',
+        [
+          [
+            'std',
+            'Callsign + intentions, "Cable, cable, cable"; hook down at or above 100 KCAS; above 120 KCAS ground emergency, hot brakes',
+            'CABLE x3, HOOK >100',
+          ],
         ],
       ],
     ],
@@ -908,6 +1114,17 @@ export const MINI = {
   gawe: 'G-AWE',
   csar: 'CSAR',
   jett: 'JETT',
+  blind: '',
+  lchg: 'LEAD CHG',
+  fuelmin: 'REC/MIN/EMER',
+  bdchk: 'BD CHK',
+  gear: 'GEAR',
+  nchg: 'POS CHG',
+  n30: '30 UP/DN',
+  wxag: 'A-G WX',
+  popup: 'POP-UP',
+  airabort: 'AIR ABORT',
+  toabort: 'T/O ABORT',
 };
 export const phaseOf = id => (sopAll().find(([, T]) => T.some(t => t[0] == id)) || [''])[0];
 export function sopText(sel) {

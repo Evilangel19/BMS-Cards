@@ -250,7 +250,12 @@ function render() {
     BUSY = false;
   }
 }
-const CLOSED = () => new Set(LS.get('bmsroeclosed', []));
+// the folded cards; the first time every SOP section starts folded (a new key: the old one, bmsroeclosed, had them open)
+const CKEY = 'bmsroeclosed2';
+const CLOSED = () => {
+  const v = LS.get(CKEY, null);
+  return new Set(Array.isArray(v) ? v : sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)));
+};
 // a card of the page that folds: a click on its title
 const card = (k, title, hint, body, extra = '') => {
   const shut = CLOSED().has(k);
@@ -322,7 +327,7 @@ function render0(box) {
     custom = ALL.filter(x => x[3]).map(phaseCard),
     phases = ALL.filter(x => !x[3]).map(phaseCard),
     cols = L =>
-      `<div class="rspg"><div class="rsg">${L.filter((_, i) => i % 2 == 0).join('')}</div><div class="rsg">${L.filter((_, i) => i % 2 == 1).join('')}</div></div>`;
+      `<div class="rspg"><div class="rsg">${L.slice(0, Math.ceil(L.length / 2)).join('')}</div><div class="rsg">${L.slice(Math.ceil(L.length / 2)).join('')}</div></div>`; // in the order of the flight: down the left column, then the right one
   const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Only the topics chosen: your SOP at a glance">Chosen only</button></div><span style="flex:1"></span><button type="button" class="btn g" data-a="foldall" title="Fold every SOP section">Fold all</button><button type="button" class="btn g" data-a="unfoldall" title="Unfold every SOP section">Unfold all</button></div>`;
   const customBlock = `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>${custom.length ? cols(custom) : ''}</div>`;
   const pchip = (k, name, title, extra) =>
@@ -576,7 +581,7 @@ function wire(box) {
       const shut = !c.classList.contains('shut');
       if (shut) S.add(kk);
       else S.delete(kk);
-      LS.set('bmsroeclosed', [...S]);
+      LS.set(CKEY, [...S]);
       c.classList.toggle('shut', shut);
       fold.querySelector('.rsar').textContent = shut ? '▸' : '▾';
       if (!shut && animOn()) c.querySelector('.rsbd').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 });
@@ -652,7 +657,7 @@ function wire(box) {
       const S = CLOSED(),
         K = [...box.querySelectorAll('.rss .rsk')].map(c => c.dataset.k).filter(k => k != 'other');
       K.forEach(k => (act == 'foldall' ? S.add(k) : S.delete(k)));
-      LS.set('bmsroeclosed', [...S]);
+      LS.set(CKEY, [...S]);
       return render();
     }
     if (act == 'newsec') return editSection(null);

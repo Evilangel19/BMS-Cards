@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: SOP and ROE options from AFMAN 11-2F-16V3, next to the squadron / field ones (taxi, take-off interval, trail departure, ops check, fuel minimums, blind, lead and position changes, battle damage check, gear call, NVG, lost wingman, NORDO, CSAR, air and take-off aborts, A-G weather, pop-up, no fire when NORDO, a second cue for night visual attacks).
+- Changed: the ROE / SOP Kneeboard card is tighter (fits on one card more often); on the page the SOP sections start folded and the columns follow the order of the flight.
 - Added: ROE Restrictions (no cluster munitions in urban areas and more); SOP sections Mission and Training; ejection / CSAR and jettison; tanker BREAKAWAY.
 - Changed: SOP checked against the manuals (brevity, tanker rendezvous names, ICAO / FAA cloud clearance...); ROE / SOP page: Chosen only, Fold all, custom sections on top, the left column stays in sight.
 - Fixed: black marks at the edges of the notes of the Datacard.
