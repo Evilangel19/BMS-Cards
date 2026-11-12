@@ -63,7 +63,7 @@ try:
         # ---- Kneeboard not saved
         pg.click('[data-t=kb]'); pg.wait_for_timeout(300)
         check('nothing on the datacard: no button in the tab bar (nothing to save yet)', not pg.is_visible('#rdy'))
-        pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';__app.F.pri='TGT BRIDGE';draw()}"); pg.wait_for_timeout(2000)
+        pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js'),D=await import('/app/js/app/datacard.js');D.setField('bingo','3400','typed');D.setField('pri','TGT BRIDGE','typed');draw()}"); pg.wait_for_timeout(2000)
         check('the datacard changed and is on the kneeboard: "Not saved: Kneeboard" in the tab bar and a dot on the tab', pg.is_visible('#rdy.warn') and 'Not saved' in pg.inner_text('#rdy') and 'Kneeboard' in pg.inner_text('#rdy') and pg.locator('.tab[data-t=kn].unsaved').count() == 1)
         pg.click('#rdy'); pg.wait_for_timeout(300)
         check('a click opens the three rows: DTC (no file), Kneeboard (to save, with its button), Mission', pg.locator('#rdypop .rdyr').count() == 3 and pg.locator('#rdypop .rdyr.todo [data-r=kb]').count() == 1 and 'No DTC file open' in pg.inner_text('#rdypop'))
@@ -75,7 +75,7 @@ try:
         check('the datacard back as it was saved: no warning', not pg.is_visible('#rdy.warn'))
         pg.close()
         pg, errs3 = page(br)
-        pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';__app.F.pri='TGT BRIDGE';draw()}"); pg.wait_for_timeout(2500)
+        pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js'),D=await import('/app/js/app/datacard.js');D.setField('bingo','3400','typed');D.setField('pri','TGT BRIDGE','typed');draw()}"); pg.wait_for_timeout(2500)
         check('the next session with the same datacard: no warning (the last save is remembered)', not pg.is_visible('#rdy.warn'))
         # ---- Ready to fly: the three things together, and Write all
         r = pg.evaluate("""async()=>{const {ST}=await import('/app/js/app/state.js');const D=await import('/app/js/app/dtcfile.js');

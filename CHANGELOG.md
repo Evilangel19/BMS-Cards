@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Changed: the ROE / SOP Kneeboard cards are two at most (ROE and SOP in one flow, the text smaller until it fits); the ROE / SOP boxes of the Datacard wrap after "+" and "/" and use every line before the text gets smaller.
+- Fixed: a Kneeboard with the datacard of no flight (only the cells the program fills by itself) no longer shows "Not saved".
 - Added: SOP and ROE options from AFMAN 11-2F-16V3, next to the squadron / field ones (taxi, take-off interval, trail departure, ops check, fuel minimums, blind, lead and position changes, battle damage check, gear call, NVG, lost wingman, NORDO, CSAR, air and take-off aborts, A-G weather, pop-up, no fire when NORDO, a second cue for night visual attacks).
 - Changed: the ROE / SOP Kneeboard card is tighter (fits on one card more often); on the page the SOP sections start folded and the columns follow the order of the flight.
 - Added: ROE Restrictions (no cluster munitions in urban areas and more); SOP sections Mission and Training; ejection / CSAR and jettison; tanker BREAKAWAY.

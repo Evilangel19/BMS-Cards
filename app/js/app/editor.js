@@ -60,7 +60,7 @@ export function closeEd(commit) {
     inp = ed.querySelector('input,textarea');
   EDK = null;
   ed.style.display = 'none';
-  if (commit && inp) setField(k, inp.value.replace(/\r/g, ''));
+  if (commit && inp) setField(k, inp.value.replace(/\r/g, ''), 'editor');
 }
 export function closeMenu() {
   const m = $('chm');

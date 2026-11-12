@@ -477,15 +477,13 @@ async function addCards() {
         await kbAddPic(blob, p.title + (sub ? ' · ' + sub : ''));
       }
       appToast(
-        plan.length == 1
-          ? 'ROE / SOP card added to the Kneeboard.'
-          : plan.length + ' cards added to the Kneeboard (' + plan.map(p => p.title).join(', ') + ').'
+        plan.length == 1 ? 'ROE / SOP card added to the Kneeboard.' : 'Two ROE / SOP cards added to the Kneeboard.'
       );
     };
   if (plan.length == 1) return go();
   modal(
     'Two cards needed',
-    `<p>The whole ROE and SOP do not fit on one card: they go on ${plan.length} cards, ${plan.map(p => '<b>' + esc(p.title) + '</b>').join(', ')}.</p>`,
+    `<p>The whole ROE and SOP do not fit on one card: they go on two cards, <b>ROE / SOP</b> and <b>ROE / SOP (2)</b> (the SOP go on from the first).</p>${plan.cut ? '<p>Even with the smallest text the last lines do not fit: they are left out. Choose fewer topics to have them all.</p>' : ''}`,
     [
       { a: 'go', label: 'Add ' + plan.length + ' cards' },
       { a: 'no', label: 'Cancel', g: 1 },

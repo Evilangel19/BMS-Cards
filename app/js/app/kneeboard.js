@@ -1234,12 +1234,14 @@ function kbMarkSaved() {
   savePrefs('kbsaved.json', { sig: KBLAST });
   kbWarn();
 }
-// not saved: something is on the kneeboard and differs from the last Save (a datacard with no flight chosen does not count: there is nothing to save yet)
+// not saved: something is on the kneeboard and differs from the last Save. A datacard with no flight chosen does not count (nothing to save yet), even when the
+// program filled some cells by itself (the ephemerides of the campaign...): it counts only when something was typed on it by hand
+export const dcIdle = () => dcEmpty() || (ST.CURK == null && !ST.DCHAND);
 export function kbUnsaved() {
   const sig = kbNowSig();
   if (!sig || sig === KBLAST) return false;
   const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
-  if (dcOnRows(rows) && dcEmpty() && rows.every(i => ['left', 'right'].every(sd => KBS[i][sd].kind != 'pic')))
+  if (dcOnRows(rows) && dcIdle() && rows.every(i => ['left', 'right'].every(sd => KBS[i][sd].kind != 'pic')))
     return false;
   return true;
 }

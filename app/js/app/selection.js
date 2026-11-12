@@ -55,6 +55,7 @@ export function manClear() {
   ST.AUTO = null;
   ST.CURK = null;
   ST.MANK = new Set();
+  ST.DCHAND = false;
   ST.XBASE = undefined;
 }
 // no campaign: the datacard goes back to empty as well (the map and the lists are empty already)

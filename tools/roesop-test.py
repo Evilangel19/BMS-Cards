@@ -140,7 +140,7 @@ try:
         plan = pg.evaluate("""async()=>{const rc=await import('/app/js/app/roecard.js'),rs=await import('/app/js/core/roesop.js');const x=document.createElement('canvas').getContext('2d');
           const s={roe:{ws:'tight',id:['awacs','l16','two'],commit:'n40',abort:['bingo','winch','spike'],extra:['mez','pid','lines','fox']},sop:{}};
           rs.topicsAll().forEach(t=>s.sop[t[0]]={o:t[3][0][0],c:false});return rc.roeCardPlan(s,x).map(c=>c.title)}""")
-        check('every topic chosen: two cards or more, ROE apart from SOP %s' % plan, len(plan) >= 2 and plan[0] == 'ROE' and plan[1].startswith('SOP'))
+        check('every topic chosen: two cards, ROE and SOP together %s' % plan, plan == ['ROE / SOP', 'ROE / SOP (2)'])
         if shots:
             pg.evaluate("""async()=>{const rc=await import('/app/js/app/roecard.js'),rs=await import('/app/js/core/roesop.js');const c=document.createElement('canvas');c.width=1600;c.height=2400;const x=c.getContext('2d');
               const s={roe:{ws:'tight',id:['awacs','l16'],commit:'n40',abort:['bingo','winch'],extra:['mez']},sop:{lights:{o:'move'},takeoff:{o:'s20'},power:{o:'ab'},dep:{o:'combat'},rec:{o:'tac'},brk:{o:'3'},fuel:{o:'rtb'},nlights:{o:'overt'},lost:{o:'std'},rv:{o:'anchor'},obs:{o:'left'}}};
@@ -149,6 +149,19 @@ try:
         pg.click(B + '[data-a=back]'); pg.wait_for_timeout(300)
         if pg.locator('.rsmodal').count(): pg.click('.rsmodal [data-m=go]'); pg.wait_for_timeout(300)
         check('Back to the card goes to the Datacard', pg.evaluate("()=>document.querySelector('[data-t=dc]').classList.contains('on')"))
+        # the Kneeboard card: everything chosen still goes on two cards at most, ROE and SOP in one flow
+        kc = pg.evaluate('''async()=>{const R=await import('/app/js/core/roesop.js'),C=await import('/app/js/app/roecard.js');const s=R.emptySel();
+          R.ROE.forEach(([id,,k,,o])=>{s.roe[id]=k=='many'?o.map(p=>p[0]):o[0][0]});R.SOP_TOPICS.forEach(t=>s.sop[t[0]]={o:t[3][t[3].length-1][0]});
+          const c=document.createElement('canvas');c.width=C.CARD_W;c.height=C.CARD_H;const P=C.roeCardPlan(s,c.getContext('2d'));return [P.length,P.map(p=>p.title),P[1]?P[1].parts[0][0]:'']}''')
+        check('every ROE and SOP chosen: two Kneeboard cards at most, the SOP go on from the first %s' % kc, kc[0] == 2 and kc[1] == ['ROE / SOP', 'ROE / SOP (2)'] and kc[2] == 'SOP (cont.)')
+        # the ROE box of the Datacard: a long rule wraps after a "+" and the box keeps the big text
+        fl = pg.evaluate('''async()=>{const V=await import('/app/js/app/cardview.js');const x=document.createElement('canvas').getContext('2d');
+          const L=V.freeLayout(x,'WPN TIGHT\\nID: AWACS DECLARE+VID+NCTR+2 SRC\\nBUGOUT: WINCH/MUD SPIKE/NO SA\\nNO CBU URBAN',150,97);return [L.fs,L.rows.map(r=>r.t)]}''')
+        check('the ROE box: wraps after "+" or "/", the text as big as the box allows %s' % fl, fl[0] >= 13 and any(r.endswith('+') or r.endswith('/') for r in fl[1]))
+        # the Kneeboard: a datacard with no flight chosen, filled by the program alone, is not "not saved"
+        ku = pg.evaluate('''async()=>{const K=await import('/app/js/app/kneeboard.js'),S=await import('/app/js/app/state.js'),D=await import('/app/js/app/datacard.js');
+          const k=S.ST.CURK;S.ST.CURK=null;S.ST.DCHAND=false;const was=D.F.eph;D.F.eph='SR 0612 SS 1745';const r=K.dcIdle();S.ST.DCHAND=true;const r2=K.dcIdle();S.ST.DCHAND=false;D.F.eph=was;S.ST.CURK=k;return [r,r2]}''')
+        check('Kneeboard: a datacard with no flight and only cells the program filled does not count for "not saved"; typed by hand it counts %s' % ku, ku == [True, False])
         check('no page errors %s' % errs[:3], not errs)
         br.close()
 finally:

@@ -62,7 +62,7 @@ const SEC = 48; // the height of the heading of a section (at the scale 1)
 const sum = L => L.reduce((s, l) => s + l.h, 0);
 const HEAD = 110, // the title of the card
   BAND = 68; // the band with the name of a part
-// the cards: [{part: 'ROE / SOP' | 'ROE' | 'SOP' | 'SOP (2)', parts: [[name, lines, k]]}]
+// the cards (one or two): [{title: 'ROE / SOP' | 'ROE / SOP (2)', parts: [[name, lines, k]]}]; plan.cut when the end did not fit
 export function roeCardPlan(sel, x) {
   const T = fullText(sel),
     room = H - 2 * M - HEAD,
@@ -76,32 +76,58 @@ export function roeCardPlan(sel, x) {
     const P = both(k);
     if (h(P) <= room) return [{ title: 'ROE / SOP', parts: P }];
   }
-  // two cards: ROE, then SOP (as many as the SOP needs at the smallest size)
-  const cards = [];
-  const fit = (name, B) => {
-    for (const k of [1, 0.92, 0.85, 0.78, 0.75]) {
-      const p = part(name, B, k);
-      if (BAND * k + sum(p[1]) <= room) return cards.push({ title: name, parts: [p] });
-    }
-    const k = 0.75;
-    let cur = [],
-      used = BAND * k,
-      n = 1;
-    linesOf(x, B, k).forEach(l => {
-      if (used + l.h > room && cur.length) {
-        cards.push({ title: name + (n > 1 ? ' (' + n + ')' : ''), parts: [[name, cur, k]] });
-        cur = [];
-        used = BAND * k;
-        n++;
+  // two cards at most: ROE and SOP go on in one flow (the SOP may start on the first card), the text smaller until it fits; what does not fit even at
+  // the smallest size is cut (cut = true, the page says so)
+  const pack = (k, cut) => {
+    const C = [
+      { title: 'ROE / SOP', parts: [], band: 1 },
+      { title: 'ROE / SOP (2)', parts: [], band: 1 },
+    ];
+    let ci = 0,
+      used = 0,
+      over = false;
+    for (const [name, L] of both(k)) {
+      const first = L[0] ? L[0].h + (L[1] ? L[1].h : 0) : 0;
+      if (used && used + BAND * k + first > room) {
+        ci++;
+        used = 0;
       }
-      cur.push(l);
-      used += l.h;
-    });
-    if (cur.length) cards.push({ title: name + (n > 1 ? ' (' + n + ')' : ''), parts: [[name, cur, k]] });
+      if (ci > 1) {
+        over = true;
+        break;
+      }
+      let cur = [name, [], k];
+      C[ci].parts.push(cur);
+      used += BAND * k;
+      for (let i = 0; i < L.length; i++) {
+        const l = L[i],
+          need = l.h + (l.kind == 'sec' && L[i + 1] ? L[i + 1].h : 0); // a section heading never alone at the bottom
+        if (used + need > room) {
+          ci++;
+          if (ci > 1) {
+            over = true;
+            break;
+          }
+          cur = [name + ' (cont.)', [], k];
+          C[ci].parts.push(cur);
+          used = BAND * k;
+        }
+        cur[1].push(l);
+        used += l.h;
+      }
+      if (over) break;
+    }
+    if (over && !cut) return null;
+    const out = C.filter(c => c.parts.length);
+    if (out.length == 1) out[0].title = 'ROE / SOP';
+    if (over) out.cut = true;
+    return out;
   };
-  if (R.length) fit('ROE', R);
-  if (S.length) fit('SOP', S);
-  return cards;
+  for (const k of [1, 0.92, 0.85, 0.78, 0.72, 0.66, 0.6]) {
+    const P = pack(k);
+    if (P) return P;
+  }
+  return pack(0.6, true);
 }
 // draws one card; sub = the flight or the preset
 export function roeCardDraw(c, x, sub) {
@@ -122,7 +148,7 @@ export function roeCardDraw(c, x, sub) {
   let y = M + HEAD;
   c.parts.forEach(([name, L, k]) => {
     // the part: a grey band with its name (when the card holds two parts)
-    if (c.parts.length > 1 || c.title.indexOf(name) != 0) {
+    if (c.band || c.parts.length > 1 || c.title.indexOf(name) != 0) {
       x.fillStyle = '#d6d6d6';
       x.fillRect(M, y, W - 2 * M, 54 * k);
       x.fillStyle = '#111';

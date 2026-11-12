@@ -133,34 +133,56 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
 const FREE_ROOM = 116;
 export function freeLayout(x, v, w, room = FREE_ROOM) {
   const L = String(v).split('\n');
+  // a line too long wraps at a space, or right after a "+" or a "/" ("ID: AWACS DECLARE+VID+" / "NCTR"): the box fills before the text gets smaller
   const wrap = (t, fs) => {
     x.font = fs + 'px Arial';
     if (x.measureText(t).width <= w) return [t];
-    const out = [];
+    const P = [];
     let cur = '';
-    t.split(' ').forEach(wd => {
-      const q = cur ? cur + ' ' + wd : wd;
-      if (cur && x.measureText(q).width > w) {
-        out.push(cur);
-        cur = wd;
-      } else cur = q;
+    for (const ch of t) {
+      if (ch == ' ') {
+        if (cur) P.push({ w: cur, sp: 1 });
+        cur = '';
+      } else {
+        cur += ch;
+        if (ch == '+' || ch == '/') {
+          P.push({ w: cur, sp: 0 });
+          cur = '';
+        }
+      }
+    }
+    if (cur) P.push({ w: cur, sp: 1 });
+    const out = [];
+    let line = '',
+      prev = null;
+    P.forEach(p => {
+      const q = line ? line + (prev.sp ? ' ' : '') + p.w : p.w;
+      if (line && x.measureText(q).width > w) {
+        out.push(line);
+        line = p.w;
+      } else line = q;
+      prev = p;
     });
-    out.push(cur);
+    if (line) out.push(line);
     return out;
   };
   const rowsAt = fs =>
     L.flatMap(t => (t === '' ? [{ sep: 1 }] : wrap(t, fs).map(r => ({ t: r, h: /^UHF2 backup$/.test(t) }))));
   const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
-  let fs = 14,
-    R = rowsAt(fs);
-  while (fs > 11 && hOf(R, fs + 2, 7) > room) R = rowsAt(--fs);
-  let lh = fs + 2,
-    gp = 7;
-  if (hOf(R, lh, gp) > room) {
-    lh = fs + 0.5;
-    gp = 4;
+  // the biggest size (half a pixel at a time) that fits, first with the normal spacing, then with closer lines
+  for (let fs = 14; fs >= 11; fs -= 0.5) {
+    const R = rowsAt(fs);
+    for (const [lh, gp] of [
+      [fs + 2, 7],
+      [fs + 1, 5],
+    ])
+      if (hOf(R, lh, gp) <= room) return { fs, lh, gp, rows: R };
   }
   // what does not fit at 11 is left out (the notes of a big package use the short callsigns, so this is rare; the text stays in the cell)
+  const fs = 11,
+    lh = fs + 0.5,
+    gp = 4,
+    R = rowsAt(fs);
   while (R.length > 1 && hOf(R, lh, gp) > room) R.pop();
   while (R.length && R[R.length - 1].sep) R.pop();
   return { fs, lh, gp, rows: R };

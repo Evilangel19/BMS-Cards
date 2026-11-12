@@ -269,6 +269,7 @@ export function bvRow(i, cls) {
   });
 }
 export function setField(k, v, from) {
+  if (from && ST.CURK == null) ST.DCHAND = true; // typed by hand with no flight chosen: the Kneeboard counts the datacard (kbUnsaved)
   if (k == 'ldsel' && ST.ldSet) {
     ST.ldSet(v);
     return;
