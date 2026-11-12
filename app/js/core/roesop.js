@@ -518,13 +518,62 @@ export function roeText(sel) {
   return R.join('\n');
 }
 // the SOP box: one topic a line ("LTS: FLASH MOVING"), only the topics ticked for the card, then the other SOP lines
+// the SOP box: one line a phase with the topics ticked for the card, joined in the short form ("T/O: 20S · AB · DEP COMBAT"), then the other SOP lines.
+// A word goes before the short form of the topics that would not read alone (MINI); the phase has its own short name (PHASE_TAG).
+export const PHASE_TAG = {
+  Ground: 'GND',
+  'Take-off and departure': 'T/O',
+  'En route': 'ENR',
+  'FENCE, comms and fuel': 'COMMS',
+  Recovery: 'REC',
+  Night: 'NIGHT',
+  Emergencies: 'EMER',
+};
+export const MINI = {
+  taxi: 'TAXI',
+  checkin: 'CHK-IN',
+  eor: 'EOR',
+  cms: 'CMS',
+  dep: 'DEP',
+  rejoin: 'REJOIN',
+  form2: '2-SHIP',
+  form4: '4-SHIP',
+  turns: 'TURNS',
+  ops: 'OPS CHK',
+  fence: 'FENCE',
+  intra: 'INTRA',
+  chatter: 'CHATTER',
+  bull: 'BULL CHK',
+  brk: 'BRK',
+  sep: 'SEP',
+  formland: 'FORM LDG',
+  hung: 'HUNG',
+  strobe: 'STROBE',
+  lightsout: 'LTS OUT',
+  nvg: 'NVG',
+  nmin: 'MIN ALT',
+  nform: 'FORM',
+  lost: 'LOST WG',
+  nordo: 'NORDO',
+};
+export const phaseOf = id => (SOP.find(([, T]) => T.some(t => t[0] == id)) || [''])[0];
 export function sopText(sel) {
   const s = cleanSel(sel),
-    R = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]])).map(
-      t => t[2] + ': ' + sopShort(t, s.sop[t[0]])
-    );
+    R = [];
+  SOP.forEach(([ph, T]) => {
+    const items = T.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]])).map(t => {
+      const v = s.sop[t[0]];
+      return v.t || (MINI[t[0]] ? MINI[t[0]] + ' ' : '') + sopShort(t, v);
+    });
+    if (items.length) R.push((PHASE_TAG[ph] || ph) + ': ' + items.join(' · '));
+  });
   if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
   return R.join('\n');
+}
+// a topic ticked for the card adds a line only when its phase has none yet
+export function sopPhaseOn(sel, id) {
+  const ph = SOP.find(([, T]) => T.some(t => t[0] == id));
+  return !!ph && ph[1].some(t => t[0] != id && sel.sop[t[0]] && sel.sop[t[0]].c);
 }
 // each box of the card holds BOX_MAX lines (one rule or one topic a line; a long one may wrap on the card, it still counts once)
 export const BOX_MAX = 5;
@@ -532,15 +581,14 @@ const nl = t => (t ? t.split('\n').filter(l => l.trim()).length : 0);
 // a choice cut to the boxes: the last SOP topics on the card lose the tick, the last ROE choices of the lists go, then the other lines
 export function capSel(sel) {
   const s = cleanSel(sel);
-  let n = nl(sopText(s));
-  const T = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c && sopShort(t, s.sop[t[0]]));
   const sf = s.sfree.split('\n').filter(l => l.trim());
-  while (n > BOX_MAX && sf.length) {
+  while (nl(sopText(s)) > BOX_MAX && sf.length) {
     sf.pop();
-    n--;
+    s.sfree = sf.join('\n');
   }
-  s.sfree = sf.join('\n');
-  for (let i = T.length - 1; i >= 0 && n > BOX_MAX; i--, n--) s.sop[T[i][0]].c = false;
+  // the last phases on the card lose their ticks
+  const T = SOP_TOPICS.filter(t => s.sop[t[0]] && s.sop[t[0]].c);
+  for (let i = T.length - 1; i >= 0 && nl(sopText(s)) > BOX_MAX; i--) s.sop[T[i][0]].c = false;
   const rf = s.free.split('\n').filter(l => l.trim());
   while (nl(roeText(s)) > BOX_MAX && rf.length) {
     rf.pop();

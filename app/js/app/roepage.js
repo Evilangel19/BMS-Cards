@@ -15,6 +15,7 @@ import {
   defaultFor,
   BOX_MAX,
   capSel,
+  sopPhaseOn,
 } from '../core/roesop.js';
 import { categoryOf } from '../core/ato.js';
 import { ST } from './state.js';
@@ -141,7 +142,7 @@ function render0(box) {
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
     return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
   };
-  const roeCard = `<div class="wcard"><div class="wh"><h3>ROE</h3><span class="hint">one rule a line on the card · ${BOX_MAX} at most</span></div>${ROE.map(
+  const roeCard = `<div class="wcard"><div class="wh"><h3>ROE</h3><span class="hint">one rule a line on the card · ${BOX_MAX} lines at most</span></div>${ROE.map(
     ([id, lab, kind, , opts]) =>
       `<div class="rpt">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
   ).join(
@@ -153,12 +154,12 @@ function render0(box) {
       cust = !!v.t || R.cust.has(id),
       long = cust ? '' : (opts.find(x => x[0] === v.o) || [])[1] || '',
       set = !!(v.o || v.t),
-      cOff = !set || (fullS && !v.c);
+      cOff = !set || (fullS && !v.c && !sopPhaseOn(R.sel, id)); // a topic of a phase already on the card does not add a line
     return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
       .map(([x, , sh]) => `<option value="${x}"${!cust && v.o === x ? ' selected' : ''}>${esc(sh)}</option>`)
       .join(
         ''
-      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><label class="rpon" title="${fullS && !v.c ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label><div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
+      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label><div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
   };
   const phases = SOP.map(
     ([ph, T]) =>
@@ -378,7 +379,7 @@ function wire(box) {
     const id = r.dataset.t,
       t = SOP.flatMap(x => x[1]).find(x => x[0] == id),
       v = R.sel.sop[id] || { o: null, t: '', c: false },
-      room = lines(sopText(R.sel)) < BOX_MAX;
+      room = lines(sopText(R.sel)) < BOX_MAX || sopPhaseOn(R.sel, id);
     if (e.target.tagName == 'SELECT') {
       const x = e.target.value;
       R.cust.delete(id);

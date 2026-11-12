@@ -37,12 +37,15 @@ try:
         pg.select_option(B + '.rpr[data-t=rec] select', '*'); pg.wait_for_timeout(150)
         pg.fill(B + '.rpr[data-t=rec] .rpi', 'SPIRAL DOWN'); pg.wait_for_timeout(100)
         pv = pg.inner_text(B + '.rpv1') + ' || ' + pg.inner_text(B + '.rpv2')
-        check('the preview: the ROE box and the SOP box: %s' % pv.replace('\n', ' | '), pv == 'WPN FREE\nID: AWACS DECLARE+L16 || LTS: FLASH MOVING\nREC: SPIRAL DOWN')
-        # 5 lines a box: three more topics fill the SOP box, the sixth cannot go on the card
-        for t, v in (('takeoff', 's20'), ('dep', 'combat'), ('fuel', 'rtb'), ('form2', 'wedge')):
+        check('the preview: the ROE box and the SOP box: %s' % pv.replace('\n', ' | '), pv == 'WPN FREE\nID: AWACS DECLARE+L16 || GND: FLASH MOVING\nREC: SPIRAL DOWN')
+        # 5 lines a box, one line a phase: topics of the same phase share a line; the sixth phase cannot go on the card
+        for t, v in (('takeoff', 's20'), ('dep', 'combat'), ('fuel', 'rtb'), ('form2', 'wedge'), ('nlights', 'overt')):
             pg.select_option(B + '.rpr[data-t=%s] select' % t, v); pg.wait_for_timeout(120)
-        st = pg.evaluate("()=>({n:document.querySelector('#sqroe .rpv2').textContent.split('\\n').length,c:document.querySelector('#sqroe .rpr[data-t=form2] .rpon input').checked,d:document.querySelector('#sqroe .rpr[data-t=form2] .rpon input').disabled,w:(document.querySelector('#sqroe .rswarn')||{}).textContent||''})")
-        check('the SOP box holds 5 lines: the sixth topic is chosen but not on the card, its tick is off, a warning says so %s' % st, st['n'] == 5 and not st['c'] and st['d'] and 'SOP box full' in st['w'])
+        st = pg.evaluate("()=>({t:document.querySelector('#sqroe .rpv2').textContent,c:document.querySelector('#sqroe .rpr[data-t=nlights] .rpon input').checked,d:document.querySelector('#sqroe .rpr[data-t=nlights] .rpon input').disabled,p:document.querySelector('#sqroe .rpr[data-t=power] .rpon input').disabled,w:(document.querySelector('#sqroe .rswarn')||{}).textContent||''})")
+        check('one line a phase: the SOP box is full at 5 phases, the sixth is not on the card and its tick is off, a topic of a phase already there can still go %s' % st,
+              st['t'].split('\n')[1] == 'T/O: 20S · DEP COMBAT' and len(st['t'].split('\n')) == 5 and not st['c'] and st['d'] and 'SOP box full' in st['w'])
+        pg.select_option(B + '.rpr[data-t=power] select', 'ab'); pg.wait_for_timeout(150)
+        check('a topic of the T/O phase joins its line even with the box full', 'T/O: 20S · AB · DEP COMBAT' in pg.inner_text(B + '.rpv2'))
         if shots: pg.screenshot(path=shots + '/roesop-page.png', full_page=True)
         pg.fill(B + '.rssv .rpnm', 'A-A'); pg.click(B + '[data-a=save]'); pg.wait_for_timeout(200)
         check('Save as preset keeps it on this PC', pg.locator(B + '.rpq[data-k=m0]').count() == 1 and 'A-A' in pg.evaluate("()=>localStorage.getItem('bmsroepre')"))
@@ -54,12 +57,12 @@ try:
         check('two presets together: the last weapons status, the last take-off, the SOP box cut at 5: %s' % pv.replace('\n', ' | '), 'WPN HOLD' in pv and 'WPN FREE' not in pv and 'T/O: 10S' in pv and len(pg.inner_text(B + '.rpv2').split('\n')) <= 5)
         pg.click(B + '[data-a=apply]'); pg.wait_for_timeout(300)
         F = pg.evaluate("()=>({roe:__app.F.roe,sop:__app.F.sop,sel:__app.F.roesel})")
-        check('Apply to card writes the two boxes and keeps the choices with the flight %s' % {k: F[k] for k in ('roe', 'sop')}, F['roe'].startswith('WPN HOLD') and F['sop'].startswith('LTS: FLASH MOVING') and '"hold"' in (F['sel'] or ''))
+        check('Apply to card writes the two boxes and keeps the choices with the flight %s' % {k: F[k] for k in ('roe', 'sop')}, F['roe'].startswith('WPN HOLD') and F['sop'].startswith('GND: FLASH MOVING') and '"hold"' in (F['sel'] or ''))
         # the card: ROE on the left, SOP on the right, the notes below, the ephemerides on two lines at the bottom
         r = pg.evaluate("""async()=>{const cv=await import('/app/js/app/cardview.js'),dc=await import('/app/js/app/datacard.js');
           dc.F.free='Daegu TWR 365.000/126.200 ATIS 127.650';dc.F.eph='Sun 21/10: rise 21:43Z set 08:37Z\\nMoon: rise 06:07Z set 17:05Z (76%)';
           const T=[];const x=document.getElementById('cv').getContext('2d'),o=x.fillText;x.fillText=function(t,a,b,m){T.push([String(t),a,b]);return o.call(this,t,a,b,m)};cv.draw();x.fillText=o;
-          const f=s=>T.find(q=>q[0].includes(s))||[0,null,null];return {roe:f('WPN HOLD'),sop:f('LTS: FLASH'),notes:f('Daegu'),sun:f('Sun 21/10'),moon:f('Moon: rise')}}""")
+          const f=s=>T.find(q=>q[0].includes(s))||[0,null,null];return {roe:f('WPN HOLD'),sop:f('GND: FLASH'),notes:f('Daegu'),sun:f('Sun 21/10'),moon:f('Moon: rise')}}""")
         check('Datacard: ROE left and SOP right, the notes below, the ephemerides on two lines %s' % r,
               r['roe'][1] < 1430 < r['sop'][1] and abs(r['roe'][2] - r['sop'][2]) < 2 and 921 < r['roe'][2] < 1024 < r['notes'][2] < 1147 < r['sun'][2] < r['moon'][2] < 1198)
         m = pg.evaluate("()=>['roe','sop'].map(k=>{const d=__app.MFD.find(z=>z.k==k);return d?{y:Math.round(d.y0),h:Math.round(d.h)}:null})")

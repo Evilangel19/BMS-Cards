@@ -126,7 +126,7 @@ function applyDTC0(fl) {
       jt = CAM.jtac(ST.C, fl, u6 > 0);
     if (jt) {
       F.su4_0 = 'JTAC - ' + (jt.name || jt.cat);
-      F.free = (F.free ? F.free + '\n\n' : '') + 'JTAC: Redwolf/Eyeball/Troll + n. (random)';
+      F.free = (F.free ? F.free + '\n' : '') + 'JTAC\tRedwolf/Eyeball/Troll + n. (random)';
       F.su4_3 = jt.loc;
       F.su4_2 = (u6 / 1000).toFixed(3);
       const sv = CAM.svc(ST.C, fl);
@@ -245,7 +245,7 @@ function applyDTC0(fl) {
         });
       if (out.length)
         F.free =
-          (F.free ? F.free + '\n\n' : '') + 'IFF from ' + out.slice(0, 3).join(' | ') + (show3 ? ' (M3 Leader)' : '');
+          (F.free ? F.free + '\n' : '') + 'IFF\tfrom ' + out.slice(0, 3).join(' | ') + (show3 ? ' (M3 Leader)' : '');
     }
   }
   [

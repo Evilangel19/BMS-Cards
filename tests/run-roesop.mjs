@@ -10,6 +10,7 @@ import {
   emptySel,
   cleanSqPresets,
   defaultFor,
+  capSel,
 } from '../app/js/core/roesop.js';
 let bad = 0,
   n = 0;
@@ -46,7 +47,7 @@ ok(
 );
 ok(
   'the SOP box: the topics ticked for the card (the own text too), then the other SOP lines\n' + t2,
-  t2 == 'LTS: FLASH MOVING\nT/O: 20S\nREC: Spiral down\nOverhead 1500 MSL'
+  t2 == 'GND: FLASH MOVING\nT/O: 20S\nREC: Spiral down\nOverhead 1500 MSL'
 );
 const c = cleanSel({
   roe: { ws: 'nuke', id: ['vid', 'x', 'vid'] },
@@ -83,5 +84,30 @@ ok(
     d2.sop.lights &&
     defaultFor(SQ, 'CAS') === null
 );
+{
+  const b = sopText({
+    sop: {
+      takeoff: { o: 's20', c: true },
+      power: { o: 'ab', c: true },
+      dep: { o: 'combat', c: true },
+      rec: { o: 'tac', c: true },
+      brk: { o: '3', c: true },
+      lost: { o: 'std', c: false },
+    },
+  });
+  ok(
+    'the topics of a phase on one line, a word before the ones that would not read alone\n' + b,
+    b == 'T/O: 20S · AB · DEP COMBAT\nREC: TAC INITIAL · BRK 3S'
+  );
+  const many = { sop: {} };
+  ['lights', 'takeoff', 'form2', 'fuel', 'rec', 'nlights', 'lost'].forEach(
+    (id, i) => (many.sop[id] = { o: SOP_TOPICS.find(t => t[0] == id)[3][0][0], c: true })
+  );
+  const cap = capSel(many);
+  ok(
+    'capSel: seven phases on the card are cut to 5 lines (the last phases lose the tick)',
+    sopText(cap).split('\n').length == 5 && !cap.sop.lost.c && !cap.sop.nlights.c
+  );
+}
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} ROE / SOP checks`);
 process.exit(bad ? 1 : 0);

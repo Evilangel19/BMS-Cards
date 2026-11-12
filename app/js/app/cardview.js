@@ -165,6 +165,91 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
   while (R.length && R[R.length - 1].sep) R.pop();
   return { fs, lh, gp, rows: R };
 }
+// The notes of the Datacard: one section a label (TWR, UHF2, TGT, JTAC, IFF...), the label and the cells of a line divided by tabs (core/fillcard.js).
+// The labels in a narrow column on the left, the text from the left, the cells of a line in columns of the same width (the UHF2 backups line up); a
+// line too long is squeezed in width, never wrapped. 13 px, 12 when the lines do not fit; then closer lines; what still does not fit is left out.
+export const NOTES_ROOM = 116,
+  NOTES_GUT = 36;
+export function notesLayout(x, v, room = NOTES_ROOM) {
+  const rows = [];
+  let lab = null;
+  String(v || '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .forEach(l => {
+      if (!l.trim()) {
+        if (rows.length && !rows[rows.length - 1].gap) rows.push({ gap: 1 });
+        return;
+      }
+      if (l.includes('\t')) {
+        const p = l.split('\t');
+        if (p[0].trim()) lab = p[0].trim();
+        rows.push({ lab: p[0].trim(), cells: p.slice(1).map(c => c.trim()), sec: !!p[0].trim() && rows.length > 0 });
+      } else {
+        lab = null;
+        rows.push({ lab: '', cells: [l.trim()], plain: 1, sec: rows.length > 0 });
+      }
+    });
+  while (rows.length && rows[rows.length - 1].gap) rows.pop();
+  const H = (lh, gp) => rows.reduce((s, r) => s + (r.gap ? 4 : lh + (r.sec ? gp : 0)), 0);
+  let fs = 13,
+    lh = 15,
+    gp = 3;
+  if (H(lh, gp) > room) {
+    fs = 12;
+    lh = 14;
+  }
+  if (H(lh, gp) > room) {
+    lh = 12.5;
+    gp = 1.5;
+  }
+  while (rows.length > 1 && H(lh, gp) > room) rows.pop();
+  // the cells of a section share their columns
+  let n = 1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.gap) continue;
+    n = Math.max(n, r.cells.length);
+    r.cols = n;
+    if (r.lab || r.plain) n = 1;
+  }
+  for (let i = 0, c = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.gap) continue;
+    if (r.lab || r.plain) c = r.cols;
+    r.cols = c;
+  }
+  void lab;
+  return { fs, lh, gp, rows, gut: rows.some(r => r.lab) ? NOTES_GUT : 0, h: H(lh, gp) };
+}
+export function notesDraw(x, v, d, top, room = NOTES_ROOM) {
+  const L = notesLayout(x, v, room),
+    x0 = d.x + 2,
+    W = d.w - 4 - L.gut;
+  let yy = top;
+  x.save();
+  x.textAlign = 'left';
+  x.textBaseline = 'middle';
+  L.rows.forEach(r => {
+    if (r.gap) {
+      yy += 4;
+      return;
+    }
+    if (r.sec) yy += L.gp;
+    const cy = yy + L.lh / 2;
+    if (r.lab) {
+      x.font = 'bold ' + (L.fs - 2) + 'px Arial';
+      x.fillStyle = '#555';
+      x.fillText(r.lab, x0, cy, L.gut - 3);
+    }
+    x.font = L.fs + 'px Arial';
+    x.fillStyle = '#000';
+    const cw = W / r.cols;
+    r.cells.forEach((c, i) => x.fillText(c, x0 + L.gut + i * cw, cy, (r.cells.length == 1 ? W : cw) - 4));
+    yy += L.lh;
+  });
+  x.restore();
+}
 // top: the top of the box (card units), room its height
 export function freeDraw(x, v, d, cx, room = FREE_ROOM, top = d.y) {
   const { fs, lh, gp, rows } = freeLayout(x, v, d.w - 4, room);
@@ -536,7 +621,7 @@ function draw0() {
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
     if (d.k == 'free') {
-      freeDraw(x, v, d, cx, FREE_ROOM, 1029);
+      notesDraw(x, v, d, 1029);
     } else if (d.k == 'roe' || d.k == 'sop') {
       // ROE and SOP side by side: the same layout as the notes (biggest size that fits, long lines wrapped), from the left
       x.textAlign = 'left';

@@ -28,6 +28,18 @@ import { wezOf, wezText, wezSams } from './wez.js';
 import { escShort, csShort } from './mdcfill.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
+// a target in the notes: the long words of the unit names shortened, so that the line holds at a size that reads
+const tgtShort = t =>
+  String(t || '')
+    .replace(/\bBattalion\b/g, 'Bn')
+    .replace(/\bBrigade\b/g, 'Bde')
+    .replace(/\bRegiment\b/g, 'Rgt')
+    .replace(/\bDivision\b/g, 'Div')
+    .replace(/\bCompany\b/g, 'Co')
+    .replace(/\bSquadron\b/g, 'Sqn')
+    .replace(/\bHeadquarters\b/g, 'HQ')
+    .replace(/\bBase Defense\b/g, 'Base Def')
+    .replace(/\bAir Defense\b/g, 'AD');
 function fillCard(C, f, ld = 0) {
   const D = C.D,
     F = {},
@@ -63,12 +75,14 @@ function fillCard(C, f, ld = 0) {
   if (alt && alt != arr) abRow(2, alt);
   F.__ab = [dep, arr, alt && alt != arr ? alt : null];
 
+  // the notes: one section a label, the label and the cells of a line divided by tabs (the card draws the label in a narrow column on the left and the
+  // cells in columns): "TWR\tGunsan 292.300/128.500 · ATIS 120.225", "UHF2\tDL3 229.200\tPR4 288.775\tJR2 274.350", "TGT\tBT7 Munchon City 04:01"
   F.free = [dep, arr, alt]
     .filter((o, i, a) => o && a.indexOf(o) == i)
-    .map(o => {
+    .map((o, i) => {
       const a = D.ab[o[0]],
         q = v => (v / 1000).toFixed(3);
-      return `${
+      return `${i ? '' : 'TWR'}\t${
         clean(o[1])
           .replace(/VOR\/DME/i, 'VOR')
           .replace(
@@ -77,10 +91,10 @@ function fillCard(C, f, ld = 0) {
           )
           .replace(/\s+/g, ' ')
           .trim() || clean(o[1])
-      } TWR ${q(a[5])}/${q(a[6])} ATIS ${q(a[15])}`;
+      } ${q(a[5])}/${q(a[6])} · ATIS ${q(a[15])}`;
     })
     .join('\n');
-  // a big package (more than three flights): the callsigns of the notes in the short form of Link 16 ("Devil 3" -> "DL3"), so that the notes keep a size that reads
+  // a big package (more than three flights): the callsigns of the notes in the short form of Link 16 ("Devil 3" -> "DL3"), three backups a line
   const many = els0(C, f).length > 3,
     csN = e => (many ? csShort(csOf(C, e)) : csOf(C, e));
   {
@@ -90,11 +104,10 @@ function fillCard(C, f, ld = 0) {
         return r ? csN(e) + ' ' + r : '';
       })
       .filter(Boolean);
-    // the backup frequencies under one heading, two flights a line (three in the short form)
     const rows = [],
       per = many ? 3 : 2;
-    for (let i = 0; i < bk.length; i += per) rows.push(bk.slice(i, i + per).join(' · '));
-    if (bk.length) F.free += '\n\nUHF2 backup\n' + rows.join('\n');
+    for (let i = 0; i < bk.length; i += per) rows.push((i ? '' : 'UHF2') + '\t' + bk.slice(i, i + per).join('\t'));
+    if (bk.length) F.free += (F.free ? '\n' : '') + rows.join('\n');
   }
   const nAc = nAcf(f);
   for (let i = 0; i < 4; i++)
@@ -384,14 +397,16 @@ function fillCard(C, f, ld = 0) {
     F.ll2 = oth[0].s.ll;
     if (oth.length > 1)
       F.free =
-        (F.free ? F.free + '\n\n' : '') +
+        (F.free ? F.free + '\n' : '') +
         oth
           .slice(1)
           .map(
-            x =>
+            (x, i) =>
+              (i ? '' : 'TGT') +
+              '\t' +
               csN(x.e) +
-              ': ' +
-              (many ? escShort(x.s.tgt) : x.s.tgt) +
+              ' ' +
+              tgtShort(many ? escShort(x.s.tgt) : x.s.tgt) +
               ' ' +
               String(x.s.tm || '')
                 .replace(/(\d\d:\d\d):00\b/g, '$1')
