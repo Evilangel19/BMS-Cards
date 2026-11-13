@@ -866,3 +866,170 @@
     gap: 12px;
   }
 }
+/* Settings > Help: the User Guide (app/help/guide.html) with the style of the program */
+#cfg .s-hlpt {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+#cfg .s-hlpt > div {
+  flex: 1;
+}
+#cfg .s-guide {
+  font-size: 13.5px;
+  line-height: 1.55;
+  max-width: 760px;
+  animation: appear 0.2s ease-out;
+}
+#cfg .s-guide .cover {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-left: 4px solid var(--ac);
+  padding: 4px 0 4px 12px;
+  margin-bottom: 12px;
+}
+#cfg .s-guide .cover > div {
+  flex: 1;
+}
+#cfg .s-guide .cover img {
+  width: 64px;
+}
+#cfg .s-guide h1 {
+  font-size: 24px;
+  margin: 0;
+}
+#cfg .s-guide .sub,
+#cfg .s-guide .cap {
+  color: var(--mu);
+  font-size: 12px;
+}
+#cfg .s-guide h2 {
+  font-size: 17px;
+  color: var(--ac);
+  margin: 26px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #2a4a38;
+}
+#cfg .s-guide h3 {
+  font-size: 14px;
+  margin: 16px 0 6px;
+}
+#cfg .s-guide h4 {
+  margin: 0 0 3px;
+  font-size: 13.5px;
+}
+#cfg .s-guide p {
+  margin: 0 0 8px;
+}
+#cfg .s-guide ul,
+#cfg .s-guide ol {
+  margin: 0 0 10px;
+  padding-left: 20px;
+}
+#cfg .s-guide li {
+  margin-bottom: 4px;
+}
+#cfg .s-guide .toc {
+  columns: 2;
+  color: var(--mu);
+}
+#cfg .s-guide figure {
+  margin: 8px 0 12px;
+}
+#cfg .s-guide .hero {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  display: block;
+}
+#cfg .s-guide .tip,
+#cfg .s-guide .warn {
+  background: #13261b;
+  border-left: 3px solid var(--ac);
+  border-radius: 0 6px 6px 0;
+  padding: 8px 12px;
+  margin: 10px 0 12px;
+}
+#cfg .s-guide .tip b:first-child {
+  color: var(--ac);
+}
+#cfg .s-guide .warn {
+  background: #2c2312;
+  border-left-color: #c98a1b;
+}
+#cfg .s-guide .warn b:first-child {
+  color: #f2b84b;
+}
+#cfg .s-guide .step {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#cfg .s-guide .step .n {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #1f7a46;
+  color: #fff;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  font-size: 12.5px;
+}
+#cfg .s-guide table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 6px 0 12px;
+  font-size: 12.5px;
+}
+#cfg .s-guide th,
+#cfg .s-guide td {
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+  vertical-align: top;
+  text-align: left;
+}
+#cfg .s-guide th {
+  background: var(--deep);
+}
+#cfg .s-guide code {
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  background: var(--field);
+  padding: 0 4px;
+  border-radius: 3px;
+}
+#cfg .s-guide .ui {
+  font-weight: 600;
+  white-space: nowrap;
+}
+#cfg .s-guide .lab {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 0 7px;
+  border-radius: 9px;
+  color: #fff;
+  white-space: nowrap;
+}
+#cfg .s-guide .lv {
+  background: #1f7a46;
+}
+#cfg .s-guide .li {
+  background: #1d5f99;
+}
+#cfg .s-guide .le {
+  background: #b26a00;
+}
+#cfg .s-guide .lb {
+  background: #8a2b22;
+}
+#cfg .s-guide .foot {
+  color: var(--mu);
+  font-size: 12px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}

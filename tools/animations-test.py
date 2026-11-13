@@ -59,7 +59,7 @@ try:
         for t in panels:
             pg.click('#nv-' + t); pg.wait_for_timeout(300)
             for s in ev(CONTROLS): b2.setdefault(s, []).append(t)
-        check('and the Settings window too, on each of its pages %s' % (b2 or ''), not b2 and len(panels) == 7)
+        check('and the Settings window too, on each of its pages %s' % (b2 or ''), not b2 and len(panels) == 8)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
         if pg.locator('dialog[open]').count(): pg.evaluate("()=>document.querySelectorAll('dialog[open]').forEach(d=>d.close())")
         check('a field shows hover and focus with a short change of its border', ev("()=>{const e=document.querySelector('input[type=text],input:not([type])');const s=getComputedStyle(e);return s.transitionProperty.includes('border-color')&&s.transitionDuration.split(',').some(x=>x.trim()!='0s')}"))

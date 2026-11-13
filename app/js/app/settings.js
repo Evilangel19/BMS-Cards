@@ -26,6 +26,7 @@ import { initAppear } from './appear.js';
 import { ic, setOpen, setSwitch, swRow, top } from './settingsui.js';
 import { diagInner, warnCount } from './settingsdiag.js';
 import { dataBusy, dataPage, restartInfo } from './settingsdata.js';
+import { helpFill, helpPdf } from './settingshelp.js';
 
 /* ---------- Settings ---------- */
 export const CFG_PATHS = [
@@ -54,7 +55,7 @@ export async function autoLoadLast() {
 }
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
-const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data'];
+const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data', 'help'];
 const SW_OF = { general: ['autoLoad', 'anim', 'upd', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
@@ -263,6 +264,8 @@ export async function openSettings() {
     nav('map', 'Map', 'map') +
     '<div class="s-gl s-gap"><span>Data</span><i>move or back up</i></div>' +
     nav('data', 'Import &amp; backup', 'swap') +
+    '<div class="s-gl s-gap"><span>Help</span><i>how it works</i></div>' +
+    nav('help', 'User Guide', 'info') +
     '</nav><div class="s-ct">' +
     page('folders', folders) +
     page('diag', '') +
@@ -271,6 +274,10 @@ export async function openSettings() {
     page('mission', mission) +
     page('map', map) +
     page('data', '') +
+    page(
+      'help',
+      '<div class="s-top s-hlpt"><div><h2 id="h-help">User Guide</h2><p class="hint">The idea of the program, the way to a finished datacard and the technical data. The details are in the tooltips and the ⓘ notes of each page.</p></div><button type="button" class="btn g" data-a="guidepdf" title="Save the guide as a PDF file">Save as PDF…</button></div><div class="s-guide" id="s-guide"></div>'
+    ) +
     '</div></div>' +
     '<div class="s-ft"><span class="s-note" id="cfgnote" role="status"></span><span style="flex:1"></span><button type="button" class="btn g" id="cfgcancel" data-a="close">Close</button><button type="button" class="btn" id="cfgsave" data-a="save" disabled>Save</button></div>';
 
@@ -318,6 +325,7 @@ export async function openSettings() {
       q('nv-' + p).classList.toggle('on', on);
       q('nv-' + p).setAttribute('aria-current', on ? 'page' : 'false');
     });
+    if (id === 'help') helpFill(q('s-guide'));
   };
 
   // folders: what each one is (found, automatic, not found ...), said next to its name
@@ -492,6 +500,7 @@ export async function openSettings() {
     if (a === 'go') show(b.dataset.p);
     else if (a === 'close') dlg.close();
     else if (a === 'save') save();
+    else if (a === 'guidepdf') helpPdf();
     else if (a === 'sw') {
       const on = !b.classList.contains('on');
       setSwitch(b, on);

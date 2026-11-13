@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Added: the User Guide (Settings > Help > User Guide), also as a PDF (Save as PDF…): the idea of the program, the way to a finished datacard, the squadron and the technical data, in Simplified Technical English (ASD-STE100).
 - Changed: ROE / SOP presets: a double-click opens a preset (the Standard too: rename it, it cannot be deleted); in Flight your own Standard, also in a squadron; a mission received from another pilot gets the squadron's ROE / SOP.
 - Fixed: the Standard of the squadron was not renamed by Save Standard & send; the amber warnings of the ROE / SOP page and the flight labels of the map (WEZ switch) no longer flicker when drawn again.
 - Fixed: Kneeboard: a card inserted between two slid every card from one place (now each card slides from where it was); ROE / SOP: Back to the datacard opened the Docs.

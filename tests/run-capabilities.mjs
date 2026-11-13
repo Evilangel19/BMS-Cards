@@ -41,6 +41,7 @@ for (const id of ['fs:allow-write-file', 'fs:allow-write-text-file']) {
     'F:/BMS-Cards-portable/squadron.json.new',
     'F:/BMS-Cards-portable/squadron.json.bad',
     'C:/Users/x/Documents/BMS-Cards-backup-2026-11-04.zip',
+    'C:/Users/x/Documents/BMS-Cards-Guide.pdf',
     'D:/app/backup/before-import-2026-11-04/config.json',
   ])
     ok(id + ' allows ' + f, can(f));
