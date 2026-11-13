@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>BMS Cards: Guide</title>
+<style>
+  @page { size: A4; margin: 18mm 17mm 18mm 17mm; }
+  :root { --ink: #1b2027; --mu: #5b6573; --ac: #1f7a46; --bl: #1d5f99; --line: #d5dae0; --soft: #f3f6f4; }
+  * { box-sizing: border-box; }
+  body { font: 10.4pt/1.5 'Segoe UI', 'Helvetica Neue', Arial, sans-serif; color: var(--ink); margin: 0; }
+  h1 { font-size: 26pt; margin: 0 0 4pt; letter-spacing: -0.3pt; }
+  h2 { font-size: 15pt; color: var(--ac); margin: 22pt 0 6pt; padding-bottom: 3pt; border-bottom: 1.5pt solid var(--ac); break-after: avoid; }
+  h3 { font-size: 11.5pt; margin: 14pt 0 4pt; break-after: avoid; }
+  p { margin: 0 0 7pt; }
+  ul, ol { margin: 0 0 8pt; padding-left: 16pt; }
+  li { margin: 0 0 3pt; }
+  .sub { color: var(--mu); font-size: 12pt; margin-bottom: 18pt; }
+  .cover { border-left: 5pt solid var(--ac); padding: 4pt 0 4pt 14pt; margin: 30pt 0 26pt; }
+  .tip { background: var(--soft); border-left: 3pt solid var(--ac); padding: 6pt 10pt; margin: 8pt 0 10pt; break-inside: avoid; }
+  .tip b:first-child { color: var(--ac); }
+  .warn { background: #fbf5ea; border-left: 3pt solid #c98a1b; padding: 6pt 10pt; margin: 8pt 0 10pt; break-inside: avoid; }
+  .warn b:first-child { color: #9a6510; }
+  .step { display: grid; grid-template-columns: 22pt 1fr; gap: 8pt; margin: 0 0 9pt; break-inside: avoid; }
+  .step .n { width: 20pt; height: 20pt; border-radius: 50%; background: var(--ac); color: #fff; font-weight: 700; display: grid; place-items: center; font-size: 10pt; margin-top: 1pt; }
+  .step h4 { margin: 0 0 2pt; font-size: 10.8pt; }
+  .step p { margin: 0 0 3pt; }
+  table { border-collapse: collapse; width: 100%; margin: 4pt 0 10pt; font-size: 9.6pt; break-inside: auto; }
+  th, td { border: 0.75pt solid var(--line); padding: 4pt 6pt; vertical-align: top; text-align: left; }
+  th { background: #eef1f4; font-weight: 600; }
+  tr { break-inside: avoid; }
+  code, .k { font-family: Consolas, 'Courier New', monospace; font-size: 9.4pt; background: #eef1f4; padding: 0 3pt; border-radius: 2pt; }
+  .ui { font-weight: 600; white-space: nowrap; }
+  .toc { columns: 2; column-gap: 20pt; font-size: 10pt; padding-left: 14pt; }
+  .toc li { break-inside: avoid; }
+  .pb { break-before: page; }
+  .lab { display: inline-block; font-size: 8.4pt; font-weight: 700; padding: 0 5pt; border-radius: 7pt; color: #fff; }
+  .lv { background: var(--ac); } .li { background: var(--bl); } .le { background: #b26a00; } .lb { background: #8a2b22; }
+  .foot { color: var(--mu); font-size: 9pt; margin-top: 24pt; border-top: 0.75pt solid var(--line); padding-top: 6pt; }
+</style>
+</head>
+<body>
+
+<div class="cover">
+  <h1>BMS Cards</h1>
+  <div class="sub">A short guide: the idea of the program, the way to a finished datacard, and the details worth knowing.<br>Version 1.2 · for Falcon BMS 4.38.1</div>
+</div>
+
+<ol class="toc">
+  <li>The idea behind BMS Cards</li>
+  <li>Before the first flight</li>
+  <li>From campaign to datacard: the flow</li>
+  <li>The pages, in one line each</li>
+  <li>The Squadron</li>
+  <li>Technical details worth knowing</li>
+  <li>Where the rest is explained</li>
+</ol>
+
+<h2>1. The idea behind BMS Cards</h2>
+<p>BMS Cards does the paperwork of a mission for you. You pick a flight of the campaign, and the program fills its datacard, prepares the Data Cartridge (DTC) and writes the kneeboard pages that BMS shows in the cockpit. Five ideas shape everything it does:</p>
+<ul>
+  <li><b>Everything comes from your own BMS.</b> Aircraft, weapons, airbases, radios, terrain and the campaign itself are read from your installation. The program ships no game data, so it always matches what you fly.</li>
+  <li><b>Automatic first, yours always.</b> Every cell has a rule that fills it. A value you type by hand stays for that flight and wins over the rule. <span class="ui">↺ Reset datacard</span> gives the rules back.</li>
+  <li><b>No hidden magic.</b> Every rule is written down in the program: <span class="ui">ⓘ Automatic rules</span> above the card lists what is filled and from where, and the yellow cells are those a rule filled or that you chose from a list. Hover over a button or a cell to see what it does.</li>
+  <li><b>Honest about estimates.</b> Some numbers are an approximation of ours (fuel plan, DLZ, take-off data, radar coverage), not data read from the game. The program says so where it shows them. Check them in the cockpit until you trust them.</li>
+  <li><b>Portable.</b> One folder holds the program and all your data. Moving the folder moves everything; deleting it leaves nothing behind. There is no installer and no automatic updater.</li>
+</ul>
+
+<h2>2. Before the first flight</h2>
+<ol>
+  <li>Put the program folder somewhere you can write to (Documents, <code>C:\Games</code>), <b>not</b> in Program Files. The program warns you when it cannot write there.</li>
+  <li>Start <code>BMS Cards.exe</code> and open <span class="ui">⚙ Settings</span>. Under <b>Folders</b> the BMS folder is usually found by itself; each folder shows whether it was found. <b>Diagnostics</b> tells you which game data was read and whether your BMS version is the one the program was tested with.</li>
+  <li>Under <b>Squadron &gt; Me</b>, set your callsign. The Logbook name and rank are used when you take your seat on a card.</li>
+</ol>
+<div class="tip"><b>New version?</b> Unpack it in a new folder, then use <span class="ui">Settings &gt; Import &amp; backup &gt; Import from another version</span>. It copies your settings, squadrons, missions, kneeboard cards and the saved originals of your files. The old folder is never changed. <span class="ui">Export my data</span> saves the same things in one <code>.zip</code>.</div>
+
+<h2>3. From campaign to datacard: the flow</h2>
+<p>The Datacard tab is where you start and where you finish. The other pages refine what the card shows; most of them write back into the card or the DTC by themselves.</p>
+
+<div class="step"><div class="n">1</div><div>
+  <h4>Open the campaign</h4>
+  <p>Choose a campaign or a Tactical Engagement in the menus at the top: they list what is in the BMS Campaign folder. Its weather, Link 16, IFF and date files load by themselves. <span class="ui">📂 Open ▾</span> opens a campaign from another folder, a DTC or a saved mission.</p>
+  <p>Check <b>📅 Day 1</b>: the real date of the first campaign day. Sun, moon, METAR and TAF depend on it.</p>
+</div></div>
+
+<div class="step"><div class="n">2</div><div>
+  <h4>Pick your flight</h4>
+  <p>The ATO on the left lists the packages and flights of the campaign. Click your flight: the datacard fills itself in.</p>
+</div></div>
+
+<div class="step"><div class="n">3</div><div>
+  <h4>Take your seat</h4>
+  <p>Press the round button beside your aircraft in the Flight section. The card, the DTC and the MDC then use the codes of your aircraft (IFF, Link 16, laser) and your name. Without a seat, the card is made for the flight lead.</p>
+</div></div>
+
+<div class="step"><div class="n">4</div><div>
+  <h4>Read the card, change what you want</h4>
+  <p>Click a cell to edit it (Tab moves to the next one). Some cells open a list: names from the roster, target points, the TO speed in AB or MIL. Your changes stay with the flight. <span class="ui">↺ Reset datacard</span> throws them away.</p>
+  <p><span class="ui">MDC format</span> switches the same data to the Mission Data Card layout.</p>
+</div></div>
+
+<div class="step"><div class="n">5</div><div>
+  <h4>Refine it on the other pages (as needed)</h4>
+  <ul>
+    <li><b>Map</b>: the route, the threats and their rings, the WEZ exposure; place offsets and Link 16 partners on it.</li>
+    <li><b>Weapons</b>: plan the attack (VRP / VIP, pop-up, fuzes), then <span class="ui">Apply to the DTC</span>.</li>
+    <li><b>Performance</b>: the fuel plan and the Joker margin behind Bingo, Min.Fuel and the take-off data.</li>
+    <li><b>Weather</b>: the conditions along the route, and which TAF the card shows (target or landing field).</li>
+    <li><b>BVR Timeline</b>: the A-A timeline; <span class="ui">Fill datacard</span> writes it to the card.</li>
+    <li><b>Squadron &gt; ROE / SOP</b>: a click on the ROE or SOP box of the card opens it. A click on a preset puts it on the card.</li>
+  </ul>
+</div></div>
+
+<div class="step"><div class="n">6</div><div>
+  <h4>Write the DTC</h4>
+  <p>The <b>Data Cartridge</b> page shows the DTC that BMS will load. The cards marked <b>from Datacard</b> (radio presets, IFF, Link 16, laser, Bingo / ALOW, notes) follow the card by themselves while their switch is on. Switch one off to type its values yourself.</p>
+  <p>The save button (the disk icon, <span class="ui">DTC</span>) writes the file. The first original is kept once in <code>backup\dtc</code>. <span class="ui">↺ Reset</span> undoes the changes since the last save.</p>
+</div></div>
+
+<div class="step"><div class="n">7</div><div>
+  <h4>Put it on the kneeboard</h4>
+  <p>On the <b>Kneeboard</b> page, drag the cards into the left and right slots of each page: the datacard, pictures, PDF pages from the Docs tab, the ROE / SOP card. <span class="ui">Save to BMS folder</span> writes the DDS files that BMS reads. <span class="ui">↺ Restore</span> puts the original BMS files back.</p>
+  <p><span class="ui">Set Default</span> remembers an arrangement you use every time.</p>
+</div></div>
+
+<div class="step"><div class="n">8</div><div>
+  <h4>Save the mission</h4>
+  <p><span class="ui">📦 Save mission</span> keeps the package, the DTC, the datacard and the weapons data together. A mission opens without the campaign, and it is what you send to the other pilots of the squadron.</p>
+</div></div>
+
+<div class="tip"><b>The short version:</b> campaign → flight → seat → check the card → (Map, Weapons, Performance as needed) → save the DTC → save the kneeboard → save the mission.</div>
+
+<h2>4. The pages, in one line each</h2>
+<table>
+  <tr><th style="width:24%">Page</th><th>What it is for</th></tr>
+  <tr><td><b>Datacard</b></td><td>The flight card (or the MDC format): built from the campaign and editable cell by cell. The ATO on the left.</td></tr>
+  <tr><td><b>Data Cartridge</b></td><td>The DTC <code>.ini</code>: steerpoints, PPT, lines, weapon targets, radios, IFF, Link 16, EWS, laser. It also writes the campaign <code>.ini</code>, the way BMS does.</td></tr>
+  <tr><td><b>Kneeboard</b></td><td>The pages of the BMS kneeboard, written as DDS files (DXT1, or DXT5 with mipmaps). Cards can be sent to the squadron.</td></tr>
+  <tr><td><b>Docs</b></td><td>The charts and manuals of Falcon BMS (its Docs folder), in a large viewer; a page, or all of them, can be added to the kneeboard cards.</td></tr>
+  <tr><td><b>Map</b></td><td>The campaign map: flights, objectives, SAM and radar rings, the political layer, the DTC points; NAV OFFSETS and Link 16 from the map.</td></tr>
+  <tr><td><b>Weapons</b></td><td>The attack planner: delivery profiles, offsets, fuzes and stick, the DLZ of the weapons. <span class="ui">Apply to the DTC</span> writes it.</td></tr>
+  <tr><td><b>BVR Timeline</b></td><td>The timeline of an A-A engagement (ranges, A-pole / F-pole) against the classes you choose.</td></tr>
+  <tr><td><b>Performance</b></td><td>Take-off and landing data, the fuel plan, Joker and Bingo.</td></tr>
+  <tr><td><b>Weather</b></td><td>The weather maps of the campaign: wind, clouds, visibility, pressure, along the route and over time.</td></tr>
+  <tr><td><b>Squadron</b></td><td>The online squadron: Members, ROE / SOP, Organization, Briefing, Missions, Me, Settings.</td></tr>
+  <tr><td><b>⚙ Settings</b></td><td>Folders, diagnostics, preferences of each page, import and backup.</td></tr>
+</table>
+<p>Pages that change something have an <b>Edit</b> switch or button (<span class="ui">✎ Edit</span> on each card of the Data Cartridge): with it off they only show.</p>
+
+<h2>5. The Squadron</h2>
+<p>Pilots of a squadron are linked <b>directly to each other</b> (peer to peer). Public trackers only help them find each other; nothing is stored on a server. Everything a squadron shares is also kept in your program folder, so it works offline too.</p>
+<ul>
+  <li><b>Members</b>: the roster and who is online.</li>
+  <li><b>ROE / SOP</b>: rules of engagement and SOP by phase, written in short form on the card. Two buttons choose whose presets you use. <b>Flight</b> is your own presets and your own Standard. <b>Squadron</b> is the squadron's presets, which only the commander changes. Each preset can be the default for some kinds of mission. A mission received from another pilot always gets the squadron's.</li>
+  <li><b>Organization</b>: packages, flights and seats, edited by the commander, the mission commander and the leads; templates for recurring setups.</li>
+  <li><b>Briefing</b>: a live room on the map. The briefer and the pilots he lets draw add lines, text and markers, and the others can follow his view. A kneeboard card keeps it.</li>
+  <li><b>Missions</b>: missions sent and received. A mission received puts its DTC data into your own DTC.</li>
+  <li><b>Me</b> and <b>Settings</b>: your identity, the squadron's settings and the connection test.</li>
+</ul>
+<div class="warn"><b>Privacy.</b> To connect directly, the other pilots see your public IP address and the address of your computer on its local network. Join only squadrons you trust.</div>
+
+<h2 class="pb">6. Technical details worth knowing</h2>
+
+<h3>How sure is a number?</h3>
+<p>The program and its notes use four words for this:</p>
+<table>
+  <tr><td style="width:24%"><span class="lab lv">Verified</span></td><td>Checked in the game or against real BMS files: the Korea campaigns, the kneeboard, the DTC format, runway data.</td></tr>
+  <tr><td><span class="lab li">Implemented</span></td><td>Works and follows the BMS files, but not yet checked in flight: other theaters, NAV OFFSETS in the DED.</td></tr>
+  <tr><td><span class="lab le">Estimated</span></td><td>A model of ours, shown as such: DLZ / MAR, time of flight, A-pole / F-pole, the fuel plan, take-off data, radar coverage, JDAM / JSOW ballistics.</td></tr>
+  <tr><td><span class="lab lb">Not available</span></td><td>Not in the campaign files, so left out: squadron experience, morale, supply, mission rating.</td></tr>
+</table>
+
+<h3>The rules you will meet most</h3>
+<ul>
+  <li><b>Airbases</b>: DEP / ARR are the airbases nearest to the take-off and the first landing steerpoint. The runway in use is the one into the wind at that time.</li>
+  <li><b>MSA</b>: the highest terrain within 5 NM on each side of a leg + 500 ft. <b>ERAA</b>: 22 NM + 1,000 ft (2,000 ft in mountains). Both come from the BMS terrain file.</li>
+  <li><b>Fuel</b>: 10 minutes of start and taxi. <b>Joker = Bingo + the margin of the Performance page</b>. Bingo adds holding and alternate fuel when the landing field is IMC. Legs flown slower than 300 kt are planned at 300 kt.</li>
+  <li><b>Target</b>: the primary is the first steerpoint that is not take-off, route, tanker or landing. Against ground units its name is the hostile battalion within 1 km. STPT 99 and 98 of the DTC, when used, replace the primary and secondary.</li>
+  <li><b>WEZ exposure</b>: from entering the first enemy SAM ring to leaving the last, with the minutes spent inside. Only SAMs that are spotted and have their radar count, at their maximum range at any altitude.</li>
+  <li><b>Support</b>: the tankers and AWACS / JSTARS of the package. When one is missing, the nearest allied one on station is used, marked <b>*</b>. Aircraft with a probe get the KC-130 first.</li>
+  <li><b>Radio presets in the DTC</b>: 6 is your flight, 13 the first tanker, 5 the AWACS, UHF 15 the intra-flight backup, VHF 15 and up the flights of the package.</li>
+  <li><b>Your seat</b> decides the IFF Mode 2 / 3 codes, the Link 16 callsign and number, and the laser code that go into the DTC and the MDC.</li>
+</ul>
+
+<h3>What the program writes into your BMS folder</h3>
+<ul>
+  <li>The <b>DTC</b> <code>.ini</code> (byte for byte in the BMS format) and the short campaign <code>.ini</code> that BMS loads for a campaign. The original is kept once in <code>backup\dtc</code>.</li>
+  <li>The <b>kneeboard</b> DDS files. The originals are kept once in <code>backup\kneeboard</code>, and <span class="ui">↺ Restore</span> puts them back.</li>
+  <li>Nothing else. It cannot write programs, scripts or system folders.</li>
+</ul>
+
+<h3>Missions and your data</h3>
+<ul>
+  <li>A mission is a folder with one mission file and its settings: the package, the DTC, the datacard (with your hand changes and your seat) and the weapons data. With the hourly weather maps it weighs about 1.5–2 MB.</li>
+  <li>Settings, squadrons, missions and kneeboard cards live next to the exe. Back them up with <span class="ui">Export my data</span>.</li>
+</ul>
+
+<h2>7. Where the rest is explained</h2>
+<p>This guide stays short on purpose: the details sit where you need them.</p>
+<ul>
+  <li><span class="ui">ⓘ Automatic rules</span> above the datacard: every rule that fills the card.</li>
+  <li><b>ⓘ</b> marks and <span class="ui">ⓘ Info</span> buttons on the pages (Kneeboard, Weapons, Performance and others): how the page works. A long note opens in a small window.</li>
+  <li><b>Hover</b> over any button, switch or cell: one sentence on what it does and what it changes.</li>
+  <li><b>Yellow cells</b> on the card: filled by a rule or chosen from a list.</li>
+  <li>The <b>Docs</b> tab: the BMS manuals, without leaving the program.</li>
+</ul>
+
+<div class="foot">BMS Cards 1.2 · Falcon BMS 4.38.1 · All game data is read from your own installation.</div>
+</body>
+</html>
