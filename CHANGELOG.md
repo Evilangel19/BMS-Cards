@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The 
 
 ## Unreleased (1.2 betas)
 
+- Changed: ROE / SOP presets: a double-click opens a preset (the Standard too: rename it, it cannot be deleted); in Flight your own Standard, also in a squadron; a mission received from another pilot gets the squadron's ROE / SOP.
+- Fixed: the Standard of the squadron was not renamed by Save Standard & send; the amber warnings of the ROE / SOP page and the flight labels of the map (WEZ switch) no longer flicker when drawn again.
 - Fixed: Kneeboard: a card inserted between two slid every card from one place (now each card slides from where it was); ROE / SOP: Back to the datacard opened the Docs.
 - Changed: ROE / SOP page in the colours of the program (switches and chosen items green as in Weapons, the squadron's blue), Add card green, Flight / Squadron without icons.
 - Changed: ROE / SOP page: one section Presets with Flight / Squadron, the Standard first in each list; a click on a preset puts it on the datacard (no Apply), changes by hand go on the datacard at once and can be kept as a preset (name, Default for); delete with Undo; no more copies (→ME / →SQ) nor presets combined.

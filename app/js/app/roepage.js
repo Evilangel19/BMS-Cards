@@ -51,13 +51,15 @@ const LS = {
 };
 export const presetsLoad = () => cleanPresets(LS.get('bmsroepre', []));
 const presetsSave = P => LS.set('bmsroepre', cleanPresets(P));
-// my Standard (without a squadron, or a squadron with no Standard yet); the first time, my first preset
-const myStd = () => {
+// my Standard (Flight): {name, sel}; saved before as the choices alone; the first time, my first preset
+const myStdRec = () => {
   const v = LS.get('bmsroestd', null);
-  if (v) return cleanSel(v);
+  if (v && v.sel) return { name: String(v.name || 'Standard').slice(0, 40), sel: cleanSel(v.sel) };
+  if (v) return { name: 'Standard', sel: cleanSel(v) };
   const P = presetsLoad();
-  return P.length ? P[0].sel : emptySel();
+  return { name: 'Standard', sel: P.length ? P[0].sel : emptySel() };
 };
+const myStd = () => myStdRec().sel;
 const mySecs = () => cleanCustom(LS.get('bmsroesec', []));
 const mySecsSave = L => LS.set('bmsroesec', cleanCustom(L));
 const sqGet = (f, d) => {
@@ -121,12 +123,12 @@ const dirty = () => key(R.sel) != R.base;
 const inSq = () => !!R.ctx.squad;
 const SRC = () => (inSq() && LS.get('bmsroesrc', 'sq') == 'sq' ? 'sq' : 'me');
 const sqStdI = () => R.ctx.presets.findIndex(p => p.std);
-// the Standard: the squadron's when it has one, else mine
-const stdSel = () => (sqStdI() >= 0 ? R.ctx.presets[sqStdI()].sel : myStd());
-// the presets of a list: [{k, name, sel, cats, ed (can be changed here), std}]
+// the presets of a list: [{k, name, sel, cats, ed (can be changed here), std}]. The first is the Standard of the list: Squadron = the squadron's (the
+// commander changes it), Flight = mine (always mine, also in a squadron: Flight means my rules)
 function chips(src) {
-  const sqs = sqStdI() >= 0,
-    L = [{ k: 'std', name: 'Standard', sel: stdSel(), cats: [], std: 1, ed: src == 'sq' ? R.ctx.own : !sqs }];
+  const sq = sqStdI() >= 0 ? R.ctx.presets[sqStdI()] : null,
+    st = src == 'sq' ? { name: sq ? sq.name : 'Standard', sel: sq ? sq.sel : emptySel() } : myStdRec(),
+    L = [{ k: 'std', name: st.name, sel: st.sel, cats: [], std: 1, ed: src == 'sq' ? R.ctx.own : true }];
   if (src == 'sq') R.ctx.presets.forEach((p, i) => !p.std && L.push({ k: 'q' + i, ...p, ed: R.ctx.own }));
   else presetsLoad().forEach((p, i) => L.push({ k: 'm' + i, ...p, ed: true }));
   return L;
@@ -138,7 +140,7 @@ function setPick(c) {
   R.pick = c ? c.k : null;
   R.base = c ? key(c.sel) : key(emptySel());
   R.baseSel = c ? c.sel : emptySel(); // what Discard goes back to (kept when the other list is shown)
-  R.name = c && !c.std ? c.name : '';
+  R.name = c && !c.std ? c.name : ''; // the Standard: its name only when it is opened (double-click); changed by hand, the name of a new preset
   R.cats = c ? [...(c.cats || [])] : [];
   R.open = false;
 }
@@ -229,20 +231,22 @@ function modal(title, html, buttons, onAct) {
 function savePick(c, name, cats) {
   const sel = cleanSel(R.sel);
   if (c && c.std) {
-    if (SRC() == 'sq' || sqStdI() >= 0) {
+    const nm = (name || c.name || 'Standard').slice(0, 40);
+    if (SRC() == 'sq') {
       if (!R.ctx.own) return false;
       const L = R.ctx.presets.slice(),
         i = sqStdI();
-      if (i >= 0) L[i] = { ...L[i], sel };
-      else L.unshift({ name: 'Standard', sel, cats: [], std: true });
-      R.base = key(sel);
+      if (i >= 0) L[i] = { ...L[i], name: nm, sel };
+      else L.unshift({ name: nm, sel, cats: [], std: true });
       R.ctx.save(L);
-      appToast('Standard of the squadron saved and sent.');
+      appToast('Standard of the squadron "' + nm + '" saved and sent.');
     } else {
-      LS.set('bmsroestd', sel);
-      R.base = key(sel);
-      appToast('Standard saved: every new flight starts from it.');
+      LS.set('bmsroestd', { name: nm, sel });
+      appToast('Your Standard "' + nm + '" saved: your flights start from it.');
     }
+    R.base = key(sel);
+    R.name = '';
+    R.open = false;
     return true;
   }
   const sq = SRC() == 'sq';
@@ -337,8 +341,15 @@ function render() {
   const box = R.box;
   if (!box || BUSY) return; // a field that loses the focus while the page is drawn again sends its change: it must not draw again inside
   BUSY = true;
+  // the warnings already shown do not fade in again when the page is drawn again (a choice draws the page again: they flickered)
+  const seen = new Set(
+    [...box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot')].map(e => e.className + '|' + e.textContent)
+  );
   try {
     render0(box);
+    box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot').forEach(e => {
+      if (seen.has(e.className + '|' + e.textContent)) e.style.animation = 'none';
+    });
   } finally {
     BUSY = false;
   }
@@ -429,22 +440,25 @@ function render0(box) {
   const pchip = c => {
     const on = c.k == R.pick,
       tip = c.std
-        ? `The Standard${sqStdI() >= 0 ? ' of the squadron' : ''}: every flight starts from it${c.ed ? '' : ' (only the commander changes it)'}`
+        ? `The Standard${src == 'sq' ? ' of the squadron' : ' of your flights'}: Default for every kind of mission with no preset of its own${c.ed ? '' : ' (only the commander changes it)'}`
         : c.cats.length
           ? 'Default for ' + c.cats.join(', ')
           : 'Default for no kind of mission';
-    return `<span class="rpq${src == 'sq' ? ' sq' : ''}${on ? ' on' : ''}${c.std ? ' std' : ''}" data-k="${c.k}" title="${esc(tip)}">${c.std ? '<i class="rpst">STANDARD</i>' : esc(c.name)}${on && chg ? '<i class="rpdot" title="Changed by hand"></i>' : ''}${c.std && !c.ed ? '<i class="rplk" title="Locked">🔒</i>' : ''}${!c.std && c.ed ? `<b data-del="${c.k}" title="Delete this preset">×</b>` : ''}</span>`;
+    return `<span class="rpq${src == 'sq' ? ' sq' : ''}${on ? ' on' : ''}${c.std ? ' std' : ''}" data-k="${c.k}" title="${esc(tip)}">${c.std ? '<i class="rpst">STANDARD</i>' + (c.name != 'Standard' ? esc(c.name) : '') : esc(c.name)}${on && chg ? '<i class="rpdot" title="Changed by hand"></i>' : ''}${c.std && !c.ed ? '<i class="rplk" title="Locked">🔒</i>' : ''}${!c.std && c.ed ? `<b data-del="${c.k}" title="Delete this preset">×</b>` : ''}</span>`;
   };
   const who = !flightOn()
     ? 'Pick a flight in the ATO (Datacard): a preset clicked here goes on its datacard.'
     : `Flight <b>${esc(cs)}</b>${LASTCAT ? ' (' + esc(LASTCAT) + ')' : ''} · ${src == 'sq' ? "the datacard gets the squadron's selection" : inSq() ? "the datacard gets this selection, the squadron's is ignored" : 'the datacard gets this selection'}`;
   const upd = cur && cur.ed,
-    showEd = chg || (R.open && cur && cur.ed);
+    showEd = chg || (R.open && cur && cur.ed),
+    nameIn = `<div class="rpt">Name</div><input type="text" class="rpnm rsname" maxlength="40" value="${esc(R.name)}" placeholder="Name of the preset">`;
   const edit = showEd
     ? `<div class="rsedit">${chg ? `<div class="rsdirty">${flightOn() ? 'Changed by hand: already on the datacard.' : 'Changed: in no preset yet.'} Keep it as a preset?</div>` : ''}${
-        cur && cur.std && !canNew()
-          ? ''
-          : `<div class="rpt">Name</div><input type="text" class="rpnm rsname" maxlength="40" value="${esc(R.name)}" placeholder="Name of the preset"><div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
+        cur && cur.std && R.open
+          ? cur.ed
+            ? `${nameIn}<div class="rpt">Default for<small>every kind of mission with no preset of its own: it is the Standard</small></div>`
+            : ''
+          : `${nameIn}<div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
       }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' g bl' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g" data-a="pdisc">Discard</button>' : ''}</div>${
         !upd && !canNew()
           ? '<div class="hint">The squadron presets are changed by the commander: switch to Flight to keep these changes as your preset.</div>'
@@ -459,7 +473,7 @@ function render0(box) {
       inSq()
         ? `<div class="seg rssrc" role="group" aria-label="Presets of"><button type="button" data-src="me" class="${src == 'me' ? 'on' : ''}">Flight</button><button type="button" data-src="sq" class="${src == 'sq' ? 'on sq' : ''}">Squadron</button></div>`
         : ''
-    }<div class="rswho">${who}</div><div class="rpqs">${C.map(pchip).join('')}</div><div class="hint">A click puts a preset on the datacard${cur && cur.ed && !chg ? '; a click on the one chosen to rename it or change its Default for' : ''}.</div>${edit}`
+    }<div class="rswho">${who}</div><div class="rpqs">${C.map(pchip).join('')}</div><div class="hint">Click: puts the preset on the datacard. Double-click: change it (name, Default for).</div>${edit}`
   );
   const warn = [fullR ? 'ROE box full' : '', fullS ? 'SOP box full' : ''].filter(Boolean);
   const cardCard = card(
@@ -671,10 +685,22 @@ function wire(box) {
       const kk = q.dataset.k,
         c = chipOf(kk);
       if (!c) return;
-      if (kk == R.pick && !dirty()) {
-        R.open = !R.open && c.ed && !c.std; // the one chosen: its name and Default for
-        return render();
+      // a double-click (two clicks on the same preset, the page drawn again between them): its name and Default for
+      const now = Date.now(),
+        dbl = R.lastQ == kk && now - R.lastT < 450;
+      R.lastQ = kk;
+      R.lastT = now;
+      if (dbl && kk == R.pick) {
+        R.lastQ = null;
+        if (!c.ed) return appToast('Only the commander changes the presets of the squadron.');
+        R.open = true;
+        if (c.std) R.name = c.name;
+        render();
+        const n = box.querySelector('.rsname');
+        if (n) n.focus();
+        return;
       }
+      if (kk == R.pick && !dirty()) return; // already on the datacard (a double-click changes it)
       const go = () => {
         setSel(c.sel, false);
         setPick(c);
@@ -742,7 +768,7 @@ function wire(box) {
         name = ((nm && nm.value) || '').trim(),
         c = R.pick && chipOf(R.pick);
       if (act == 'psave' && c && c.std) {
-        savePick(c);
+        savePick(c, R.open ? name : c.name); // opened: renamed too; else its choices only
         return render();
       }
       if (!name) {
@@ -830,8 +856,8 @@ export function roeAuto(f) {
     d = pickDefault({
       sq: Q,
       mine: presetsLoad(),
-      myStd: LS.get('bmsroestd', null) || (presetsLoad()[0] || {}).sel || null,
-      src: Q.length ? LS.get('bmsroesrc', 'sq') : 'me',
+      myStd: myStd(),
+      src: Q.length ? (ST.MSQ ? 'sq' : LS.get('bmsroesrc', 'sq')) : 'me', // a mission received from another pilot: the squadron's, always
       cat: LASTCAT,
     });
   if (!d) return;

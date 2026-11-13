@@ -2969,12 +2969,17 @@ export function createMap(host, deps) {
   let TLB = []; // labels of the tanker tracks (the DTC lines)
   let LBN = 0;
   const LBP = {}; // click actions of the labels
+  // a label drawn again (a switch of the map draws the plan again: the WEZ line, a layer) does not pop in again: a label taken away a moment ago and
+  // put back is known by its kind and its first bold text (the callsign)
+  const LBGONE = new Map();
   function label(group, route, html, cls, k, list, pick) {
     const L = window.L,
       at = route.length > 1 ? [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2] : route[0];
+    const lk = cls + '|' + (String(html).match(/<b>.*?<\/b>/) || [html])[0],
+      still = Date.now() - (LBGONE.get(lk) || 0) < 400;
     const mk = L.marker(at, {
       icon: L.divIcon({
-        className: 'flb ' + cls,
+        className: 'flb ' + cls + (still ? ' still' : ''),
         html: `<div style="--o:${k * 34}px"${pick ? ` data-lb="${++LBN}"` : ''}>${html}</div>`,
         iconSize: [0, 0],
       }),
@@ -2982,6 +2987,7 @@ export function createMap(host, deps) {
       keyboard: false,
       zIndexOffset: 1500,
     }).addTo(group);
+    mk.on('remove', () => LBGONE.set(lk, Date.now()));
     if (pick) LBP[LBN] = pick;
     (list || LBL).push({ mk, r: route });
   }

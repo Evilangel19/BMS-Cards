@@ -209,6 +209,7 @@ async function loadCam0(file, stale) {
     if (stale && stale()) return;
     C = ST.C = CAM.openCam(u8, CAM.D, file.name);
     ST.CL = CAM.listFlights(ST.C, null);
+    ST.MSQ = false; // a campaign of mine: the ROE / SOP of the button chosen
     manClear();
   } catch (e) {
     return alert(

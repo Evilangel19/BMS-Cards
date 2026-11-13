@@ -527,6 +527,7 @@ export async function msfLoad(text, file) {
     WXDIR.files = null;
     ST.C = C2;
     ST.CL = CL2;
+    ST.MSQ = !mine; // a mission of another pilot (received from the squadron): its flights get the squadron's ROE / SOP (roeAuto)
     manClear();
     ST.WX = null;
     ST.L16 = null;

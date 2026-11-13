@@ -1221,7 +1221,8 @@ export function cleanSqPresets(a) {
   return L;
 }
 // the preset a flight gets by itself (pure): src 'sq' = the squadron's presets win, 'me' = mine (the squadron's are not looked at); the first preset
-// marked "Default for" the kind of mission of the flight, else the Standard (the squadron's when there is one, else mine). {k, sel}: k = 'q<i>' (in the
+// marked "Default for" the kind of mission of the flight, else the Standard of that list (Squadron: the squadron's; Flight: mine; the other one
+// when that one is empty). {k, sel}: k = 'q<i>' (in the
 // squadron list), 'm<i>' (in mine) or 'std'; null when there is nothing to put
 export function pickDefault({ sq = [], mine = [], myStd = null, src = 'sq', cat = '' }) {
   const S = cleanSqPresets(sq),
@@ -1229,9 +1230,13 @@ export function pickDefault({ sq = [], mine = [], myStd = null, src = 'sq', cat 
     useSq = src == 'sq' && S.length;
   const i = useSq ? S.findIndex(p => !p.std && p.cats.includes(cat)) : M.findIndex(p => p.cats.includes(cat));
   if (cat && i >= 0) return { k: (useSq ? 'q' : 'm') + i, sel: capSel((useSq ? S : M)[i].sel) };
-  const st = S.find(p => p.std);
-  const sel = st ? st.sel : cleanSel(myStd);
-  return JSON.stringify(sel) == JSON.stringify(emptySel()) ? null : { k: 'std', sel: capSel(sel) };
+  const E = JSON.stringify(emptySel()),
+    st = S.find(p => p.std),
+    my = cleanSel(myStd),
+    sqs = st && JSON.stringify(st.sel) != E ? st.sel : null,
+    mys = JSON.stringify(my) != E ? my : null,
+    sel = useSq ? sqs || mys : mys || sqs; // Squadron: its Standard (mine when it has none); Flight: mine (the squadron's when I have none)
+  return sel ? { k: 'std', sel: capSel(sel) } : null;
 }
 // the default of a mission category: the squadron presets marked for it, joined in their order; null when there is none
 export function defaultFor(presets, cat) {

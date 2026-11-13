@@ -94,18 +94,26 @@ try:
         check('in a squadron: the Flight / Squadron buttons, Squadron chosen', pg.locator(B + '.rssrc button').count() == 2 and pg.locator(B + '.rssrc [data-src=sq].on').count() == 1)
         pg.click(B + '.rpq[data-k=std]'); pg.wait_for_timeout(200); pg.click(B + '.rpk[data-r=ws][data-v=tight]'); pg.wait_for_timeout(150)
         pg.click(B + '[data-a=psave]'); pg.wait_for_timeout(300)
+        check('a click on the preset chosen does nothing: the part to change it stays closed', pg.locator(B + '.rsedit').count() == 0)
+        pg.dblclick(B + '.rpq[data-k=std]'); pg.wait_for_timeout(250)
+        nm = pg.input_value(B + '.rsname') if pg.locator(B + '.rsname').count() else None
+        check('a double-click on the Standard opens it: its name, Default for every kind of mission %s' % nm, nm == 'Standard' and 'every kind of mission' in pg.inner_text(B + '.rsedit'))
+        pg.fill(B + '.rsname', 'Red Devils SOP'); pg.click(B + '[data-a=psave]'); pg.wait_for_timeout(300)
+        n0 = pg.evaluate("()=>__app.sq.roePresets()[0].name")
+        check('the Standard of the squadron renamed with Save Standard & send %s' % n0, n0 == 'Red Devils SOP' and 'Red Devils SOP' in pg.inner_text(B + '.rpq[data-k=std]') and pg.locator(B + '.rpq[data-k=std] [data-del]').count() == 0)
         pg.click(B + '.rpk[data-r=ws][data-v=free]'); pg.fill(B + '.rsname', 'Wolfpack DCA'); pg.click(B + '.rpcat[data-cat="Defensive Counter Air"]')
         pg.click(B + '[data-a=pnew]'); pg.wait_for_timeout(300)
         sq = pg.evaluate("()=>__app.sq.roePresets()")
         check('the Standard of the squadron and a preset with its kind of mission are sent %s' % [(x['name'], x['cats'], x['std']) for x in sq], len(sq) == 2 and sq[0]['std'] and sq[1]['name'] == 'Wolfpack DCA' and sq[1]['cats'] == ['Defensive Counter Air'] and not sq[1]['std'])
         pg.click(B + '.rssrc [data-src=me]'); pg.wait_for_timeout(200)
-        check('Flight: my presets, the Standard of the squadron locked', pg.locator(B + '.rpq[data-k=m0]').count() == 1 and pg.locator(B + '.rpq[data-k=std] .rplk').count() == 1)
+        check('Flight: my presets and my own Standard, that I can change in a squadron too', pg.locator(B + '.rpq[data-k=m0]').count() == 1 and pg.locator(B + '.rpq[data-k=std] .rplk').count() == 0)
         d = pg.evaluate("""async()=>{const rp=await import('/app/js/app/roepage.js'),st=await import('/app/js/app/state.js'),dc=await import('/app/js/app/datacard.js');
           const keep=st.ST.C,o=[];st.ST.C={D:{S:Object.assign([],{[312]:'BARCAP',[313]:'STRIKE',[314]:'RECON'})}};
           for(const src of ['sq','me'])for(const m of [12,13,14]){localStorage.setItem('bmsroesrc',JSON.stringify(src));dc.F.roe='';rp.roeAuto({omis:m});o.push(dc.F.roe.split('\\n')[0])}
+          st.ST.MSQ=true;dc.F.roe='';rp.roeAuto({omis:14});o.push(dc.F.roe.split('\\n')[0]);st.ST.MSQ=false;
           st.ST.C=keep;return o}""")
-        check('defaults: Squadron chosen, BARCAP gets the squadron DCA preset, others the Standard; Flight chosen, a strike gets mine (Airstrike), others the Standard %s' % d,
-              d[0] == 'WPN FREE' and d[1] == 'WPN TIGHT' and d[2] == 'WPN TIGHT' and d[3] == 'WPN TIGHT' and d[4] == 'WPN FREE' and d[5] == 'WPN TIGHT')
+        check('defaults: Squadron chosen, BARCAP gets the squadron DCA preset, others its Standard; Flight chosen, a strike gets mine (Airstrike), others my Standard; a mission received gets the squadron\'s %s' % d,
+              d == ['WPN FREE', 'WPN TIGHT', 'WPN TIGHT', 'WPN FREE', 'WPN FREE', 'WPN FREE', 'WPN TIGHT'])
         # a custom section of my own: its topic in the page and on the card
         pg.click(B + '[data-a=clear]'); pg.click(B + '[data-a=newsec]'); pg.wait_for_timeout(250)
         sb = pg.evaluate("()=>{const s=document.querySelector('.rsmodal select');return s?getComputedStyle(s).backgroundColor:'none'}")

@@ -102,6 +102,9 @@
   animation: popin 0.15s ease-out;
   pointer-events: none;
 }
+.flb.still div {
+  animation: none; /* drawn again (a switch of the map): no pop in again */
+}
 .flb b {
   color: var(--plan, #ffd23f);
   font-size: 13px;
