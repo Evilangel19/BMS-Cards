@@ -9,8 +9,9 @@ import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
 import { mdcAuto } from './mdcfill.js';
+import { roeAuto, roeRefresh } from './roepage.js';
 import { MFD, draw } from './cardview.js';
-import { perfFill } from './perf.js';
+import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 import { seatCheck, seatEnter } from './seat.js';
@@ -54,6 +55,7 @@ export function manClear() {
   ST.AUTO = null;
   ST.CURK = null;
   ST.MANK = new Set();
+  ST.DCHAND = false;
   ST.XBASE = undefined;
 }
 // no campaign: the datacard goes back to empty as well (the map and the lists are empty already)
@@ -121,6 +123,7 @@ export function apply(i, mode) {
   seatCheck(); // the seat chosen must exist in this flight
   applyDTC(ST.CL[i].f);
   mdcAuto();
+  roeAuto(ST.CL[i].f); // ROE / SOP: the default of the squadron for this kind of mission
   dtcBtns(); // Write DTC is on when the route of this flight is not in the DTC yet
   [
     ['ab', 3, 7],
@@ -163,6 +166,8 @@ export function apply(i, mode) {
   perfFill(i);
   wxPrep(i);
   msaFill(i);
+  bvrAuto(i);
+  roeRefresh(); // the page ROE / SOP shows this flight
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),
@@ -204,6 +209,7 @@ async function loadCam0(file, stale) {
     if (stale && stale()) return;
     C = ST.C = CAM.openCam(u8, CAM.D, file.name);
     ST.CL = CAM.listFlights(ST.C, null);
+    ST.MSQ = false; // a campaign of mine: the ROE / SOP of the button chosen
     manClear();
   } catch (e) {
     return alert(

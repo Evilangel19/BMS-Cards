@@ -51,7 +51,7 @@ try:
         check('MDC: Aux is now ERAA', lay['eraa'] is not None and 'ERAA' in lay['lab'][1])
         # map
         pg.click('[data-t=mp]'); pg.wait_for_timeout(2500)
-        check('the MSA filter is in Display and off by default', pg.evaluate("()=>{const i=document.querySelector('input[data-k=msa]');return !!i&&!i.checked&&!!i.closest('.mpsb')&&i.closest('.mpsb').dataset.sec=='Display'}"))
+        check('the MSA filter is in Display and off by default', pg.evaluate("()=>{const i=document.querySelector('input[data-k=msa]');return !!i&&!i.checked&&!!i.closest('#mpdsp')}"))
         check('no labels while the filter is off', pg.evaluate("()=>document.querySelectorAll('.msal,.msae,.msas').length") == 0)
         pg.evaluate("()=>{const i=document.querySelector('input[data-k=msa]');i.checked=true;i.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(3000)
         cnt = lambda s: pg.evaluate("s=>document.querySelectorAll(s).length", s)

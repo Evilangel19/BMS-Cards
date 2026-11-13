@@ -2,15 +2,35 @@
 // Pilots (callsign, STN), audio presets, roll call, targets of the second table.
 import { geoLL, locXY } from '../rules/geo.js';
 const LL = /^([NS].*?')\s+([EW].*)$/;
-// "2x AIM-9M" -> "2x AIM-9M"; "4x AN/ALQ-184" -> "4x ALQ-184"; "2x Tank 370" -> "2x TK370": the name is cut at its first word
+// "2x AIM-9M" -> "2x AIM-9M"; "4x AN/ALQ-184" -> "4x ALQ-184"; "2x Tank 370" or "2x Tank F-15C 600gal" -> "2x TK370" / "2x TK600"; "4x GBU-31(v)1/B" -> "4x GBU-31";
+// one of a kind without its "1x" (a pod: "AAQ-33")
 const shortW = t => {
-  const m = t.match(/^(\d+x)\s+(.*)$/);
+  const m = t.match(/^(\d+)x\s+(.*)$/);
   if (!m) return t;
   let w = m[2].replace(/^AN\//, '');
-  const k = w.match(/^Tank\s+(\d+)/i);
-  w = k ? 'TK' + k[1] : w.split(/\s+/)[0];
-  return m[1] + ' ' + w;
+  const k = w.match(/^(?:Fuel\s+)?Tank\b.*?(\d{3,4})(?:\s*gal)?\b/i);
+  w = k ? 'TK' + k[1] : w.split(/\s+/)[0].replace(/\(.*$/, '');
+  return m[1] == '1' ? w : m[1] + 'x ' + w;
 };
+// the escorted flights in the short form of the MDC: the two letters of Link 16 (first and last letter of the callsign) and the number:
+// "Escort Devil 3, Panther 4, Jaguar 2" -> "ESC DL3 PR4 JR2"; any other text stays as it is
+// a callsign in the short form of Link 16: "Devil 3" -> "DL3"
+export function csShort(cs) {
+  const k = /^(.*?)[\s-]*(\d+)$/.exec(String(cs || '').trim()),
+    w = (k ? k[1] : String(cs || '')).replace(/[^A-Za-z]/g, '').toUpperCase();
+  return w.length >= 2 ? w[0] + w[w.length - 1] + (k ? k[2] : '') : String(cs || '');
+}
+export function escShort(t) {
+  const m = /^escort\s+(.+)$/i.exec(String(t || '').trim());
+  if (!m) return t;
+  return (
+    'ESC ' +
+    m[1]
+      .split(/\s*,\s*/)
+      .map(csShort)
+      .join(' ')
+  );
+}
 const clean = v => (v && v !== '---' ? String(v) : '');
 
 /** @param {Record<string, any>} F @param {number} [seat] the chosen seat of the flight (0 = the leader, also when no seat is chosen) @returns {Record<string, string>} */
@@ -58,7 +78,10 @@ export function mdcDerive(F, seat = 0) {
     o.dl0_dn = others[1] || '';
     o.dl0_dn2 = others.slice(2).join(' ');
   }
+  // Airspace / TGT: the primary target (the escorted flights in the short form)
+  o.airsp = escShort(n('pri'));
   // loadout: a short form of the four loadout lines
+  // the cell is one line high: the short names (no "1x", no "(v)1/B", tanks as TK600) let it be written bigger
   o.cfg = ['aa', 'ag', 'ecm', 'tanks']
     .flatMap(k => n(k).split(/,\s*/))
     .filter(Boolean)
@@ -75,7 +98,7 @@ export function mdcDerive(F, seat = 0) {
     o[`${p}_1`] = m ? m[1] : '';
     o[`${p}_2`] = m ? m[2] : '';
     o[`${p}_3`] = m ? n(k + '_alt') : '';
-    o[`${p}_4`] = d;
+    o[`${p}_4`] = escShort(d);
   });
   return o;
 }

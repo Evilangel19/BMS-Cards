@@ -28,6 +28,19 @@ function legBurn(ac, W, o, a0, a1, distNm, tSec, hw) {
     ff = pw.ff;
   return { burn: (ff * tSec) / 3600, mach: M, ab: pw.mode == 'ab' && !P.powerFor(ac, hm, M, treq) };
 }
+// the IMC part of the Bingo: o.imc.hold minutes of holding (10,000 ft above the field, Mach .5, at the landing weight: empty + stores + reserve + the alternate fuel)
+// and o.imc.alt lb for an alternate (a fixed amount: the alternate airfield itself is not chosen). null when the landing field is not in IMC.
+export const IMC_HOLD_FT = 10000,
+  IMC_HOLD_M = 0.5;
+export function imcExtra(ac, o, fieldFt) {
+  const m = o && o.imc;
+  if (!m) return null;
+  const hold = Math.max(0, +m.hold || 0),
+    alt = Math.max(0, +m.alt || 0),
+    W = (o.empty || 0) + (o.stores || 0) + (o.reserve || 0) + alt;
+  const holdLb = hold > 0 ? Math.round(dwellBurn(ac, W, o, (fieldFt || 0) + IMC_HOLD_FT, IMC_HOLD_M, hold * 60)) : 0;
+  return { hold, holdLb, alt, total: holdLb + alt, code: m.code || '', field: m.field || '' };
+}
 // holding / orbiting: at the speed of the leg that brought the aircraft there, but not faster than Mach .85 nor slower than Mach .5
 function dwellBurn(ac, W, o, alt, mach, tSec) {
   if (!(tSec > 0)) return 0;
@@ -38,6 +51,8 @@ function dwellBurn(ac, W, o, alt, mach, tSec) {
   return (pw.ff * tSec) / 3600;
 }
 
+// the Joker: the Bingo and the margin of the pilot (Performance page, 1000 lb when none), up to the next 100 lb. The same wherever the Bingo comes from (the plan, the DTC)
+export const jokerFor = (bingo, margin) => Math.ceil((+bingo + (margin == null ? 1000 : +margin)) / 100 - 1e-9) * 100;
 export function fuelPlan(ac, wps0, o) {
   const end = wps0.findIndex((p, i) => i > 0 && p.act == 7),
     wps = end > 0 ? wps0.slice(0, end + 1) : wps0; // the plan ends at the first landing; what follows (alternate) is not counted
@@ -117,9 +132,11 @@ export function fuelPlan(ac, wps0, o) {
   wps.forEach((p, i) => {
     if (!BASIC.includes(p.act)) last = i;
   });
-  const bi = last >= 0 ? Math.min(n - 1, last + 1) : Math.max(1, n - 2),
-    bingo = rows[bi].min,
-    joker = up100(bingo + (o.jokerMargin == null ? 1000 : o.jokerMargin));
+  const bi = last >= 0 ? Math.min(n - 1, last + 1) : Math.max(1, n - 2);
+  // the landing field in IMC (o.imc = {hold: minutes, alt: lb}): the Bingo also carries a holding at the field and a fixed amount for an alternate
+  const imc = imcExtra(ac, o, wps[n - 1] ? wps[n - 1].z * 10 : 0),
+    bingo = imc ? up100(rows[bi].minExact + imc.total) : rows[bi].min,
+    joker = jokerFor(bingo, o.jokerMargin);
   const toFuel = rows[0].min;
   wps0.slice(n).forEach((p, k) =>
     rows.push({
@@ -141,11 +158,34 @@ export function fuelPlan(ac, wps0, o) {
     toFuel,
     bingo,
     bingoIdx: bi,
+    imc,
     joker,
     reserve,
     flags,
     short: o.loaded != null && toFuel > o.loaded ? toFuel - o.loaded : 0,
   };
+}
+// Joker / Bingo to the tanker (TANK J/B of the MDC): the fuel at which to go to the tanker. A flight with a Refuel steerpoint in its plan: the Min.Fuel of the
+// steerpoint before it (the plan arrives there with `arrive` lb). Otherwise: the fuel to fly from the last activity to the tanker track (track = [x, y], km of the
+// campaign) at the mean burn per NM of the plan (the take-off leg left out), plus `arrive`. Joker = Bingo + the margin of the pilot. null when there is nothing to go on
+export function tankerJB(plan, wps, track, margin, arrive = 1000) {
+  if (!plan || !wps) return null;
+  const k = wps.findIndex((p, i) => i > 0 && p.act == 4);
+  let b = null;
+  if (k > 0 && plan.rows[k - 1] && plan.rows[k - 1].min != null) b = plan.rows[k - 1].min;
+  else if (track) {
+    let last = -1;
+    wps.forEach((p, i) => {
+      if (!BASIC.includes(p.act)) last = i;
+    });
+    const R = plan.rows.filter(r => r.i > 1 && r.nm > 0 && r.burn > 0 && r.min != null),
+      nm = R.reduce((s, r) => s + r.nm, 0),
+      lb = R.reduce((s, r) => s + r.burn, 0);
+    if (last < 0 || !(nm > 0)) return null;
+    const d = Math.hypot(track[0] - wps[last].x, track[1] - wps[last].y) * NM_KM;
+    b = up100(arrive + (d * lb) / nm);
+  }
+  return b == null ? null : { bingo: b, joker: jokerFor(b, margin) };
 }
 // the altitude to climb to: the highest steerpoint altitude from the first one to the first activity, at least 15 000 ft (a low-level flight still gets a climb speed)
 export function climbAltitude(wps) {

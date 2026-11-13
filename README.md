@@ -26,6 +26,8 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 - **Weather** - the campaign weather drawn on the map, with wind and conditions by altitude.
 - **Docs** - the PDFs and charts of the Docs folder of your BMS, with pages you can send to the kneeboard.
 - **Squadron** - a squadron profile and roster, missions saved as `.bcrd` files and sent to the other pilots, packages and flights, logbook.
+- **ROE / SOP** - rules of engagement and SOP by phase of flight, written in short form on the datacard: your presets and the squadron's, a default for each kind of mission, and a full ROE / SOP card for the kneeboard.
+- **Briefing** - a live room on the map for the squadron: the briefer draws, the pilots follow his view, and a kneeboard card keeps the result.
 
 ![The map with a flight plan and SAM rings](docs/img/map.png)
 ![The kneeboard organizer](docs/img/kneeboard.png)
@@ -47,11 +49,14 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 2. Start `BMS-Cards.exe`. In **Settings** choose the folder of your Falcon BMS (it is usually found by itself).
 3. Choose the theater, then a campaign, then a flight.
 
+The **User Guide** (in the program: **Settings > Help > User Guide**, also as a PDF) explains the idea of the program, the way to a finished datacard in nine steps, the squadron and the technical data in a few pages.
+
 There is no installer and no updater. Settings, squadrons and everything the program saves live in the same folder as the exe, so moving or deleting the folder moves or removes everything.
 
 **Requirements:** Windows and a Falcon BMS installation. Written and tested on **4.38.1**; the program warns when it sees another version.
 
 ### A new version
+
 There is no updater, and the download never contains your data. Put the new version in a **new folder** (the old one stays as it is), start it and open **Settings > Import & backup > Import from another version**. Choose the folder of the older version (or a backup file) and the program copies what you want to keep: settings, page preferences, squadrons and your pilot identity, saved missions, kneeboard cards and the saved originals of your DTC and kneeboard files. The older folder is never changed. When it is done, restart the program. The same page has **Export my data**, which saves all of it in one `.zip` backup file that can be imported the same way.
 
 ## Limits and known problems
@@ -59,7 +64,7 @@ There is no updater, and the download never contains your data. Put the new vers
 - **Mostly tested on Korea.** The Balkans, the Israel and Hellas theaters work, but with far fewer campaigns and Tactical Engagements tried.
 - **Many numbers are estimates.** Missile ranges and MAR, weapon effects, radar coverage and the fuel plan are models of mine, not the game's own code. Performance uses the aircraft data of your BMS: the F-16 and the F-15 are the most carefully checked, the other aircraft are calculated the same way but less verified.
 - **Heavy pictures can make it stutter.** Large map pictures and the biggest coastlines can make the window freeze for a moment while the map is drawn. A loading bar is shown when it happens.
-- **Squadron was tested with few people.** Missions have been sent and received between a small number of pilots only. Connections depend on your network and firewall, and bugs are likely.
+- **Squadron was tested with few people.** Missions, the organization and the live briefing have been tried by three pilots at the same time. Connections depend on your network and firewall (the User Guide says what to do when pilots cannot connect), and bugs are likely.
 - **Some things are not there.** The game's own briefing is not imported, and some squadron values (experience, morale, supply, mission rating) cannot be read from the files.
 - **Writing the DTC and the kneeboard changes your game files.** Keep your own backups too.
 
@@ -69,7 +74,7 @@ Pilots find each other through public trackers that only pass the connection off
 
 ## What the program touches
 
-The desktop program only runs its own scripts, reads your BMS folder and its own folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files, the `.zip` backup file). It never writes programs or scripts. The game data (aircraft, weapons, theaters, airbases, radio) is **read from your own installation at run time and is not part of this repository**.
+The desktop program only runs its own scripts, reads your BMS folder and its own folder, and writes only the kinds of files it makes (`.ini`, `.json`, `.dds`, pictures, mission files, the `.zip` backup file, the `.pdf` of the User Guide). It never writes programs or scripts. The game data (aircraft, weapons, theaters, airbases, radio) is **read from your own installation at run time and is not part of this repository**.
 
 ## For developers
 

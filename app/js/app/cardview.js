@@ -119,6 +119,188 @@ export const fitF = (x, t, w, s0, m) => {
   }
   return m;
 };
+// the WEZ exposure time after the TOT carries the name of the SAM ("WEZ 12:41-13:05 9' SA-6"): each card format drops the name where the cell is too short
+// for the whole line at a size that reads well (fs, with the horizontal squeeze sq of the MDC)
+const WEZ_NAME = /(WEZ \d\d:\d\d-\d\d:\d\d \d+') .+$/;
+export const wezFit = (x, v, w, fs, sq = 1) => {
+  if (!WEZ_NAME.test(v)) return v;
+  x.font = fs + 'px Arial';
+  return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
+};
+// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
+// which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
+// When even at 11 the box is too short the lines get closer; what still does not fit is left out (no smaller text).
+const FREE_ROOM = 116;
+export function freeLayout(x, v, w, room = FREE_ROOM) {
+  const L = String(v).split('\n');
+  // a line too long wraps at a space, or right after a "+" or a "/" ("ID: AWACS DECLARE+VID+" / "NCTR"): the box fills before the text gets smaller
+  const wrap = (t, fs) => {
+    x.font = fs + 'px Arial';
+    if (x.measureText(t).width <= w) return [t];
+    const P = [];
+    let cur = '';
+    for (const ch of t) {
+      if (ch == ' ') {
+        if (cur) P.push({ w: cur, sp: 1 });
+        cur = '';
+      } else {
+        cur += ch;
+        if (ch == '+' || ch == '/') {
+          P.push({ w: cur, sp: 0 });
+          cur = '';
+        }
+      }
+    }
+    if (cur) P.push({ w: cur, sp: 1 });
+    const out = [];
+    let line = '',
+      prev = null;
+    P.forEach(p => {
+      const q = line ? line + (prev.sp ? ' ' : '') + p.w : p.w;
+      if (line && x.measureText(q).width > w) {
+        out.push(line);
+        line = p.w;
+      } else line = q;
+      prev = p;
+    });
+    if (line) out.push(line);
+    return out;
+  };
+  const rowsAt = fs =>
+    L.flatMap(t => (t === '' ? [{ sep: 1 }] : wrap(t, fs).map(r => ({ t: r, h: /^UHF2 backup$/.test(t) }))));
+  const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
+  // the biggest size (half a pixel at a time) that fits, first with the normal spacing, then with closer lines
+  for (let fs = 14; fs >= 11; fs -= 0.5) {
+    const R = rowsAt(fs);
+    for (const [lh, gp] of [
+      [fs + 2, 7],
+      [fs + 1, 5],
+    ])
+      if (hOf(R, lh, gp) <= room) return { fs, lh, gp, rows: R };
+  }
+  // what does not fit at 11 is left out (the notes of a big package use the short callsigns, so this is rare; the text stays in the cell)
+  const fs = 11,
+    lh = fs + 0.5,
+    gp = 4,
+    R = rowsAt(fs);
+  while (R.length > 1 && hOf(R, lh, gp) > room) R.pop();
+  while (R.length && R[R.length - 1].sep) R.pop();
+  return { fs, lh, gp, rows: R };
+}
+// The notes of the Datacard: one section a label (TWR, UHF2, TGT, JTAC, IFF...), the label and the cells of a line divided by tabs (core/fillcard.js).
+// The labels in a narrow column on the left, the text from the left, the cells of a line in columns of the same width (the UHF2 backups line up); a
+// line too long is squeezed in width, never wrapped. The biggest size from 16 to 12 that fits; then closer lines; what still does not fit is left out.
+export const NOTES_ROOM = 116,
+  NOTES_GUT = 36;
+export function notesLayout(x, v, room = NOTES_ROOM) {
+  const rows = [];
+  let lab = null;
+  String(v || '')
+    .replace(/\r/g, '')
+    .split('\n')
+    .forEach(l => {
+      if (!l.trim()) {
+        if (rows.length && !rows[rows.length - 1].gap) rows.push({ gap: 1 });
+        return;
+      }
+      if (l.includes('\t')) {
+        const p = l.split('\t');
+        if (p[0].trim()) lab = p[0].trim();
+        rows.push({ lab: p[0].trim(), cells: p.slice(1).map(c => c.trim()), sec: !!p[0].trim() && rows.length > 0 });
+      } else {
+        lab = null;
+        rows.push({ lab: '', cells: [l.trim()], plain: 1, sec: rows.length > 0 });
+      }
+    });
+  while (rows.length && rows[rows.length - 1].gap) rows.pop();
+  const H = (lh, gp) => rows.reduce((s, r) => s + (r.gap ? 4 : lh + (r.sec ? gp : 0)), 0);
+  // the biggest size from 16 (the size of the other cells) to 12 at which every line fits
+  let fs = 16,
+    lh = 18,
+    gp = 5;
+  while (fs > 12 && H(lh, gp) > room) lh = --fs + 2;
+  if (H(lh, gp) > room) {
+    lh = 12.5;
+    gp = 3;
+  }
+  while (rows.length > 1 && H(lh, gp) > room) rows.pop();
+  // the cells of a section share their columns
+  let n = 1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    const r = rows[i];
+    if (r.gap) continue;
+    n = Math.max(n, r.cells.length);
+    r.cols = n;
+    if (r.lab || r.plain) n = 1;
+  }
+  for (let i = 0, c = 1; i < rows.length; i++) {
+    const r = rows[i];
+    if (r.gap) continue;
+    if (r.lab || r.plain) c = r.cols;
+    r.cols = c;
+  }
+  void lab;
+  return { fs, lh, gp, rows, gut: rows.some(r => r.lab) ? NOTES_GUT : 0, h: H(lh, gp) };
+}
+export function notesDraw(x, v, d, top, room = NOTES_ROOM) {
+  const L = notesLayout(x, v, room),
+    x0 = d.x + 2,
+    W = d.w - 4 - L.gut;
+  let yy = top;
+  x.save();
+  x.textAlign = 'left';
+  x.textBaseline = 'middle';
+  L.rows.forEach(r => {
+    if (r.gap) {
+      yy += 4;
+      return;
+    }
+    if (r.sec) {
+      // a thin grey line between two sections
+      x.fillStyle = '#aaa';
+      x.fillRect(x0, yy + L.gp / 2 - 0.5, d.w - 4, 1);
+      yy += L.gp;
+    }
+    const cy = yy + L.lh / 2;
+    if (r.lab) {
+      x.font = 'bold ' + (L.fs - 2) + 'px Arial';
+      x.fillStyle = '#555';
+      x.fillText(r.lab, x0, cy, L.gut - 3);
+    }
+    x.font = L.fs + 'px Arial';
+    x.fillStyle = '#000';
+    const cw = W / r.cols;
+    r.cells.forEach((c, i) => x.fillText(c, x0 + L.gut + i * cw, cy, (r.cells.length == 1 ? W : cw) - 4));
+    yy += L.lh;
+  });
+  x.restore();
+}
+// top: the top of the box (card units), room its height
+export function freeDraw(x, v, d, cx, room = FREE_ROOM, top = d.y) {
+  const { fs, lh, gp, rows } = freeLayout(x, v, d.w - 4, room);
+  let yy = top;
+  rows.forEach(r => {
+    if (r.sep) {
+      const ry = yy + gp / 2;
+      x.save();
+      x.strokeStyle = '#999';
+      x.lineWidth = 0.6;
+      x.beginPath();
+      x.moveTo(d.x + 30, ry);
+      x.lineTo(d.x + d.w - 30, ry);
+      x.stroke();
+      x.restore();
+      yy += gp;
+      return;
+    }
+    x.save();
+    x.font = (r.h ? 'bold ' + (fs - 2) : fs) + 'px Arial';
+    if (r.h) x.fillStyle = '#555';
+    x.fillText(r.t, cx, yy + lh / 2, d.w);
+    x.restore();
+    yy += lh;
+  });
+}
 export const vy = (d, fs) => (!d.mdc && YC && YC[d.k] !== undefined ? YC[d.k] : d.y) + 0.358 * fs;
 export function calcYC(x) {
   YC = {};
@@ -334,8 +516,16 @@ export function mdcDraw(x) {
   x.textBaseline = 'middle';
   x.textAlign = 'left';
   MFD.forEach(d => {
-    const v = F[d.k];
+    let v = F[d.k];
     if (!v || (v === '---' && /^fl\d_/.test(d.k))) return;
+    if (d.k == 'd1') {
+      // TOT / VUL of the MDC: the times to the minute ("03:58-04:02 · WEZ 03:55-04:13 11'"); the SAM only when the line still reads well
+      v = String(v)
+        .replace(/(\d\d:\d\d):\d\d/g, '$1')
+        .replace(/\s+-\s+/g, '-');
+      const W = d.w - 8 - (CENTERK.test(d.k) ? 0 : seatInd(d));
+      v = d.multi ? wezFit(x, v, W * 1.6, 11, 0.82) : wezFit(x, v, W, Math.max(9, Math.min(15, d.h - 4)) - 1, 0.85);
+    }
     x.fillStyle = d.red ? '#c00000' : '#000';
     if (LOAD.includes(d.k)) {
       drawLoad(x, v, d);
@@ -356,6 +546,7 @@ export function mdcDraw(x) {
   x.setTransform(1, 0, 0, 1, 0, 0);
 }
 export function draw() {
+  ST.CVV = (ST.CVV || 0) + 1; // the card was drawn again (the kneeboard checks then whether it changed since its last Save)
   draw0();
   if (ST.hlDraw) ST.hlDraw();
 }
@@ -426,73 +617,51 @@ function draw0() {
     x.fillStyle = '#c0c0c0';
     x.fillRect(rx, 225, 76, 23);
     x.fillStyle = '#000';
-    x.fillText('TOT', cx, 236);
+    x.fillText('TOT/VUL', cx, 236);
   });
   x.textAlign = 'left';
   x.fillStyle = '#000';
+  // the right column under the ROE / SOP heading is drawn again from white (the blank had two cells there: its line in between left black marks)
   x.fillStyle = '#fff';
-  x.fillRect(1266, 1055, 329, 8);
+  x.fillRect(1264, 921, 334, 277);
   x.fillStyle = '#000';
-  x.fillRect(1261, 984, 339, 3);
-  x.fillRect(1261, 1134, 339, 3);
+  x.fillRect(1261, 1024, 339, 3); // ROE | SOP, then the notes, then the ephemerides (two lines)
+  x.fillRect(1261, 1147, 339, 3);
+  x.fillRect(1430, 894, 3, 130);
   if (!YC) calcYC(x);
   drawLabels(x);
   x.textAlign = 'left';
   x.fillStyle = '#000';
   FD.forEach(d => {
-    const v = F[d.k];
+    let v = F[d.k];
     if (!v) return;
     if (LOAD.includes(d.k)) {
       drawLoad(x, v, d);
       x.textAlign = 'left';
       return;
     }
+    // the elevation of the target steerpoint (STPT 99 / 98: the Elev of the target table of the MDC) after its coordinates
+    if ((d.k == 'll1' || d.k == 'll2') && /^\d+$/.test(String(F[d.k == 'll1' ? 't0_3' : 't1_3'] || '').trim()))
+      v += ' · ' + Number(F[d.k == 'll1' ? 't0_3' : 't1_3']).toLocaleString('en-US') + ' ft';
     const CT = !/^(ews\d|wp\d_mode|atis|ab\d_0|fl\d_[03]|pk\d_[016]|su\d_0|sn\d|pri|sec|d1|d2|ll1|ll2)$/.test(d.k),
       cx = CT ? d.x + d.w / 2 : d.x;
     x.textAlign = CT ? 'center' : 'left';
     if (d.k == 'free') {
-      const L = v.split('\n'),
-        nb = L.filter(t => t === '').length,
-        n = L.length - nb;
-      let lh = 16,
-        gp = 10;
-      const room = 140,
-        tot = n * lh + nb * gp;
-      if (tot > room) {
-        const k = Math.max(0.8, room / tot);
-        lh *= k;
-        gp *= k;
-      }
-      let fs = 14;
-      L.forEach(t => {
-        if (t !== '') fs = Math.min(fs, fitF(x, t, d.w - 4, 14, 10));
-      });
-      if (lh < 14) fs = Math.min(fs, Math.floor(lh) - 1);
-      x.font = fs + 'px Arial';
-      let yy = 0,
-        first = true;
-      L.forEach(t => {
-        if (t === '') {
-          const ry = d.y + 6 + yy - lh / 2 + gp / 2 + (first ? 0 : 0);
-          x.save();
-          x.strokeStyle = '#777';
-          x.lineWidth = 0.8;
-          x.beginPath();
-          x.moveTo(d.x + 8, ry);
-          x.lineTo(d.x + d.w - 8, ry);
-          x.stroke();
-          x.restore();
-          yy += gp - lh + lh;
-          return;
-        }
-        x.fillText(t, cx, d.y + 6 + yy, d.w);
-        yy += lh;
-      });
+      notesDraw(x, v, d, 1029);
+    } else if (d.k == 'roe' || d.k == 'sop') {
+      // ROE and SOP side by side: the same layout as the notes (biggest size that fits, long lines wrapped), from the left
+      x.textAlign = 'left';
+      freeDraw(x, v, d, d.x + 2, 97, 924);
     } else if (ML.includes(d.k) || d.k == 'atis') {
       v.split('\n').forEach((t, i) => {
         const fs = fitF(x, t, d.w - 4, 16, 12);
         x.font = fs + 'px Arial';
-        x.fillText(t, cx, d.y + (d.k == 'atis' ? (v.includes('\n') ? -8 : 0) : 6) + i * 17, d.w);
+        x.fillText(
+          t,
+          cx,
+          d.y + (d.k == 'atis' ? (v.includes('\n') ? -11 : 0) : 6) + i * (d.k == 'atis' ? 22 : d.k == 'eph' ? 20 : 17),
+          d.w
+        ); // the METAR and the TAF well apart
       });
     } else if (/^fl\d_3$/.test(d.k)) {
       const W = d.w - 8,
@@ -512,8 +681,9 @@ function draw0() {
         }
       }
     } else {
-      const ind = CT ? 0 : seatInd(d),
-        fs = fitF(x, v, d.w - 4 - ind, 16, 11);
+      const ind = CT ? 0 : seatInd(d);
+      if (d.k == 'd1' || d.k == 'd2') v = wezFit(x, v, d.w - 4 - ind, 13);
+      const fs = fitF(x, v, d.w - 4 - ind, 16, 11);
       x.textBaseline = 'alphabetic';
       let yy = vy(d, fs);
       if (!/[A-Z0-9]/.test(v)) {
@@ -525,6 +695,19 @@ function draw0() {
     }
     x.textAlign = 'left';
   });
+  // the Bingo carries the fuel for a holding and an alternate (the landing field in IMC): marked on the card
+  if (F.__bimc && F.bingo) {
+    const d = FD.find(z => z.k == 'bingo');
+    if (d) {
+      x.save();
+      x.font = 'bold 10px Arial';
+      x.fillStyle = '#c00000';
+      x.textAlign = 'right';
+      x.textBaseline = 'top';
+      x.fillText('IMC', d.x + d.w - 2, d.y - 11);
+      x.restore();
+    }
+  }
   if (ST.MAPSHOT) {
     x.setTransform(1, 0, 0, 1, 0, 0);
     x.drawImage(ST.MAPSHOT, 1048, 1290, 564, 752);
@@ -609,8 +792,8 @@ export async function init5() {
     ].forEach((r, i) => r.forEach((t, j) => a(t, [865, 1145, 1305, 1470][j], 94 + 28 * i)));
     a('Primary', 881, 207);
     a('Secondary', 1304, 207);
-    a('TOT', 880, 235);
-    a('TOT', 1305, 235);
+    a('TOT/VUL', 880, 235);
+    a('TOT/VUL', 1305, 235);
     a('Lat&Long', 881, 262);
     a('Lat&Long', 1304, 262);
     a('EWS = THR', 880, 290);
@@ -658,7 +841,8 @@ export async function init5() {
       ['DR', 1533],
       ['DOR', 1577],
     ].forEach(([t, x]) => a(t, x, 765));
-    a('ROE', 1431, 905);
+    a('ROE', 1347, 905);
+    a('SOP', 1515, 905);
     [
       ['Airbase', 15, 138],
       ['Flight', 15, 265],

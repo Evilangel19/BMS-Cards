@@ -72,3 +72,711 @@
 #busybar .ldb {
   margin-top: 6px;
 }
+
+/* "Ready to fly" (app/ready.js): a button in the tab bar (amber: something is not saved; green: all saved) and its panel; a dot on the Kneeboard tab */
+.rdy {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #3ecf8e77;
+  background: #3ecf8e1c;
+  color: #3ecf8e;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: popin 0.25s ease-out;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
+}
+.rdy.warn {
+  border-color: #f5c84288;
+  background: #f5c8421f;
+  color: #f5c842;
+}
+.rdy:hover {
+  filter: brightness(1.15);
+}
+.rdy[hidden] {
+  display: none;
+}
+.rdy:not([hidden]) ~ #cfgbtn,
+.verchip:not([hidden]) ~ #cfgbtn {
+  margin-left: 0 !important;
+}
+.rdypop {
+  position: fixed;
+  z-index: 9000;
+  width: 340px;
+  max-width: calc(100vw - 16px);
+  background: var(--card, #1a1f27);
+  border: 1px solid var(--line, #2a313b);
+  border-radius: 12px;
+  padding: 10px 12px;
+  box-shadow: 0 14px 34px #000a;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  animation: popin 0.18s ease-out;
+}
+.rdypop .rdyr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rdypop .rdyr i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #3ecf8e;
+}
+.rdypop .rdyr.todo i {
+  background: #f5c842;
+}
+.rdypop .rdyr.none i {
+  background: #64748b;
+}
+.rdypop .rdyr > div {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.25;
+}
+.rdypop .rdyr b {
+  display: block;
+  font-size: 13px;
+}
+.rdypop .rdyr span {
+  font-size: 11.5px;
+  color: var(--mu, #8b95a3);
+}
+.rdypop .btn {
+  margin: 0;
+  white-space: nowrap;
+}
+.rdypop .hint {
+  margin: 0;
+  min-height: 0;
+  font-size: 11px;
+}
+/* a newer version of the program exists (app/ready.js verCheck) */
+.verchip {
+  align-self: center;
+  margin-left: auto;
+  margin-right: 8px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid #7cc4ff77;
+  background: #7cc4ff1c;
+  color: #7cc4ff;
+  font:
+    600 12px system-ui,
+    sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  animation: popin 0.25s ease-out;
+  transition: filter 0.15s;
+}
+.verchip:hover {
+  filter: brightness(1.15);
+}
+.verchip[hidden] {
+  display: none;
+}
+.rdy:not([hidden]) ~ .verchip {
+  margin-left: 0;
+}
+.rdypop input {
+  width: 100%;
+  font-size: 12px;
+}
+.tab[data-t='kn'].unsaved {
+  position: relative;
+}
+.tab[data-t='kn'].unsaved::after {
+  content: '';
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f5c842;
+  box-shadow: 0 0 0 2px var(--bg, #0f1318);
+  animation: popin 0.25s ease-out;
+}
+/* the panel of a long ⓘ (app/longtip.js) */
+.wtip.ltk {
+  cursor: pointer;
+}
+.ltpop {
+  position: fixed;
+  z-index: 3000;
+  width: min(560px, calc(100vw - 16px));
+  max-height: min(70vh, 640px);
+  display: flex;
+  flex-direction: column;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 10px 32px #000b;
+  color: var(--tx);
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ltpop .lth {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--line);
+}
+.ltpop .lth b {
+  color: #3ddc84;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.ltpop .ltx {
+  margin-left: auto;
+  background: none;
+  border: 0;
+  color: var(--mu);
+  font-size: 18px;
+  cursor: pointer;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.ltpop .ltx:hover {
+  color: var(--tx);
+}
+.ltpop .ltb {
+  overflow-y: auto;
+  padding: 4px 14px 12px;
+}
+.ltpop h4 {
+  margin: 12px 0 4px;
+  color: #3ddc84;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+.ltpop p {
+  margin: 0 0 5px;
+}
+.ltpop p.ltin {
+  color: var(--mu);
+  margin-top: 8px;
+}
+/* Squadron > ROE / SOP (app/roepage.js) */
+.rsq {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 0.85fr) minmax(0, 1.6fr);
+  gap: 12px;
+  align-items: start;
+}
+.rsq .rsc {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.rsq .rspg {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+.rsq .rsg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.rsq .rss {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+@media (max-width: 1500px) {
+  .rsq .rspg {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 1100px) {
+  .rsq {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.rsq .rpk {
+  background: #1b222c;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 9px;
+  font-size: 11.5px;
+  margin: 0 5px 5px 0;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s,
+    color 0.15s,
+    opacity 0.15s;
+}
+.rsq .rpk:hover:not(:disabled) {
+  border-color: #4a5a6c;
+}
+.rsq .rpk.on {
+  background: #1f7a46;
+  border-color: #4cc38a;
+  color: #fff;
+}
+.rsq .rpk.off {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.rsq .rpt {
+  font-weight: 600;
+  margin: 8px 0 4px;
+  font-size: 12.5px;
+}
+.rsq .rpt small {
+  color: var(--mu);
+  font-weight: 400;
+  margin-left: 6px;
+}
+.rsq .rpr {
+  display: grid;
+  grid-template-columns: minmax(0, 100px) minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  align-items: center;
+  padding: 5px 0;
+  border-top: 1px solid #ffffff0d;
+  font-size: 12.5px;
+}
+.rsq .rpr .rpn {
+  color: var(--mu);
+}
+.rsq .rpr.set .rpn {
+  color: var(--tx);
+}
+.rsq select {
+  min-width: 0;
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 7px;
+  font: inherit;
+  font-size: 12px;
+  color-scheme: dark;
+  cursor: pointer;
+}
+.rsq .rpr select {
+  width: 100%;
+}
+.rsq .rpon {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--mu);
+  cursor: pointer;
+}
+.rsq .rpon input,
+.rsq .rpr .rpd input {
+  width: auto;
+  box-shadow: none;
+}
+.rsq .rpr .rpd input {
+  width: 100%;
+  padding: 3px 7px;
+}
+.rsq .rpd {
+  grid-column: 2 / 4;
+  color: var(--mu);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+.rsq .rpd:empty {
+  display: none;
+}
+.rsq textarea,
+.rsq input.rpnm {
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+.rsq input.rpnm {
+  padding: 4px 8px;
+}
+.rsq .rpnm.err {
+  border-color: #ff6b6b;
+}
+.rsq .rpq {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin: 0 5px 6px 0;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.rsq .rpq.on {
+  background: #1f7a46;
+  border-color: #4cc38a;
+  color: #fff;
+}
+.rsq .rpq.sq {
+  border-color: #2c4a74;
+  padding-right: 10px;
+}
+.rsq .rpq.sq.on {
+  background: #1d5f99;
+  border-color: #3a8fd6;
+  color: #fff;
+}
+.rsq .rpq.on b {
+  color: #ffffffb0;
+}
+.rsq .rpq b {
+  color: var(--mu);
+  padding: 0 4px;
+  border-radius: 8px;
+}
+.rsq .rpq b:hover {
+  color: #ff6b6b;
+}
+.rsq .rsbar .btn {
+  padding: 5px 11px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.rsq .rscard {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: #f4f4f0;
+  color: #111;
+  border: 2px solid #111;
+  border-radius: 3px;
+  font-family: Arial, sans-serif;
+}
+.rsq .rscard .h {
+  background: #c0c0c0;
+  text-align: center;
+  font-size: 12px;
+  padding: 2px;
+  border-bottom: 2px solid #111;
+}
+.rsq .rscard .h:first-child,
+.rsq .rscard .rpv1 {
+  border-right: 2px solid #111;
+}
+.rsq .rscard .b {
+  font-size: 12px;
+  line-height: 15px;
+  padding: 4px 5px;
+  min-height: 80px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.rsq .rscnt {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  margin-top: 6px;
+  color: var(--mu);
+}
+.rsq .rscnt b {
+  color: var(--tx);
+}
+.rsq .rscnt b.full {
+  color: #ffb347;
+}
+.rsq .rswarn {
+  background: #3a2a10;
+  border: 1px solid #6b4a14;
+  color: #ffd08a;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  margin-top: 6px;
+  animation: fadein 0.2s;
+}
+.rsq .rsbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.rsq .rpt.rg {
+  color: #3ddc84;
+}
+.rsq .rsh {
+  cursor: pointer;
+  user-select: none;
+}
+.rsq .rsar {
+  font-style: normal;
+  color: var(--mu);
+  margin-right: 6px;
+  font-size: 11px;
+}
+.rsq .rsk.shut .rsbd {
+  display: none;
+}
+.rsq .rsk.shut .rsh {
+  margin-bottom: 0;
+}
+.rsq .rsed {
+  margin-left: 6px;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--mu);
+  cursor: pointer;
+  padding: 1px 7px;
+  transition: color 0.15s;
+}
+.rsq .rsed:hover {
+  color: var(--tx);
+}
+.rsq .rsbadge {
+  font-size: 10.5px;
+  border: 1px solid #3ddc8466;
+  color: #9fe9bf;
+  border-radius: 8px;
+  padding: 0 6px;
+}
+.rsq .rsbadge.sq {
+  border-color: #4f8cff77;
+  color: #a9c6ff;
+}
+.rsq .rsdirty {
+  background: #10263a;
+  border: 1px solid #2c4a74;
+  color: #bcd6ff;
+  border-radius: 6px;
+  padding: 5px 8px;
+  font-size: 11.5px;
+  margin-top: 6px;
+  animation: fadein 0.2s;
+}
+.rsbk {
+  position: fixed;
+  inset: 0;
+  z-index: 2900;
+  background: #0007;
+}
+.rsmodal {
+  position: fixed;
+  z-index: 2950;
+  left: 50%;
+  top: 12vh;
+  transform: translate(-50%, 0);
+  width: min(560px, calc(100vw - 24px));
+  max-height: 76vh;
+  overflow-y: auto;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 40px #000c;
+  padding: 12px 16px;
+  color: var(--tx);
+  font-size: 13px;
+}
+.rsmodal .rsmb p {
+  margin: 4px 0 10px;
+}
+.rsmodal input,
+.rsmodal textarea,
+.rsmodal select {
+  width: 100%;
+  box-sizing: border-box;
+  box-shadow: none;
+}
+.rsmodal select {
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+  color-scheme: dark;
+  cursor: pointer;
+}
+.rsmodal .rsbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.rsmodal .rsfm {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr 1fr;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.rsmodal .rsfm label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--mu);
+}
+.rsmodal .rstp {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr auto;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.rsmodal .rstp textarea {
+  grid-column: 1 / 4;
+}
+.rsmodal .err {
+  border-color: #ff6b6b;
+}
+.rsq .rsl {
+  position: sticky; /* Editing, Presets and On the card stay in sight while the SOP scroll */
+  top: 8px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+.rsq .rstool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rsq .rstool .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+.rsq .seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.rsq .seg button {
+  padding: 3px 10px;
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.rsq .seg button:last-child {
+  border-right: 0;
+}
+.rsq .seg button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.rsq .seg button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+.rsq .rscust {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: 1px dashed #3ddc8455;
+  border-radius: 12px;
+  padding: 10px;
+}
+.rsq .rsct {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rsq .rsct h3 {
+  margin: 0;
+  font-size: 12.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #3ddc84;
+}
+.rsq .rsct .btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+@media (max-width: 1100px) {
+  .rsq .rsl {
+    position: static;
+    max-height: none;
+  }
+}
+/* ROE / SOP: the section Presets (Flight / Squadron, the presets as small buttons, the part to keep the changes) */
+.rsq .rssrc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  margin-bottom: 6px;
+}
+.rsq .rssrc button {
+  padding: 6px 4px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.rsq .rssrc button.on.sq {
+  background: #1d5f99;
+}
+.rsq .rswho {
+  color: var(--mu);
+  font-size: 11.5px;
+  margin: 2px 0 8px;
+}
+.rsq .rswho b {
+  color: var(--tx);
+}
+.rsq .rpqs {
+  display: flex;
+  flex-wrap: wrap;
+}
+.rsq .rpq.std {
+  padding-right: 10px;
+}
+.rsq .rpq .rpst {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+}
+.rsq .rpq .rpdot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f0a640;
+  animation: fadein 0.2s;
+}
+.rsq .rpq .rplk {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.8;
+}
+.rsq .rsedit {
+  border-top: 1px dashed #3a4350;
+  margin-top: 8px;
+  padding-top: 4px;
+  animation: fadein 0.2s;
+}
+.rsq .rsedit .rsdirty {
+  background: #3a2a10;
+  border-color: #6b4a14;
+  color: #ffd08a;
+}
+.rsq .rsedit .rsbar {
+  flex-wrap: wrap;
+}

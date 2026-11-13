@@ -23,6 +23,8 @@ import {
   writeBytes,
   saveBlob as saveFile,
   makeDir,
+  loadPrefs,
+  savePrefs,
 } from '../platform/desktop.js';
 import { pdfOpen, pdfRender, pdfRenderTo, pdfPageText } from '../platform/pdf.js';
 import * as PJ from '../core/mission.js';
@@ -382,9 +384,44 @@ export async function kbAddTray(blob, name) {
   kbRender(true);
   return it;
 }
+// "One map screenshot" (Settings > General): the new picture takes the place of the last map screenshot, in every slot that holds it (this theater, the others,
+// the default arrangement) or among the unused cards; the pages of the Docs and the other cards are not touched
+async function kbReplaceShot(blob) {
+  const old = [...KBLIB].reverse().find(i => /^Map screenshot/.test(i.name));
+  if (!old) return null;
+  const it = await kbMakeItem(blob, 'Map screenshot');
+  KBLIB = KBLIB.map(x => (x === old ? it : x));
+  const swap = a =>
+    (a || []).forEach(r =>
+      ['left', 'right'].forEach(k => {
+        if (r[k].kind == 'pic' && r[k].item === old) r[k] = { ...r[k], item: it };
+      })
+    );
+  swap(KBS);
+  swap(KBDEF);
+  Object.values(KBTH).forEach(swap);
+  for (const sd of ['left', 'right']) {
+    const row = KBS.findIndex(r => r[sd].kind == 'pic' && r[sd].item === it);
+    if (row >= 0) return { side: sd, row };
+  }
+  return { tray: true };
+}
 export async function kbAddShot(c) {
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
   if (!blob) return alert('The screenshot could not be saved.');
+  if (ST.CFG && ST.CFG.ui && ST.CFG.ui.oneMapShot) {
+    const at = await kbReplaceShot(blob);
+    if (at) {
+      kbMemLater();
+      kbRender(true);
+      const st = $('kbst');
+      if (st)
+        st.textContent =
+          'Map screenshot replaced' +
+          (at.tray ? ' (among the unused cards).' : ' on the ' + at.side + ' column, card ' + (at.row + 1) + '.');
+      return;
+    }
+  }
   const n = KBLIB.filter(i => /^Map screenshot/.test(i.name)).length + 1,
     at = await kbAddPic(blob, 'Map screenshot ' + n);
   const st = $('kbst');
@@ -690,7 +727,7 @@ export function kbRender(keepMenu) {
   );
   $('kbinfo').onclick = () =>
     alert(
-      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}`
+      `${DM ? 'Drag a card onto another to swap them (on the left or right edge of a card it is inserted there: a free slot beside it is filled first, otherwise the cards move on), to the unused cards to take it off, or to the bin to delete it. You can also drop image or PDF files here.' : 'Click a card to cycle it or import images (animations are off, so dragging is off too).'} Each row becomes one DDS: row 1 = ${rowFile(0)} … row ${ROWS} = ${rowFile(ROWS - 1)} in ${kbDir() || '(set the BMS install folder in Settings)'}. "Not saved: Kneeboard" (tab bar) shows when the cards or the datacard changed since the last Save. Settings > General > One map screenshot: a new map screenshot replaces the last one.`
     );
   $('kbdef').onclick = () => {
     KBDEF = kbCopy(KBS);
@@ -864,13 +901,16 @@ export function kbRender(keepMenu) {
               );
             }
           };
+          // a card is known by its picture (the object itself: as text every picture was the same "[object Object]", so every card slid from
+          // one place) or, for the datacard pages, by its kind
+          const ck = c => c.item || c.kind;
           const snap = () => {
             const m = new Map();
             KBS.forEach((row, r) =>
               ['left', 'right'].forEach(s => {
                 const c = row[s],
                   e = c && c.kind != 'empty' ? cell({ s, r }) : null;
-                if (e) m.set(c.kind + '|' + c.item, e.getBoundingClientRect());
+                if (e) m.set(ck(c), e.getBoundingClientRect());
               })
             );
             return m;
@@ -883,7 +923,7 @@ export function kbRender(keepMenu) {
                   e = c && c.kind != 'empty' ? cell({ s, r }) : null;
                 if (!e) return;
                 const n = e.getBoundingClientRect(),
-                  o = m.get(c.kind + '|' + c.item) || (c.kind == card.kind && c.item === card.item ? gfrom : null);
+                  o = c.kind == card.kind && c.item === card.item ? gfrom : m.get(ck(c)); // the card dropped comes from where it was let go
                 if (!o || Math.abs(o.left - n.left) + Math.abs(o.top - n.top) < 2) return;
                 e.animate(
                   [
@@ -1060,6 +1100,7 @@ export const dcEmpty = () =>
 export const dcOnRows = rows =>
   rows.some(i => [KBS[i].left.kind, KBS[i].right.kind].some(k => k == 'dcl' || k == 'dcr'));
 export async function kbSave() {
+  if (!$('kbsave')) kbRender(); // saved from the "Ready to fly" button before the Kneeboard page was ever opened
   const dir = kbDir(),
     st = $('kbst'),
     rows = KBS.map((s, i) => i).filter(i => rowUsed(KBS[i], i)),
@@ -1117,6 +1158,8 @@ export async function kbSave() {
     $('kbprog').firstChild.style.width = '100%';
     st.textContent = 'Done: ' + done + ' file(s) written.';
     KBSAVED = kbSig();
+    kbMarkSaved();
+    if ($('kn').classList.contains('hide')) appToast('Kneeboard saved: ' + done + ' file(s) written.');
     kbDefBtns();
     $('kbsave').classList.remove('flash');
     void $('kbsave').offsetWidth;
@@ -1141,6 +1184,87 @@ export async function kbSave() {
 }
 
 // run 17: statements that run when the program starts (in the order of the original file)
+// ---- "Kneeboard not saved": what the kneeboard would write now (the cards in the slots, the format, the files of the aircraft and, when the datacard pages are
+// on it, the datacard as it is drawn) against what the last Save wrote. Kept between sessions (kbsaved.json), so the same mission opened again is not "not saved".
+let KBLAST = null,
+  KBCVV = -1,
+  KBCVH = '';
+const fnv = (str, h = 2166136261) => {
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36);
+};
+// the datacard as it is drawn (a small copy of the card, so any change of what is written on it counts)
+function cvHash() {
+  const c = $('cv');
+  if (!c || !c.width) return '';
+  const o = document.createElement('canvas');
+  o.width = o.height = 256;
+  const x = o.getContext('2d', { willReadFrequently: true });
+  x.drawImage(c, 0, 0, 256, 256);
+  const d = x.getImageData(0, 0, 256, 256).data;
+  let h = 2166136261;
+  for (let i = 0; i < d.length; i += 4) h = Math.imul(h ^ (d[i] | (d[i + 1] << 8) | (d[i + 2] << 16)), 16777619);
+  return (h >>> 0).toString(36);
+}
+const slotSig = sl => [
+  sl.kind,
+  sl.item ? sl.item.name + ':' + (sl.item.blob ? sl.item.blob.size : '') : '',
+  sl.mode || '',
+];
+export function kbNowSig() {
+  if (!KBS) return null;
+  const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
+  if (!rows.length) return null;
+  const dc = dcOnRows(rows);
+  if (dc && (ST.CVV || 0) !== KBCVV) {
+    KBCVV = ST.CVV || 0;
+    KBCVH = cvHash();
+  }
+  return (
+    fnv(
+      JSON.stringify([
+        KBFMT,
+        KBFIT,
+        kbSet().name,
+        kbDir() || '',
+        rows.map(i => [i, slotSig(KBS[i].left), slotSig(KBS[i].right)]),
+      ])
+    ) + (dc ? '.' + KBCVH : '')
+  );
+}
+function kbMarkSaved() {
+  KBLAST = kbNowSig();
+  savePrefs('kbsaved.json', { sig: KBLAST });
+  kbWarn();
+}
+// not saved: something is on the kneeboard and differs from the last Save. A datacard with no flight chosen does not count (nothing to save yet), even when the
+// program filled some cells by itself (the ephemerides of the campaign...): it counts only when something was typed on it by hand
+export const dcIdle = () => dcEmpty() || (ST.CURK == null && !ST.DCHAND);
+export function kbUnsaved() {
+  const sig = kbNowSig();
+  if (!sig || sig === KBLAST) return false;
+  const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
+  if (dcOnRows(rows) && dcIdle() && rows.every(i => ['left', 'right'].every(sd => KBS[i][sd].kind != 'pic')))
+    return false;
+  return true;
+}
+// the dot on the Kneeboard tab (the "Ready to fly" button of the tab bar, app/ready.js, lists it with the DTC and the mission)
+function kbWarn() {
+  const tab = document.querySelector('.tab[data-t=kn]');
+  if (tab) tab.classList.toggle('unsaved', kbUnsaved());
+}
+export function kbWatch() {
+  loadPrefs('kbsaved.json')
+    .then(o => {
+      if (o && typeof o.sig == 'string') KBLAST = o.sig;
+    })
+    .catch(() => {})
+    .finally(() => {
+      kbWarn();
+      setInterval(kbWarn, 1500);
+    });
+}
+
 export async function init17() {
   KBS = DEFAULT_SLOTS();
   KBDEF = kbCopy(KBS);
@@ -1162,6 +1286,7 @@ export async function init17() {
     airports: dcIcaos,
     toast: appToast,
   });
+  kbWatch();
   onFilesDropped(
     (files, pos) => {
       if ($('kn').classList.contains('hide')) return;

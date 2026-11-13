@@ -142,4 +142,9 @@ function ephem(C, f) {
     dd = String(dt.getUTCDate()).padStart(2, '0') + '/' + String(dt.getUTCMonth() + 1).padStart(2, '0');
   return `Sun ${dd}: rise ${hz(sr)} set ${hz(ss)}\nMoon: rise ${hz(mr)} set ${hz(ms)} (${ill}%)`;
 }
-export { setBase, ephem };
+// the day of the month of a time of the campaign (ms from its start): the date of the first day is the one set on the Datacard (D1); without it the number of the day of the campaign (1, 2...)
+const dayOfMonth = ms => {
+  const d = Math.floor((ms || 0) / 864e5);
+  return BASE === null ? d + 1 : new Date(BASE + d * 864e5).getUTCDate();
+};
+export { setBase, ephem, dayOfMonth };

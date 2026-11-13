@@ -13,7 +13,9 @@
     "autoLoad": false,
     "lastDtc": "",
     "lastCamp": "",
-    "wxTaf": "TGT"
+    "wxTaf": "TGT",
+    "checkUpdates": true,
+    "oneMapShot": false
   },
   "mission": {
     "radiusNm": 60

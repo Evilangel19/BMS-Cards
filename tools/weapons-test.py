@@ -160,7 +160,7 @@ try:
         check('datacard Delivery is filled after Apply (attack heading, release height)', pg.evaluate("__app.F.dl_ah")=='237°' and bool(pg.evaluate("__app.F.dl_rh")) and 'POP-UP' in pg.evaluate("__app.F.dlab") and pg.evaluate("__app.F.dl_th") == 'TGT visible')
         pg.click('[data-t=wp]'); pg.wait_for_timeout(300)
         pg.click('[data-t=mp]'); pg.wait_for_timeout(1500)
-        check('Map page: the attack drawing is a DTC filter and shows the lines and marks', pg.evaluate("__app.mapV.count('da')") > 5 and pg.locator('#mpdfrows input[data-k=da]').count() == 1)
+        check('Map page: the attack drawing is a Display filter and shows the lines and marks', pg.evaluate("__app.mapV.count('da')") > 5 and pg.locator('#mpdsp input[data-k=da]').count() == 1)
         check('Map page: the attack line (pop-up line) is drawn above the flight plan', pg.evaluate("()=>{const a=document.querySelector('.leaflet-atkP-pane'),p=document.querySelector('.leaflet-planP-pane');return !!a&&!!p&&a.children.length>0&&+a.style.zIndex>+p.style.zIndex}"))
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500)
         # impact pattern

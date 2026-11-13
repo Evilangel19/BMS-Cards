@@ -9,11 +9,14 @@ import {
   onSaveFail,
   appDir,
   join,
+  freezeFiles,
+  writeBytes,
 } from '../platform/desktop.js';
 import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
 import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
+import { verCheck } from './ready.js';
 import { kbDir, kbMemLoad, kbRender } from './kneeboard.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
@@ -23,6 +26,7 @@ import { initAppear } from './appear.js';
 import { ic, setOpen, setSwitch, swRow, top } from './settingsui.js';
 import { diagInner, warnCount } from './settingsdiag.js';
 import { dataBusy, dataPage, restartInfo } from './settingsdata.js';
+import { helpFill, helpPdf } from './settingshelp.js';
 
 /* ---------- Settings ---------- */
 export const CFG_PATHS = [
@@ -51,8 +55,8 @@ export async function autoLoadLast() {
 }
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
-const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data'];
-const SW_OF = { general: ['autoLoad', 'anim'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data', 'help'];
+const SW_OF = { general: ['autoLoad', 'anim', 'upd', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -82,7 +86,7 @@ function readForm(dlg) {
 // the part of the values that belongs to a section
 const OF = {
   folders: v => v.paths,
-  general: v => [v.sw.autoLoad, v.sw.anim],
+  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
@@ -175,6 +179,18 @@ export async function openSettings() {
       'Short transitions (ignored when the system asks for reduced motion)',
       ui.animations !== false
     ) +
+    sw(
+      'upd',
+      'New version notice',
+      'Once a day the program asks GitHub whether a newer version exists and shows a notice. Nothing is downloaded or installed.',
+      ui.checkUpdates !== false
+    ) +
+    sw(
+      'oneShot',
+      'One map screenshot',
+      'A new map screenshot replaces the last one, on the same kneeboard page. Off: each screenshot is a new card.',
+      !!ui.oneMapShot
+    ) +
     '</div>';
   const datacard =
     top('datacard', 'Datacard', 'What the Datacard and Data Cartridge pages show.') +
@@ -183,7 +199,7 @@ export async function openSettings() {
     sw(
       'others',
       'Other factions',
-      'Read the ATO and the map of the other factions (only without a squadron: in a squadron, only its commander can). Just for immersion: in BMS you can start the campaign as the other side.',
+      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side.',
       !!ST.OBSERVER
     ) +
     sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
@@ -248,6 +264,8 @@ export async function openSettings() {
     nav('map', 'Map', 'map') +
     '<div class="s-gl s-gap"><span>Data</span><i>move or back up</i></div>' +
     nav('data', 'Import &amp; backup', 'swap') +
+    '<div class="s-gl s-gap"><span>Help</span><i>how it works</i></div>' +
+    nav('help', 'User Guide', 'info') +
     '</nav><div class="s-ct">' +
     page('folders', folders) +
     page('diag', '') +
@@ -256,6 +274,10 @@ export async function openSettings() {
     page('mission', mission) +
     page('map', map) +
     page('data', '') +
+    page(
+      'help',
+      '<div class="s-top s-hlpt"><div><h2 id="h-help">User Guide</h2><p class="hint">The idea of the program, the way to a finished datacard and the technical data. The details are in the tooltips and the ⓘ notes of each page.</p></div><button type="button" class="btn g" data-a="guidepdf" title="Save the guide as a PDF file">Save as PDF…</button></div><div class="s-guide" id="s-guide"></div>'
+    ) +
     '</div></div>' +
     '<div class="s-ft"><span class="s-note" id="cfgnote" role="status"></span><span style="flex:1"></span><button type="button" class="btn g" id="cfgcancel" data-a="close">Close</button><button type="button" class="btn" id="cfgsave" data-a="save" disabled>Save</button></div>';
 
@@ -303,6 +325,7 @@ export async function openSettings() {
       q('nv-' + p).classList.toggle('on', on);
       q('nv-' + p).setAttribute('aria-current', on ? 'page' : 'false');
     });
+    if (id === 'help') helpFill(q('s-guide'));
   };
 
   // folders: what each one is (found, automatic, not found ...), said next to its name
@@ -373,7 +396,14 @@ export async function openSettings() {
     const v = readForm(dlg);
     const n = JSON.parse(JSON.stringify(ST.CFG));
     CFG_PATHS.forEach(([k]) => (n.paths[k] = v.paths[k]));
-    n.ui = { ...(n.ui || {}), animations: v.sw.anim, showMfd34: v.sw.mfd, autoLoad: v.sw.autoLoad };
+    n.ui = {
+      ...(n.ui || {}),
+      animations: v.sw.anim,
+      showMfd34: v.sw.mfd,
+      autoLoad: v.sw.autoLoad,
+      oneMapShot: v.sw.oneShot,
+      checkUpdates: v.sw.upd,
+    };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
     n.mission = {
       ...(n.mission || {}),
@@ -410,6 +440,7 @@ export async function openSettings() {
       const changed = n.paths.bmsInstall !== ST.CFG.paths.bmsInstall;
       const trk = n.squadron.trackers !== ((ST.CFG.squadron && ST.CFG.squadron.trackers) || '');
       ST.CFG = n;
+      verCheck();
       if (v.sw.form !== !!ST.FORMON) {
         closeEd(true);
         ST.FORMON = v.sw.form;
@@ -469,6 +500,7 @@ export async function openSettings() {
     if (a === 'go') show(b.dataset.p);
     else if (a === 'close') dlg.close();
     else if (a === 'save') save();
+    else if (a === 'guidepdf') helpPdf();
     else if (a === 'sw') {
       const on = !b.classList.contains('on');
       setSwitch(b, on);
@@ -585,6 +617,33 @@ onSaveFail((name, e) => {
   );
 });
 
+// config.json is there but could not be used (unreadable, or not valid JSON): the program runs with the default settings. The pilot chooses: the file is left
+// as it is (nothing is written to it in this session, it can be repaired by hand and the program started again), or the default settings take its place from now on
+// (a file that was read but is not valid JSON is kept as config.json.bad)
+async function configBlocked(r) {
+  const over = await confirm(
+    'Settings: ' +
+      r.warnings.join('\n') +
+      '.\n\nOK = use the default settings and write them into config.json from now on' +
+      (r.badText != null ? ' (the old file is kept as config.json.bad)' : '') +
+      '.\nCancel = leave config.json as it is: the changes made to the settings in this session are not saved (repair the file, then start the program again).'
+  );
+  if (!over) {
+    freezeFiles(['config.json']);
+    return;
+  }
+  if (r.badText != null)
+    try {
+      await writeBytes(join(await appDir(), 'config.json.bad'), new TextEncoder().encode(r.badText));
+    } catch (e) {
+      /* the copy could not be made: the file is replaced all the same, as chosen */
+    }
+  try {
+    await saveConfig(ST.CFG);
+  } catch (e) {
+    alert('config.json could not be written: ' + ((e && e.message) || e));
+  }
+}
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
@@ -592,7 +651,8 @@ export async function init18() {
     .then(async r => {
       ST.CFG = r.config;
       applyAnim();
-      if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
+      if (r.blocked) await configBlocked(r);
+      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
       kbMemLoad();
       await loadGameData();
       await fillCampaigns();

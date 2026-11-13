@@ -155,6 +155,13 @@ export function buildLayout() {
     ]
   );
   at('AA2').t = 'ERAA';
+  at('V42').t = 'ROE';
+  {
+    // a heading SOP in the middle of the box, like the ROE one above
+    const h = at('V48'),
+      t = at('V42');
+    Object.assign(h, { fill: t.fill, t: 'SOP', sz: t.sz, bold: t.bold, ha: t.ha, va: t.va, b: [...t.b] });
+  }
   // link: shorter NDL, wider Donor
   xmap(
     [39, 41],
@@ -198,6 +205,93 @@ export function buildLayout() {
         sh.r = [c[0], sh.r[1], c[1], sh.r[3]];
         if (c === X.M) sh.b = [sh.b[0], sh.b[1], 2, sh.b[3]];
       }
+    });
+  }
+  // widths asked by the pilots (beta 1.2): a wider Tanker (from Track / ARCT); narrow M1-M4 (two to four digits) and a wider TOT / VUL; flight plan: narrower ST and
+  // Description, the room shared by the other columns; roll call: a narrower Callsign for Aircraft and Target; Known EOB: narrower PPT for Type, Lat and Long
+  xmap(
+    [4, 5],
+    [
+      [11, 11],
+      [150.7, 150.7],
+      [307.8, 335],
+      [475.3, 475.3],
+      [994, 994],
+    ]
+  );
+  xmap(
+    [8, 9],
+    [
+      [11, 11],
+      [98.4, 66],
+      [203.1, 141],
+      [307.8, 216],
+      [360.1, 256],
+      [619.4, 619.4],
+      [994, 994],
+    ]
+  );
+  {
+    const E = [11, 84.1, 215.4, 320.1, 435.3, 521.8, 584.7, 710.6, 805.1, 868, 931, 994],
+      N = [11, 57, 162],
+      g = (E[2] - E[0] - (N[2] - N[0])) / (E.length - 3);
+    for (let i = 3; i < E.length; i++) N.push(N[i - 1] + (E[i] - E[i - 1]) + g);
+    xmap(
+      [19, 34],
+      E.map((x, i) => [x, N[i]])
+    );
+  }
+  xmap(
+    [1, 22],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1221, 1195], // CALLSIGN (the round button of the flight is at its left: a long callsign like "Overlord 11" is squeezed a little)
+      [1301, 1288], // ACFT
+      [1415, 1402],
+      [1495, 1482],
+      [1585, 1572],
+      [1665, 1652], // TGT from here
+      [1911, 1911],
+      [2035, 2035],
+    ],
+    true
+  );
+  xmap(
+    [24, 33],
+    [
+      [994, 994],
+      [1049, 1049],
+      [1105.1, 1087], // PPT
+      [1177.2, 1167], // TYPE
+      [1299, 1292], // LAT
+      [1422, 1422], // LONG
+      [2035, 2035],
+    ],
+    true
+  );
+  // pilots: no FCR, ID and OWN columns (not used), their room goes to the others; six rows instead of eight (the flight has four aircraft, two are left to write by hand),
+  // as tall as the eight were together
+  {
+    const inP = sh => !page2(sh) && rowOf(sh.a) >= 10 && rowOf(sh.a) <= 18 && sh.r[2] <= 792.5,
+      gone = ['G', 'J', 'M'].map(c => colOf(c + '1')),
+      X = { A: [11, 250], D: [250, 380], F: [380, 450], K: [450, 540], O: [540, 670], S: [670, 792.3] };
+    const P = shapes.filter(sh => inP(sh) && rowOf(sh.a) >= 11),
+      top = Math.min(...P.map(sh => sh.r[1])),
+      bot = Math.max(...P.map(sh => sh.r[3])),
+      h = (bot - top) / 6,
+      lastB = new Map(P.filter(sh => rowOf(sh.a) == 18).map(sh => [sh.a.replace(/\d+$/, ''), sh.b[3]]));
+    for (let i = shapes.length; i--;) {
+      const sh = shapes[i];
+      if (inP(sh) && (gone.includes(colOf(sh.a)) || rowOf(sh.a) >= 17)) shapes.splice(i, 1);
+    }
+    shapes.forEach(sh => {
+      if (!inP(sh)) return;
+      const c = sh.a.replace(/\d+$/, ''),
+        row = rowOf(sh.a);
+      if (X[c]) sh.r = [X[c][0], sh.r[1], X[c][1], sh.r[3]];
+      if (row >= 11) sh.r = [sh.r[0], top + (row - 11) * h, sh.r[2], top + (row - 10) * h];
+      if (row == 16 && lastB.has(c)) sh.b = [sh.b[0], sh.b[1], sh.b[2], lastB.get(c)];
     });
   }
   // heights. Page 2: the Known EOB / AO update tables take the room of the two roll call rows removed; then the whole page is scaled to the new top.
@@ -300,19 +394,16 @@ export function buildLayout() {
     (p, i) => field('X' + (7 + i), `ps${i}`, 'Preset ' + p, 'Audio presets')
   );
   ['W18', 'Y18', 'AA18'].forEach((a, j) => field(a, `nav0_${j}`, 'NAV ' + (j + 1), 'NAV'));
-  // pilots (8 rows: the first four are the flight)
+  // pilots (6 rows: the first four are the flight)
   const PC = [
     ['A', 'fl%_0', 'Pilot'],
     ['D', 'fl%_c', 'Callsign'],
     ['F', 'fl%_2', 'TCN'],
-    ['G', 'fl%_f', 'FCR'],
-    ['J', 'fl%_i', 'ID'],
     ['K', 'fl%_1', 'IDM'],
-    ['M', 'fl%_o', 'OWN'],
     ['O', 'fl%_s', 'STN'],
     ['S', 'fl%_5', 'Laser (conf-lsr code)'],
   ];
-  for (let r = 0; r < 8; r++)
+  for (let r = 0; r < 6; r++)
     PC.forEach(([c, k, lab]) => field(c + (11 + r), k.replace('%', r), `${lab} ${r + 1}`, 'Pilots'));
   // steerpoints (15 rows)
   const SC = [
@@ -356,11 +447,9 @@ export function buildLayout() {
       ['Z', 'dn2', 'Donor 2'],
     ].forEach(([c, k, lab]) => field(c + y, `dl${i}_${k}`, `${lab} (${n})`, 'Link'));
   }
-  field('V43', 'ovw', 'Overview', 'Overview', {
-    to: 'V53',
-    multi: 1,
-    all: Array.from({ length: 11 }, (_, i) => 'V' + (43 + i)),
-  });
+  // the Overview box of the blank holds the ROE (top) and the SOP (bottom) of the card: the same fields as on the Datacard, filled by the menu of ROE / SOP
+  field('V43', 'roe', 'ROE', 'ROE / SOP', { to: 'V47', multi: 1, all: ['V43', 'V44', 'V45', 'V46', 'V47'] });
+  field('V49', 'sop', 'SOP', 'ROE / SOP', { to: 'V53', multi: 1, all: ['V48', 'V49', 'V50', 'V51', 'V52', 'V53'] });
   {
     const all = [];
     for (let r = 42; r <= 59; r++) for (let c = 1; c <= 21; c++) all.push(L(c, r));

@@ -1,6 +1,54 @@
 # Changelog
 
-What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The detailed log of every beta (with the reasons and the tests) is the "Beta log" of `docs/ROADMAP.md`.
+What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
+
+## 1.2.0
+
+### Highlights
+
+- **Squadron Briefing**: a live briefing room on the map. The briefer draws (pen, marker, arrows, shapes, text, NATO symbols, CAP orbits, holdings, threat rings, ruler and compass), gives the pen to the pilots he wants, and shows the weather; everybody sees the cursors and follows his view. "Save a kneeboard card" keeps the result.
+- **ROE / SOP**: rules of engagement and SOP by phase of flight (mission, ground, take-off and departure, en route, tanker, FENCE / comms / fuel, recovery, weather, night, training, emergencies), with options from the RoKAF Basic Employment Manual, the 8th and 51st FW in-flight guides by mirv and AFMAN 11-2F-16V3. Short form on the datacard and in the MDC (5 lines a box), the full text on one or two kneeboard cards.
+- **Presets**: a page Squadron > ROE / SOP with two lists, Flight (yours) and Squadron (the commander's), each with a Standard; a click puts a preset on the datacard, a double-click changes it; a preset can be the default of kinds of mission, and a mission received from another pilot gets the squadron's.
+- **WEZ exposure time**: when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM, on the datacard, the MDC and the map.
+- **MDC format** filled automatically, with wider cells and TANK J/B (Joker / Bingo to the tanker).
+- **AWACS and JSTARS**: when the package has none, the nearest allied one on station (marked `*`).
+- **User Guide**: Settings > Help > User Guide, also as a PDF.
+- **Ready to fly**: the tab bar lists what is not saved yet (DTC, kneeboard, mission), with "Write all".
+- **A faster map** with all the objects and the political layer on.
+
+### Datacard and MDC format
+
+- Added: TOT / VUL with the WEZ exposure; the elevation of the target steerpoints; ROE and SOP in two boxes.
+- Added: the Bingo carries a holding and an alternate fuel when the landing field is IMC (GRN or worse); minutes and pounds on the Performance page.
+- Added: the BVR box fills itself with the BVR timeline when it is empty.
+- Changed: the notes are laid out in sections (TWR, UHF2, TGT, JTAC, IFF) with the frequencies in columns, 16 to 12 px; big packages use short callsigns (Devil 3 = DL3).
+- Changed: the ephemerides on two lines; METAR and TAF show the day of the month of the mission.
+- Changed: MDC format: the pilots table without FCR, ID and OWN; wider Tanker, TOT / VUL, flight plan, roll call and Known EOB; Airspace / TGT is the primary target; the escorted flights in short form (ESC DL3 PR4); a shorter, bigger loadout.
+- Changed: the Automatic rules open as a panel with sections; the tooltips are up to date and shorter.
+- Fixed: the MDC callsign and the red Bingo; a field elevation typed by hand updates the take-off data, the landing and the TAF; the roster lists names, not callsigns; the Joker uses your margin also with the Bingo of the DTC.
+
+### Map
+
+- Added: the filter "WEZ exposure time" (minutes on each ring, the total in the flight label).
+- Changed: the filters are easier to read; Pop-up / HADB / TOSS / HARM is a Display filter; the map is smoother with every object on; the first click on an objective zooms to its buildings.
+- Fixed: placing a point near a city or an objective no longer opens its window; the labels no longer pop in again when a filter changes.
+
+### Squadron
+
+- Added: the Briefing room (see above), with the weather filters at the hour and altitude of the briefer.
+- Added: ROE / SOP page and presets (see above); custom SOP sections, yours or the squadron's.
+- Added: a connection troubleshooting in the User Guide (network test, STUN, TURN, direct connection).
+
+### Kneeboard and DTC
+
+- Added: Settings > General > One map screenshot (a new map screenshot replaces the last one).
+- Fixed: a card inserted between two now slides from its own place; a kneeboard with only the datacard of no flight no longer shows "Not saved".
+- Fixed: the Data Cartridge page refuses radio and ILS frequencies out of band and IFF codes that are not octal; names written into the DTC use plain letters.
+
+### Other
+
+- Added: a notice when a newer version exists (once a day, nothing is downloaded; Settings > General).
+- Fixed: aircraft with a probe get the KC-130 first; the weather colour code counts the SCT layers; the ATO is in time order across midnight; a damaged config.json is no longer replaced without asking.
 
 ## 1.1.0
 

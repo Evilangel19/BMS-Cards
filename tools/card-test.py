@@ -40,8 +40,8 @@ try:
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
         check('the Datacard keeps its own cells (430 fields)', pg.evaluate("__app.FD.length") == 430)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
-        need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl7_s', 'fl3_5', 'fp0_st', 'fp14_11',
-                't0_4', 't2_4', 'dl0_fc', 'dl1_dn2', 'ovw', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']
+        need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl5_s', 'fl3_5', 'fp0_st', 'fp14_11',
+                't0_4', 't2_4', 'dl0_fc', 'dl1_dn2', 'roe', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']
         miss = [k for k in need if k not in mk]
         check('the cells of the MDC format that the program fills (and the free cells of page 2) exist %s' % miss, not miss)
         # the columns follow their text: how much of its natural width (15 px Arial, card units) a typical text gets in its cell
@@ -54,8 +54,8 @@ try:
             fit:{cs:fit('rc0_0','Overlord 11',ind),hold:fit('rc0_2','17:51-17:57'),alt:fit('rc0_3','FL250'),freq:fit('rc0_4','377.875'),push:fit('rc0_5','18:06'),tgt:fit('rc0_6','2nd Armored Brigade HQ'),tot:fit('rc0_7','18:55 - 19:01'),
               type:fit('xAE25','WWOLF'),lat:fit('xAF25',"N 36° 13.322'"),long:fit('xAH25',"E 128° 55.872'"),be:fit('xAJ25','284/120'),gw:fit('gw','40042')}}}""")
         fq = lay['fit']
-        check('roll call: every column holds its typical text at its natural width, the callsign with the room of the round button (%s)' % {k: round(v, 2) for k, v in fq.items() if k in ('cs', 'hold', 'alt', 'freq', 'push', 'tgt', 'tot')}, all(fq[k] >= 1 for k in ('cs', 'hold', 'alt', 'freq', 'push', 'tgt', 'tot')))
-        check('roll call: the table keeps its width (%s) and TGT is the widest column (a name of 22 letters is not squeezed)' % lay['rc'], abs(sum(lay['rc']) - 986) < 1 and lay['rc'][6] == max(lay['rc']) and lay['rc'][6] >= 240 and lay['rc'][0] >= 160)
+        check('roll call: every column holds its typical text at its natural width, a long callsign squeezed a little beside the round button (%s)' % {k: round(v, 2) for k, v in fq.items() if k in ('cs', 'hold', 'alt', 'freq', 'push', 'tgt', 'tot')}, all(fq[k] >= 1 for k in ('hold', 'alt', 'freq', 'push', 'tgt', 'tot')) and fq['cs'] >= 0.85)
+        check('roll call: the table keeps its width (%s) and TGT is the widest column (a name of 22 letters is not squeezed)' % lay['rc'], abs(sum(lay['rc']) - 986) < 1 and lay['rc'][6] == max(lay['rc']) and lay['rc'][6] >= 240 and 140 <= lay['rc'][0] <= 150 and lay['rc'][1] >= 90)
         check('Known EOB: B/E is narrower than LAT and LONG, and TYPE, LAT and LONG are wider than before (%s), the table keeps its width' % lay['eob'], abs(sum(lay['eob']) - 449) < 1 and lay['eob'][4] < min(lay['eob'][2:4]) and lay['eob'][4] < 80 and lay['eob'][1] > 66 and lay['eob'][2] > 115 and lay['eob'][3] > 115)
         check('Known EOB: the texts are squeezed less (TYPE %.2f, LAT %.2f, LONG %.2f, B/E %.2f)' % (fq['type'], fq['lat'], fq['long'], fq['be']), fq['type'] >= 0.8 and fq['lat'] >= 0.95 and fq['long'] >= 0.88 and fq['be'] >= 0.93)
         row = lay['row']

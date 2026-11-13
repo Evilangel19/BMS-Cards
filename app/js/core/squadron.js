@@ -20,6 +20,9 @@ import {
   flightWarning,
 } from './organization.js';
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
+import { createBriefing } from './briefing.js';
+import { roleOf } from './briefroom.js';
+import { cleanSqPresets, cleanCustom } from './roesop.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -1687,7 +1690,16 @@ export function createSquadronPage(deps) {
         ts: orgClock(q),
         lastSeen: Date.now(),
       };
-    else Object.assign(r, { name: m.name, callsign: m.callsign, pilotSquadron: m.squadron, stats: m.st, av: m.av });
+    // the logbook may not be read yet (or not found this time): what is known of the pilot is kept, never made empty (the roster of the datacard
+    // listed him by his callsign, and the empty name went to the other pilots too)
+    else
+      Object.assign(r, {
+        name: m.name || r.name || '',
+        callsign: m.callsign || r.callsign || '',
+        pilotSquadron: m.squadron || r.pilotSquadron || '',
+        stats: m.st || r.stats || null,
+        av: m.av,
+      });
   };
 
   const avDraw = () => {
@@ -1725,6 +1737,8 @@ export function createSquadronPage(deps) {
     leader: q.leader,
     mc: q.mc || '',
     logo: q.logo || '',
+    roe: cleanSqPresets(q.roe), // the ROE / SOP presets of the squadron (the commander sets them)
+    roeSec: cleanCustom(q.roeSec), // the custom SOP sections of the squadron
     ts: q.ts,
   });
   function swarmStart(q) {
@@ -1773,6 +1787,7 @@ export function createSquadronPage(deps) {
           p.link.send(syncMsg(meta(q), q.roster, q.org));
           save();
         } else if (q.roster[p.uid]) {
+          if (brief && q === cur()) brief.peerLeft(p.uid);
           q.roster[p.uid].lastSeen = Date.now();
           say(label(p.profile) + ' went offline (' + q.name + ').');
           save();
@@ -1792,6 +1807,8 @@ export function createSquadronPage(deps) {
               leader: m.squad.leader || '',
               mc: typeof m.squad.mc == 'string' ? m.squad.mc : '',
               logo: okImg(m.squad.logo) ? m.squad.logo : '',
+              roe: cleanSqPresets(m.squad.roe),
+              roeSec: cleanCustom(m.squad.roeSec),
               ts: m.squad.ts,
             });
             ch = true;
@@ -1840,6 +1857,8 @@ export function createSquadronPage(deps) {
             r.av = m.av || '';
             drawAll();
           }
+        } else if (m.k == 'brf') {
+          if (brief && q === cur()) brief.onMessage(p.uid, m);
         } else if (m.k == 'mission') onRecv(m, p.profile, q.name);
         else if (m.k == 'gone') {
           if (q.owner && p.uid == q.owner) leave(q, 'The leader deleted the squadron ' + q.name + '.');
@@ -2437,6 +2456,31 @@ export function createSquadronPage(deps) {
         };
     }
   }
+  // ROE / SOP: the page is drawn by the program (app/roepage.js, deps.roeDraw); the squadron gives its presets (the commander sets them, they travel with
+  // the squadron: meta.roe) and keeps what the commander saves
+  function drawRoe() {
+    const box = $('#sqroe');
+    if (!box || !deps.roeDraw) return;
+    const q = cur();
+    deps.roeDraw(box, {
+      squad: q ? q.name : '',
+      own: owns(q),
+      presets: q ? cleanSqPresets(q.roe) : [],
+      sections: q ? cleanCustom(q.roeSec) : [],
+      save: list => {
+        if (!q || !owns(q)) return;
+        q.roe = cleanSqPresets(list);
+        touchSquad(q);
+        drawRoe();
+      },
+      saveSec: list => {
+        if (!q || !owns(q)) return;
+        q.roeSec = cleanCustom(list);
+        touchSquad(q);
+        drawRoe();
+      },
+    });
+  }
   function drawMis() {
     const box = $('#sqrecv');
     if (!box) return;
@@ -2558,7 +2602,7 @@ export function createSquadronPage(deps) {
     box.innerHTML = `<div style="overflow-x:auto"><table class="dt sqdt"><tr><th rowspan="2">Squadron</th><th colspan="4" class="gc">Squadron</th><th colspan="3" class="gc">Losses and missions</th><th colspan="5" class="gf">Kills</th></tr>
       <tr><th class="gc">Owner</th><th class="gc">Base</th><th class="gc">Pilots</th><th class="gc">Aces</th><th class="gc">Missions</th><th class="gc">Aircraft lost</th><th class="gc">Pilots lost</th><th class="gf">A-A</th><th class="gf">A-G</th><th class="gf">Naval</th><th class="gf">Stationary</th><th class="gf">Share</th></tr>
       <tr><td><b>${esc(s.name)}</b></td><td>${n(info.owner)}</td><td>${n(info.base)}</td><td>${s.pilotsN}</td><td>${s.aces.length}</td><td>${n(q && q.missions)}</td><td>${n(q && q.acLoss)}</td><td>${n(q && q.pilotLoss)}</td><td>${k.aa}</td><td>${k.ag}</td><td>${k.as}</td><td>${k.an}</td><td>${Math.round(s.share * 1000) / 10}%</td></tr></table></div>
-      <div class="hint">Kills are the sum of the pilot records of the squadron (aces: 5 or more air kills). Aircraft, experience, morale, supply and mission rating are not read yet.</div>`;
+      <div class="hint">Kills are the sum of the pilot records of the squadron (aces: 5 or more air kills). Aircraft, experience, morale, supply and mission rating are not shown (no checked values in the campaign file).</div>`;
   }
 
   // ----- ME: my squadrons -----
@@ -2784,7 +2828,9 @@ export function createSquadronPage(deps) {
 
   const TABS = [
     ['members', 'Members'],
+    ['roe', 'ROE / SOP'],
     ['org', 'Organization'],
+    ['brief', 'Briefing'],
     ['missions', 'Missions'],
     ['me', 'Me'],
     ['settings', 'Settings'],
@@ -2794,7 +2840,15 @@ export function createSquadronPage(deps) {
     root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t));
     root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t));
     if (t == 'missions') drawSaved();
+    // the Briefing borrows the map of the Map page only while it is on screen
+    if (brief) {
+      brief.squadChanged();
+      if (t == 'brief' && active) brief.show();
+      else brief.hide();
+    }
   };
+  let brief = null,
+    active = false;
   const drawAll = () => {
     showTab();
     avDraw();
@@ -2802,6 +2856,7 @@ export function createSquadronPage(deps) {
     drawOrg();
     drawLost();
     drawMis();
+    drawRoe();
     drawCamp();
     drawMine();
     drawSettings();
@@ -3168,6 +3223,7 @@ export function createSquadronPage(deps) {
   function build() {
     root.innerHTML = `<div class="sqw">
 <div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+<div class="sqpane" data-pane="roe"><div id="sqroe"></div></div>
 <div class="sqpane sqmem" data-pane="members">
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
 <div class="sqmain">
@@ -3176,6 +3232,7 @@ export function createSquadronPage(deps) {
 <div class="sqc" id="sqlost" hidden></div>
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
+</div><div class="sqpane" data-pane="brief"><div id="sqbrief" class="sqbrief"></div>
 </div><div class="sqpane" data-pane="missions"><div class="sqtwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div></div>
 </div><div class="sqpane" data-pane="me">
@@ -3460,6 +3517,49 @@ export function createSquadronPage(deps) {
     drawAll();
   }
   build();
+  // ---- the Briefing tab (core/briefing.js): the room of the squadron chosen, through its swarm
+  {
+    const B = deps.briefing || {};
+    const sw = () => {
+      const q = cur();
+      return q ? swarms.get(q.id) : null;
+    };
+    brief = createBriefing({
+      root: $('#sqbrief'),
+      esc,
+      me: () => DB.uid,
+      name: uid => {
+        const q = cur();
+        return q ? nameOfIn(q)(uid) : 'Pilot';
+      },
+      role: uid => {
+        const q = cur();
+        return q ? roleOf(q, orgView(q), uid) : { role: 'Pilot', lead: false };
+      },
+      online: () => {
+        const w = sw();
+        return w ? [...new Set(w.online().map(p => p.uid))] : [];
+      },
+      send: m => {
+        const w = sw();
+        if (w) w.broadcast(m);
+      },
+      sendTo: (uid, m) => {
+        const w = sw(),
+          p = w && w.byUid(uid);
+        if (p) p.link.send(m);
+      },
+      squad: () => (cur() ? cur().id : null),
+      attach: el => (B.attach ? B.attach(el) : Promise.resolve(null)),
+      detach: () => B.detach && B.detach(),
+      shot: o => B.shot && B.shot(o),
+      mission: () => (B.mission ? B.mission() : ''),
+      theater: () => (B.theater ? B.theater() : ''),
+      wide: b => B.wide && B.wide(b),
+      wx: B.wx || null,
+      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+    });
+  }
   // the saved squadrons, rosters and settings; the swarms start as soon as they are known
   async function init() {
     try {
@@ -3489,6 +3589,12 @@ export function createSquadronPage(deps) {
     if ($('#sqturn')) $('#sqturn').value = DB.turn || '';
     if ($('#sqstun')) $('#sqstun').checked = !!DB.stun;
     if ($('#sqcs')) $('#sqcs').value = DB.cs || '';
+    // the logbook is read at the start (before, only when the Squadron page was opened): the name of the pilot is known from the first message
+    try {
+      if (deps.lbk) await loadLbks();
+    } catch (e) {
+      /* read later, from the page */
+    }
     save();
     drawAll();
     startAll();
@@ -3521,12 +3627,38 @@ export function createSquadronPage(deps) {
     role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
     rosterOf,
     roster: () => rosterOf().map(x => x.label),
+    // shows a tab of the page (the ROE / SOP boxes of the card open 'roe')
+    tab: t => {
+      DB.tab = t;
+      save();
+      showTab();
+      if (t == 'roe') drawRoe();
+    },
+    roePresets: () => {
+      const q = cur();
+      return q ? cleanSqPresets(q.roe) : [];
+    },
+    roeSections: () => {
+      const q = cur();
+      return q ? cleanCustom(q.roeSec) : [];
+    },
     flush,
     refresh: () => {
       if (!pilot) loadLbks();
       if (!PB) loadPb();
       drawAll();
     },
+    // the page comes on screen / goes away (the Briefing tab holds the map only while it is seen)
+    enter: () => {
+      active = true;
+      showTab();
+    },
+    leave: () => {
+      active = false;
+      if (brief) brief.hide();
+    },
+    wide: () => active && DB.tab == 'brief',
+    briefing: () => brief,
     pilot: () => pilot,
     me,
     db: () => DB,

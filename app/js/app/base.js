@@ -120,7 +120,8 @@ export const jclone = o => {
     return null;
   }
 };
-export function appToast(m) {
+// act = {label, fn}: a button in the message (Undo); ms = how long it stays
+export function appToast(m, act, ms = 5000) {
   let t = document.getElementById('apptoast');
   if (!t) {
     t = document.createElement('div');
@@ -130,6 +131,19 @@ export function appToast(m) {
     document.body.append(t);
   }
   t.textContent = m;
+  if (act) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'toastact';
+    b.textContent = act.label;
+    b.style.cssText =
+      'margin-left:14px;background:none;border:0;color:#5aa9ff;font-weight:700;cursor:pointer;font-size:13px;padding:0';
+    b.onclick = () => {
+      t.style.display = 'none';
+      act.fn();
+    };
+    t.append(b);
+  }
   t.style.opacity = '1';
   t.style.display = '';
   clearTimeout(t._t);
@@ -138,7 +152,7 @@ export function appToast(m) {
     t._t = setTimeout(() => {
       t.style.display = 'none';
     }, 300);
-  }, 5000);
+  }, ms);
 }
 export const esc = t =>
   String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
@@ -157,6 +171,7 @@ export async function init1() {
     b =>
       (b.onclick = () => {
         document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x == b));
+        if (b.dataset.t != 'sq' && sqPage) sqPage.leave(); // the Briefing gives the map back before another page takes it
         ['dtc', 'kb', 'kn', 'mp', 'wp', 'ms', 'pf', 'wx', 'sq', 'dc'].forEach(i =>
           $(i).classList.toggle('hide', i != b.dataset.t)
         );
@@ -165,7 +180,10 @@ export async function init1() {
         if (b.dataset.t != 'wx' && typeof wxPage != 'undefined' && wxPage) wxPage.leave();
         if (b.dataset.t == 'ms') ST.msPage.render();
         if (b.dataset.t == 'dtc') view();
-        if (b.dataset.t == 'sq') sqPage.refresh();
+        if (b.dataset.t == 'sq') {
+          sqPage.enter();
+          sqPage.refresh();
+        }
         if (b.dataset.t != 'wp' && ST.wpPage) ST.wpPage.leave();
         document.body.classList.toggle('onwp', b.dataset.t == 'wp');
         if (b.dataset.t == 'wp') ST.wpPage.render();
@@ -183,7 +201,8 @@ export async function init1() {
               b.dataset.t == 'ms' ||
               b.dataset.t == 'pf' ||
               b.dataset.t == 'wx' ||
-              b.dataset.t == 'dc'
+              b.dataset.t == 'dc' ||
+              (b.dataset.t == 'sq' && sqPage.wide())
           );
         if (b.dataset.t == 'pf') pfPage.render();
         if (b.dataset.t == 'dc') dcPage.render();

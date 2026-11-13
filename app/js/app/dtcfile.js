@@ -11,6 +11,7 @@ import { draw } from './cardview.js';
 import { campDir, dtcDir } from './campaign.js';
 import { l16Clear } from './l16link.js';
 import { campaignIni, routeRows } from '../core/mapdtc.js';
+import { toAscii } from '../core/ascii.js';
 
 /* ---------- DTC ---------- */
 export let lines = [];
@@ -59,7 +60,7 @@ export function S(s, k, v) {
     l = { k, s, raw: '' };
     lines.splice(i + 1, 0, l);
   }
-  l.v = String(v);
+  l.v = toAscii(v); // plain letters only: the game reads its files as 8-bit text (core/ascii.js)
   l.dirty = 1;
 }
 export function inp(v, fn, ph = '') {

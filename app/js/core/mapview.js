@@ -1,4 +1,5 @@
 // Map page: Leaflet map of the theater with switchable base maps and layers. Leaflet is loaded the first time the page opens.
+import { wezOf, wezText, wezSams } from './wez.js';
 import { radarUnits, neededCells, coverage, CELL_KM } from './radarcov.js';
 import basemap from '../data/basemap.js';
 import D0 from '../data/index.js';
@@ -161,13 +162,13 @@ export function createMap(host, deps) {
     });
     persist();
   };
-  const $ = id => host.querySelector('#' + id);
+  const $ = id => host.querySelector('#' + id) || (away && away.querySelector('#' + id)); // the map (and its frame) may be borrowed by another page
 
   let home = null,
     away = null,
     MO = null;
   /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
-  const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo'];
+  const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo', 'shoting'];
   function mirror() {
     if (!away) return;
     away.classList.add('mpx');
@@ -209,6 +210,7 @@ export function createMap(host, deps) {
   }
   function detach() {
     if (!away || !map) return;
+    if (shotOn) shotStop(); // a frame opened on the page that borrowed the map goes with it
     if (MO) {
       MO.disconnect();
       MO = null;
@@ -291,7 +293,7 @@ export function createMap(host, deps) {
     map.on('tooltipclose', e => TIPS.delete(e.tooltip));
     const tipSweep = () =>
       TIPS.forEach(t => {
-        if (!t.options.permanent) map.closeTooltip(t);
+        if (!t.options.permanent && !t.options.plk) map.closeTooltip(t); // plk: the tooltip of the political places, which follows the mouse on its own (plHooks)
       });
     map.getContainer().addEventListener('mousemove', e => {
       if (
@@ -463,12 +465,31 @@ export function createMap(host, deps) {
 
   // The panel works like the ATO list: every section folds and unfolds with a short animation (the choice is remembered)
   const SAMTXT = {
-    se: ['Enemy SAM range (spotted)', 'Enemy SAM range · flight plan only'],
-    sx: 'Only those crossing the flight plan',
+    se: ['Enemy SAM range', 'Enemy SAM range · route only'],
+    sx: 'Only crossing the flight plan',
+    wz: 'WEZ exposure time',
     ff: ['Friendly flights', 'Friendly flights · support only'],
-    fs: 'Only support (tankers, AWACS...)',
+    fs: 'Only support',
     uf: ['Friendly units', 'Friendly units · JTAC only'],
-    sj: 'Only the JTAC of the selected CAS flight',
+    sj: 'Only the JTAC of the flight',
+  };
+  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS/HARM' };
+  // the details of the filters, in the tooltips (the rows stay on one line)
+  const TIP = {
+    nav: 'VOR and TACAN stations',
+    fp: 'The line and the steerpoints of the selected flight',
+    fd: 'The label of the selected flight and the distances between its steerpoints',
+    ue: 'Only the units your side has spotted',
+    se: 'The rings of the spotted enemy SAMs',
+    sx: 'Only the enemy SAMs whose ring crosses the flight plan of the selected flight',
+    wz: 'WEZ exposure time of the selected flight: when and how long the route is inside each enemy SAM ring, and the total along the route (also on the flight label)',
+    sf: 'The rings of the friendly SAMs',
+    sj: 'Only the JTAC unit of the selected CAS flight',
+    fs: 'Only support flights: tankers, AWACS, JSTARS...',
+    fe: 'Only the enemy flights your side has spotted',
+    rc: 'Approximate coverage of the enemy radars at the chosen altitude',
+    da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss, HARM)',
+    msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
   function samRows() {
@@ -563,11 +584,10 @@ export function createMap(host, deps) {
       i.indeterminate = n > 0 && n < k.length;
     });
     objBtns();
-    const oc = $('mpoc');
-    if (oc) {
-      const n = secKeys('Objects').filter(x => st.on[x]).length;
-      oc.textContent = n ? n + ' on' : '';
-    }
+    host.querySelectorAll('#mpbar .mpo').forEach(r => {
+      const n = secKeys(r.dataset.sec).filter(x => st.on[x]).length;
+      r.querySelector('.mpcn').textContent = n ? n + ' on' : '';
+    });
     clrLabel();
   }
   function setLayers(keys, on) {
@@ -595,7 +615,7 @@ export function createMap(host, deps) {
     });
   };
   const layerRow = l =>
-    `<label class="mpr${l[3] ? ' sub' : ''}" data-row="${l[0]}"><input type="checkbox" data-k="${l[0]}"${st.on[l[0]] ? ' checked' : ''}> <span class="lt">${fe(l[1])}</span></label>`;
+    `<label class="mpr${l[3] ? ' sub' : ''}" data-row="${l[0]}"${TIP[l[0]] ? ` title="${TIP[l[0]]}"` : ''}><input type="checkbox" data-k="${l[0]}"${st.on[l[0]] ? ' checked' : ''}> <span class="lt">${fe(l[1])}</span></label>`;
   // a menu that opens from a button (like LEVELS): open state kept in st[key]; up = the menu opens upward
   function ddown(b, m, key, up) {
     const show = o => {
@@ -634,46 +654,49 @@ export function createMap(host, deps) {
     show(!!st[key]);
     return set;
   }
-  // The object types open in a panel beside the filter menu (it keeps the menu short): 2 columns, all / none, and the owner colouring of the dots
+  // Side panels beside the filter menu (they keep the menu short): Objects (object types, political, owner colouring) and Display (radar coverage, MSA / ERAA).
+  // A row of the menu (.mpo[data-fly=id]) opens its panel; one panel at a time; a click outside or Escape closes it.
   let OFLY = false;
-  function objFly(el) {
+  const FLY_IDS = ['mpobj', 'mpdsp'];
+  const flyAn = () => !(deps.anim && !deps.anim());
+  function flyHide(g) {
+    if (!g || g.style.display == 'none') return;
+    if (flyAn())
+      g.animate(
+        [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: 'translateX(8px)' },
+        ],
+        { duration: 110, easing: 'ease-in' }
+      ).onfinish = () => {
+        if (g.dataset.o != '1') g.style.display = 'none';
+      };
+    else g.style.display = 'none';
+  }
+  function flyShut(id) {
+    const g = $(id);
+    if (g) {
+      g.dataset.o = '';
+      flyHide(g);
+    }
+    const r = document.querySelector(`#mpbar .mpo[data-fly=${id}]`);
+    if (r) {
+      r.classList.remove('act');
+      r.querySelector('i').textContent = '◂';
+    }
+  }
+  function fly(el, id, html) {
     const w = $('mpfilw'),
-      row = el.querySelector('.mpo');
-    if (!w || !row) return;
-    let f = $('mpobj');
+      row = el.querySelector(`.mpo[data-fly=${id}]`);
+    if (!w || !row) return null;
+    let f = $(id);
     if (f) f.remove();
     f = document.createElement('div');
-    f.id = 'mpobj';
+    f.id = id;
+    f.className = 'mpfly';
     f.style.display = 'none';
-    f.innerHTML = `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy objects a red one; neutral and unknown ones stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`;
+    f.innerHTML = html;
     w.appendChild(f);
-    const an = () => !(deps.anim && !deps.anim()),
-      hide = g => {
-        if (g.style.display == 'none') return;
-        if (an())
-          g.animate(
-            [
-              { opacity: 1, transform: 'none' },
-              { opacity: 0, transform: 'translateX(8px)' },
-            ],
-            { duration: 110, easing: 'ease-in' }
-          ).onfinish = () => {
-            if (g.dataset.o != '1') g.style.display = 'none';
-          };
-        else g.style.display = 'none';
-      };
-    const shut = () => {
-      const g = $('mpobj');
-      if (g) {
-        g.dataset.o = '';
-        hide(g);
-      }
-      const r = document.querySelector('#mpbar .mpo');
-      if (r) {
-        r.classList.remove('act');
-        r.querySelector('i').textContent = '◂';
-      }
-    };
     const place = () => {
       const wt = w.getBoundingClientRect().top,
         mb = el.getBoundingClientRect().bottom - wt;
@@ -681,11 +704,12 @@ export function createMap(host, deps) {
       f.style.top = Math.max(0, mb - f.offsetHeight) + 'px';
     }; // the bottom edge lines up with the bottom of the filter menu
     const open = o => {
+      if (o) FLY_IDS.filter(x => x != id).forEach(flyShut);
       f.dataset.o = o ? '1' : '';
       if (o) {
         f.style.display = '';
         place();
-        if (an())
+        if (flyAn())
           f.animate(
             [
               { opacity: 0, transform: 'translateX(8px)' },
@@ -693,7 +717,7 @@ export function createMap(host, deps) {
             ],
             { duration: 150, easing: 'ease-out' }
           );
-      } else hide(f);
+      } else flyHide(f);
       row.classList.toggle('act', o);
       row.querySelector('i').textContent = o ? '▸' : '◂';
     };
@@ -711,6 +735,27 @@ export function createMap(host, deps) {
           sync();
         })
     );
+    if (!OFLY) {
+      OFLY = true;
+      document.addEventListener('mousedown', e => {
+        FLY_IDS.forEach(x => {
+          const g = $(x);
+          if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) flyShut(x);
+        });
+      });
+      document.addEventListener('keydown', e => {
+        if (e.key == 'Escape') FLY_IDS.forEach(flyShut);
+      });
+    }
+    return f;
+  }
+  function objFly(el) {
+    const f = fly(
+      el,
+      'mpobj',
+      `<div class="mph"><b>Objects</b><button type="button" id="mpocol" class="btn${st.on.ocol ? '' : ' g'}" title="Allied objects get a blue ring, enemy ones a red ring; neutral and unknown stay as they are. The fill still shows intact / damaged / destroyed.">Colour by owner: ${st.on.ocol ? 'On' : 'Off'}</button><span style="flex:1"></span><a data-a="pol" title="Switch cities, towns and villages on or off">political</a><a data-a="tog"></a></div><div class="mpog">${OBJ_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div><div class="mph mpps"><b>Political</b></div><div class="mpog">${PLACE_LAYERS.map(([t, l]) => layerRow(['o' + t, l])).join('')}</div>`
+    );
+    if (!f) return;
     // one button for all / none of the objects (the label says what the next click does), one for the political layer only
     f.querySelectorAll('a[data-a]').forEach(
       a =>
@@ -724,34 +769,46 @@ export function createMap(host, deps) {
       st.on.ocol = !st.on.ocol;
       save();
       host.classList.toggle('ocol', st.on.ocol);
+      plRestyle();
       const b = $('mpocol');
       b.classList.toggle('g', !st.on.ocol);
       b.textContent = 'Colour by owner: ' + (st.on.ocol ? 'On' : 'Off');
     };
-    if (!OFLY) {
-      OFLY = true;
-      document.addEventListener('mousedown', e => {
-        const g = $('mpobj');
-        if (g && g.style.display != 'none' && !g.contains(e.target) && !e.target.closest('.mpo')) shut();
-      });
-      document.addEventListener('keydown', e => {
-        if (e.key == 'Escape') shut();
-      });
-    }
+  }
+  // Display: radar coverage with its altitude, MSA / ERAA with the opacity of the bands
+  function dspFly(el) {
+    const f = fly(
+      el,
+      'mpdsp',
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}`
+    );
+    if (!f) return;
+    const lab2 = () => {
+      $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft';
+    };
+    lab2();
+    $('mprca').oninput = () => {
+      st.on.rcalt = RC_LEVELS[+$('mprca').value];
+      save();
+      lab2();
+      if (st.on.rc) radarCov();
+    };
+    $('mpmsao').oninput = () => {
+      st.on.msaop = +$('mpmsao').value;
+      save();
+      msaDraw();
+    };
   }
   function panel() {
     const el = $('mpbar'),
       ITEMS = [];
-    MAP_LAYERS.filter(l => l[3] != 'DTC steerpoints').forEach(l => {
+    // sub-rows ("only ..." switches, the WEZ labels) sit under their layer
+    const SUBS = { uf: ['sj'], se: ['sx', 'wz'], ff: ['fs'] };
+    MAP_LAYERS.filter(l => !['DTC steerpoints', 'Display'].includes(l[3])).forEach(l => {
       ITEMS.push([l[0], l[1], l[3]]);
-      if (l[0] == 'uf') ITEMS.push(['sj', SAMTXT.sj, 'Ground and naval units', 1]);
-      if (l[0] == 'se') ITEMS.push(['sx', SAMTXT.sx, 'SAM range', 1]);
-      if (l[0] == 'ff') ITEMS.push(['fs', SAMTXT.fs, 'In flight', 1]);
+      (SUBS[l[0]] || []).forEach(k => ITEMS.push([k, SAMTXT[k], l[3], 1]));
     });
-    MAP_OPTS.filter(o => !['sx', 'fs', 'sj'].includes(o[0])).forEach(o => ITEMS.push(o));
-    const secs = [...new Set(ITEMS.map(l => l[2]))]
-      .filter(n => n != 'Names' && n != 'Objects' && n != 'Political')
-      .sort((a, b) => (a == 'Display') - (b == 'Display')); // Display, then Objects; the Names switch is the very last row
+    const secs = [...new Set(ITEMS.map(l => l[2]))].filter(n => n != 'Objects' && n != 'Political');
     const secHtml = n => {
       const closed = st.closed.includes(n);
       return `<div class="mps${MACRO.includes(n) ? ' mac' : ''}" data-sec="${n}"><i>${closed ? '▸' : '▾'}</i>${MACRO.includes(n) ? `<input type="checkbox" class="mst" data-sec="${n}" title="All of ${n}">` : ''}<span>${n}</span></div><div class="mpsb" data-sec="${n}"${closed ? ' style="display:none"' : ''}>${ITEMS.filter(
@@ -760,14 +817,13 @@ export function createMap(host, deps) {
         .map(layerRow)
         .join('')}</div>`;
     };
+    const flyRow = (id, n, tip) =>
+      `<div class="mps mac mpo" data-sec="${n}" data-fly="${id}" title="${tip}"><i>◂</i><input type="checkbox" class="mst" data-sec="${n}" title="All of ${n}"><span>${n}</span><em class="mpcn"></em></div>`;
     el.innerHTML =
-      `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button> <button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` +
+      `<div class="mph"><button class="btn g" id="mpfa" title="Fold or unfold all the filter sections">Filters</button><button class="btn${st.on.names ? '' : ' g'}" id="mpnm" title="Names of airbases, steerpoints and objects on the map">Names</button><button class="btn g" id="mpclr" title="Switch every filter off; press again to bring them back">Clear filters</button></div>` +
       secs.map(secHtml).join('') +
-      `<div class="mps mac mpo" data-sec="Objects" title="Choose the object types in a panel beside this menu"><i>◂</i><input type="checkbox" class="mst" data-sec="Objects" title="All of Objects"><span>Objects</span><em id="mpoc"></em></div><div class="mpl">${ITEMS.filter(
-        l => l[2] == 'Names'
-      )
-        .map(layerRow)
-        .join('')}</div>`;
+      flyRow('mpdsp', 'Display', 'Radar coverage and MSA / ERAA, in a panel beside this menu') +
+      flyRow('mpobj', 'Objects', 'Choose the object types in a panel beside this menu');
     const sb = el.querySelector('.mpsb[data-sec="SAM range"]'); // transparency of the colour inside the SAM unit rings
     if (sb) {
       sb.insertAdjacentHTML(
@@ -781,38 +837,14 @@ export function createMap(host, deps) {
         DT.forEach(e => e.it.group == 'ppt' && e.ring && e.ring.setStyle({ fillOpacity: st.on.ringfill / 100 }));
       };
     }
-    const rcRow = el.querySelector('input[data-k=rc]'); // altitude of the radar coverage
-    if (rcRow) {
-      const lab = rcRow.closest('label') || rcRow.parentElement;
-      lab.insertAdjacentHTML(
-        'afterend',
-        `<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>`
-      );
-      const lab2 = () => {
-        $('mprcv').textContent = 'Altitude ' + rcAlt().toLocaleString('en-US') + ' ft';
-      };
-      lab2();
-      $('mprca').oninput = () => {
-        st.on.rcalt = RC_LEVELS[+$('mprca').value];
-        save();
-        lab2();
-        if (st.on.rc) radarCov();
-      };
-    }
-    const msaRow = el.querySelector('input[data-k=msa]'); // opacity of the MSA / ERAA bands
-    if (msaRow) {
-      const lab = msaRow.closest('label') || msaRow.parentElement;
-      lab.insertAdjacentHTML(
-        'afterend',
-        `<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>`
-      );
-      $('mpmsao').oninput = () => {
-        st.on.msaop = +$('mpmsao').value;
-        save();
-        msaDraw();
-      };
-    }
+    $('mpnm').onclick = () => {
+      st.on.names = !st.on.names;
+      save();
+      masters();
+      sync();
+    };
     el.querySelectorAll('.mps:not(.mpo)').forEach(h => (h.onclick = () => toggleSec(h)));
+    dspFly(el);
     objFly(el);
     el.querySelectorAll('input.mst').forEach(i => {
       i.onclick = e => e.stopPropagation();
@@ -822,7 +854,7 @@ export function createMap(host, deps) {
       i =>
         (i.onchange = () => {
           st.on[i.dataset.k] = i.checked;
-          const par = { sx: 'se', fs: 'ff', sj: 'uf' }[i.dataset.k];
+          const par = { sx: 'se', wz: 'se', fs: 'ff', sj: 'uf' }[i.dataset.k];
           if (i.checked && par && !st.on[par]) {
             st.on[par] = true;
             const c = el.querySelector(`input[data-k=${par}]`);
@@ -835,6 +867,10 @@ export function createMap(host, deps) {
           }
           if (i.dataset.k == 'sj') {
             samRows();
+          }
+          if (i.dataset.k == 'wz') {
+            sams(deps.getC(), deps.getSel());
+            plan(deps.getC(), deps.getSel());
           }
           if (i.dataset.k == 'fs') {
             samRows();
@@ -930,7 +966,7 @@ export function createMap(host, deps) {
   const filterKeys = () =>
     MAP_LAYERS.filter(l => l[3] != 'DTC steerpoints')
       .map(l => l[0])
-      .concat(['sx', 'fs', 'sj', 'names']); // layers and the "only ..." switches (not the DTC filters)
+      .concat(['sx', 'wz', 'fs', 'sj', 'names']); // layers and the "only ..." switches (not the DTC filters)
   const clrLabel = () => {
     const b = $('mpclr');
     if (b) b.textContent = SAVED || !filterKeys().some(k => st.on[k]) ? 'All filters' : 'Clear filters';
@@ -948,7 +984,7 @@ export function createMap(host, deps) {
       SAVED = null;
     } // brings the previous choice back
     else if (!keys.some(k => st.on[k]))
-      put(k => !['sx', 'fs', 'sj', 'names'].includes(k)); // everything is off: switch every layer on
+      put(k => !['sx', 'wz', 'fs', 'sj', 'names'].includes(k)); // everything is off: switch every layer on
     else {
       SAVED = Object.fromEntries(keys.map(k => [k, !!st.on[k]]));
       put(() => false);
@@ -1047,7 +1083,7 @@ export function createMap(host, deps) {
           <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
-      `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (a .bak of the original is kept once)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
+      `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (the original is kept once in the program folder, backup\\dtc)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
     $('mpshotkb').innerHTML = ICON.cam + ' Screenshot for kneeboard';
     $('mpshot').innerHTML = ICON.cam + ' Screenshot for datacard';
     // closing the Filters macro switches every DTC filter off (the points disappear), opening it brings back what was on
@@ -1754,6 +1790,12 @@ export function createMap(host, deps) {
     host.style.setProperty('--dtcl', pal.dtc.line);
     host.classList.toggle('lt', light || game);
     host.classList.toggle('game', game || light); // the BMS colours (and their outlines) for every light map
+    if (map)
+      try {
+        plRestyle(); // the places on the canvas take the colours of the map
+      } catch (e) {
+        /* the objects are not set up yet */
+      }
     if (ch && map) {
       refresh();
       plan(deps.getC(), deps.getSel());
@@ -1890,38 +1932,234 @@ export function createMap(host, deps) {
     OSL = [],
     ABM = new Map(),
     ABACT = new Map();
+  // the names next to the objectives (from NAMEZ) and to the sub-objectives (from zoom 14), in the view: each label is made once and kept with its
+  // objective (r.lb), then only added or removed as the view moves (speed: no new elements at every move; the same labels as before)
   function objLabels() {
     if (!OLBL || !map) return;
-    OLBL.clearLayers();
     const z = map.getZoom();
-    if (z < NAMEZ - 0.01) return;
+    if (z < NAMEZ - 0.01) {
+      OLBL.clearLayers();
+      return;
+    }
     const bd = map.getBounds().pad(0.1),
-      L = window.L;
+      L = window.L,
+      want = new Set();
     let n = 0;
-    const lab = (ll, name, cls) =>
-      L.marker(ll, {
-        interactive: false,
-        keyboard: false,
-        icon: L.divIcon({
-          className: 'nobjl' + cls,
-          html: '<span>' + deps.esc(name) + '</span>',
-          iconSize: [0, 0],
-          iconAnchor: [-9, 7],
-        }),
-      }).addTo(OLBL);
+    const lab = (r, name, cls) => {
+      if (!r.lb)
+        r.lb = L.marker(r.ll, {
+          interactive: false,
+          keyboard: false,
+          icon: L.divIcon({
+            className: 'nobjl' + cls,
+            html: '<span>' + deps.esc(name) + '</span>',
+            iconSize: [0, 0],
+            iconAnchor: [-9, 7],
+          }),
+        });
+      want.add(r.lb);
+    };
     OJ.forEach(r => {
       if (n > 400 || !bd.contains(r.ll) || !map.hasLayer(r.g)) return;
       n++;
-      lab(r.ll, r.o.name, '');
+      lab(r, r.o.name, '');
     });
     if (z >= 14)
       OSL.forEach(r => {
-        if (bd.contains(r.ll)) lab(r.ll, r.name, ' sl');
+        if (bd.contains(r.ll)) lab(r, r.name, ' sl');
       });
+    OLBL.eachLayer(m => {
+      if (!want.has(m)) OLBL.removeLayer(m);
+    });
+    want.forEach(m => {
+      if (!OLBL.hasLayer(m)) OLBL.addLayer(m);
+    });
   }
+  // only the dots in the view (and half a view around it, so that a pan does not show them appearing at the edges) are in the page: the others
+  // wait in their objective record (r.m) and come back, the same, when the view reaches them. Thousands of dots out of the view were moved by
+  // the map at every zoom and drawn at every pan for nothing.
+  function objCull() {
+    if (!map || !OJ.length || map._animatingZoom) return; // during a zoom animation the map is moving its markers: zoomend comes after it
+    const bd = map.getBounds().pad(0.5);
+    OJ.forEach(r => {
+      if (r.cv) return; // a place: on the canvas, always in its layer
+      if (bd.contains(r.ll)) {
+        if (!r.in) {
+          r.g.addLayer(r.m);
+          r.in = true;
+        }
+      } else if (r.in) {
+        r.g.removeLayer(r.m);
+        r.in = false;
+      }
+    });
+  }
+  // the size of the dots follows the zoom; written only when it changes (a write makes the browser restyle every dot, and 'zoom' comes at every frame)
+  let OSZ = '';
   const objSize = () => {
-    host.style.setProperty('--os', dotSize() + 'px');
+    const v = dotSize() + 'px';
+    if (v === OSZ) return;
+    OSZ = v;
+    host.style.setProperty('--os', v);
     host.style.setProperty('--ss', Math.max(3, dotSize() * 0.62) + 'px');
+    plRestyle();
+  };
+  // The political places (cities, towns, villages) are drawn on one canvas instead of one element each: they are most of the dots, and the
+  // browser moved and drew every one of them at every pan and zoom. They look as the other dots (the colours of .nobj in the css: white /
+  // grey / black, the other way round on light maps, the owner ring) without the soft shadow, and they stay below the other symbols as before.
+  // The canvas does not take the mouse (it would cover the lines and rings below it): the dot under the mouse is found here, over the same
+  // 22 px square as the other dots, for the tooltip and the click (a place opens its window at the first click).
+  let PLR = null,
+    PLT = null,
+    PLH = null,
+    PLHOOK = false;
+  const PLF = { 1: 1.25, 2: 0.9, 3: 0.62 };
+  const plRend = () => {
+    if (!PLR) {
+      const pn = map.createPane('placeP');
+      pn.style.zIndex = 590;
+      pn.style.pointerEvents = 'none';
+      // the soft dark shadow of the dots (box-shadow 0 0 2px #0008 in the css): a thin dark ring just outside each circle (a canvas blur would
+      // also darken the inside of the dot, which is a little transparent)
+      const Cv = window.L.Canvas.extend({
+        _fillStroke(ctx, layer) {
+          if (layer.options.halo) {
+            const p = layer._point,
+              r = layer._radius + layer.options.weight / 2 + 0.6;
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+            ctx.lineWidth = 1.2;
+            ctx.strokeStyle = 'rgba(0,0,0,0.18)';
+            ctx.stroke();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, layer._radius, 0, Math.PI * 2);
+          }
+          window.L.Canvas.prototype._fillStroke.call(this, ctx, layer);
+        },
+      });
+      PLR = new Cv({ pane: 'placeP', padding: 0.5 });
+    }
+    return PLR;
+  };
+  const plStyle = r => {
+    const lt = host.classList.contains('lt'),
+      s = r.state || 0,
+      d = dotSize() * (PLF[r.pl] || 1);
+    return {
+      radius: Math.max(0.5, d / 2 - 0.25),
+      weight: 1,
+      opacity: 0.85,
+      fillOpacity: 0.85,
+      fillColor: (lt ? ['#000', '#8a8f98', '#fff'] : ['#fff', '#8a8f98', '#000'])[s],
+      color: (lt ? s == 0 : s == 2) ? '#ffffffdd' : '#000000cc',
+    };
+  };
+  // the owner ring (Colour by owner): 1.5 px around the dot, blue / red (cyan / orange-red on the BMS colours)
+  const plRing = r => {
+    const on = st.on.ocol && (r.side == 'a' || r.side == 'e');
+    if (!on) {
+      if (r.rg) {
+        r.g.removeLayer(r.rg);
+        r.rg = null;
+      }
+      return;
+    }
+    const game = host.classList.contains('game'),
+      c = r.side == 'a' ? (game ? '#38d6f2' : '#4f8cff') : game ? '#ff3b1e' : '#ff5d5d',
+      rad = (dotSize() * (PLF[r.pl] || 1)) / 2 + 0.75;
+    if (!r.rg) {
+      r.rg = window.L.circleMarker(r.ll, {
+        renderer: plRend(),
+        interactive: false,
+        fill: false,
+        weight: 1.5,
+        opacity: 0.85,
+        color: c,
+        radius: rad,
+      });
+      r.g.addLayer(r.rg);
+    } else r.rg.setStyle({ color: c }).setRadius(rad);
+  };
+  function plRestyle() {
+    OJ.forEach(r => {
+      if (!r.cv) return;
+      const y = plStyle(r);
+      r.m.setStyle(y).setRadius(y.radius);
+      plRing(r);
+    });
+  }
+  // the place under a point of the map container (the 22 px square of a dot), or null
+  // while a point is placed on the map (a steerpoint, a line, an offset) the places do not take the click nor show the hand: the click is the map's
+  const placingNow = () => host.classList.contains('adding') || host.classList.contains('placing');
+  const plAt = pt => {
+    if (placingNow()) return null;
+    let b = null,
+      bd = 1e9;
+    OJ.forEach(r => {
+      if (!r.cv || !map.hasLayer(r.g)) return;
+      const q = map.latLngToContainerPoint(r.ll),
+        dx = Math.abs(q.x - pt.x),
+        dy = Math.abs(q.y - pt.y);
+      if (dx <= 11 && dy <= 11 && dx + dy < bd) {
+        bd = dx + dy;
+        b = r;
+      }
+    });
+    return b;
+  };
+  const plHooks = () => {
+    if (PLHOOK) return;
+    PLHOOK = true;
+    const L = window.L,
+      ct = map.getContainer();
+    PLT = L.tooltip({ direction: 'top', offset: [0, -6], plk: true }); // plk: not closed by the sweep of the left-over tooltips (the canvas is not an element under the mouse)
+    const over = ev =>
+      ev &&
+      ev.target &&
+      ev.target.closest &&
+      ev.target.closest('.leaflet-marker-icon, .leaflet-popup, .leaflet-control, .leaflet-tooltip');
+    let raf = 0;
+    map.on('mousemove', e => {
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        const r = over(e.originalEvent) ? null : plAt(e.containerPoint);
+        if (r === PLH) return;
+        PLH = r;
+        ct.classList.toggle('plh', !!r);
+        if (r) map.openTooltip(PLT.setContent(r.tip), r.ll);
+        else map.closeTooltip(PLT);
+      });
+    });
+    map.on('mouseout movestart zoomstart', () => {
+      PLH = null;
+      ct.classList.remove('plh');
+      map.closeTooltip(PLT);
+    });
+    // a click (or a double click) on a place is the place's, as on a dot: the map does not get it (no zoom, no click on what is below)
+    const take = ev => {
+      if (over(ev) || (map.dragging && map.dragging.moved())) return null;
+      return plAt(map.mouseEventToContainerPoint(ev));
+    };
+    ct.addEventListener(
+      'click',
+      ev => {
+        const r = take(ev);
+        if (!r) return;
+        ev.stopPropagation();
+        r.act();
+      },
+      true
+    );
+    ct.addEventListener(
+      'dblclick',
+      ev => {
+        if (take(ev)) ev.stopPropagation();
+      },
+      true
+    );
   };
   function objDraw() {
     const on = OBJ_ALL.filter(([t]) => st.on['o' + t]);
@@ -1960,6 +2198,7 @@ export function createMap(host, deps) {
     }
     if (!OHOOK) {
       OHOOK = true;
+      map.on('moveend zoomend', objCull);
       map.on('moveend zoomend', objLabels);
       map.on('zoom zoomend', objSize);
       map.on('click', () => {
@@ -2010,9 +2249,23 @@ export function createMap(host, deps) {
           am.setTooltipContent(tip);
           return;
         } // an airfield: its own symbol is the clickable one, no dot over it
-        OJ.push({ t, o, ll, g });
         const pl = PLACE_LAYERS.find(p => p[0] == t); // a place: its buildings are not shown, a click opens the window at once
-        L.marker(ll, {
+        if (pl) {
+          plHooks();
+          const r = { t, o, ll, g, cv: true, state, side, pl: pl[2], tip, rg: null, m: null, in: true };
+          r.act = () =>
+            window.L.popup({ className: 'mpop', closeButton: false, autoPan: false, minWidth: 200, offset: [0, -6] })
+              .setLatLng(ll)
+              .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
+              .openOn(map);
+          r.m = L.circleMarker(ll, { renderer: plRend(), interactive: false, halo: true, tip, ...plStyle(r) });
+          r.m.pr = r; // (read by the tests: the ring, the record)
+          g.addLayer(r.m);
+          plRing(r);
+          OJ.push(r);
+          return;
+        }
+        const m = L.marker(ll, {
           icon: dotIcon(state, false, side, pl ? pl[2] : 0),
           keyboard: false,
           zIndexOffset: pl ? 60 : 100,
@@ -2025,8 +2278,8 @@ export function createMap(host, deps) {
                 .setContent(objPopup(o.name, lab + info.txt, o.n, o.e))
                 .openOn(map);
             else objOpen(o, ll, lab);
-          })
-          .addTo(g); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
+          }); // 1st click: zoom in and show the sub-objectives; 2nd click: the menu
+        OJ.push({ t, o, ll, g, m, in: false }); // put in its layer by objCull when it is in the view
       });
     });
     if (C && C.objFeat)
@@ -2035,6 +2288,7 @@ export function createMap(host, deps) {
           o => on.some(([t]) => t == o.type) && !PLACE_LAYERS.some(p => p[0] == o.type) && objState(C.objFeat.get(o.id))
         )
       );
+    objCull();
     objLabels();
   }
   // zoom to the objective and show its sub-objectives
@@ -2046,52 +2300,79 @@ export function createMap(host, deps) {
     objClear();
     OSEL = o.id;
     OSL = [];
-    const first = map.getZoom() < NAMEZ - 0.01 || map.getCenter().distanceTo(ll) > 2;
-    map.setView(ll, Math.max(map.getZoom(), NAMEZ), { animate: an });
+    // One smooth zoom to the final view (the sub-objectives filling it), instead of a jump to zoom 13 and then a second zoom: the sub-objectives are
+    // read first (the zoom waits for them a quarter of a second at most; if they are slower the old two steps are kept). The zoom is the light
+    // animation of the map (the picture is scaled), also for more than 4 levels, where the map would jump without animation; the
+    // sub-objectives are put on the map when the zoom has ended, so that the animation does not move them.
+    const zoomTo = (c, z, done) => {
+      const th = map.options.zoomAnimationThreshold;
+      map.options.zoomAnimationThreshold = 20;
+      let ok = false;
+      const end = () => {
+        if (ok) return;
+        ok = true;
+        map.options.zoomAnimationThreshold = th;
+        if (done) done();
+      };
+      const moving = map.getZoom() != z || map.getCenter().distanceTo(c) > 0.5;
+      if (moving) map.once('moveend', end);
+      map.setView(c, z, { animate: an });
+      if (!moving) end();
+      else setTimeout(end, 1500); // a lost moveend never blocks the sub-objectives
+    };
+    const target = fs => {
+      if (!fs || !fs.length) return [ll, Math.max(map.getZoom(), NAMEZ)];
+      // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
+      const bd = L.latLngBounds([ll]);
+      fs.forEach(f => bd.extend(toLL(f.e / FT_KM, f.n / FT_KM)));
+      return [bd.getCenter(), Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50])))];
+    };
+    const show = fs => {
+      if (OSEL !== o.id) return;
+      fs.forEach((f, k) => {
+        const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0,
+          txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '',
+          fl = toLL(f.e / FT_KM, f.n / FT_KM);
+        OSL.push({ ll: fl, name: f.name });
+        L.marker(fl, { icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150 })
+          .bindTooltip(deps.esc(f.name) + txt, { direction: 'top', offset: [0, -4] })
+          .bindPopup(() => objPopup(o.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {
+            className: 'mpop',
+            closeButton: false,
+            autoPan: false,
+            minWidth: 200,
+          })
+          .addTo(OSUB);
+      });
+      objLabels();
+    };
+    const fail = () => toast('The sub-objectives could not be read.', true);
+    let late = false;
+    const slow = setTimeout(() => {
+      late = true;
+      if (OSEL === o.id) zoomTo(...target(null));
+    }, 250);
     deps.objects
       .features(o)
       .then(fs => {
+        clearTimeout(slow);
         if (OSEL !== o.id) return;
-        fs.forEach((f, k) => {
-          const sv = fs0 && fs0[k] !== undefined ? featState(fs0[k]) : 0,
-            txt = sv ? (sv == 2 ? ' · destroyed' : ' · damaged') : '',
-            fl = toLL(f.e / FT_KM, f.n / FT_KM);
-          OSL.push({ ll: fl, name: f.name });
-          L.marker(fl, { icon: dotIcon(sv, true), keyboard: false, zIndexOffset: 150 })
-            .bindTooltip(deps.esc(f.name) + txt, { direction: 'top', offset: [0, -4] })
-            .bindPopup(() => objPopup(o.name, f.name + ' · ' + o.name + txt, f.n, f.e, f.name), {
-              className: 'mpop',
-              closeButton: false,
-              autoPan: false,
-              minWidth: 200,
-            })
-            .addTo(OSUB);
-        });
-        if (fs.length) {
-          // magnifier: enlarge until the sub-objectives fill the view (up to zoom 18)
-          const bd = L.latLngBounds([ll]);
-          OSL.forEach(r => bd.extend(r.ll));
+        if (!late) zoomTo(...target(fs), () => show(fs));
+        else {
+          // slower than the quarter of a second: the first zoom is running or done, the second one goes to the sub-objectives
           const go = () => {
-            const z = Math.min(18, Math.max(NAMEZ, map.getBoundsZoom(bd, false, [50, 50])));
-            map.setView(bd.getCenter(), z, { animate: an });
+            if (OSEL !== o.id) return;
+            if (fs.length) zoomTo(...target(fs), () => show(fs));
+            else show(fs);
           };
-          if (!first) go();
-          else {
-            let done = false;
-            const once = () => {
-              if (!done) {
-                done = true;
-                go();
-              }
-            };
-            map.once('moveend', once);
-            setTimeout(once, 900);
-          } // wait for the first move (a second setView during it is lost)
+          if (map._animatingZoom) map.once('zoomend', go);
+          else go();
         }
-        objLabels();
       })
       .catch(() => {
-        toast('The sub-objectives could not be read.', true);
+        clearTimeout(slow);
+        if (!late && OSEL === o.id) zoomTo(...target(null));
+        fail();
       });
   }
   function objPopup(name, sub, n, e, short) {
@@ -2130,6 +2411,8 @@ export function createMap(host, deps) {
   function sync() {
     unitVis();
     host.classList.toggle('names', !!st.on.names);
+    const nb = $('mpnm');
+    if (nb) nb.classList.toggle('g', !st.on.names);
     host.classList.toggle('nofd', !st.on.fd);
     host.classList.toggle('ocol', !!st.on.ocol);
     MAP_LAYERS.forEach(([k]) => {
@@ -2239,6 +2522,28 @@ export function createMap(host, deps) {
       }).addTo(G[m.ally ? 'sf' : 'se']);
       if (!m.ally) SAMR.push(m);
     });
+    // WEZ exposure time of the selected flight: on every enemy ring it crosses, the minutes spent inside (the total is in the label of the flight)
+    if (st.on.wz && f && f.wps) {
+      const list = UL.filter(m => m.sam && !m.noFcr && m.hostile && m.spotted),
+        z = wezOf(
+          f.wps,
+          list.map(m => ({ x: m.u.x, y: m.u.y, rng: m.rng, name: m.name }))
+        );
+      (z ? z.per : []).forEach(p => {
+        const m = list[p.i],
+          min = p.ms / 60000;
+        L.marker(toLL(m.u.x, m.u.y + m.rng), {
+          icon: L.divIcon({
+            className: 'wzl',
+            html: `<span>${deps.esc(m.name)} · ${min < 10 ? min.toFixed(1) : Math.round(min)} min</span>`,
+            iconSize: [0, 0],
+          }),
+          interactive: false,
+          keyboard: false,
+          zIndexOffset: 900,
+        }).addTo(G.se);
+      });
+    }
     unitVis();
   }
   // SAM units follow their range: visible when their unit layer is on, or their range layer is on (enemy: only the ones crossing the plan when that filter is on)
@@ -2548,6 +2853,12 @@ export function createMap(host, deps) {
         : [];
     return a.length ? '<br>' + a.map(deps.esc).join(' · ') : '';
   }
+  // the WEZ exposure time of the flight as a line of its label: the window and the minutes inside the enemy rings (filter "WEZ exposure time")
+  function wzLine(f) {
+    if (!st.on.wz || !f || !f.wps) return '';
+    const z = wezOf(f.wps, wezSams(UL));
+    return z ? '<i class="wz">' + deps.esc(wezText(z, false).replace(/ (\d+)'$/, ' · $1 min')) + '</i>' : '';
+  }
   function plan(C, f) {
     const L = window.L;
     ['fp', 'fd', 'pk'].forEach(k => G[k].clearLayers());
@@ -2638,7 +2949,7 @@ export function createMap(host, deps) {
     label(
       G.fd,
       ll,
-      `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}`,
+      `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}${wzLine(f)}`,
       '',
       0
     );
@@ -2658,12 +2969,17 @@ export function createMap(host, deps) {
   let TLB = []; // labels of the tanker tracks (the DTC lines)
   let LBN = 0;
   const LBP = {}; // click actions of the labels
+  // a label drawn again (a switch of the map draws the plan again: the WEZ line, a layer) does not pop in again: a label taken away a moment ago and
+  // put back is known by its kind and its first bold text (the callsign)
+  const LBGONE = new Map();
   function label(group, route, html, cls, k, list, pick) {
     const L = window.L,
       at = route.length > 1 ? [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2] : route[0];
+    const lk = cls + '|' + (String(html).match(/<b>.*?<\/b>/) || [html])[0],
+      still = Date.now() - (LBGONE.get(lk) || 0) < 400;
     const mk = L.marker(at, {
       icon: L.divIcon({
-        className: 'flb ' + cls,
+        className: 'flb ' + cls + (still ? ' still' : ''),
         html: `<div style="--o:${k * 34}px"${pick ? ` data-lb="${++LBN}"` : ''}>${html}</div>`,
         iconSize: [0, 0],
       }),
@@ -2671,6 +2987,7 @@ export function createMap(host, deps) {
       keyboard: false,
       zIndexOffset: 1500,
     }).addTo(group);
+    mk.on('remove', () => LBGONE.set(lk, Date.now()));
     if (pick) LBP[LBN] = pick;
     (list || LBL).push({ mk, r: route });
   }
@@ -2775,6 +3092,7 @@ export function createMap(host, deps) {
   }
   function offCancel() {
     OFFP = null;
+    host.classList.remove('placing');
     if (map) map.getContainer().style.cursor = '';
     toast('Placing cancelled.');
   }
@@ -2783,6 +3101,7 @@ export function createMap(host, deps) {
       [x, y] = fromLL(latlng.lat, latlng.lng);
     if (x < 0 || x > 1024 || y < 0 || y > 1024) return toast('That is outside the theater.', true);
     OFFP = null;
+    host.classList.remove('placing');
     map.getContainer().style.cursor = '';
     const pos = { n: y * FT_KM, e: x * FT_KM };
     deps.offs.set(o.n, o.at, o.key, pos);
@@ -2843,6 +3162,7 @@ export function createMap(host, deps) {
         b =>
           (b.onclick = later(() => {
             OFFP = { n: p.n, at, key: b.dataset.pl, mk };
+            host.classList.add('placing'); // the dots of the objects let the click through to the map while a point is placed (styles: .placing .nobj)
             map.closePopup();
             map.getContainer().style.cursor = 'crosshair';
             toast(
@@ -3932,9 +4252,10 @@ export function createMap(host, deps) {
   function sizeFrame() {
     const fr = $('mpfr');
     if (!fr) return;
-    const fi = $('mpfi');
-    const W = host.clientWidth,
-      H = host.clientHeight,
+    const fi = $('mpfi'),
+      at = away || host;
+    const W = at.clientWidth,
+      H = at.clientHeight,
       ar = shotDim().w / shotDim().h,
       a = (shotAng * Math.PI) / 180,
       c = Math.abs(Math.cos(a)),
@@ -3965,9 +4286,12 @@ export function createMap(host, deps) {
     if (e.key == 'Escape') shotStop();
   };
   let ZO = null;
-  function shotStart(k) {
+  // opt.toast: where the message at the end goes (the Briefing page, which borrows the map, shows it on its own map)
+  let SHOTOPT = {};
+  function shotStart(k, opt) {
     if (!map || shotOn) return;
     shotOn = true;
+    SHOTOPT = opt || {};
     shotAng = 0;
     shotK = k || 'dc';
     host.classList.add('shoting');
@@ -3977,7 +4301,7 @@ export function createMap(host, deps) {
     fr.id = 'mpfr';
     fr.innerHTML =
       '<div id="mpfi"></div><div id="mpfb"><button class="btn" id="mpcap">Capture</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px" title="Turn the frame: the map inside it is straightened into the picture">Angle <input type="range" id="mpang" min="0" max="359" step="1" value="0" style="width:130px"><b id="mpangv" style="min-width:34px;text-align:right">0°</b></label><button class="btn g" id="mprot" title="Turn the frame by another quarter">+90°</button><button class="btn g" id="mpcan">Cancel</button></div>';
-    host.append(fr);
+    (away || host).append(fr); // a page that borrows the map (Briefing) frames it where it is
     sizeFrame();
     shotBtn();
     ZO = { snap: map.options.zoomSnap, wheel: map.options.wheelPxPerZoomLevel };
@@ -4128,11 +4452,14 @@ export function createMap(host, deps) {
       }
       deps.setShot(c, shotK);
       shotStop();
-      toast(warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.', !!warn);
+      (SHOTOPT.toast || toast)(
+        warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.',
+        !!warn
+      );
     } catch (e) {
       cap.disabled = false;
       cap.textContent = 'Capture';
-      toast('Screenshot failed: ' + ((e && e.message) || e), true);
+      (SHOTOPT.toast || toast)('Screenshot failed: ' + ((e && e.message) || e), true);
     }
   }
 

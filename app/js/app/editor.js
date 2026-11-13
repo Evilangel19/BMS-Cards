@@ -6,11 +6,12 @@ import { MFD, YC, draw } from './cardview.js';
 import { sqPage } from './pages.js';
 import { markMan } from './selection.js';
 import { seatDraw } from './seat.js';
+import { roeGo } from './roepage.js';
 
 /* ---------- Direct editing on the card: click a cell, a larger colored field opens over it ---------- */
 export const SX = 2048 / 1600;
 export const SY = 2048 / 1200;
-export const BOX = { atis: [30, 76], roe: [918, 982], free: [986, 1134], eph: [1138, 1196] };
+export const BOX = { atis: [30, 76], roe: [921, 1024], sop: [921, 1024], free: [1027, 1147], eph: [1150, 1198] };
 export const boxOf = d => {
   if (d.mdc) return { x: d.x, y: d.y0, w: d.w, h: d.h };
   const b = BOX[d.k],
@@ -59,7 +60,7 @@ export function closeEd(commit) {
     inp = ed.querySelector('input,textarea');
   EDK = null;
   ed.style.display = 'none';
-  if (commit && inp) setField(k, inp.value.replace(/\r/g, ''));
+  if (commit && inp) setField(k, inp.value.replace(/\r/g, ''), 'editor');
 }
 export function closeMenu() {
   const m = $('chm');
@@ -168,6 +169,7 @@ export function openNameMenu(d) {
 }
 export function openEd(d, sel = true) {
   closeEd(true);
+  if (d.k == 'roe' || d.k == 'sop') return roeGo(); // ROE / SOP: the page Squadron > ROE / SOP, on this flight
   const ed = $('ed'),
     c = $('cv'),
     k = c.getBoundingClientRect().width / 2048,

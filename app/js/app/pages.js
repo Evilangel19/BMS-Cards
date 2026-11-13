@@ -23,7 +23,7 @@ import { msaOfFlight, msaOfBase } from './msafill.js';
 import { dtcPoints } from '../core/mapdtc.js';
 import { targetLine } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
-import { flightRoute as mFlightRoute } from '../core/mapdata.js';
+import { flightRoute as mFlightRoute, toLL as mToLL } from '../core/mapdata.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
 export const nearName = (x, y) => {
@@ -39,7 +39,7 @@ import { $, animOn, appToast, esc, jp } from './base.js';
 import { acFolder, misLoad, perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.js';
 import { isShipBase, shipKind } from '../core/carriers.js';
-import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt } from './perf.js';
+import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt, imcOpt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
 import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
 import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
@@ -49,7 +49,7 @@ import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
 import { kbAddShot, kbAddTray, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { SHOT } from '../core/cardlayout.js';
-import { dtcDir, wxWind } from './campaign.js';
+import { dtcDir, wxWind, wxAt, wxKey, wxLoadKeys, wxFlight } from './campaign.js';
 import { openSettings } from './settings.js';
 import { APP_VERSION } from '../core/version.js';
 import {
@@ -66,6 +66,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
+import { roeDraw } from './roepage.js';
 
 export let mapV;
 const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
@@ -354,6 +355,7 @@ export async function init9() {
 export async function init11() {
   sqPage = createSquadronPage({
     esc,
+    roeDraw, // the page Squadron > ROE / SOP (app/roepage.js)
     root: $('sq'),
     toast: appToast,
     lbk: isDesktop()
@@ -406,6 +408,29 @@ export async function init11() {
     },
     campaign: () => ST.C,
     swarm: window.__swarmTest,
+    // the Briefing tab: the map of the Map page (not editable), its kneeboard frame, the flight chosen in the datacard and the theater
+    briefing: {
+      attach: el => mapV.attach(el, true),
+      detach: () => mapV.detach(),
+      shot: o => mapV.shotStart('kb', o),
+      mission: () => {
+        const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+          e = x && ATOL.find(z => z.f === x.f);
+        return e ? e.callsign + ' · ' + e.n + '× ' + e.ac + ' · ' + e.mission : '';
+      },
+      theater: () => (ST.TH ? ST.TH.name : ''),
+      wide: b => document.querySelector('main').classList.toggle('wide', !!b),
+      // the weather of the room: the map of an hour (loaded from the weather files of the campaign), the hours of the flight of the briefer
+      wx: {
+        at: ms => wxAt(ms),
+        load: ms => wxLoadKeys([wxKey(ms)]),
+        flight: () => {
+          const f = wxFlight();
+          return f ? { hours: f.hours, dep: f.dep, tot: f.tot, land: f.land, alt: f.alt } : null;
+        },
+        toLL: (x, y) => mToLL(x, y),
+      },
+    },
     buildMission: () => msfBuild(),
     loadMission: t => msfLoad(t, null),
     roleChanged: () => {
@@ -457,7 +482,7 @@ export async function init11() {
     flightPlan: () => {
       const x = ST.C && ST.CL[+$('fsel').value];
       if (!x || !x.f.wps) return null;
-      return { wps: x.f.wps, labels: x.f.wps.map((_, i) => F['fp' + i + '_0'] || '') };
+      return { wps: x.f.wps, labels: x.f.wps.map((_, i) => F['fp' + i + '_0'] || ''), imc: imcOpt(x.f) };
     },
     env: { get: perfEnv },
     runway: {
@@ -494,8 +519,12 @@ export async function init11() {
         ohspd: PERFP.ohspd,
         lmode: PERFP.lmode,
         lstores: PERFP.lstores,
+        imcHold: PERFP.imcHold,
+        imcAlt: PERFP.imcAlt,
       }),
       set: o => {
+        if (o.imcHold != null) PERFP.imcHold = o.imcHold;
+        if (o.imcAlt != null) PERFP.imcAlt = o.imcAlt;
         PERFP.reserve = o.reserve;
         PERFP.joker = o.joker;
         PERFP.ohalt = o.ohalt;
@@ -524,6 +553,7 @@ export async function init13() {
     missiles: misLoad,
     only: 'bvr',
     key: 'msmissiles1b',
+    prefs: { load: () => loadPrefs('bvrprefs.json'), save: o => savePrefs('bvrprefs.json', o) }, // kept from one session to the next
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
     toggleEdit: () => mapV.toggleEdit(),

@@ -58,8 +58,8 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br); B, eb = start(br)
-        check('the Squadron tab exists in the five sections Members, Organization, Missions, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 14)
-        check('the tabs Members, Organization, Missions, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Missions', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
+        check('the Squadron tab exists in the six sections Members, Organization, Briefing, Missions, Me and Settings', A.locator('.tab[data-t=sq]').inner_text() == 'Squadron' and A.locator('#sq .sqc').count() == 14)
+        check('the tabs Members, Organization, Briefing, Missions, Me and Settings switch the sections', A.locator('#sqtabs button').all_text_contents() == ['Members', 'Organization', 'Briefing', 'Missions', 'Me', 'Settings'] and A.is_visible('#sqhead') and not A.is_visible('#sqpilot'))
         for n, vis in (('org', '#sqorg'), ('me', '#sqpilot'), ('settings', '#sqconn'), ('members', '#sqhead')):
             A.click('#sqtabs [data-tab=%s]' % n); A.wait_for_timeout(100)
             check('tab %s shows its section only' % n, A.is_visible(vis) and A.locator('.sqpane:visible').count() == 1)

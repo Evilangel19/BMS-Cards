@@ -15,6 +15,8 @@ export const DEFAULTS = {
     lastDtc: '', // full path of the last DTC opened (kept by the program)
     lastCamp: '', // file name of the last campaign or tactical engagement opened (kept by the program)
     wxTaf: 'TGT', // the forecast of the Weather page and of the datacard: 'TGT' = the target airfield, 'LDG' = the landing one
+    checkUpdates: true, // true = once a day the program asks GitHub whether a newer version exists (only a notice: nothing is downloaded)
+    oneMapShot: false, // true = one map screenshot on the kneeboard: a new one takes the place (and the page) of the previous one
   },
   mission: {
     radiusNm: 60, // a mission file keeps the units and flights within this distance of the route (the support flights of the datacard are always kept)

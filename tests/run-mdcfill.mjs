@@ -1,4 +1,4 @@
-import { mdcDerive, pptRows } from '../app/js/core/mdcfill.js';
+import { mdcDerive, pptRows, escShort, csShort } from '../app/js/core/mdcfill.js';
 import { LAYOUT, SHOT } from '../app/js/core/cardlayout.js';
 let bad = 0,
   n = 0;
@@ -28,12 +28,12 @@ for (const k of [
   'm1',
   'm4',
   'ps9',
-  'fl7_5',
+  'fl5_5',
   'fp14_11',
   't2_4',
   't2_4',
   'dl1_dn2',
-  'ovw',
+  'roe',
   'srv',
   'rc7_7',
   'xAD25',
@@ -158,5 +158,36 @@ ok(
     o.t0_3 == '420'
 );
 ok('no secondary target: the second row is empty', o.t1_0 == '' && o.t1_4 == '');
+ok(
+  'escort in the MDC: the Link 16 letters and the number of each flight',
+  escShort('Escort Devil 3, Panther 4, Jaguar 2, Weasel 2') == 'ESC DL3 PR4 JR2 WL2'
+);
+ok(
+  'a callsign in the short form of Link 16',
+  csShort('Devil 3') == 'DL3' && csShort('Rumble 1') == 'RE1' && csShort('X') == 'X'
+);
+ok('any other target stays as it is', escShort('SA-2 Site Kuum-ni') == 'SA-2 Site Kuum-ni' && escShort('') == '');
+ok(
+  'the primary of an escort flight is short in the target table',
+  mdcDerive({ pri: 'Escort Cobra 6, Viper 2', ll1: '' }).t0_4 == 'ESC CA6 VR2'
+);
+{
+  const q = mdcDerive({
+    aa: '2x AIM-9X, 2x AIM-120C',
+    ag: '4x GBU-31(v)1/B',
+    ecm: '1x AAQ-33, 1x AAQ-13',
+    tanks: '1x Tank F-15C 600gal',
+    pri: 'SA-2 Site Kuum-ni',
+  });
+  ok(
+    'loadout of an F-15E: no aircraft in the tank, no "(v)1/B", no "1x"',
+    q.cfg == '2x AIM-9X · 2x AIM-120C · 4x GBU-31 · AAQ-33 · AAQ-13 · TK600'
+  );
+  ok('Airspace / TGT: the primary target', q.airsp == 'SA-2 Site Kuum-ni');
+}
+ok(
+  'pilots: six rows, no FCR / ID / OWN cells',
+  keys.includes('fl5_0') && !keys.includes('fl6_0') && !keys.some(k => /^fl\d_[fio]$/.test(k))
+);
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} MDC checks`);
 process.exit(bad ? 1 : 0);

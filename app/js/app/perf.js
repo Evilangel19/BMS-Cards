@@ -2,7 +2,7 @@ import { loadPrefs, readBytes, savePrefs } from '../platform/desktop.js';
 import { parseObjectives, phdPath, pdxPath } from '../core/targets.js';
 import { runwayLengths, parseRunways, describeRunways, ilsOrder } from '../bmsdata/runways.js';
 import * as PA from '../core/airperf.js';
-import { climbAltitude, fuelPlan } from '../core/fuelplan.js';
+import { climbAltitude, fuelPlan, tankerJB } from '../core/fuelplan.js';
 import { CAM } from '../core/cam-core.js';
 import { isShipBase } from '../core/carriers.js';
 import { isStovl } from '../core/flight.js';
@@ -10,7 +10,7 @@ import { ST } from './state.js';
 import { F, dEl, MIR, TOPOWER, pushOne } from './datacard.js';
 import { $, jp } from './base.js';
 import { pfPage } from './pages.js';
-import { wxAt, wxWind } from './campaign.js';
+import { wxAt, wxWind, landMs } from './campaign.js';
 import { perfAcGet, terrain, heightsOf } from './gamefiles.js';
 import { markMan } from './selection.js';
 import { draw } from './cardview.js';
@@ -18,7 +18,33 @@ import { lines } from './dtcfile.js';
 
 /* Datacard fields from the performance data: TO Spec, Rotation, Refusal, Mil Power, Mil Climb, TO Fuel, Joker, Bingo and the Min.Fuel of every steerpoint. Fields the user typed are left alone. */
 export const TAXIMIN = 10; // minutes of engine start and taxi at idle between the parking spot and the take-off roll (estimate)
-export let PERFP = { rwy: {}, reserve: 1500, joker: 1000, ohalt: 1500, ohspd: 300, lmode: 'ovhd', lstores: 'on' };
+export let PERFP = {
+  rwy: {},
+  reserve: 1500,
+  joker: 1000,
+  ohalt: 1500,
+  ohspd: 300,
+  lmode: 'ovhd',
+  lstores: 'on',
+  imcHold: 10, // the landing field in IMC: minutes of holding added to the Bingo
+  imcAlt: 1000, // ... and lb for an alternate
+};
+// the landing field of the flight in IMC at the time of the landing (colour code GRN or worse: cloud of 3/8 or more under 1500 ft, or visibility under 5 km):
+// {code, field} or null (VMC, or no weather map)
+export function landImc(f) {
+  const o = (F.__ab || [])[1],
+    arr = landMs(f);
+  if (!o || arr == null) return null;
+  const W = wxAt(arr);
+  if (!W) return null;
+  const id = (String(o[1]).match(/\((\w+)\)/) || [])[1] || String(o[1] || ''),
+    code = CAM.wxColour(W, [id, o[2], o[3], arr], +F.ab1_4 || 0);
+  return ['GRN', 'YLO', 'AMB', 'RED'].includes(code) ? { code, field: id } : null;
+}
+export const imcOpt = f => {
+  const m = landImc(f);
+  return m && (PERFP.imcHold > 0 || PERFP.imcAlt > 0) ? { hold: PERFP.imcHold, alt: PERFP.imcAlt, ...m } : null;
+};
 ST.PFT = 0;
 ST.NOPERF = false;
 // Runway sizes read from the objective files of the airbases (RL: campId -> {ends: {'09': {ft, w}}, max}); the length typed on the Performance page wins over them
@@ -250,6 +276,7 @@ export async function perfCalc(i) {
       jokerMargin: PERFP.joker,
       loaded: fuel,
       wind: wxWind,
+      imc: imcOpt(f),
     }),
   };
 }
@@ -328,7 +355,14 @@ export async function perfFill(i) {
     put('tof', pk > 0 ? Math.round((pk - r.taxi) / 10) * 10 : r.plan.toFuel);
   } // TO Fuel = what is left at take-off: the fuel at the parking spot minus start and taxi (the fuel the plan needs is in the Performance page)
   put('bingo', r.plan.bingo);
+  // the Bingo carries the IMC fuel: a small IMC beside it on the card (not when the Bingo was typed by hand)
+  F.__bimc = r.plan.imc && !ST.MANK.has('bingo') ? r.plan.imc : null;
   put('joker', r.plan.joker);
+  {
+    // TANK J/B of the MDC: Joker / Bingo to the tanker, when the flight has one (core/fuelplan.js tankerJB)
+    const t = F.su0_0 ? tankerJB(r.plan, ST.CL[i].f.wps, F.__tkxy, PERFP.joker) : null;
+    put('tk_jb', t ? t.joker + ' / ' + t.bingo : '');
+  }
   r.plan.rows.forEach((x, j) => {
     if (j < 24 && x.min != null) put(`fp${j}_6`, x.min);
   });
@@ -339,6 +373,29 @@ export const perfLater = () => {
   clearTimeout(ST.PFT);
   ST.PFT = setTimeout(() => perfFill(+$('fsel').value || 0), 400);
 };
+// The BVR box of the datacard filled by itself with the timeline of the BVR page (its last classes and conditions, kept between sessions), when the box is empty:
+// a mission that holds its own BVR values keeps them, a value typed by hand stays, "Fill datacard" on the BVR page writes over them as before.
+export async function bvrAuto(i) {
+  const pg = ST.msPage;
+  if (!pg || !pg.rowsReady || !ST.CL[i]) return;
+  const k = ST.CURK;
+  let rows;
+  try {
+    rows = await pg.rowsReady();
+  } catch (e) {
+    return;
+  }
+  if (!rows || ST.CURK !== k || !ST.AUTO) return;
+  const cells = bvrCells(rows);
+  if (cells.some(([c]) => ST.MANK.has(c) || (F[c] || '') !== '')) return; // not empty: the mission (or the pilot) has its own
+  cells.forEach(([c, v]) => {
+    F[c] = v;
+    ST.AUTO[c] = v;
+    const d = dEl(c);
+    if (d && d.el) d.el.value = v;
+  });
+  draw();
+}
 export const bvrCells = rows => {
   const o = [];
   rows.forEach((r, i) =>

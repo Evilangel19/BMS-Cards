@@ -6,31 +6,33 @@ This file says what the program does today, how far each part has been checked, 
 
 - **Verified** - checked in the game or against real files.
 - **Implemented** - works, not yet checked in the game.
-- **Estimated** - an approximate model of mine, shown as such (DLZ and MAR, time of flight, weapon effects, fuel plan, radar coverage).
+- **Estimated** - an approximate model of mine, shown as such (DLZ and MAR, time of flight, weapon effects, fuel plan, radar coverage). There is no JDAM or JSOW ballistics.
 - **Not available** - the data is not in the files, or the feature was left out on purpose.
 
 ## Status by area
 
-| Area                                                                               | Status                                                              |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Korea campaigns: datacard, ATO, map, kneeboard, DTC                                | Verified                                                            |
-| MDC format (drawn from the measures of the BMS blank)                              | Implemented; FCR, ID, OWN and NAV are filled by hand                |
-| Other theaters (Balkans, Israel, Hellas)                                           | Implemented, few campaigns and Tactical Engagements tried           |
-| Tactical Engagement files                                                          | Implemented, few samples                                            |
-| Objective owners (from the scenario file the campaign was saved from)              | Verified on one campaign                                            |
-| Friend, foe and neutral (map, ATO, support data): one rule in `core/coalitions.js` | Implemented                                                         |
-| DTC editing and writing, the campaign `.ini` written like BMS does                 | Verified on files written by BMS                                    |
-| NAV OFFSETS (OA1, OA2, VRP, VIP and pull-up points)                                | Implemented; the DED check is still open                            |
-| Kneeboard: F-16 and F-15 files, one folder per theater, backups                    | Verified for F-16 and F-15; other aircraft not yet                  |
-| Performance, weights and take-off data for every aircraft that has a data file     | Calculated the same way for all; F-16 and F-15 are the most checked |
-| Weapons (pop-up, HADB, TOSS, HARM), BVR timeline and MAR                           | Estimated                                                           |
-| Weather (campaign maps, wind, conditions) and the fuel plan                        | Implemented, Estimated for the fuel                                 |
-| Radar coverage                                                                     | Estimated: one detection range per unit                             |
-| Squadron: roster, organization, missions, kneeboard cards, logbook                 | Implemented; tested with a few pilots                               |
-| Pilot seat (laser, IFF, Link 16 and loadout of the chosen aircraft)                | Implemented; Link 16 and IFF follow the files BMS saves             |
-| Link 16 and radio presets in the DTC                                               | Implemented, few campaigns tried                                    |
-| Map objects of the campaign, political layer, MSA and ERAA                         | Implemented; the owners are verified on one campaign                |
-| Landing (Overhead or Direct), ships, STOVL                                         | Estimated                                                           |
+| Area                                                                               | Status                                                                                           |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| Korea campaigns: datacard, ATO, map, kneeboard, DTC                                | Verified                                                                                         |
+| MDC format (drawn from the measures of the BMS blank)                              | Implemented; filled automatically                                                                |
+| Other theaters (Balkans, Israel, Hellas)                                           | Implemented, few campaigns and Tactical Engagements tried                                        |
+| Tactical Engagement files                                                          | Implemented, few samples                                                                         |
+| Objective owners (from the scenario file the campaign was saved from)              | Verified on one campaign                                                                         |
+| Friend, foe and neutral (map, ATO, support data): one rule in `core/coalitions.js` | Implemented                                                                                      |
+| DTC editing and writing, the campaign `.ini` written like BMS does                 | Verified on files written by BMS                                                                 |
+| NAV OFFSETS (OA1, OA2, VRP, VIP and pull-up points)                                | Implemented; the DED check is still open                                                         |
+| Kneeboard: F-16 and F-15 files, one folder per theater, backups                    | Verified for F-16 and F-15; other aircraft not yet                                               |
+| Performance, weights and take-off data for every aircraft that has a data file     | Calculated the same way for all; F-16 and F-15 are the most checked                              |
+| Weapons (pop-up, HADB, TOSS, HARM), BVR timeline and MAR                           | Estimated                                                                                        |
+| Weather (campaign maps, wind, conditions) and the fuel plan                        | Implemented, Estimated for the fuel                                                              |
+| Radar coverage                                                                     | Estimated: one detection range per unit                                                          |
+| Squadron: roster, organization, missions, kneeboard cards, logbook                 | Implemented; tested with three pilots at the same time                                           |
+| Squadron Briefing (live room on the map)                                           | Implemented; tested with the squadron                                                            |
+| ROE / SOP (presets, Standard, defaults by kind of mission, kneeboard card)         | Implemented; options from the RoKAF BEM, the 8th / 51st FW in-flight guides and AFMAN 11-2F-16V3 |
+| Pilot seat (laser, IFF, Link 16 and loadout of the chosen aircraft)                | Implemented; Link 16 and IFF follow the files BMS saves                                          |
+| Link 16 and radio presets in the DTC                                               | Implemented, few campaigns tried                                                                 |
+| Map objects of the campaign, political layer, MSA and ERAA                         | Implemented; the owners are verified on one campaign                                             |
+| Landing (Overhead or Direct), ships, STOVL                                         | Estimated                                                                                        |
 
 ## Not yet verified in the game
 
@@ -41,7 +43,7 @@ This file says what the program does today, how far each part has been checked, 
 - Two or three DLZ readings in the cockpit against the missile ranges and MAR of the program.
 - The take-off lift gain (calibrated on one WDP point) and the weapon models.
 - NAV OFFSETS written to the DTC: that VRP, VIP, OA1 and OA2 appear in the DED.
-- The Squadron with more than two pilots: packages and flights edited at the same moment, templates, a card sent over the link, dragging on every PC.
+- The Squadron with more pilots than three: packages and flights edited at the same moment, templates, a card sent over the link, dragging on every PC.
 - Other theaters with more campaigns; the aircraft of those theaters.
 
 ## Assumptions made when reading BMS files
@@ -60,12 +62,9 @@ This file says what the program does today, how far each part has been checked, 
 
 Nothing here is promised.
 
-- A live **Briefing** section for a squadron: the leaders show the map and every pilot sees the cursor, drawings and markers, over the links the squadron already has.
 - Adapting the program to future versions of Falcon BMS (new aircraft, data and theaters).
 - A calibration of the weapon and performance models as more readings from the game come in (the flap lift of the F/A-18, the AoA units of the F-15C).
-- **For 1.2: a faster map** with all the objects and the political layer on (measure first; canvas drawing, a minimum zoom for each type, drawing only what is in view, chunked creation, tooltips made when needed, damaged features read in the background).
-- **For 1.2: the complete user manual**: procedures, the rules of the tooltips, and for each section what is certain and what is assumed.
-- A rule for AWACS and JSTARS like the one for the tankers, after field tests.
+- More standard kneeboard cards, when there is a need.
 - Approach points from the ATC files (`Terrdata/atc/<airfield>.dat`) for an instrument or visual landing.
 
 ## Security
@@ -74,6 +73,7 @@ Nothing here is promised.
 - File writing is limited to the kinds of files the program makes; programs, scripts and system folders are blocked. Reading is not limited, because the BMS folder can be anywhere.
 - The program never uses a saved mission's DTC path; the DTC is written only in the DTC folder of this computer.
 - In a squadron, the address of your computer on the local network and your public IP address are visible to the other pilots (WebRTC).
+- Writing is allowed for the `.pdf` of the User Guide too (Settings > Help > Save as PDF).
 
 ## Versions
 
@@ -81,3 +81,4 @@ Nothing here is promised.
 - **0.9 (beta)** - Map, Weapons, BVR Timeline, Performance, Weather, Docs, Squadron, MDC format, other theaters, Tactical Engagements.
 - **1.0** - the first official release (no longer a beta): the security work (CSP, file permissions) and the loading bars.
 - **1.1** - the pilot seat, Link 16 and radio presets in the DTC, objects of the campaign on the map, Overhead or Direct landing, ships and STOVL, a redone Settings window with import and export of your data (the import copies the missions of an older copy into this one). See `CHANGELOG.md`.
+- **1.2** - a faster map with all the objects and the political layer; the live Briefing room of the squadron; ROE and SOP on the datacard, with presets, a Standard and a full kneeboard card; the AWACS and JSTARS rule; MDC format filled automatically; the datacard notes and ephemerides redone; the User Guide (Settings > Help). See `CHANGELOG.md`.
