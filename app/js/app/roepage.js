@@ -33,7 +33,8 @@ import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
 
-// ---- what stays on this PC: my presets, my custom sections, the last choices, the sections closed, "the first Apply was asked"
+// ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
+// folded (bmsroeclosed2), Chosen only (bmsroeonly)
 const LS = {
   get(k, d) {
     try {
@@ -49,6 +50,11 @@ const LS = {
     } catch (e) {}
   },
 };
+// the keys of the pages before 1.2.0-beta.26 that nothing reads any more (the last choices, the first-Apply question, the sections folded before
+// beta.24): taken away once, so they do not stay in the browser storage
+try {
+  ['bmsroelast', 'bmsroeasked', 'bmsroeclosed'].forEach(k => localStorage.removeItem(k));
+} catch (e) {}
 export const presetsLoad = () => cleanPresets(LS.get('bmsroepre', []));
 const presetsSave = P => LS.set('bmsroepre', cleanPresets(P));
 // my Standard (Flight): {name, sel}; saved before as the choices alone; the first time, my first preset

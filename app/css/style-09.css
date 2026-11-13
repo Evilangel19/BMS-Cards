@@ -349,13 +349,6 @@
   font-weight: 400;
   margin-left: 6px;
 }
-.rsq .rpl {
-  color: var(--mu);
-  font-size: 10.5px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  margin: 6px 0 4px;
-}
 .rsq .rpr {
   display: grid;
   grid-template-columns: minmax(0, 100px) minmax(0, 1fr) auto;
@@ -385,13 +378,6 @@
 }
 .rsq .rpr select {
   width: 100%;
-}
-.rsq .rsmode {
-  width: 100%;
-  padding: 6px 8px;
-}
-.rsq .rsflt {
-  padding: 6px 0;
 }
 .rsq .rpon {
   display: flex;
@@ -470,20 +456,10 @@
 .rsq .rpq b:hover {
   color: #ff6b6b;
 }
-.rsq .rssv {
-  display: flex;
-  gap: 6px;
-  margin-top: 6px;
-}
-.rsq .rssv .btn,
 .rsq .rsbar .btn {
   padding: 5px 11px;
   font-size: 12.5px;
   white-space: nowrap;
-}
-.rsq .rssv input {
-  flex: 1;
-  min-width: 0;
 }
 .rsq .rscard {
   display: grid;
@@ -584,13 +560,6 @@
 .rsq .rsbadge.sq {
   border-color: #4f8cff77;
   color: #a9c6ff;
-}
-.rsq .rpq b[data-cp] {
-  font-size: 10px;
-  letter-spacing: 0.03em;
-}
-.rsq .rpq b[data-cp]:hover {
-  color: #4f8cff;
 }
 .rsq .rsdirty {
   background: #10263a;

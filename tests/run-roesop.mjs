@@ -5,11 +5,9 @@ import {
   roeText,
   sopText,
   cleanSel,
-  mergeSel,
   cleanPresets,
   emptySel,
   cleanSqPresets,
-  defaultFor,
   capSel,
   pickDefault,
 } from '../app/js/core/roesop.js';
@@ -59,15 +57,6 @@ ok(
   'what comes from outside is checked: unknown values dropped, no repeats ' + JSON.stringify(c),
   c.roe.ws === null && c.roe.id.join() == 'vid' && !c.sop.lights && !c.sop.bogus && c.free == '5'
 );
-const m = mergeSel([
-  { roe: { ws: 'free', id: ['vid'] }, sop: { lights: { o: 'start', c: true } }, free: 'A' },
-  { roe: { ws: 'hold', id: ['l16', 'vid'] }, sop: { lights: { o: 'hold' } }, free: 'A\nB' },
-]);
-ok(
-  'two presets: the last weapons status wins, the ID lists are joined, the topic of the last preset stays on the card, the free lines once ' +
-    JSON.stringify(m),
-  m.roe.ws == 'hold' && m.roe.id.join() == 'vid,l16' && m.sop.lights.o == 'hold' && m.sop.lights.c && m.free == 'A\nB'
-);
 const P = cleanPresets([{ name: '  Strike ', sel: a }, { name: '' }, null, { name: 'x'.repeat(60), sel: {} }]);
 ok('presets: names checked, empty ones dropped', P.length == 2 && P[0].name == 'Strike' && P[1].name.length == 40);
 const SQ = cleanSqPresets([
@@ -75,16 +64,6 @@ const SQ = cleanSqPresets([
   { name: 'Base', sel: { sop: { lights: { o: 'move', c: true } } }, cats: ['Defensive Counter Air', 'Airstrike'] },
 ]);
 ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 'Defensive Counter Air');
-const d1 = defaultFor(SQ, 'Defensive Counter Air'),
-  d2 = defaultFor(SQ, 'Airstrike');
-ok(
-  'the default of a kind of mission: the presets marked for it, joined',
-  d1.roe.ws == 'free' &&
-    d1.sop.lights.o == 'move' &&
-    d2.roe.ws === null &&
-    d2.sop.lights &&
-    defaultFor(SQ, 'CAS') === null
-);
 {
   const b = sopText({
     sop: {

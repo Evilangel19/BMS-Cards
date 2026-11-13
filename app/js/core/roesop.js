@@ -1014,24 +1014,6 @@ const joinLines = (a, b) => {
   });
   return L.join('\n');
 };
-// several presets together: a single choice (weapons status, commit, a SOP topic) is the one of the last preset that has it, the lists are joined
-// without repeats, a topic is on the card when one of them puts it there, the other lines are joined without repeats
-export function mergeSel(list) {
-  const o = emptySel();
-  (list || []).map(cleanSel).forEach(s => {
-    ROE.forEach(([id, , k]) => {
-      if (k == 'many') o.roe[id] = [...new Set([...o.roe[id], ...s.roe[id]])];
-      else if (s.roe[id]) o.roe[id] = s.roe[id];
-    });
-    for (const [id, t] of Object.entries(s.sop)) {
-      const was = o.sop[id];
-      o.sop[id] = { ...t, c: t.c || !!(was && was.c) };
-    }
-    o.free = joinLines(o.free, s.free);
-    o.sfree = joinLines(o.sfree, s.sfree);
-  });
-  return o;
-}
 // the short text of a SOP topic: the option, or what was typed for it
 export function sopShort(topic, v) {
   if (!v) return '';
@@ -1237,11 +1219,6 @@ export function pickDefault({ sq = [], mine = [], myStd = null, src = 'sq', cat 
     mys = JSON.stringify(my) != E ? my : null,
     sel = useSq ? sqs || mys : mys || sqs; // Squadron: its Standard (mine when it has none); Flight: mine (the squadron's when I have none)
   return sel ? { k: 'std', sel: capSel(sel) } : null;
-}
-// the default of a mission category: the squadron presets marked for it, joined in their order; null when there is none
-export function defaultFor(presets, cat) {
-  const L = cleanSqPresets(presets).filter(p => p.cats.includes(cat));
-  return L.length ? capSel(mergeSel(L.map(p => p.sel))) : null;
 }
 // the personal presets: [{name, sel, cats}] (cats: the kinds of mission they are the default of), checked (names up to 40 letters, 50 presets at most)
 export function cleanPresets(a) {
