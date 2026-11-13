@@ -119,7 +119,7 @@
 <div class="step"><div class="n">4</div><div>
   <h4>Examine the card and change it</h4>
   <p>Click a cell to change it. Push Tab to go to the next cell. Some cells open a list: the roster, the target points, or the take-off speed in AB or MIL. Your changes stay with the flight. <span class="ui">↺ Reset datacard</span> removes them.</p>
-  <p><span class="ui">MDC format</span> shows the same data in the Mission Data Card layout.</p>
+  <p><span class="ui">MDC format</span> shows the same data in a different layout, the Mission Data Card.</p>
 </div></div>
 
 <div class="step"><div class="n">5</div><div>
@@ -136,13 +136,13 @@
 
 <div class="step"><div class="n">6</div><div>
   <h4>Write the DTC</h4>
-  <p>The <b>Data Cartridge</b> page shows the DTC that BMS loads. The cards with the <b>from Datacard</b> switch (radio presets, IFF, Link 16, laser, Bingo and ALOW, notes) follow the datacard automatically. To type their values yourself, set the switch to off.</p>
+  <p>The <b>Data Cartridge</b> page shows the DTC that BMS loads. The cards with the <b>from Datacard</b> switch (radio presets, IFF, Link 16, laser, Bingo and ALOW, notes) follow the datacard automatically. To type their values yourself, set the switch to off, or type the values on the datacard.</p>
   <p>Click <span class="ui">DTC</span> (the disk icon) to write the file. The program keeps the first original file one time in <code>backup\dtc</code>. <span class="ui">↺ Reset</span> cancels the changes after the last save.</p>
 </div></div>
 
 <div class="step"><div class="n">7</div><div>
   <h4>Make the kneeboard</h4>
-  <p>On the <b>Kneeboard</b> page, drag the cards to the left and right slots of each page. A card can be the datacard, a picture, a PDF page of the Docs page or the ROE / SOP card. Click <span class="ui">Save to BMS folder</span> to write the DDS files. <span class="ui">↺ Restore</span> puts the original BMS files back.</p>
+  <p>On the <b>Kneeboard</b> page, import the cards, then drag them to the left and right slots of each page. A card can be the datacard, a picture, a PDF page of the Docs page or the ROE / SOP card. Click <span class="ui">Save to BMS folder</span> to write the DDS files. <span class="ui">↺ Restore</span> puts the original BMS files back.</p>
   <p><span class="ui">Set Default</span> keeps an arrangement that you use frequently.</p>
 </div></div>
 
@@ -198,8 +198,8 @@
 <p>These labels tell you how much the program checked a function. They are not levels of accuracy.</p>
 <table>
   <tr><td style="width:23%"><span class="lab lv">Verified</span></td><td>Tested against the behaviour of BMS in the game or against reference files. Examples: the Korea campaigns, the kneeboard, the DTC format, the runway data.</td></tr>
-  <tr><td><span class="lab li">Implemented</span></td><td>Made from the BMS data structure, but not yet validated in the game. Examples: other theaters, NAV OFFSETS in the DED.</td></tr>
-  <tr><td><span class="lab le">Estimated</span></td><td>A model of the program. The program identifies these values. Examples: DLZ and MAR, time of flight, A-pole and F-pole, the fuel plan, the take-off data, the radar coverage, JDAM and JSOW ballistics.</td></tr>
+  <tr><td><span class="lab li">Implemented</span></td><td>Made from the BMS data structure, but not yet validated in the game. This includes the compatibility with other theaters and other BMS versions.</td></tr>
+  <tr><td><span class="lab le">Estimated</span></td><td>A model of the program. The program identifies these values. Examples: DLZ and MAR, time of flight, A-pole and F-pole, the fuel plan, the take-off data, the radar coverage.</td></tr>
   <tr><td><span class="lab lb">Not available</span></td><td>Not in the campaign files, thus not shown. Examples: experience, morale, supply and mission rating of a squadron.</td></tr>
 </table>
 
