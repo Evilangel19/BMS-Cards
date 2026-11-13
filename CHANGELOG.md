@@ -1,71 +1,54 @@
 # Changelog
 
-What changed for the people who use BMS Cards. Version 1.1.0 against 1.0.0. The detailed log of every beta (with the reasons and the tests) is the "Beta log" of `docs/ROADMAP.md`.
+What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
 
-## Unreleased (1.2 betas)
+## 1.2.0
 
-- Added: the User Guide (Settings > Help > User Guide), also as a PDF (Save as PDF…): the idea of the program, the way to a finished datacard, the squadron and the technical data, in Simplified Technical English (ASD-STE100).
-- Changed: ROE / SOP presets: a double-click opens a preset (the Standard too: rename it, it cannot be deleted); in Flight your own Standard, also in a squadron; a mission received from another pilot gets the squadron's ROE / SOP.
-- Fixed: the Standard of the squadron was not renamed by Save Standard & send; the amber warnings of the ROE / SOP page and the flight labels of the map (WEZ switch) no longer flicker when drawn again.
-- Fixed: Kneeboard: a card inserted between two slid every card from one place (now each card slides from where it was); ROE / SOP: Back to the datacard opened the Docs.
-- Changed: ROE / SOP page in the colours of the program (switches and chosen items green as in Weapons, the squadron's blue), Add card green, Flight / Squadron without icons.
-- Changed: ROE / SOP page: one section Presets with Flight / Squadron, the Standard first in each list; a click on a preset puts it on the datacard (no Apply), changes by hand go on the datacard at once and can be kept as a preset (name, Default for); delete with Undo; no more copies (→ME / →SQ) nor presets combined.
-- Changed: the ROE / SOP Kneeboard cards are two at most (ROE and SOP in one flow, the text smaller until it fits); the ROE / SOP boxes of the Datacard wrap after "+" and "/" and use every line before the text gets smaller.
-- Fixed: a Kneeboard with the datacard of no flight (only the cells the program fills by itself) no longer shows "Not saved".
-- Added: SOP and ROE options from AFMAN 11-2F-16V3, next to the squadron / field ones (taxi, take-off interval, trail departure, ops check, fuel minimums, blind, lead and position changes, battle damage check, gear call, NVG, lost wingman, NORDO, CSAR, air and take-off aborts, A-G weather, pop-up, no fire when NORDO, a second cue for night visual attacks).
-- Changed: the ROE / SOP Kneeboard card is tighter (fits on one card more often); on the page the SOP sections start folded and the columns follow the order of the flight.
-- Added: ROE Restrictions (no cluster munitions in urban areas and more); SOP sections Mission and Training; ejection / CSAR and jettison; tanker BREAKAWAY.
-- Changed: SOP checked against the manuals (brevity, tanker rendezvous names, ICAO / FAA cloud clearance...); ROE / SOP page: Chosen only, Fold all, custom sections on top, the left column stays in sight.
-- Fixed: black marks at the edges of the notes of the Datacard.
-- Fixed: ROE / SOP page: Other SOP lines stayed far down with the sections folded; the drop-down of the custom section window was white.
-- Added: ROE / SOP: Tanker and Weather sections, custom sections (yours or the squadron's), "Add card" (the whole ROE and SOP on Kneeboard cards), a warning before losing unsaved choices, folding sections, presets copied between yours and the squadron's.
-- Changed: notes up to 16 px when there is room; the tick "card" is now off by default; clearer short forms.
-- Changed: the notes of the Datacard are laid out in sections (TWR, UHF2, TGT) with the frequencies in columns, at 13 px.
-- Changed: the SOP box writes one line a phase with its topics joined (T/O: 20S · AB · DEP COMBAT).
-- Changed: ROE / SOP is a page of the Squadron (between Members and Organization); a click on the boxes of the card opens it. 5 lines a box, with a warning when full.
-- Changed: the notes of a big package use short callsigns (Devil 3 = DL3) and never go under 11 px.
-- Added: Squadron > ROE / SOP: the commander sets the presets of the squadron, every pilot finds them in his menu; a preset can be the default of kinds of mission (a BARCAP flight gets the Defensive Counter Air one by itself).
-- Changed: ROE and SOP in two boxes (side by side on the Datacard, one above the other on the MDC); ephemerides back on two lines.
-- Fixed: the drop-downs of the SOP menu did not open.
-- Added: **ROE / SOP**: a click on the box opens a menu with the rules of engagement and the SOP of the squadron (ground, departure, en route, FENCE and comms, recovery, night, emergencies), personal presets that can be combined, and the short text written on the Datacard and in the MDC (the Overview box is now ROE / SOP).
-- Changed: Datacard: the ROE / SOP box is taller, the notes moved down, the ephemerides on one line.
-- Changed: MDC format: the pilots table without FCR, ID and OWN, six taller rows with wider cells.
-- Added: MDC format: TANK J/B (Joker / Bingo to the tanker) filled from the fuel plan.
-- Fixed: MDC format: the callsign was not written and the Bingo was not red (beta 14).
-- Changed: MDC format: wider Tanker, TOT / VUL, flight plan columns, Aircraft and Target of the roll call, Type / Lat / Long of the Known EOB; Airspace / TGT filled with the primary target; the loadout written shorter and bigger.
-- Added: the elevation of the target steerpoints after Lat&Long on the Datacard; METAR and TAF further apart; tanks without the aircraft name (Tank 600gal).
-- Fixed: the Automatic rules of the Datacard were cut ("the..."): a click on ⓘ now opens the whole text in a panel with its sections.
-- Changed: the notes of the Datacard are tidier and always readable with big packages (UHF2 backup two flights a line, long lines wrapped, "+N more" when nothing else helps).
-- Changed: MDC format: TOT / VUL to the minute, and the escorted flights in short form (ESC DL3 PR4).
-- Changed: Pop-up/HADB/TOSS/HARM is now a Display filter of the Map; Off in the Briefing weather also closes its panel.
-- Changed: the Map filters are easier to read: one line per filter (details in the tooltips), Enemy before Friendly, Display in a side panel like Objects, Names as a button beside Clear filters.
-- Changed: TOT is now TOT/VUL on the Datacard; the WEZ keeps the SAM name wherever the cell has room (each card format decides for itself).
-- Changed: the weather buttons of the Briefing are all the same size, Off in red.
-- Added: **WEZ exposure time**: after the TOT of the primary and of the secondary, the Datacard (and TOT / VUL of the MDC format) shows when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM crossed. On the map, the filter "WEZ exposure time" writes the minutes on every ring crossed and the total in the label of the flight.
-- Added: **Ready to fly** in the tab bar: it lists what is not saved yet (DTC, kneeboard, mission) with a button for each and "Write all"; green when everything is saved.
-- Added: a notice when a newer version of the program exists (releases only, checked once a day on GitHub; nothing is downloaded; Settings > General to switch it off).
-- Changed: tooltips and descriptions brought up to date and shortened (the Automatic rules of the Datacard above all: pilot names, ATIS, MSA, Bingo with IMC, Joker margin, tankers, AWACS / JSTARS estimates, BVR box).
-- Added: weather in the Briefing: the briefer shows a weather filter (weather, wind with barbs, temperature, pressure, clouds, visibility) at the hour and altitude he chooses, the same for everybody in the room.
-- Added: the Bingo carries a holding and an alternate fuel when the landing field is in IMC (GRN or worse at the landing time); minutes and pounds on the Performance page (10 min, 1000 lb), a small IMC beside the Bingo on the card.
-- Added: Settings > General > One map screenshot: a new map screenshot takes the place of the last one, on the same kneeboard page (off by default).
-- Added: the BVR box of the datacard fills itself with the BVR timeline when it is empty; the BVR timeline is kept from one session to the next.
-- Fixed: the datacard roster sometimes listed a pilot by his callsign instead of his name (the logbook is read at the start).
-- Fixed (Briefing): lines no longer dotted at some zooms or while the map moves; sharp labels; bearings without the "T".
-- Added: **Squadron > Briefing**, a live briefing room on the map. A leader opens it and draws (pen, marker, arrows, shapes, text, the NATO symbols and radar tracks of the map, IP, CAP orbit, holding, threat rings, ruler and compass); he gives the pen to the pilots he wants. Everybody sees the cursors and follows the view of the briefer (or moves on his own). "Save a kneeboard card" keeps the drawings inside the kneeboard frame.
-- Fixed: placing a steerpoint, a line or an offset on the map near a city or an objective no longer opens its window instead.
-- Fixed: the weather colour code counts the scattered (SCT) cloud layers, as the military colour states do.
-- Fixed: aircraft refuelled with a probe (F-14, Tornado, Typhoon, Rafale, Mirage, EA-6B...) get the KC-130 first.
-- Fixed: a field elevation typed on the Datacard updates the take-off data, the Direct landing altitude and the TAF.
-- Fixed: the Data Cartridge page refuses radio and ILS frequencies outside their bands and IFF codes that are not octal.
-- Fixed: names written into the DTC use plain letters (accented names of the Balkans theater).
-- Fixed: the ATO is in time order across midnight.
-- Fixed: the Joker uses your margin also when the Bingo comes from the DTC.
-- Fixed: METAR and TAF show the day of the month of the mission date.
-- Fixed: a damaged or unreadable config.json is no longer replaced without asking.
-- Changed: the asterisk of an estimated AWACS/JSTARS sits after the callsign; no refusal speed for a ship on the Performance page.
-- Changed: the map is smoother in pan and zoom with all the Objects and the political layer on. The cities, towns and villages are drawn in a lighter way: they look and work as before, only during the zoom animation they are a little blurred for an instant.
-- Changed: the first click on an objective zooms in one smooth movement to its buildings (sub-objectives).
-- Added: when the package has no AWACS or JSTARS, the Datacard shows an allied aircraft on station during your flight, the nearest to your route, marked with an asterisk (`*`). An ELINT aircraft (E-8C, RC-135) goes to the JSTARS row; the AWACS row takes an AEW/ABCCC aircraft. The operating time is in the notes, as for the tankers.
+### Highlights
+
+- **Squadron Briefing**: a live briefing room on the map. The briefer draws (pen, marker, arrows, shapes, text, NATO symbols, CAP orbits, holdings, threat rings, ruler and compass), gives the pen to the pilots he wants, and shows the weather; everybody sees the cursors and follows his view. "Save a kneeboard card" keeps the result.
+- **ROE / SOP**: rules of engagement and SOP by phase of flight (mission, ground, take-off and departure, en route, tanker, FENCE / comms / fuel, recovery, weather, night, training, emergencies), with options from the RoKAF Basic Employment Manual, the 8th and 51st FW in-flight guides and AFMAN 11-2F-16V3. Short form on the datacard and in the MDC (5 lines a box), the full text on one or two kneeboard cards.
+- **Presets**: a page Squadron > ROE / SOP with two lists, Flight (yours) and Squadron (the commander's), each with a Standard; a click puts a preset on the datacard, a double-click changes it; a preset can be the default of kinds of mission, and a mission received from another pilot gets the squadron's.
+- **WEZ exposure time**: when the flight is inside the enemy SAM rings (first entry, last exit), the minutes inside and the largest SAM, on the datacard, the MDC and the map.
+- **MDC format** filled automatically, with wider cells and TANK J/B (Joker / Bingo to the tanker).
+- **AWACS and JSTARS**: when the package has none, the nearest allied one on station (marked `*`).
+- **User Guide**: Settings > Help > User Guide, also as a PDF.
+- **Ready to fly**: the tab bar lists what is not saved yet (DTC, kneeboard, mission), with "Write all".
+- **A faster map** with all the objects and the political layer on.
+
+### Datacard and MDC format
+
+- Added: TOT / VUL with the WEZ exposure; the elevation of the target steerpoints; ROE and SOP in two boxes.
+- Added: the Bingo carries a holding and an alternate fuel when the landing field is IMC (GRN or worse); minutes and pounds on the Performance page.
+- Added: the BVR box fills itself with the BVR timeline when it is empty.
+- Changed: the notes are laid out in sections (TWR, UHF2, TGT, JTAC, IFF) with the frequencies in columns, 16 to 12 px; big packages use short callsigns (Devil 3 = DL3).
+- Changed: the ephemerides on two lines; METAR and TAF show the day of the month of the mission.
+- Changed: MDC format: the pilots table without FCR, ID and OWN; wider Tanker, TOT / VUL, flight plan, roll call and Known EOB; Airspace / TGT is the primary target; the escorted flights in short form (ESC DL3 PR4); a shorter, bigger loadout.
+- Changed: the Automatic rules open as a panel with sections; the tooltips are up to date and shorter.
+- Fixed: the MDC callsign and the red Bingo; a field elevation typed by hand updates the take-off data, the landing and the TAF; the roster lists names, not callsigns; the Joker uses your margin also with the Bingo of the DTC.
+
+### Map
+
+- Added: the filter "WEZ exposure time" (minutes on each ring, the total in the flight label).
+- Changed: the filters are easier to read; Pop-up / HADB / TOSS / HARM is a Display filter; the map is smoother with every object on; the first click on an objective zooms to its buildings.
+- Fixed: placing a point near a city or an objective no longer opens its window; the labels no longer pop in again when a filter changes.
+
+### Squadron
+
+- Added: the Briefing room (see above), with the weather filters at the hour and altitude of the briefer.
+- Added: ROE / SOP page and presets (see above); custom SOP sections, yours or the squadron's.
+- Added: a connection troubleshooting in the User Guide (network test, STUN, TURN, direct connection).
+
+### Kneeboard and DTC
+
+- Added: Settings > General > One map screenshot (a new map screenshot replaces the last one).
+- Fixed: a card inserted between two now slides from its own place; a kneeboard with only the datacard of no flight no longer shows "Not saved".
+- Fixed: the Data Cartridge page refuses radio and ILS frequencies out of band and IFF codes that are not octal; names written into the DTC use plain letters.
+
+### Other
+
+- Added: a notice when a newer version exists (once a day, nothing is downloaded; Settings > General).
+- Fixed: aircraft with a probe get the KC-130 first; the weather colour code counts the SCT layers; the ATO is in time order across midnight; a damaged config.json is no longer replaced without asking.
 
 ## 1.1.0
 
