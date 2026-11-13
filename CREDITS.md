@@ -3,10 +3,15 @@
 BMS Cards is a fan-made tool for Falcon BMS. It is not affiliated with or endorsed by Benchmark Sims or Falcon BMS.
 
 Inspiration and reference:
+
 - Weapon Delivery Planner (WDP) - original datacard planner and DDS reference.
 - Datacard blank (WDP card structure): layout redrawn by the program (app/js/core/dctemplate.js), no third-party image is included.
 - MDC blank (the blank mission data card of the Falcon BMS Docs folder): its author, mirv, has given his permission to recreate, modify and distribute it. The program redraws it in code (app/js/core/cardlayout.js) from the measures of its cells (app/js/data/mdcgeom.js, made by tools/mdc-geometry.py); neither the original file nor an image of it is included.
 - Open Frequency (UOAF) - layout and design inspiration.
+- ROE / SOP (Squadron > ROE / SOP): the options of the SOP and of the ROE follow these documents; only the procedures and values are used, written in the short forms of the program, no text or picture is copied:
+  - the in-flight guides of Kunsan (8th FW) and Osan (51st FW) for Falcon BMS, by mirv (departures, recovery, night procedures and other local procedures);
+  - the Basic Employment Manual F-16C RoKAF, a special version of AFTTP 3-3 prepared for the Korean Air Force, as published at https://falcon.blu3wolf.com/Docs/Basic-Employment-Manual-F-16C-RoKAF.pdf (no author named);
+  - AFMAN 11-2F-16 Volume 3, F-16 Operations Procedures (U.S. Air Force, public).
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
 - "Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan - the MAR model (cases I and II: uniform and variable missile deceleration, vMax and measured deceleration of the missiles) used on the BVR Timeline page and the datacard BVR timeline. Only the published method and numbers are used; no code.
@@ -20,6 +25,7 @@ the user's own Falcon BMS installation and is NOT part of this program or of thi
 (Settings) the program has no game data and says so. The map picture of the BMS folder is, for speed, also kept in a cut-up form (a reduced copy and blocks) in the program's own database on the user's computer; it is a copy for the user's own use, never part of the program or of the repository, and it is not sent anywhere. The tests use private copies of such data and of campaign files that are kept out of the repository (see .gitignore).
 
 Third-party code included:
+
 - pdf.js 4.10.38 (Mozilla), Apache License 2.0 - app/vendor/pdfjs/ (unmodified build). Used to read the BMS AIP PDF from the
   user's own BMS installation and to render imported PDF pages as kneeboard pages.
 - Leaflet 1.9.4 (Vladimir Agafonkin and contributors), BSD-2-Clause - app/vendor/leaflet/ (unmodified build). Map page.
@@ -41,4 +47,5 @@ Third-party code included:
 
 Airbase data: runway numbers and headings are read from the BMS ATC files, ILS frequencies and elevations from the BMS KTO AIP, always from the user's own installation at run time
 (the AIP forbids reproduction without permission of the BMS Docs team, so nothing of it is included).
+
 - MDC format: drawn by the program from the measures of the blank MDC (see above); no third-party image or file is included or needed.
