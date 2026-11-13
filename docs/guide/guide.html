@@ -119,7 +119,7 @@
 <div class="step"><div class="n">4</div><div>
   <h4>Examine the card and change it</h4>
   <p>Click a cell to change it. Push Tab to go to the next cell. Some cells open a list: the roster, the target points, or the take-off speed in AB or MIL. Your changes stay with the flight. <span class="ui">↺ Reset datacard</span> removes them.</p>
-  <p><span class="ui">MDC format</span> shows the same data in a different layout, the Mission Data Card.</p>
+  <p><span class="ui">MDC format</span> shows the same data in a different layout.</p>
 </div></div>
 
 <div class="step"><div class="n">5</div><div>
@@ -191,6 +191,16 @@
 </ul>
 <p>The pilots connect <b>directly to each other</b> (peer to peer). Public trackers only help the pilots to find each other. No server keeps the data. The program also keeps all the squadron data in its folder, so the data is available offline.</p>
 <div class="warn"><b>Privacy.</b> A direct connection shows your public IP address and your local network address to the pilots of the squadron that you connect to. The program does not publish these addresses on the internet. Connect only to squadrons that you trust.</div>
+
+<h3>If the pilots cannot connect</h3>
+<p>The settings are in <span class="ui">Squadron &gt; Settings &gt; Connection</span>. Do these steps in this sequence:</p>
+<ol>
+  <li>Click <span class="ui">Test my network</span>. The test tells you if a direct connection is possible from your network.</li>
+  <li>If the pilots are not on the same network or VPN, set <span class="ui">Use a public STUN server</span> to on. A STUN server only tells your computer its public address. No data goes through it. This setting is off by default.</li>
+  <li>If the test says that your router changes the public port (symmetric NAT, frequent with mobile networks and CGNAT), a direct connection will probably fail. Add a <b>TURN server</b> (<code>turn:host:port user password</code>), then click <span class="ui">Save the TURN server</span>. A TURN server relays the connection when the routers block it. Free accounts are available, for example Metered or Cloudflare.</li>
+  <li>If the trackers are not available, use <span class="ui">Direct connection with two codes</span>. The leader creates the session and sends an invite code. Each pilot pastes it and sends an answer code back to the leader.</li>
+  <li>If the problem continues, click <span class="ui">Copy diagnostics</span> and send the report to the developer.</li>
+</ol>
 
 <h2>6. Technical data</h2>
 
