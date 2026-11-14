@@ -65,6 +65,8 @@ try:
         check('the page is wide while the Briefing is shown', A.evaluate("()=>document.querySelector('main').classList.contains('wide')"))
         A.click('[data-t=mp]'); A.wait_for_timeout(500)
         check('the Map page takes its map back', A.locator('#mpbody #mpmap').count() == 1 and A.locator('.brw #mpmap').count() == 0 and A.evaluate('()=>__app.mapV.isEdit()') is True)
+        A.evaluate("()=>__app.sq.briefing().hide()"); A.wait_for_timeout(100)
+        check('the Briefing hidden again while the Map is on screen (a change of the squadron) leaves the Map wide', A.evaluate("()=>document.querySelector('main').classList.contains('wide')"))
         A.click('[data-t=sq]'); A.wait_for_timeout(300)
         # the squadron: A creates it, B joins with the invite code
         all_panes(A, True); all_panes(B, True)

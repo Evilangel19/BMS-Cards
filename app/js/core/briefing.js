@@ -334,9 +334,10 @@ class Room {
     this.wxSync(true);
   }
   hide() {
+    // hidden again (a change of the squadron draws its tabs again while another page is on screen): the width of that page is not touched
+    if (this.visible) this.d.wide && this.d.wide(false);
     this.visible = false;
     this.tok = (this.tok || 0) + 1;
-    this.d.wide && this.d.wide(false);
     this.closePal();
     this.closeEd();
     this.closeWx();

@@ -2,6 +2,10 @@
 
 What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
 
+## 1.2.1 (not released yet)
+
+- Fixed: after a visit to the Squadron Briefing, the Map and the other wide pages could become narrow (centred, with empty sides).
+
 ## 1.2.0
 
 ### Highlights

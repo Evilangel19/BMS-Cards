@@ -419,7 +419,11 @@ export async function init11() {
         return e ? e.callsign + ' · ' + e.n + '× ' + e.ac + ' · ' + e.mission : '';
       },
       theater: () => (ST.TH ? ST.TH.name : ''),
-      wide: b => document.querySelector('main').classList.toggle('wide', !!b),
+      // the wide page of the room; narrow again only while the Squadron is the page on screen (the Map and the others keep their width)
+      wide: b => {
+        if (b || !document.getElementById('sq').classList.contains('hide'))
+          document.querySelector('main').classList.toggle('wide', !!b);
+      },
       // the weather of the room: the map of an hour (loaded from the weather files of the campaign), the hours of the flight of the briefer
       wx: {
         at: ms => wxAt(ms),
