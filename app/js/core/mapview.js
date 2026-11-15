@@ -168,6 +168,7 @@ export function createMap(host, deps) {
     away = null,
     MO = null;
   /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
+  let LEVWAS = false; // the LEVELS menu was open when another page borrowed it
   const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo', 'shoting'];
   function mirror() {
     if (!away) return;
@@ -4745,15 +4746,24 @@ export function createMap(host, deps) {
     shotTake,
     shotStop,
     // the LEVELS menu (base map and layers) lent to another page (Weapons > Target): moved into el, then back
+    // (the menu comes closed; if it was open on the Map page it opens again there)
     levelsTo: el => {
-      const w = $('mpbasew');
+      const w = $('mpbasew'),
+        m = $('mpbase');
       if (!w || !el) return false;
+      LEVWAS = !!(m && m.style.display != 'none');
+      if (LEVWAS) $('mpbaseb').click();
       el.append(w);
       return true;
     },
     levelsBack: () => {
-      const w = $('mpbasew');
-      if (w && w.parentNode !== host) host.append(w);
+      const w = $('mpbasew'),
+        m = $('mpbase');
+      if (w && w.parentNode !== host) {
+        host.append(w);
+        if (LEVWAS && m && m.style.display == 'none') $('mpbaseb').click();
+      }
+      LEVWAS = false;
     },
     // the colours of the DTC steerpoints in the palette of the base map shown (dark, light or BMS): TGT STPT, weapon target, flight plan
     dtcColors: () => ({ prec: pal.dtc.prec, wpn: '#ef4444', stpt: pal.plan, light: pal === PAL.light }),

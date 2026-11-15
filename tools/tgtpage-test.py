@@ -33,7 +33,7 @@ try:
         pg = br.new_page(viewport={'width': 1600, 'height': 1100}, reduced_motion='reduce')
         import dialogs; dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        pg.on('console', lambda m: m.type == 'error' and 'status of 404' not in m.text and errs.append(m.text))  # 404: app/js/data/local, the game data made on a PC with BMS
+        pg.on('console', lambda m: m.type == 'error' and 'Failed to load resource' not in m.text and errs.append(m.text))  # 404: app/js/data/local, the game data made on a PC with BMS
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(900)
         pg.evaluate(TD, [list(f) for f in FEATS])
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
@@ -67,6 +67,11 @@ try:
         pt = lambda u, v: (cb['x'] + cb['width'] * (10 + u * 1080) / 1100, cb['y'] + cb['height'] * (122 + v * 520) / 850)
         pg.click('.tgp [data-tool=callout]'); pg.mouse.click(*pt(0.62, 0.6)); pg.mouse.click(*pt(0.75, 0.75)); pg.wait_for_timeout(150)
         pg.fill('.tgp .tged input', 'fuel storage'); pg.press('.tgp .tged input', 'Enter'); pg.wait_for_timeout(150)
+        pg.click('.tgp [data-tool=select]'); pg.mouse.move(*pt(0.05, 0.9)); pg.wait_for_timeout(100)
+        cur0 = pg.evaluate("()=>document.querySelector('.tgp canvas').style.cursor")
+        pg.mouse.move(*pt(0.76, 0.75)); pg.wait_for_timeout(100)
+        cur1 = pg.evaluate("()=>document.querySelector('.tgp canvas').style.cursor")
+        check('the pointer: plain on the empty picture (%s), the move cross on a symbol (%s)' % (cur0, cur1), cur0 == 'default' and cur1 == 'move')
         check('a callout drawn by hand, in capitals', T("t.state().ann.plan.map(a=>a.k+':'+a.t).join()") == 'callout:FUEL STORAGE')
         pg.click('.tgp [data-tool=select]')
         # page 2
@@ -87,7 +92,8 @@ try:
         check('Map background: the LEVELS menu of the Map page is in the bar of the picture', pg.locator('.tgp .tglev #mpbaseb').count() == 1)
         pg.click('.tgp .tglev #mpbaseb'); pg.wait_for_timeout(300)
         check('...it opens over the picture', pg.locator('.tgp .tglev #mpbase').is_visible())
-        pg.click('.tgp .tglev #mpbaseb'); pg.wait_for_timeout(300)
+        pg.click('.tgp [data-seg=view] [data-v=plan]'); pg.wait_for_timeout(300); pg.click('.tgp [data-seg=view] [data-v=map]'); pg.wait_for_timeout(300)
+        check('...and comes closed when the Map background is chosen again (it was left open)', pg.locator('.tgp .tglev #mpbaseb').count() == 1 and not pg.locator('.tgp .tglev #mpbase').is_visible())
         pg.click('.tgp .tgframe'); pg.wait_for_timeout(2500)
         check('...the canvases of the map are not painted black by the page (the base map shows)', pg.evaluate("()=>[...document.querySelectorAll('.tgp .tgmap canvas')].every(c=>getComputedStyle(c).backgroundColor!='rgb(0, 0, 0)')"))
         check('Frame on the map: the map of the Map page with its frame, without the angle', pg.locator('.tgp .tgmap #mpmap').count() == 1 and pg.locator('#mpfr').count() == 1 and pg.locator('#mpang').count() == 0)

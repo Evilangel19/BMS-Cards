@@ -1926,11 +1926,9 @@ export function createTargetPage(deps) {
           pend = null;
           qa('[data-tool]').forEach(z => z.classList.toggle('on', z == b));
           q('.tgthint').textContent = HINT[tool];
-          cv.classList.toggle('tgmove', tool == 'select');
           draw();
         })
     );
-    cv.classList.add('tgmove');
     qa('[data-col]').forEach(
       i =>
         (i.onclick = () => {
@@ -2168,7 +2166,7 @@ export function createTargetPage(deps) {
       cv.setPointerCapture(e.pointerId);
     };
     cv.onpointermove = e => {
-      if (!mv && !drag) return;
+      if (!mv && !drag) return hover(e);
       const [px, py] = pos(e),
         [u, v] = toU(px, py);
       if (mv && mv.crop) {
@@ -2228,6 +2226,25 @@ export function createTargetPage(deps) {
       A().push(a);
       draw();
     };
+    // the pointer: the move cross only on what can be moved (a symbol, the crop frame), a hand on the × of a DMPI box, the draw cross for the tools
+    function hover(e) {
+      const [px, py] = pos(e),
+        [u, v] = toU(px, py),
+        inPic = page == 'g' && pic() && u >= 0 && u <= 1 && v >= 0 && v <= 1;
+      let c = 'default';
+      if (
+        page == 'g' &&
+        dmpiList()
+          .slice(0, 6)
+          .some((_, i) => Math.hypot(px - boxX(i)[0], py - boxX(i)[1]) < 11)
+      )
+        c = 'pointer';
+      else if (CROP)
+        c = inPic && u >= CROP.u && u <= CROP.u + CROP.w && v >= CROP.v && v <= CROP.v + CROP.h ? 'move' : 'default';
+      else if (inPic) c = tool == 'select' ? (hit(px, py) >= 0 ? 'move' : 'default') : 'crosshair';
+      if (cv.style.cursor != c) cv.style.cursor = c;
+    }
+    cv.onpointerleave = () => (cv.style.cursor = 'default');
     cv.ondblclick = e => {
       if (page != 'g' || tool != 'select') return;
       const [px, py] = pos(e),

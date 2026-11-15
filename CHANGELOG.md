@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.2.1 (not released yet)
 
+- New: Squadron > Missions: search, groups by campaign, squadron or date, and folders of your own (drag missions onto them, or select several and Move to). The folders are only in the list: the missions stay where they are on the disk. Long lists open at once and show a hundred missions at a time.
 - New: **Weapons > Target**, a target picture in the style of a Basic Target Graphic. Background: the plan of the objective (from the BMS files), the map of the Map page (its base map and layers) or a pasted screenshot (BMS Recon view), with filters (Recon B/W, IR, Recon 1980s). "Fill from the datacard" draws the DMPIs with their TGT STPT, the attack of the attack planner, the enemy SAM rings and units; BTG symbols and notes by pen are drawn by hand. A second page holds the target information and detail pictures. The pages go to the Kneeboard as cards (Add card) or onto the datacard in place of the map screenshot, through a crop frame in the shape of the datacard or of the MDC. A target removed from the list is deleted from the DTC; the plan shows the relief of the BMS terrain; the impacts of the stick and the names of the sub-objectives can be shown. Two more filters imitate the video of a large drone (UAV FLIR, with the data of the mission) and of a small one.
 - Fixed: after a visit to the Squadron Briefing, the Map and the other wide pages could become narrow (centred, with empty sides).
 

@@ -7,7 +7,9 @@ import {
   pickFile,
   readBytes,
   listDir,
+  fileSize,
 } from '../platform/desktop.js';
+import * as MX from '../core/misindex.js';
 import { getGeo } from '../rules/geo.js';
 import { APP_VERSION } from '../core/version.js';
 import * as PJ from '../core/mission.js';
@@ -164,7 +166,12 @@ export async function msfBuild() {
       d = an && (await perfAcGet(an));
     if (d) aircraft = { name: an, perf: d };
   } catch (e) {}
-  return PJ.buildMission({
+  let squadron = '';
+  try {
+    const q = ST.C.byId[x.f.sqd.n + ':' + x.f.sqd.c];
+    squadron = (q && ST.C.squads && ST.C.squads[q.id.n]) || '';
+  } catch (e) {}
+  const msf = PJ.buildMission({
     app: 'BMS Cards',
     name: msfName(x),
     flight: x.f.id.n + ':' + x.f.id.c,
@@ -180,6 +187,8 @@ export async function msfBuild() {
     weapons: msfWeapons(),
     mapshot: ST.MAPSHOT ? ST.MAPSHOT.toDataURL('image/png') : null,
   });
+  msf.squadron = squadron; // shown in Squadron > Missions (grouped by squadron)
+  return msf;
 }
 export async function msfSave() {
   try {
@@ -227,23 +236,87 @@ export async function msfSources() {
   } catch (e) {}
   return out;
 }
-// the missions saved in the missions folder (the ones that were received too): [{id (the file), name}]
-// each one with the date it was created (read from the first bytes of the file: a mission can weigh several MB), newest first
-export async function msfList() {
-  const L = (await msfSources()).filter(x => x.id);
-  for (const x of L) {
-    x.created = '';
-    try {
-      const h = await IO.readRange(x.id, 0, 600),
-        t = h ? new TextDecoder().decode(h) : '',
-        c = /"created"\s*:\s*"([^"]+)"/.exec(t);
-      if (c && !isNaN(Date.parse(c[1]))) x.created = c[1];
-    } catch (e) {
-      /* no date */
-    }
+// ---- the saved missions put in order: virtual folders and what is shown of each mission, in missions/index.json (core/misindex.js)
+let MIX = null;
+// the file access of the list: the desktop app, or a stand-in set by the tests (window.__msfIO)
+const mio = () =>
+  (typeof window != 'undefined' && window.__msfIO) ||
+  (isDesktop()
+    ? {
+        list: async () => (await msfSources()).filter(x => x.id).map(x => ({ key: x.label, id: x.id })),
+        size: id => fileSize(id),
+        text: id => msfText(id),
+        readIndex: async () => new TextDecoder().decode(await readBytes(joinPath(await missionsBase(), 'index.json'))),
+        writeIndex: async t => IO.writeBytes(joinPath(await missionsBase(), 'index.json'), enc8(t)),
+      }
+    : null);
+async function msfIndex(io) {
+  if (MIX) return MIX;
+  try {
+    MIX = MX.cleanIndex(JSON.parse(await io.readIndex()));
+  } catch (e) {
+    MIX = MX.blankIndex();
   }
+  return MIX;
+}
+async function msfIndexSave(io = mio()) {
+  if (io && MIX) await io.writeIndex(JSON.stringify(MIX));
+}
+// the missions saved in the missions folder (the ones that were received too): [{id (the file), label (its folder), created, folder, meta, from, squad}],
+// newest first. What is shown of a mission is read once from its file (a mission can weigh several MB) and kept in the index until the file changes.
+export async function msfList() {
+  const io = mio();
+  if (!io) return [];
+  const ix = await msfIndex(io),
+    L = await io.list();
+  let ch = MX.prune(
+    ix,
+    L.map(x => x.key)
+  );
+  for (const x of L) {
+    const it = ix.items[x.key] || (ix.items[x.key] = { folder: null, size: -1, meta: null, from: '', squad: '' });
+    let sz = -1;
+    try {
+      sz = await io.size(x.id);
+    } catch (e) {}
+    if (!it.meta || it.size !== sz) {
+      try {
+        it.meta = MX.metaOf(JSON.parse(await io.text(x.id)));
+      } catch (e) {
+        it.meta = { created: '' };
+      }
+      it.size = sz;
+      ch = true;
+    }
+    Object.assign(x, {
+      label: x.key,
+      created: it.meta.created || '',
+      meta: it.meta,
+      folder: it.folder,
+      from: it.from,
+      squad: it.squad,
+    });
+  }
+  if (ch) await msfIndexSave(io);
   return L.sort((a, b) => (b.created || '').localeCompare(a.created || '') || a.label.localeCompare(b.label));
 }
+// the virtual folders: the tree, and the changes (each one saved at once)
+export const msfFolders = async () => {
+  const io = mio();
+  return io ? MX.tree(await msfIndex(io)) : [];
+};
+const msfIdxDo = async fn => {
+  const io = mio();
+  if (!io) return null;
+  const r = fn(await msfIndex(io));
+  await msfIndexSave(io);
+  return r;
+};
+export const msfFolderAdd = (name, parent) => msfIdxDo(ix => MX.addFolder(ix, name, parent));
+export const msfFolderRename = (id, name) => msfIdxDo(ix => MX.renameFolder(ix, id, name));
+export const msfFolderDel = id => msfIdxDo(ix => MX.deleteFolder(ix, id));
+export const msfFolderMove = (id, parent) => msfIdxDo(ix => MX.moveFolder(ix, id, parent));
+export const msfMove = (keys, fid) => msfIdxDo(ix => MX.moveTo(ix, keys, fid));
 // the text of a saved mission file (to open it again)
 export const msfText = async id => new TextDecoder().decode(await readBytes(id));
 // deletes the folder of a saved mission (never the ones sent to the other pilots); true when it is gone
@@ -251,10 +324,15 @@ export async function msfRemove(id) {
   const base = await missionsBase(),
     dir = id.replace(/[\\/][^\\/]*$/, '');
   if (!dir || dir === base || !dir.startsWith(base)) throw new Error('This is not a mission folder.');
-  return IO.removeDir(dir);
+  const ok = await IO.removeDir(dir);
+  if (ok && MIX) {
+    delete MIX.items[dir.replace(/^.*[\\/]/, '')];
+    await msfIndexSave().catch(() => {});
+  }
+  return ok;
 }
 // a mission received from another pilot is kept in the missions folder (desktop app) under its own name; one that exists already is never overwritten: " (2)", " (3)"...; returns the folder or null
-export async function msfStoreReceived(text, name) {
+export async function msfStoreReceived(text, name, from = '', squad = '') {
   if (!isDesktop()) return null;
   const r = PJ.parseMission(text);
   if (r.error) throw new Error(r.error);
@@ -266,6 +344,15 @@ export async function msfStoreReceived(text, name) {
   const dir = joinPath(base, n);
   await IO.makeDir(dir);
   await IO.writeBytes(joinPath(dir, PJ.missionFolder.file(n)), enc8(text));
+  // who sent it, for the list (Squadron > Missions)
+  try {
+    const io = mio();
+    if (io) {
+      const ix = await msfIndex(io);
+      ix.items[n] = { folder: null, size: -1, meta: null, from: String(from || ''), squad: String(squad || '') };
+      await msfIndexSave(io);
+    }
+  } catch (e) {}
   return dir;
 }
 const msfRead = async id => {

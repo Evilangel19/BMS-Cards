@@ -72,6 +72,12 @@ import {
   msfGroupsOf,
   msfForSend,
   msfStoreReceived,
+  msfFolders,
+  msfFolderAdd,
+  msfFolderRename,
+  msfFolderDel,
+  msfFolderMove,
+  msfMove,
   msfSave,
   msfList,
   msfRemove,
@@ -698,7 +704,7 @@ export async function init11() {
       if (mapV && mapV.isReady()) mapV.refresh();
     },
     version: APP_VERSION,
-    saveReceived: (t, n) => msfStoreReceived(t, n),
+    saveReceived: (t, n, from, squad) => msfStoreReceived(t, n, from, squad),
     receiveCard: async (c, from) => {
       // the picture arrives as a data: address already checked by the squadron; it is decoded here (no fetch, so a strict CSP can stay)
       const m = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(c.img);
@@ -716,6 +722,12 @@ export async function init11() {
       text: id => msfText(id),
       groups: id => msfGroupsOf(id),
       forSend: (id, t) => msfForSend(id, t),
+      folders: () => msfFolders(),
+      folderAdd: (name, parent) => msfFolderAdd(name, parent),
+      folderRename: (id, name) => msfFolderRename(id, name),
+      folderDel: id => msfFolderDel(id),
+      folderMove: (id, parent) => msfFolderMove(id, parent),
+      move: (keys, fid) => msfMove(keys, fid),
     },
   });
   ST.SQROLE = () => sqPage.role();

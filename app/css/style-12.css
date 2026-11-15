@@ -297,10 +297,6 @@
   border-radius: 4px;
   background: #000;
   touch-action: none;
-  cursor: crosshair;
-}
-.tgp .tgstage > canvas.tgmove {
-  cursor: move;
 }
 .tgp .tgmap {
   position: relative;
