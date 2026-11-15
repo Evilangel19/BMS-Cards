@@ -102,7 +102,12 @@ try:
         pg.click('.tgp .tgkb'); pg.wait_for_timeout(600)
         check('Add card: a window with the three cards, two of them chosen', pg.locator('.tgdlg .tgcard').count() == 3 and pg.locator('.tgdlg .tgcard.on').count() == 2)
         if shots: pg.locator('.tgdlg').screenshot(path=shots + '/tgt-cards.png')
-        pg.click('.tgdlg .tgcard >> nth=2'); pg.click('.tgdlg [data-a=ok]'); pg.wait_for_timeout(1500)
+        pg.click('.tgdlg .tgcard >> nth=2'); pg.wait_for_timeout(200)
+        check('...the third card chosen too', pg.locator('.tgdlg .tgcard.on').count() == 3)
+        pg.click('.tgdlg [data-a=ok]')
+        for _ in range(40):  # three big pictures to encode
+            if pg.evaluate('()=>__app.KBLIB.length') - n0 >= 3: break
+            pg.wait_for_timeout(250)
         check('...three cards are in the Kneeboard (%d)' % (pg.evaluate('()=>__app.KBLIB.length') - n0), pg.evaluate('()=>__app.KBLIB.length') - n0 == 3)
         if shots:
             for i, k in enumerate('gtd'):
@@ -110,7 +115,7 @@ try:
         pg.click('.tgp .tgdc'); pg.wait_for_timeout(300)
         check('Put on datacard: first the crop frame of the datacard (its shape on the picture)', pg.locator('.tgp .tgcropbar').is_visible() and 'Datacard format' in pg.inner_text('.tgp .tgcropn'))
         if shots: pg.locator('.tgp .tgc').screenshot(path=shots + '/tgt-crop.png')
-        cb = pg.locator('.tgp canvas').bounding_box()
+        pg.locator('.tgp canvas').scroll_into_view_if_needed(); cb = pg.locator('.tgp canvas').bounding_box()
         pg.mouse.move(*pt(0.5, 0.5)); pg.mouse.down(); pg.mouse.move(*pt(0.7, 0.5), steps=5); pg.mouse.up()
         cr = T('t.crop()')
         check('...the frame is dragged to the right (u %.2f)' % cr['u'], cr['u'] > 0.45)
@@ -123,8 +128,10 @@ try:
         check('Names: on (green), the names of the DMPIs; All shows them all', pg.evaluate("()=>!document.querySelector('.tgp .tgnames').classList.contains('g')"))
         pg.click('.tgp [data-seg=nscope] [data-v=all]'); pg.wait_for_timeout(200)
         if shots: pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-names.png')
+        pg.wait_for_timeout(4500)  # the message of Put on datacard stands over the DMPI boxes for a few seconds
         pg.once('dialog', lambda d: d.accept())
         bx = pg.evaluate("()=>{const t=__app.ST.tgPage._t;return t.boxX(2)}")
+        pg.locator('.tgp canvas').scroll_into_view_if_needed(); cb = pg.locator('.tgp canvas').bounding_box()
         pg.mouse.click(cb['x'] + cb['width'] * bx[0] / 1100, cb['y'] + cb['height'] * bx[1] / 850); pg.wait_for_timeout(600)
         check('the × of DMPI 3 deletes WPN TGT 1 from the DTC', T("t.list()[0].dmpis.map(d=>d.ref).join()") == 'TGT STPT 81,TGT STPT 82' and 'not set' in pg.evaluate("()=>__app.lines.find(l=>l.k=='wpntarget_0').v").lower())
         pg.once('dialog', lambda d: d.accept())
