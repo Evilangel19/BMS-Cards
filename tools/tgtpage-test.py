@@ -54,10 +54,14 @@ try:
         check('...the source line and the chips that hide each part', 'DMPI' in pg.inner_text('.tgp .tgsrc') and pg.locator('.tgp .tgshow button').count() == 6)
         check('...the DMPI boxes show the coordinates', all(d['ll'] for d in T('t.dmpiList()')))
         if shots: pg.locator('.tgp .tgc').screenshot(path=shots + '/tgt-fill.png'); pg.screenshot(path=shots + '/tgt-page.png', full_page=True)
-        for f in ('ir', 'r80', 'none', 'recon'):
+        for f in ('ir', 'r80', 'uav', 'suav', 'none', 'recon'):
             pg.click('.tgp [data-seg=filt] [data-v=%s]' % f); pg.wait_for_timeout(150)
         if shots:
-            pg.click('.tgp [data-seg=filt] [data-v=r80]'); pg.wait_for_timeout(200); pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-r80.png'); pg.click('.tgp [data-seg=filt] [data-v=recon]')
+            pg.click('.tgp [data-seg=filt] [data-v=r80]'); pg.wait_for_timeout(200); pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-r80.png'); pg.click('.tgp [data-seg=filt] [data-v=uav]'); pg.wait_for_timeout(200); pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-uav.png')
+            pg.click('.tgp [data-seg=filt] [data-v=suav]'); pg.wait_for_timeout(200); pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-suav.png'); pg.click('.tgp [data-seg=filt] [data-v=recon]')
+        pg.click('.tgp [data-seg=filt] [data-v=uav]'); pg.wait_for_timeout(150)
+        check('UAV FLIR: the Banner field shows, CLASSIFIED by default', pg.locator('.tgp .tgban').is_visible() and pg.input_value('.tgp .tgbant') == 'CLASSIFIED')
+        pg.click('.tgp [data-seg=filt] [data-v=recon]'); pg.wait_for_timeout(150)
         # a callout by hand
         cb = pg.locator('.tgp canvas').bounding_box()
         pt = lambda u, v: (cb['x'] + cb['width'] * (10 + u * 1080) / 1100, cb['y'] + cb['height'] * (122 + v * 520) / 850)
@@ -108,6 +112,8 @@ try:
         for _ in range(40):  # three big pictures to encode
             if pg.evaluate('()=>__app.KBLIB.length') - n0 >= 3: break
             pg.wait_for_timeout(250)
+        if shots:
+            pg.click('[data-t=kn]'); pg.wait_for_timeout(1200); pg.screenshot(path=shots + '/tgt-kb.png', full_page=True); pg.click('[data-t=wp]'); pg.wait_for_timeout(600)
         check('...three cards are in the Kneeboard (%d)' % (pg.evaluate('()=>__app.KBLIB.length') - n0), pg.evaluate('()=>__app.KBLIB.length') - n0 == 3)
         if shots:
             for i, k in enumerate('gtd'):

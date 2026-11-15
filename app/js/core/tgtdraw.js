@@ -386,7 +386,11 @@ export const FILTERS = [
   ['recon', 'Recon B/W'],
   ['ir', 'IR white-hot'],
   ['r80', 'Recon 1980s'],
+  ['uav', 'UAV FLIR'],
+  ['suav', 'Small UAV'],
 ];
+/** the filters that put a sensor display over the picture (drawn by the page: it holds the data of the mission) */
+export const HUDS = ['uav', 'suav'];
 let NOISE = null;
 /**
  * @param {HTMLCanvasElement} src @param {string} f filter @param {number} con contrast @param {number} grn grain
@@ -399,11 +403,12 @@ export function filterPic(src, f, con, grn, stamp) {
   o.width = W;
   o.height = H;
   const c = /** @type {CanvasRenderingContext2D} */ (o.getContext('2d', { willReadFrequently: true }));
-  if (f == 'r80') {
-    // low definition: down to a third and up again
+  const soft = { r80: 3.2, uav: 1.8, suav: 2.4 }[f];
+  if (soft) {
+    // lower definition: down and up again (a third for the 1980s film, softer for the video of a drone)
     const q = document.createElement('canvas');
-    q.width = Math.max(1, (W / 3.2) | 0);
-    q.height = Math.max(1, (H / 3.2) | 0);
+    q.width = Math.max(1, (W / soft) | 0);
+    q.height = Math.max(1, (H / soft) | 0);
     /** @type {CanvasRenderingContext2D} */ (q.getContext('2d')).drawImage(src, 0, 0, q.width, q.height);
     c.imageSmoothingEnabled = true;
     c.drawImage(q, 0, 0, W, H);
@@ -420,11 +425,32 @@ export function filterPic(src, f, con, grn, stamp) {
   for (let i = 0, j = 0; i < p.length; i += 4, j++) {
     let g = 0.3 * p[i] + 0.59 * p[i + 1] + 0.11 * p[i + 2];
     if (f == 'ir') g = 255 - g * 0.85; // white hot
+    if (f == 'uav') {
+      // the sensor of a large drone: a light, soft grey (white hot), a little grain
+      g = (40 + g * 0.8 - 128) * (0.55 + con * 0.35) + 128 + NOISE[j] * gr * 0.6;
+      p[i] = p[i + 1] = p[i + 2] = g;
+      continue;
+    }
+    if (f == 'suav') {
+      // the video of a small drone: cold blue grey, flat, hazy
+      g = (g - 128) * con * 0.7 + 128 + 22 + NOISE[j] * gr * 0.7;
+      p[i] = g * 0.86 + 6;
+      p[i + 1] = g * 0.94 + 10;
+      p[i + 2] = g * 1.02 + 18;
+      continue;
+    }
     g = (g - 128) * con + 128 + NOISE[j] * gr;
     p[i] = p[i + 1] = p[i + 2] = g;
   }
   c.putImageData(d, 0, 0);
   if (f == 'r80') retro(c, W, H, stamp || '');
+  if (f == 'uav' || f == 'suav') {
+    const v = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.4, W / 2, H / 2, Math.max(W, H) * 0.75);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, f == 'uav' ? 'rgba(0,0,0,.28)' : 'rgba(20,30,40,.25)');
+    c.fillStyle = v;
+    c.fillRect(0, 0, W, H);
+  }
   return o;
 }
 // 1980s reconnaissance: scan lines, torn lines, drop-outs, a grey-green cast, dark corners, the frame data burnt in

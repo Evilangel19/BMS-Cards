@@ -396,6 +396,17 @@ function tgtDeps() {
       }
     },
     attack: () => (ST.wpPage ? ST.wpPage.attack() : null),
+    // the wind at the target (weather of the campaign) at the time of the attack of the flight, else the time of the campaign
+    wind(x, y, alt) {
+      try {
+        const f = curFlight(),
+          a = f && f.wps && f.wps.find(p => [14, 15, 16, 17, 19].includes(p.act)),
+          t = (a && (a.arr || a.dep)) || (ST.C && ST.C.time);
+        return t ? wxWind(x, y, t, alt) : null;
+      } catch (e) {
+        return null;
+      }
+    },
     route() {
       try {
         const f = curFlight();

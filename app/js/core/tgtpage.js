@@ -22,6 +22,7 @@ import {
   planBox,
   groundGrid,
   FILTERS,
+  HUDS,
   filterPic,
 } from './tgtdraw.js';
 import { OBJ_TYPES } from './targets.js';
@@ -91,6 +92,7 @@ export function createTargetPage(deps) {
     range: 10,
     show: { dmpi: true, route: true, egr: true, sam: true, unit: true, imp: true },
     names: true,
+    banner: 'CLASSIFIED', // the top line of the UAV FLIR display
     nscope: 'dmpi', // the names of the sub-objectives: of the DMPIs or all
   };
   let pfT = 0;
@@ -149,7 +151,9 @@ export function createTargetPage(deps) {
     CROPR = null, // the part of the picture (u0, v0, w, h) drawn into IMG: the datacard
     SCR = false, // drawing the page on screen (the marks that are not printed: crop frame, the × of the DMPI boxes)
     CROP = null, // the crop frame shown for Put on datacard
-    PLACED = [];
+    PLACED = [],
+    DEFER = null, // the labels of the datacard layer, drawn after its symbols
+    SYMS = null; // the places of those symbols (the labels keep off them)
   const P = () => PAL[PF.pst] || PAL.prog;
 
   // the picture under the symbols: {c (filtered), geo (null for a screenshot)}
@@ -233,6 +237,7 @@ export function createTargetPage(deps) {
 
   // ---- labels and symbols
   function tag(t, lx, ly, o = {}) {
+    if (DEFER) return void DEFER.push([t, lx, ly, o]);
     const pen = o.pen,
       ls = o.ls || PF.lsty;
     x.font = pen ? '26px ' + PEN : '600 14px ' + FONT;
@@ -265,6 +270,20 @@ export function createTargetPage(deps) {
         }
       }
       PLACED.push([bx, by, w, h]);
+      // moved away from its symbol: a thin line back to it
+      if (o.anchor && (bx != b0 || by != y0)) {
+        const [ax, ay] = o.anchor,
+          nx = Math.max(bx, Math.min(bx + w, ax)),
+          ny = Math.max(by, Math.min(by + h, ay));
+        if (Math.hypot(nx - ax, ny - ay) > 14) {
+          x.strokeStyle = o.col || '#e6edf3';
+          x.lineWidth = 1.2;
+          x.beginPath();
+          x.moveTo(ax, ay);
+          x.lineTo(nx, ny);
+          x.stroke();
+        }
+      }
     }
     x.textAlign = 'left';
     x.textBaseline = 'middle';
@@ -292,6 +311,7 @@ export function createTargetPage(deps) {
     x.fillText(t, bx + 7, by + h / 2 + 1);
   }
   function tri(px, py) {
+    if (SYMS) SYMS.push([px - 12, py - 14, 24, 22]);
     x.fillStyle = COL.dmpi;
     x.strokeStyle = '#fff';
     x.lineWidth = 1.5;
@@ -315,6 +335,7 @@ export function createTargetPage(deps) {
   }
   // a hostile unit: the red diamond of the Map page (APP-6 look) with its inner sign
   function unitSym(px, py, g) {
+    if (SYMS) SYMS.push([px - 16, py - 16, 32, 32]);
     const s = 15,
       q = s * 0.42;
     x.save();
@@ -488,7 +509,12 @@ export function createTargetPage(deps) {
       r = vr(),
       sh = PF.show;
     PLACED = [];
-    if (!D) return;
+    DEFER = [];
+    SYMS = [];
+    if (!D) {
+      DEFER = SYMS = null;
+      return;
+    }
     const k = g ? pxPerKm() : 0;
     if (sh.sam)
       D.sams.forEach(s => {
@@ -669,9 +695,41 @@ export function createTargetPage(deps) {
         x.stroke();
       });
     }
-    const f = FEAT[D.t.key],
-      far = g && geoWidth(g) > 4.5;
-    // the names of the sub-objectives (all of them: the ones that have room)
+    const f = FEAT[D.t.key];
+    // the aim points: each with its label (its STPT); points closer than 18 px share one label (DMPI 1, 2 · STPT 81, 82)
+    if (sh.dmpi && g) {
+      const seen = [];
+      D.t.dmpis.forEach((d, i) => {
+        const [px, py] = W2P(d.x, d.y);
+        if (!inR(px, py)) return;
+        tri(px, py);
+        const near = seen.find(q => Math.hypot(q.px - px, q.py - py) < 18);
+        if (near) near.ix.push(i);
+        else seen.push({ px, py, d, ix: [i] });
+      });
+      seen.forEach(({ px, py, d, ix }) => {
+        const L = ix.map(i => D.t.dmpis[i]),
+          one = ix.length == 1;
+        tag(
+          one
+            ? dmpiName(d, ix[0]) +
+                (PF.names && d.name && !/^(STPT|WPN|PICK)/.test(d.name) ? ' · ' + d.name.toUpperCase() : '')
+            : 'DMPI ' +
+                ix.map(i => i + 1).join(', ') +
+                (L.some(q => q.short) ? ' · ' + L.map(q => q.short || '—').join(', ') : ''),
+          px + 16,
+          py - 16,
+          { avoid: true, col: refCol(d.kind), anchor: [px, py] }
+        );
+      });
+    } // a screenshot has no scale: its aim points are the ones put by hand with the DMPI tool
+    // the labels last, around the symbols (the symbols never cover a label)
+    const LB = DEFER;
+    DEFER = null;
+    PLACED = SYMS.slice();
+    SYMS = null;
+    LB.forEach(([t, lx, ly, o]) => tag(t, lx, ly, { ...o, avoid: true }));
+    // the names of the sub-objectives (all of them): the ones that have room
     if (g && PF.names && PF.nscope == 'all' && f && f.feats) {
       x.font = '600 11px ' + FONT;
       x.textAlign = 'center';
@@ -695,23 +753,6 @@ export function createTargetPage(deps) {
         n++;
       }
     }
-    if (sh.dmpi && g) {
-      D.t.dmpis.forEach((d, i) => {
-        const [px, py] = W2P(d.x, d.y);
-        if (!inR(px, py)) return;
-        tri(px, py);
-        if (!far || !i)
-          tag(
-            far && D.t.dmpis.length > 1
-              ? 'DMPI 1–' + D.t.dmpis.length
-              : dmpiName(d, i) +
-                  (PF.names && d.name && !/^(STPT|WPN|PICK)/.test(d.name) ? ' · ' + d.name.toUpperCase() : ''),
-            px + 16,
-            py - 16,
-            { avoid: true, col: refCol(d.kind) }
-          );
-      });
-    } // a screenshot has no scale: its aim points are the ones put by hand with the DMPI tool
   }
   const dmpiName = (d, i) => 'DMPI ' + (i + 1) + (d.short ? ' · ' + d.short : '');
   // the colour of a steerpoint as on the Map page (its palette: dark, light or the BMS one): TGT STPT, weapon target, route steerpoint
@@ -719,6 +760,214 @@ export function createTargetPage(deps) {
     let m = deps.mapPal ? deps.mapPal() : null;
     if (!m || (page && m.light)) m = { prec: '#4dd0e1', wpn: '#ef4444', stpt: '#ffd23f' };
     return kind == 'prec' ? m.prec : kind == 'wpn' ? m.wpn : kind == 'stpt' ? m.stpt : undefined;
+  }
+  // ---- the sensor displays of the UAV filters, over the picture and under the symbols, with the data of the mission (never a real organisation)
+  function hudData() {
+    const t = tgt(),
+      i = deps.info ? deps.info() : {},
+      R = t ? attackRoute(t) : null,
+      d = t && t.dmpis[0],
+      ll = t && deps.geoLL ? deps.geoLL(d ? d.x : t.x, d ? d.y : t.y) : '',
+      w = t && deps.wind ? deps.wind(t.x, t.y, (R && R.rel) || 2000) : null;
+    return {
+      cs: i.cs || '',
+      tot: i.tot || '',
+      ll,
+      elv: d && d.altFt ? d.altFt + ' FT' : '',
+      tgt: d ? d.short || 'DMPI 1' : t ? t.label : '',
+      hdg: R && R.hdg != null ? R.hdg : null,
+      alt: R && R.rel ? Math.round(R.rel) : null,
+      spd: R && R.spd ? Math.round(R.spd) : null,
+      wind: w,
+    };
+  }
+  function hudUav() {
+    const R = vr(),
+      u = R.h / 520,
+      D = hudData(),
+      C = '#5ce6ec',
+      cx = R.x + R.w / 2,
+      cy = R.y + R.h / 2;
+    x.save();
+    x.strokeStyle = C;
+    x.fillStyle = C;
+    x.shadowColor = C;
+    x.shadowBlur = 6 * u;
+    x.lineWidth = 2 * u;
+    const corners = (w, h, l) => {
+      [
+        [-1, -1],
+        [1, -1],
+        [-1, 1],
+        [1, 1],
+      ].forEach(([sx, sy]) => {
+        const px = cx + (sx * w) / 2,
+          py = cy + (sy * h) / 2;
+        x.beginPath();
+        x.moveTo(px - sx * l, py);
+        x.lineTo(px, py);
+        x.lineTo(px, py - sy * l);
+        x.stroke();
+      });
+    };
+    corners(R.w * 0.5, R.h * 0.5, 10 * u); // the field of view
+    x.lineWidth = 2.6 * u;
+    corners(R.h * 0.24, R.h * 0.24, 13 * u); // the tracking box
+    x.lineWidth = 2 * u;
+    x.beginPath();
+    [
+      [-22, 0, -8, 0],
+      [8, 0, 22, 0],
+      [0, -18, 0, -8],
+      [0, 8, 0, 18],
+    ].forEach(([a, b, c2, e]) => {
+      x.moveTo(cx + a * u, cy + b * u);
+      x.lineTo(cx + c2 * u, cy + e * u);
+    });
+    x.stroke();
+    x.font = '700 ' + 13 * u + 'px monospace';
+    x.textBaseline = 'middle';
+    x.textAlign = 'left';
+    x.fillText(D.tgt, cx + R.h * 0.12 + 8 * u, cy + 6 * u);
+    // the data down both sides
+    const col = (lines, left) => {
+      x.textAlign = left ? 'left' : 'right';
+      lines.filter(Boolean).forEach((q, k) => {
+        const yy = R.y + R.h * 0.2 + k * 22 * u,
+          xx = left ? R.x + 14 * u : R.x + R.w - 14 * u,
+          w = x.measureText(q).width + 10 * u;
+        x.shadowBlur = 0;
+        x.fillStyle = 'rgba(30,80,90,.35)';
+        x.fillRect(left ? xx - 5 * u : xx - w + 5 * u, yy - 9 * u, w, 18 * u);
+        x.shadowBlur = 6 * u;
+        x.fillStyle = C;
+        x.fillText(q, xx, yy);
+      });
+    };
+    const ll = String(D.ll).split(/\s+(?=[EW])/);
+    col([D.cs, D.tgt, ll[0], ll[1], D.elv && 'ELEV ' + D.elv, D.tot && 'TOT ' + D.tot], true);
+    col(
+      [
+        'IR WHT',
+        'NFOV',
+        D.hdg != null && 'HDG ' + brg3(D.hdg),
+        D.alt != null && 'ALT ' + D.alt.toLocaleString('en-US'),
+        D.spd != null && 'GS ' + D.spd + ' KT',
+        'LRD ARM',
+      ],
+      false
+    );
+    // the banner at the top
+    if (PF.banner) {
+      x.font = '800 ' + 28 * u + 'px ' + FONT;
+      x.textAlign = 'center';
+      const w = x.measureText(PF.banner).width + 24 * u;
+      x.shadowBlur = 0;
+      x.fillStyle = 'rgba(20,24,20,.55)';
+      x.fillRect(cx - w / 2, R.y + 10 * u, w, 40 * u);
+      x.fillStyle = '#62f25a';
+      x.shadowColor = '#62f25a';
+      x.shadowBlur = 4 * u;
+      x.fillText(PF.banner, cx, R.y + 31 * u);
+    }
+    x.restore();
+  }
+  function hudSuav() {
+    const R = vr(),
+      u = R.h / 520,
+      D = hudData(),
+      cx = R.x + R.w / 2,
+      cy = R.y + R.h / 2,
+      Y = '#e2c046',
+      s2 = R.h * 0.17;
+    x.save();
+    x.shadowColor = 'rgba(0,0,0,.5)';
+    x.shadowBlur = 3 * u;
+    // the yellow box with its cross
+    x.strokeStyle = Y;
+    x.lineWidth = 3 * u;
+    x.beginPath();
+    x.roundRect(cx - s2, cy - s2, 2 * s2, 2 * s2, 8 * u);
+    x.stroke();
+    x.strokeStyle = '#ffffff';
+    x.lineWidth = 2 * u;
+    x.setLineDash([12 * u, 7 * u]);
+    x.beginPath();
+    x.moveTo(cx - s2 + 4 * u, cy);
+    x.lineTo(cx + s2 - 4 * u, cy);
+    x.moveTo(cx, cy - s2 + 4 * u);
+    x.lineTo(cx, cy + s2 - 4 * u);
+    x.stroke();
+    x.setLineDash([]);
+    // the sun
+    const sx = cx + s2 + 20 * u;
+    x.fillStyle = '#f5c518';
+    x.strokeStyle = '#f5c518';
+    x.beginPath();
+    x.arc(sx, cy, 6 * u, 0, 7);
+    x.fill();
+    x.lineWidth = 1.6 * u;
+    for (let k = 0; k < 8; k++) {
+      const a = (k * Math.PI) / 4;
+      x.beginPath();
+      x.moveTo(sx + Math.cos(a) * 9 * u, cy + Math.sin(a) * 9 * u);
+      x.lineTo(sx + Math.cos(a) * 13 * u, cy + Math.sin(a) * 13 * u);
+      x.stroke();
+    }
+    // the compass at the bottom: an arc that turns with the heading
+    const rr = R.h * 0.16,
+      by = R.y + R.h,
+      hd = D.hdg == null ? 0 : D.hdg;
+    x.shadowBlur = 0;
+    x.fillStyle = 'rgba(12,14,16,.88)';
+    x.beginPath();
+    x.arc(cx, by, rr, Math.PI, 2 * Math.PI);
+    x.closePath();
+    x.fill();
+    x.strokeStyle = '#d9dde2';
+    x.fillStyle = '#d9dde2';
+    x.lineWidth = 1.4 * u;
+    x.font = '600 ' + 13 * u + 'px ' + FONT;
+    x.textAlign = 'center';
+    x.textBaseline = 'middle';
+    for (let b = 0; b < 360; b += 15) {
+      const a = ((b - hd + 540) % 360) - 180;
+      if (Math.abs(a) > 80) continue;
+      const t = (a * Math.PI) / 180,
+        dx = Math.sin(t),
+        dy = -Math.cos(t),
+        L = b % 45 ? 5 : 9;
+      x.beginPath();
+      x.moveTo(cx + dx * (rr - 2 * u), by + dy * (rr - 2 * u));
+      x.lineTo(cx + dx * (rr - L * u), by + dy * (rr - L * u));
+      x.stroke();
+      const nm = { 0: 'N', 90: 'E', 180: 'S', 270: 'W' }[b];
+      if (nm) x.fillText(nm, cx + dx * (rr - 22 * u), by + dy * (rr - 22 * u));
+    }
+    x.fillStyle = '#ff4136';
+    x.font = '800 ' + 22 * u + 'px ' + FONT;
+    x.fillText('OFF', cx, by - rr * 0.32);
+    x.fillStyle = '#58d68d';
+    x.font = '700 ' + 20 * u + 'px ' + FONT;
+    x.fillText(brg3(hd).replace('°', ''), cx, by - rr - 16 * u);
+    x.fillStyle = '#3b82f6';
+    x.beginPath();
+    x.arc(cx, by - rr + 4 * u, 4 * u, 0, 7);
+    x.fill();
+    // the wind on the left, the vertical speed on the right
+    x.shadowBlur = 3 * u;
+    x.fillStyle = '#ffffff';
+    x.font = '600 ' + 17 * u + 'px ' + FONT;
+    x.textAlign = 'right';
+    const ws = D.wind ? (D.wind.spd * 0.5144).toFixed(1).padStart(4, '0') : '--.-',
+      wd = D.wind ? ' ' + brg3(D.wind.hdg) : '';
+    x.fillText('WS ' + ws + wd, cx - rr - 18 * u, by - 18 * u);
+    x.textAlign = 'left';
+    x.fillStyle = '#ff4136';
+    x.fillText('OFF', cx + rr + 18 * u, by - 18 * u);
+    x.fillStyle = '#ffffff';
+    x.fillText('0.0  VS', cx + rr + 70 * u, by - 18 * u);
+    x.restore();
   }
   // the symbols drawn by hand
   function drawSym(a, i) {
@@ -882,7 +1131,13 @@ export function createTargetPage(deps) {
     if (p) {
       const r = prect();
       x.drawImage(p.c, r.x, r.y, r.w, r.h);
-      if (s && s.auto) autoLayer();
+      if (HUDS.includes(PF.filt)) (PF.filt == 'uav' ? hudUav : hudSuav)();
+      if (s && s.auto)
+        try {
+          autoLayer();
+        } finally {
+          DEFER = SYMS = null;
+        }
       A().forEach((a, i) => drawSym(a, i));
       if (drag && drag.k) drawSym(drag, -1);
     } else {
@@ -1040,17 +1295,19 @@ export function createTargetPage(deps) {
         })
     );
   }
-  function boxes(by) {
+  function boxes(by, o = {}) {
     const p = P(),
       D = dmpiList(),
-      bw = (PW - 20) / 6;
+      cols = o.cols || 6,
+      bw = (o.w || PW - 20) / cols;
     for (let i = 0; i < 6; i++) {
-      const bx = 10 + i * bw;
+      const bx = (o.x0 == null ? 10 : o.x0) + (i % cols) * bw,
+        yy = by + Math.floor(i / cols) * 164;
       x.fillStyle = p.panel;
-      x.fillRect(bx, by, bw - 6, 156);
+      x.fillRect(bx, yy, bw - 6, 156);
       x.strokeStyle = p.line;
       x.lineWidth = PF.pst == 'prog' ? 1 : 1.2;
-      x.strokeRect(bx, by, bw - 6, 156);
+      x.strokeRect(bx, yy, bw - 6, 156);
       const a = D[i];
       x.textAlign = 'left';
       x.textBaseline = 'alphabetic';
@@ -1059,29 +1316,29 @@ export function createTargetPage(deps) {
           x.fillStyle = p.mu;
           x.font = '12px ' + FONT;
           ['DMPI: fill from the', 'datacard, or use the', 'DMPI tool.'].forEach((q, k) =>
-            x.fillText(q, bx + 8, by + 22 + k * 18)
+            x.fillText(q, bx + 8, yy + 22 + k * 18)
           );
         }
         continue;
       }
       x.fillStyle = PF.pst == 'prog' ? '#ff5d5d' : '#000';
       x.font = '700 13px ' + FONT;
-      x.fillText(a.t, bx + 8, by + 20);
+      x.fillText(a.t, bx + 8, yy + 20);
       if (a.ref) {
         x.textAlign = 'right';
         x.fillStyle = PF.pst == 'prog' ? refCol(a.kind, true) || COL.ing : '#000';
         x.font = '700 11.5px ' + FONT;
-        x.fillText(a.ref, bx + bw - 14, by + 20);
+        x.fillText(a.ref, bx + bw - 14, yy + 20);
         x.textAlign = 'left';
       }
       x.fillStyle = p.tx;
       x.font = '11.5px ' + FONT;
       [a.d.toUpperCase(), a.ll, 'ELEV: ' + a.elv, 'WPN: ' + a.w, 'FUZE: ' + a.fz].forEach((q, k) =>
-        x.fillText(fit(q, bw - 22), bx + 8, by + 44 + k * 21)
+        x.fillText(fit(q, bw - 22), bx + 8, yy + 44 + k * 21)
       );
       if (SCR) {
         // on screen only: the × that takes this aim point away
-        const [cx, cy] = boxX(i, by);
+        const [cx, cy] = boxX(i, yy);
         x.fillStyle = 'rgba(255,93,93,.14)';
         x.beginPath();
         x.arc(cx, cy, 9, 0, 7);
@@ -1108,45 +1365,53 @@ export function createTargetPage(deps) {
     boxes(652);
   }
   // the text page: description, components, DMPI, threats, attack, remarks; the detail pictures on the right
-  function textPage() {
+  // o: where the text goes and how big (the page, or a Kneeboard card), and where the detail pictures go (null: none)
+  function textPage(o = {}) {
     const p = P(),
       t = tgt(),
-      s = st();
-    hdr('TARGET INFORMATION');
+      s = st(),
+      X0 = o.x0 || 22,
+      TW = o.w || 514,
+      FS = o.font || 13,
+      LH = o.lh || 18,
+      MAXY = o.maxY || PH - 50,
+      NC = o.comps || 6,
+      DET = o.det === undefined ? { x: 560, y: 128, w: 528, h: 330, gap: 20 } : o.det;
+    if (!o.noHdr) hdr('TARGET INFORMATION');
     if (!t || !s) return;
     const f = FEAT[t.key],
       D = s.auto ? dc() : null,
       DM = dmpiList(),
       N = A().filter(a => a.k == 'callout');
-    let y = 152;
+    let y = o.y0 || 152;
     x.textAlign = 'left';
     x.textBaseline = 'alphabetic';
     const H = q => {
         if (PF.pst == 'prog') {
           x.fillStyle = p.ac;
-          x.font = '700 12px ' + FONT;
-          x.fillText(q, 22, y);
+          x.font = '700 ' + (FS - 1) + 'px ' + FONT;
+          x.fillText(q, X0, y);
           x.strokeStyle = p.line;
           x.lineWidth = 1;
           x.beginPath();
-          x.moveTo(22, y + 6);
-          x.lineTo(536, y + 6);
+          x.moveTo(X0, y + 6);
+          x.lineTo(X0 + TW, y + 6);
           x.stroke();
         } else {
           x.fillStyle = '#000';
-          x.fillRect(16, y - 15, 520, 20);
+          x.fillRect(X0 - 6, y - FS - 2, TW + 6, FS + 7);
           x.fillStyle = '#fff';
-          x.font = 'bold 12.5px ' + FONT;
-          x.fillText(q, 22, y);
+          x.font = 'bold ' + (FS - 0.5) + 'px ' + FONT;
+          x.fillText(q, X0, y);
         }
-        y += 24;
+        y += LH + 6;
       },
       L = (q, c) => {
-        if (y > PH - 50) return;
+        if (y > MAXY) return;
         x.fillStyle = c || p.tx;
-        x.font = '13px ' + FONT;
-        x.fillText(fit(q, 510), 24, y);
-        y += 18;
+        x.font = FS + 'px ' + FONT;
+        x.fillText(fit(q, TW - 4), X0 + 2, y);
+        y += LH;
       },
       M = () => L('Not filled: press "Fill from the datacard".', p.mu);
     H('1. TARGET DESCRIPTION');
@@ -1161,23 +1426,26 @@ export function createTargetPage(deps) {
         ? `Status: ${f.pct != null ? f.pct + '% operational · ' : ''}${f.feats.length} components`
         : 'Status: not known'
     );
-    y += 6;
+    y += LH / 3;
     H('2. COMPONENTS');
     const comp =
         f && f.feats
           ? f.feats.map((q, i) => `${i + 1}. ${q.name}${q.st == 2 ? ' (destroyed)' : q.st == 1 ? ' (damaged)' : ''}`)
           : [],
       marked = N.map(a => a.t).filter(Boolean);
-    comp.slice(0, marked.length ? 5 : 6).forEach(q => L(q));
-    if (comp.length > (marked.length ? 5 : 6)) L('… ' + (comp.length - (marked.length ? 5 : 6)) + ' more', p.mu);
+    const nc = marked.length ? NC - 1 : NC;
+    comp.slice(0, nc).forEach(q => L(q));
+    if (comp.length > nc) L('… ' + (comp.length - nc) + ' more', p.mu);
     if (!comp.length) L('—', p.mu);
     if (marked.length) L('Marked on the picture: ' + marked.join(', '));
-    y += 6;
+    y += LH / 3;
     H('3. DMPI');
     if (DM.length)
-      DM.slice(0, 4).forEach(a => L(`${a.t}${a.ref ? ' (' + a.ref + ')' : ''}: ${a.d} · ${a.w} · fuze ${a.fz}`));
+      DM.slice(0, o.dmpis || 4).forEach(a =>
+        L(`${a.t}${a.ref ? ' (' + a.ref + ')' : ''}: ${a.d} · ${a.w} · fuze ${a.fz}`)
+      );
     else M();
-    y += 6;
+    y += LH / 3;
     H('4. THREATS');
     if (D) {
       D.sams.forEach(q =>
@@ -1191,7 +1459,7 @@ export function createTargetPage(deps) {
       );
       if (!D.sams.length && !D.units.length) L('No known enemy SAM or unit near the target.', p.mu);
     } else M();
-    y += 6;
+    y += LH / 3;
     H('5. ATTACK');
     if (D && D.route) {
       const R = D.route;
@@ -1210,11 +1478,19 @@ export function createTargetPage(deps) {
       if (t.flight && i.tot) L('TOT ' + i.tot);
     } else if (D) L('No attack: plan it on the Pop-up, HADB or TOSS tab.', p.mu);
     else M();
-    y += 6;
+    y += LH / 3;
     H('6. REMARKS');
     (s.rem || '—').split('\n').forEach(q => L(q));
-    // the detail pictures: around the aim points, on the plan of the objective (or on the screenshot)
-    const shot = s.view == 'shot' && s.shot,
+    if (DET) details(DET, DM);
+  }
+  // the detail pictures: around the aim points, on the plan of the objective (or on the screenshot); two, one under the other
+  function details(o, DM) {
+    const p = P(),
+      t = tgt(),
+      s = st();
+    if (!t || !s) return;
+    const f = FEAT[t.key],
+      shot = s.view == 'shot' && s.shot,
       fp = f && f.plan,
       src = shot ? pic() : fp ? { c: planFiltered(), geo: fp.geo } : pic(),
       pts = [];
@@ -1231,10 +1507,10 @@ export function createTargetPage(deps) {
       }
     }
     pts.slice(0, 2).forEach((a, i) => {
-      const bx = 560,
-        by = 128 + i * 350,
-        bw = 528,
-        bh = 330,
+      const bx = o.x,
+        by = o.y + i * (o.h + o.gap),
+        bw = o.w,
+        bh = o.h,
         sw = src.c.width / 5,
         sh = (sw * bh) / bw;
       x.fillStyle = '#000';
@@ -1321,50 +1597,107 @@ export function createTargetPage(deps) {
     }
     return c;
   }
-  // a Kneeboard card (1600 x 2400): g the graphic, t the target information, d the detail pictures
+  // a Kneeboard card (1600 x 2400, 2:3), laid out for its shape with everything at one scale (760 x 1140 page pixels):
+  // g the graphic (header, picture, the six DMPI boxes in two rows), t the target information, d the two detail pictures
+  const CW = 760,
+    CH = 1140;
+  function cardHdr(title) {
+    const p = P(),
+      t = tgt(),
+      s = st(),
+      i = deps.info ? deps.info() : {},
+      f = t && FEAT[t.key];
+    x.fillStyle = p.page;
+    x.fillRect(0, 0, CW, CH);
+    x.fillStyle = p.panel;
+    x.fillRect(1, 1, CW - 2, 150);
+    x.strokeStyle = p.line;
+    x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+    x.strokeRect(1, 1, CW - 2, 150);
+    x.textBaseline = 'alphabetic';
+    x.textAlign = 'left';
+    x.fillStyle = p.ac;
+    x.font = '700 12px ' + FONT;
+    x.fillText(title, 16, 24);
+    x.textAlign = 'right';
+    x.font = '700 13px ' + FONT;
+    x.fillText('BMS CARDS', CW - 16, 24);
+    x.textAlign = 'left';
+    x.fillStyle = p.tx;
+    x.font = '700 21px ' + FONT;
+    x.fillText(fit((s && s.fac) || '', CW - 32), 16, 52);
+    if (!t) return;
+    const elv = t.dmpis.find(d => d.altFt),
+      rows = [
+        [
+          ['TGT ID', t.objId != null ? 'OBJ ' + t.objId : t.label],
+          ['FUNCTION', t.type >= 0 && OBJ_TYPES[t.type] ? String(OBJ_TYPES[t.type]).toUpperCase() : '—'],
+          ['STATUS', f && f.pct != null ? f.pct + '%' : '—'],
+        ],
+        [
+          ['COORDS', deps.geoLL ? deps.geoLL(t.x, t.y) : ''],
+          ['ELEV', elv ? elv.altFt + ' FT MSL' : '—'],
+        ],
+        [
+          ['STPT', t.refs.join(', ') || '—'],
+          ['SOURCE', !s ? '—' : s.view == 'shot' ? 'SCREENSHOT' : s.view == 'map' ? 'MAP' : 'OBJECTIVE FILES'],
+          ['', i.cs || ''],
+        ],
+      ];
+    x.font = '13px ' + FONT;
+    rows.forEach((row, k) => {
+      let xx = 16;
+      row.forEach(([l, v]) => {
+        if (l) {
+          x.fillStyle = p.mu;
+          x.fillText(l, xx, 82 + k * 22);
+          xx += x.measureText(l).width + 6;
+        }
+        x.fillStyle = l ? p.tx : p.mu;
+        v = fit(String(v), CW - 16 - xx);
+        x.fillText(v, xx, 82 + k * 22);
+        xx += x.measureText(v).width + 20;
+      });
+    });
+  }
   function card(kind) {
-    const k = 1600 / PW;
-    return into(1600, 2400, k, () => {
+    return into(1600, 2400, 1600 / CW, () => {
       const p = P();
-      x.fillStyle = p.page;
-      x.fillRect(0, 0, PW, 2400 / k);
       if (kind == 'g') {
-        hdr('BASIC TARGET GRAPHIC');
-        x.fillStyle = p.page;
-        x.fillRect(0, 116, PW, PH);
-        IMG = { x: 0, y: 128, w: PW, h: 790 };
+        cardHdr('BASIC TARGET GRAPHIC');
+        IMG = { x: 0, y: 160, w: CW, h: 560 };
         CARDM = true;
         picture();
         CARDM = false;
-        // the DMPI boxes in two rows of three, larger
-        const bx = into(2 * PW, 2 * PH, 2, () => {
-            x.fillStyle = p.page;
-            x.fillRect(0, 0, PW, PH);
-            boxes(652);
-          }),
-          bw = (PW - 20) / 6,
-          sc = PW / (3 * bw);
-        [0, 1].forEach(r =>
-          x.drawImage(bx, (10 + r * 3 * bw) * 2, 650 * 2, 3 * bw * 2, 160 * 2, 0, 930 + r * 335, PW, 160 * sc)
-        );
+        x.strokeStyle = p.line;
+        x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+        x.strokeRect(IMG.x, IMG.y, IMG.w, IMG.h);
+        boxes(732, { x0: 6, w: CW - 6, cols: 3 });
+      } else if (kind == 't') {
+        cardHdr('TARGET INFORMATION');
+        textPage({
+          noHdr: true,
+          x0: 22,
+          y0: 190,
+          w: CW - 44,
+          font: 15,
+          lh: 23,
+          maxY: CH - 60,
+          comps: 12,
+          dmpis: 6,
+          det: null,
+        });
       } else {
-        // the page is drawn, then the text column (or the detail column) is moved under the header, larger
-        const pg = into(2 * PW, 2 * PH, 2, () => textPage());
-        hdr('TARGET INFORMATION');
-        x.fillStyle = p.page;
-        x.fillRect(0, 116, PW, 2400 / k - 116);
-        const sx = kind == 't' ? 0 : 554,
-          sw = kind == 't' ? 548 : 540,
-          sc = PW / sw;
-        x.drawImage(pg, sx * 2, 124 * 2, sw * 2, 690 * 2, 0, 128, PW, 690 * sc);
+        cardHdr('TARGET INFORMATION · DETAILS');
+        details({ x: 8, y: 162, w: CW - 16, h: 452, gap: 14 }, dmpiList());
       }
       x.fillStyle = p.band;
-      x.fillRect(0, 2400 / k - 34, PW, 34);
+      x.fillRect(0, CH - 34, CW, 34);
       x.fillStyle = p.btx;
       x.font = '600 12px ' + FONT;
       x.textAlign = 'center';
       x.textBaseline = 'alphabetic';
-      x.fillText(CLS + '   ·   DATUM WGS-84', PW / 2, 2400 / k - 13);
+      x.fillText(CLS, CW / 2, CH - 13);
     });
   }
   // the picture for the datacard (the shape of its free space)
@@ -1487,7 +1820,8 @@ export function createTargetPage(deps) {
    )}</span></div><div class="tgrow"><button type="button" class="btn g tgunfill">Remove</button><span class="hint">DTC, attack planner, campaign</span></div></div></div>
   <div class="wcard"><h3>Filter</h3>${seg('filt', FILTERS, PF.filt)}
    <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
-   <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label></div>
+   <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label>
+   <label class="tgsl tgban"${PF.filt == 'uav' ? '' : ' hidden'}><span>Banner</span><input type="text" class="tgbant" maxlength="40"></label></div>
   <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(([k, l]) => `<button type="button" data-tool="${k}" class="${k == tool ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
    <div class="tgrow"><span class="hint">Colour</span><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}"></i>`).join('')}</span></div>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
@@ -1553,6 +1887,7 @@ export function createTargetPage(deps) {
         if (framing) frame();
       } else if (name == 'filt') {
         PF.filt = v;
+        banUI();
         pfSave();
         draw();
       } else if (name == 'lsty') {
@@ -1631,6 +1966,12 @@ export function createTargetPage(deps) {
       const n = q('.tgnsc');
       n.hidden = !PF.names;
       if (PF.names) appear(n);
+      pfSave();
+      draw();
+    };
+    q('.tgbant').value = PF.banner;
+    q('.tgbant').oninput = e => {
+      PF.banner = e.target.value;
       pfSave();
       draw();
     };
@@ -2067,6 +2408,12 @@ export function createTargetPage(deps) {
   }
 
   // ---- the state of the controls
+  function banUI() {
+    const b = q('.tgban'),
+      on = PF.filt == 'uav';
+    if (on && b.hidden) appear(b);
+    b.hidden = !on;
+  }
   function setView(v) {
     const s = st();
     if (!s) return;
@@ -2267,7 +2614,13 @@ export function createTargetPage(deps) {
         try {
           const o = deps.prefs && (await deps.prefs.load());
           if (o && typeof o == 'object') {
-            for (const k of ['filt', 'lsty', 'pst']) if (typeof o[k] == 'string') PF[k] = o[k];
+            for (const k of ['filt', 'lsty', 'pst', 'banner', 'nscope']) if (typeof o[k] == 'string') PF[k] = o[k];
+            if (typeof o.names == 'boolean') PF.names = o.names;
+            q('.tgbant').value = PF.banner;
+            q('.tgnames').classList.toggle('g', !PF.names);
+            q('.tgnsc').hidden = !PF.names;
+            segSet('nscope', PF.nscope);
+            banUI();
             for (const k of ['con', 'grn', 'range']) if (isFinite(o[k])) PF[k] = +o[k];
             if (o.show && typeof o.show == 'object')
               for (const k of Object.keys(PF.show)) if (typeof o.show[k] == 'boolean') PF.show[k] = o.show[k];
