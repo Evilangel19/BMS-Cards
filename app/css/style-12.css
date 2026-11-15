@@ -80,6 +80,36 @@
   flex-direction: column;
   min-width: 0;
 }
+.tgp .tgrowt > span {
+  flex: 1;
+}
+.tgp .tgx {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--mu);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.tgp .tgrowt:hover .tgx {
+  opacity: 1;
+}
+.tgp .tgx:hover {
+  color: #ff5d5d;
+  border-color: #ff5d5d66;
+  background: #ff5d5d14;
+}
 .tgp .tgrowt small {
   color: var(--mu);
   font-size: 11px;
@@ -260,7 +290,7 @@
 .tgp .tgstage {
   position: relative;
 }
-.tgp .tgstage canvas {
+.tgp .tgstage > canvas {
   display: block;
   width: 100%;
   height: auto;
@@ -269,7 +299,7 @@
   touch-action: none;
   cursor: crosshair;
 }
-.tgp .tgstage canvas.tgmove {
+.tgp .tgstage > canvas.tgmove {
   cursor: move;
 }
 .tgp .tgmap {
@@ -377,4 +407,26 @@
 }
 .tgdlg .tgsp {
   flex: 1;
+}
+/* the LEVELS menu of the Map page, lent to the bar of the picture */
+.tgp .tglev {
+  position: relative;
+  margin-left: 14px;
+}
+.tgp .tglev #mpbasew {
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: 700;
+}
+.tgp .tglev #mpbaseb {
+  box-shadow: none;
+}
+.tgp .tglev #mpbase {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  max-height: 70vh;
+  overflow: auto;
+  box-shadow: 0 8px 24px #000a;
 }

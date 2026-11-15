@@ -12,6 +12,8 @@ import {
   threatsNear,
   featKind,
   planBox,
+  hillshade,
+  groundGrid,
 } from '../app/js/core/tgtdraw.js';
 
 let n = 0,
@@ -89,6 +91,30 @@ ok(
 );
 ok(th.sams[0].inside && !th.sams[1].inside, 'the target inside the SA-8 ring, outside the SA-6 one');
 ok(th.units.length == 1 && th.units[0].name == '2nd Tank Battalion', 'only the units near the target');
+
+// the relief: a slope that faces the sun (north west) is lighter than flat ground, the slope on the other side darker
+const ramp = f => Array.from({ length: 25 }, (_, i) => f(i % 5, Math.floor(i / 5))),
+  flat = hillshade(
+    ramp(() => 100),
+    5,
+    5,
+    30
+  )[12],
+  nw = hillshade(
+    ramp((c, r) => 1000 + 15 * (c + r)),
+    5,
+    5,
+    30
+  )[12], // higher to the south east: the slope faces north west
+  se = hillshade(
+    ramp((c, r) => 1000 - 15 * (c + r)),
+    5,
+    5,
+    30
+  )[12];
+ok(nw > flat && se < flat, `relief: facing the sun ${nw.toFixed(2)} > flat ${flat.toFixed(2)} > away ${se.toFixed(2)}`);
+const gg = groundGrid(geoBox(600, 700, 1.2, 0.6));
+ok(gg.cols == 40 && gg.pts.length == gg.cols * gg.rows, 'the ground grid: a point every 30 m');
 
 // kinds of buildings
 ok(

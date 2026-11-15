@@ -298,6 +298,7 @@ function tgtDeps() {
           .forEach(q =>
             pts.push({
               kind: 'prec',
+              slot: q.slot,
               ref: 'TGT STPT ' + q.stpt,
               short: 'STPT ' + q.stpt,
               name: q.name || nearName(q.x, q.y) || 'STPT ' + q.stpt,
@@ -313,6 +314,7 @@ function tgtDeps() {
         if (t && (t.n || t.e))
           pts.push({
             kind: 'wpn',
+            n,
             ref: 'WPN TGT ' + (n + 1),
             short: 'WPN ' + (n + 1),
             name: t.name && !/^not set$/i.test(t.name) ? t.name : 'Weapon target ' + (n + 1),
@@ -450,13 +452,40 @@ function tgtDeps() {
       return true;
     },
     mapDetach: () => mapV.detach(),
+    levelsTo: el => mapV.isReady() && mapV.levelsTo(el),
+    levelsBack: () => mapV.levelsBack(),
+    mapPal: () => (mapV.isReady() ? mapV.dtcColors() : null),
+    confirm: m => confirm(m),
+    // the aim points taken away on the Target tab: the TGT steerpoints and the weapon targets of the DTC
+    removeDtc(pts) {
+      for (const d of pts) {
+        if (d.kind == 'prec' && d.slot != null) dtcClear('prec', d.slot, false);
+        else if (d.kind == 'wpn' && d.n != null) {
+          S('STPT', 'wpntarget_' + d.n, targetLine(null));
+          dtcChanged('STPT', 'wpntarget_' + d.n);
+        }
+      }
+    },
+    // the heights of the BMS terrain (ft) at points in km, null without the BMS folder
+    async heights(pts) {
+      const t = await terrain();
+      return t
+        ? heightsOf(
+            t,
+            pts.map(p => ({ n: p[1] * FT_KM, e: p[0] * FT_KM }))
+          )
+        : null;
+    },
     fromLL: (lat, lon) => mFromLL(lat, lon),
     kbAdd: (blob, name) => kbAddPic(blob, name),
     putShot: c => {
       ST.MAPSHOT = c;
       draw();
     },
-    shotDim: () => (ST.MDCON ? { w: SHOT[2] - SHOT[0], h: SHOT[3] - SHOT[1], out: 1124 } : SHOTS.dc),
+    shotDim: () =>
+      ST.MDCON
+        ? { w: SHOT[2] - SHOT[0], h: SHOT[3] - SHOT[1], out: 1124, name: 'MDC' }
+        : { ...SHOTS.dc, name: 'Datacard' },
     prefs: { load: () => loadPrefs('tgtprefs.json'), save: o => savePrefs('tgtprefs.json', o) },
   };
 }

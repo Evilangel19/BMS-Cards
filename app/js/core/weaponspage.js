@@ -1125,6 +1125,21 @@ export function createWeaponsPage(deps) {
         rel: v.releaseAltitude,
         fz: st.fz.mode == 'c2' ? 'C2 · ' + st.fz.c2ba + ' ft' : st.fz.ftype,
         wpn: sel && (sel.loadout || sel.manual) ? sel.label : '',
+        // the impacts of the stick (feet), the lethal radius around the first and the last, the CBU footprints: as on the map of this page
+        impacts: (res.impacts || []).map(q => ({ n: q.n, e: q.e })),
+        leth:
+          res.an && res.an.env && res.impacts && res.impacts.length
+            ? {
+                r: res.an.env.out,
+                pts: [res.impacts[0], res.impacts[res.impacts.length - 1]].filter((q, i, a) => a.indexOf(q) === i),
+              }
+            : null,
+        cbu: (() => {
+          const cb = cbuInfo(res);
+          return cb
+            ? { r: cb.diameter / 2, pts: (res.impacts || []).map(q => project(q, v.attackHeading + 180, cb.shortBy)) }
+            : null;
+        })(),
       };
     } catch (e) {
       return null;

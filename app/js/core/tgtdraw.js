@@ -186,11 +186,47 @@ export function planBox(pts, c, w = 1080, h = 520) {
   const wk = Math.max(0.6, ex * 2 * 1.3, ey * 2 * 1.3 * (w / h));
   return geoBox(c[0], c[1], wk, (wk * h) / w);
 }
+// ---- the ground of the plan: the heights of the BMS terrain (HeightMap.raw, about 30 m a sample) on a grid over the plan, shaded as a relief
+/** the grid of the ground over a picture: its points (km, row by row from the top left) and its size; about one point every 30 m, at most `max` across */
+export function groundGrid(geo, aspect = 2160 / 1040, max = 160) {
+  const wm = geoWidth(geo) * 1000,
+    cols = Math.max(8, Math.min(max, Math.ceil(wm / 30))),
+    rows = Math.max(4, Math.round(cols / aspect)),
+    pts = [];
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) pts.push(fromUV(geo, (c + 0.5) / cols, (r + 0.5) / rows));
+  return { cols, rows, pts, cellM: wm / cols };
+}
 /**
- * The plan: an aerial-like picture (dark ground, light roofs, shadows), 2160 x 1040 px. feats: [{name, x, y, st (0 intact, 1 damaged, 2 destroyed)}]
+ * the light on the ground (0 dark .. 1 lit), sun from the north west 45 degrees above the horizon, the relief made twice as steep
+ * @param {ArrayLike<number|null>} h heights (ft), row by row from the top left @param {number} cols @param {number} rows @param {number} cellM
+ */
+export function hillshade(h, cols, rows, cellM, z = 2) {
+  const out = new Float32Array(cols * rows),
+    at = (c, r) => {
+      const v = h[Math.min(rows - 1, Math.max(0, r)) * cols + Math.min(cols - 1, Math.max(0, c))];
+      return v == null ? 0 : v * 0.3048;
+    },
+    az = (315 * Math.PI) / 180,
+    alt = (45 * Math.PI) / 180,
+    lx = Math.sin(az) * Math.cos(alt), // the light: east, north, up
+    ly = Math.cos(az) * Math.cos(alt),
+    lz = Math.sin(alt);
+  for (let r = 0; r < rows; r++)
+    for (let c = 0; c < cols; c++) {
+      const de = (z * (at(c + 1, r) - at(c - 1, r))) / (2 * cellM), // rise to the east
+        dn = (z * (at(c, r - 1) - at(c, r + 1))) / (2 * cellM), // rise to the north (row 0 is the north edge)
+        m = Math.hypot(de, dn, 1);
+      out[r * cols + c] = Math.max(0, Math.min(1, (-de * lx - dn * ly + lz) / m));
+    }
+  return out;
+}
+/**
+ * The plan: an aerial-like picture (the ground, trees, light roofs with their shadows), 2160 x 1040 px. feats: [{name, x, y, st (0 intact, 1 damaged,
+ * 2 destroyed)}]. ground (optional): {cols, rows, h (ft, null outside the theater)} on the grid of groundGrid(planBox(...)): relief, and water where it is 0.
  * @returns {{c: HTMLCanvasElement, geo: any}}
  */
-export function planPicture(feats, c, seed, extra = []) {
+export function planPicture(feats, c, seed, extra = [], ground = null) {
   const W = 2160,
     H = 1040,
     geo = planBox([...feats, ...extra], c, W, H),
@@ -204,13 +240,79 @@ export function planPicture(feats, c, seed, extra = []) {
       const [u, v] = toUV(geo, x, y);
       return [u * W, v * H];
     };
-  g.fillStyle = '#6f7a5e';
-  g.fillRect(0, 0, W, H);
-  for (let i = 0; i < 1800; i++) {
-    g.fillStyle = `rgba(${(40 + r() * 60) | 0},${(60 + r() * 50) | 0},${(30 + r() * 30) | 0},.35)`;
-    g.beginPath();
-    g.arc(r() * W, r() * H, 3 + r() * 14, 0, 7);
-    g.fill();
+  let water = () => false;
+  if (ground && ground.h && ground.h.some(v => v != null)) {
+    const { cols, rows, h } = ground,
+      sh = hillshade(h, cols, rows, (geoWidth(geo) * 1000) / cols),
+      gc = document.createElement('canvas');
+    gc.width = cols;
+    gc.height = rows;
+    const gx = /** @type {CanvasRenderingContext2D} */ (gc.getContext('2d')),
+      id = gx.createImageData(cols, rows),
+      hs = h.filter(v => v != null && v > 0),
+      lo = hs.length ? Math.min(...hs) : 0,
+      hi = hs.length ? Math.max(...hs) : 1;
+    for (let i = 0; i < cols * rows; i++) {
+      const v = h[i],
+        k = i * 4;
+      if (v != null && v <= 0) {
+        id.data.set([44, 67, 80, 255], k); // water
+        continue;
+      }
+      const t = hi > lo ? ((v || lo) - lo) / (hi - lo) : 0, // low and green .. high and drier
+        l = 0.55 + 0.6 * sh[i];
+      id.data.set(
+        [(96 + 40 * t) * l, (116 + 18 * t) * l, (82 + 14 * t) * l, 255].map(q => Math.max(0, Math.min(255, q))),
+        k
+      );
+    }
+    gx.putImageData(id, 0, 0);
+    g.imageSmoothingEnabled = true;
+    g.imageSmoothingQuality = 'high';
+    g.drawImage(gc, 0, 0, W, H);
+    water = (px, py) => {
+      const v =
+        h[Math.min(rows - 1, Math.floor((py / H) * rows)) * cols + Math.min(cols - 1, Math.floor((px / W) * cols))];
+      return v != null && v <= 0;
+    };
+  } else {
+    // no terrain: an even ground with a few wide, soft changes of tone
+    g.fillStyle = '#6b7657';
+    g.fillRect(0, 0, W, H);
+    for (let i = 0; i < 14; i++) {
+      const x0 = r() * W,
+        y0 = r() * H,
+        rr = 200 + r() * 420,
+        gr = g.createRadialGradient(x0, y0, 0, x0, y0, rr);
+      gr.addColorStop(0, r() < 0.5 ? 'rgba(130,128,96,.18)' : 'rgba(70,92,58,.2)');
+      gr.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = gr;
+      g.fillRect(x0 - rr, y0 - rr, 2 * rr, 2 * rr);
+    }
+  }
+  // trees: small dark green dots in groups, never on the water nor on the buildings (they are only a look: BMS gives no trees)
+  const near = feats.map(f => P(f.x, f.y)),
+    clear = Math.max(30, 45 * mpx),
+    tr = Math.max(2.5, Math.min(6, 4 * mpx));
+  for (let i = 0; i < 46; i++) {
+    const cx = r() * W,
+      cy = r() * H,
+      n = 10 + ((r() * 50) | 0),
+      sp = 30 + r() * 110;
+    for (let j = 0; j < n; j++) {
+      const px = cx + (r() - 0.5) * 2 * sp,
+        py = cy + (r() - 0.5) * 2 * sp * 0.7,
+        rad = tr * (0.7 + r() * 0.6);
+      if (water(px, py) || near.some(q => Math.abs(q[0] - px) < clear && Math.abs(q[1] - py) < clear)) continue;
+      g.fillStyle = 'rgba(20,30,16,.35)';
+      g.beginPath();
+      g.arc(px + rad * 0.5, py + rad * 0.5, rad, 0, 7);
+      g.fill();
+      g.fillStyle = r() < 0.5 ? '#3d5a2c' : '#47663a';
+      g.beginPath();
+      g.arc(px, py, rad, 0, 7);
+      g.fill();
+    }
   }
   // a bridge: the spans in a line; the water across it
   const spans = feats.filter(f => featKind(f.name) == 'span');

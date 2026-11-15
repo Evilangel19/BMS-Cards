@@ -19,6 +19,8 @@ import {
   groupTargets,
   threatsNear,
   planPicture,
+  planBox,
+  groundGrid,
   FILTERS,
   filterPic,
 } from './tgtdraw.js';
@@ -66,6 +68,7 @@ const SHOWS = [
   ['egr', 'Egress'],
   ['sam', 'SAM WEZ'],
   ['unit', 'Enemy units'],
+  ['imp', 'Impacts'],
 ];
 const VIEWS = [
   ['plan', 'Plan of the objective'],
@@ -86,7 +89,9 @@ export function createTargetPage(deps) {
     lsty: 'prog',
     pst: 'prog',
     range: 10,
-    show: { dmpi: true, route: true, egr: true, sam: true, unit: true },
+    show: { dmpi: true, route: true, egr: true, sam: true, unit: true, imp: true },
+    names: true,
+    nscope: 'dmpi', // the names of the sub-objectives: of the DMPIs or all
   };
   let pfT = 0;
   const pfSave = () => {
@@ -111,8 +116,10 @@ export function createTargetPage(deps) {
     framing = false,
     built = false;
   const PICKS = [],
+    HIDE = new Set(), // the points taken out of the list (the target of the flight, a route steerpoint): only hidden
     ST = {},
     FEAT = {};
+  const pid = p => p.kind + ':' + (p.ref || p.short || '') + ':' + p.x.toFixed(3) + ',' + p.y.toFixed(3);
   const tgt = () => TL.find(t => t.key == sel) || null;
   const st = () => {
     const t = tgt();
@@ -139,6 +146,9 @@ export function createTargetPage(deps) {
   let x = null,
     IMG = { x: 10, y: 122, w: 1080, h: 520 },
     CARDM = false, // the picture fills its frame (a card, the datacard): the middle is kept
+    CROPR = null, // the part of the picture (u0, v0, w, h) drawn into IMG: the datacard
+    SCR = false, // drawing the page on screen (the marks that are not printed: crop frame, the × of the DMPI boxes)
+    CROP = null, // the crop frame shown for Put on datacard
     PLACED = [];
   const P = () => PAL[PF.pst] || PAL.prog;
 
@@ -151,7 +161,7 @@ export function createTargetPage(deps) {
     if (s.view == 'shot') return s.shot ? { c: s.shot, geo: null, k: 'shot' + s.bv } : null;
     if (s.view == 'map') return s.map ? { c: s.map.c, geo: s.map.geo, k: 'map' + s.bv } : null;
     const f = FEAT[t.key];
-    return f && f.plan ? { c: f.plan.c, geo: f.plan.geo, k: 'plan' } : null;
+    return f && f.plan ? { c: f.plan.c, geo: f.plan.geo, k: 'plan' + (f.v || 0) } : null;
   }
   function stamp() {
     const t = tgt(),
@@ -177,6 +187,13 @@ export function createTargetPage(deps) {
     return { c: FC.get(key), geo: r.geo };
   }
   function prect() {
+    if (CROPR) {
+      const p = pic(),
+        bw = p ? p.c.width : IMG.w,
+        bh = p ? p.c.height : IMG.h,
+        k = IMG.w / (CROPR.w * bw);
+      return { x: IMG.x - CROPR.u * bw * k, y: IMG.y - CROPR.v * bh * k, w: bw * k, h: bh * k };
+    }
     const p = pic(),
       bw = p ? p.c.width : IMG.w,
       bh = p ? p.c.height : IMG.h,
@@ -429,6 +446,9 @@ export function createTargetPage(deps) {
           mode: a.mode,
           fz: a.fz,
           wpn: a.wpn,
+          imp: (a.impacts || []).map(K),
+          leth: a.leth ? { r: a.leth.r / FT_KM, pts: a.leth.pts.map(K) } : null,
+          cbu: a.cbu ? { r: a.cbu.r / FT_KM, pts: a.cbu.pts.map(K) } : null,
         };
       }
     } catch (e) {}
@@ -621,20 +641,85 @@ export function createTargetPage(deps) {
           R.ehdg
         );
     }
+    // the impacts of the stick, as on the map of the Weapons page: red dots, the lethal radius around the first and the last, the CBU footprints
+    if (R && R.src == 'attack' && sh.imp && g) {
+      const k = pxPerKm(),
+        ring = (q, rad, c, dash, fill) => {
+          const [px, py] = W2P(q[0], q[1]);
+          x.beginPath();
+          x.arc(px, py, rad * k, 0, 7);
+          x.fillStyle = fill;
+          x.fill();
+          x.setLineDash(dash);
+          x.strokeStyle = c;
+          x.lineWidth = 2;
+          x.stroke();
+          x.setLineDash([]);
+        };
+      if (R.cbu) R.cbu.pts.forEach(q => ring(q, R.cbu.r, '#ff5d5d', [6, 5], 'rgba(255,93,93,.12)'));
+      if (R.leth) R.leth.pts.forEach(q => ring(q, R.leth.r, '#ff3b3b', [], 'rgba(255,59,59,.07)'));
+      R.imp.forEach(q => {
+        const [px, py] = W2P(q[0], q[1]);
+        x.beginPath();
+        x.arc(px, py, 3.5, 0, 7);
+        x.fillStyle = '#ff5d5d';
+        x.fill();
+        x.strokeStyle = '#111';
+        x.lineWidth = 2;
+        x.stroke();
+      });
+    }
+    const f = FEAT[D.t.key],
+      far = g && geoWidth(g) > 4.5;
+    // the names of the sub-objectives (all of them: the ones that have room)
+    if (g && PF.names && PF.nscope == 'all' && f && f.feats) {
+      x.font = '600 11px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      let n = 0;
+      for (const q of f.feats) {
+        if (n > 80) break;
+        if (sh.dmpi && D.t.dmpis.some(d => Math.hypot(d.x - q.x, d.y - q.y) < 0.03)) continue;
+        const [px, py] = W2P(q.x, q.y);
+        if (!inR(px, py, 8)) continue;
+        const w = x.measureText(q.name).width + 6,
+          bx = px - w / 2,
+          by = py + 9;
+        if (PLACED.some(b => bx < b[0] + b[2] && bx + w > b[0] && by < b[1] + b[3] && by + 14 > b[1])) continue;
+        PLACED.push([bx, by, w, 14]);
+        x.lineWidth = 3;
+        x.strokeStyle = 'rgba(0,0,0,.75)';
+        x.strokeText(q.name, px, by + 7);
+        x.fillStyle = q.st == 2 ? '#ff8a80' : '#e6edf3';
+        x.fillText(q.name, px, by + 7);
+        n++;
+      }
+    }
     if (sh.dmpi && g) {
-      const far = geoWidth(g) > 4.5;
       D.t.dmpis.forEach((d, i) => {
         const [px, py] = W2P(d.x, d.y);
         if (!inR(px, py)) return;
         tri(px, py);
         if (!far || !i)
-          tag(far && D.t.dmpis.length > 1 ? 'DMPI 1–' + D.t.dmpis.length : dmpiName(d, i), px + 16, py - 16, {
-            avoid: true,
-          });
+          tag(
+            far && D.t.dmpis.length > 1
+              ? 'DMPI 1–' + D.t.dmpis.length
+              : dmpiName(d, i) +
+                  (PF.names && d.name && !/^(STPT|WPN|PICK)/.test(d.name) ? ' · ' + d.name.toUpperCase() : ''),
+            px + 16,
+            py - 16,
+            { avoid: true, col: refCol(d.kind) }
+          );
       });
     } // a screenshot has no scale: its aim points are the ones put by hand with the DMPI tool
   }
   const dmpiName = (d, i) => 'DMPI ' + (i + 1) + (d.short ? ' · ' + d.short : '');
+  // the colour of a steerpoint as on the Map page (its palette: dark, light or the BMS one): TGT STPT, weapon target, route steerpoint
+  function refCol(kind, page) {
+    let m = deps.mapPal ? deps.mapPal() : null;
+    if (!m || (page && m.light)) m = { prec: '#4dd0e1', wpn: '#ef4444', stpt: '#ffd23f' };
+    return kind == 'prec' ? m.prec : kind == 'wpn' ? m.wpn : kind == 'stpt' ? m.stpt : undefined;
+  }
   // the symbols drawn by hand
   function drawSym(a, i) {
     const [p1x, p1y] = toP(a.u, a.v),
@@ -923,6 +1008,8 @@ export function createTargetPage(deps) {
               fz: (R && R.fz) || '—',
               x: d.x,
               y: d.y,
+              kind: d.kind,
+              src: d,
             }))
           : [],
       g = geo();
@@ -982,7 +1069,7 @@ export function createTargetPage(deps) {
       x.fillText(a.t, bx + 8, by + 20);
       if (a.ref) {
         x.textAlign = 'right';
-        x.fillStyle = PF.pst == 'prog' ? COL.ing : '#000';
+        x.fillStyle = PF.pst == 'prog' ? refCol(a.kind, true) || COL.ing : '#000';
         x.font = '700 11.5px ' + FONT;
         x.fillText(a.ref, bx + bw - 14, by + 20);
         x.textAlign = 'left';
@@ -992,8 +1079,25 @@ export function createTargetPage(deps) {
       [a.d.toUpperCase(), a.ll, 'ELEV: ' + a.elv, 'WPN: ' + a.w, 'FUZE: ' + a.fz].forEach((q, k) =>
         x.fillText(fit(q, bw - 22), bx + 8, by + 44 + k * 21)
       );
+      if (SCR) {
+        // on screen only: the × that takes this aim point away
+        const [cx, cy] = boxX(i, by);
+        x.fillStyle = 'rgba(255,93,93,.14)';
+        x.beginPath();
+        x.arc(cx, cy, 9, 0, 7);
+        x.fill();
+        x.strokeStyle = '#ff5d5d';
+        x.lineWidth = 1.6;
+        x.beginPath();
+        x.moveTo(cx - 3.5, cy - 3.5);
+        x.lineTo(cx + 3.5, cy + 3.5);
+        x.moveTo(cx + 3.5, cy - 3.5);
+        x.lineTo(cx - 3.5, cy + 3.5);
+        x.stroke();
+      }
     }
   }
+  const boxX = (i, by = 652) => [10 + i * ((PW - 20) / 6) + (PW - 20) / 6 - 6 - 14, by + 156 - 14];
   function graphic() {
     const p = P();
     hdr('BASIC TARGET GRAPHIC');
@@ -1160,11 +1264,35 @@ export function createTargetPage(deps) {
     x.setTransform(2, 0, 0, 2, 0, 0);
     IMG = { x: 10, y: 122, w: 1080, h: 520 };
     CARDM = false;
+    SCR = true;
     if (page == 'g') graphic();
     else textPage();
+    if (CROP && page == 'g') cropMarks();
+    SCR = false;
     const n = root.querySelector('.tginfo'),
       t = tgt();
     if (n) n.textContent = t ? t.label + ' · ' + t.name + ' · ' + A().length + ' symbols' : '';
+  }
+  // the crop frame of Put on datacard: the part that goes to the datacard, the rest darker
+  function cropMarks() {
+    const r = prect(),
+      fx = r.x + CROP.u * r.w,
+      fy = r.y + CROP.v * r.h,
+      fw = CROP.w * r.w,
+      fh = CROP.h * r.h;
+    x.save();
+    x.beginPath();
+    x.rect(r.x, r.y, r.w, r.h);
+    x.rect(fx, fy, fw, fh);
+    x.fillStyle = 'rgba(0,0,0,.6)';
+    x.fill('evenodd');
+    x.setLineDash([8, 5]);
+    x.strokeStyle = '#4cc38a';
+    x.lineWidth = 2;
+    x.strokeRect(fx, fy, fw, fh);
+    x.setLineDash([]);
+    x.restore();
+    tag(CROP.name.toUpperCase() + ' · ' + CROP.dim, fx + 6, fy + 18, { col: '#4cc38a', ls: 'prog' });
   }
   // another canvas, drawn in page pixels at scale k
   function into(w, h, k, fn) {
@@ -1174,7 +1302,10 @@ export function createTargetPage(deps) {
     const x0 = x,
       I0 = IMG,
       C0 = CARDM,
+      R0 = CROPR,
+      S0 = SCR,
       s0 = selA;
+    SCR = false;
     x = c.getContext('2d');
     x.setTransform(k, 0, 0, k, 0, 0);
     selA = -1;
@@ -1184,6 +1315,8 @@ export function createTargetPage(deps) {
       x = x0;
       IMG = I0;
       CARDM = C0;
+      CROPR = R0;
+      SCR = S0;
       selA = s0;
     }
     return c;
@@ -1235,8 +1368,8 @@ export function createTargetPage(deps) {
     });
   }
   // the picture for the datacard (the shape of its free space)
-  function dcShot() {
-    const d = deps.shotDim ? deps.shotDim() : { w: 564, h: 752, out: 1128 },
+  function dcShot(crop) {
+    const d = shotDim(),
       w = d.out,
       h = Math.round((d.out * d.h) / d.w),
       lw = 760,
@@ -1244,8 +1377,71 @@ export function createTargetPage(deps) {
     return into(w, h, k, () => {
       IMG = { x: 0, y: 0, w: lw, h: h / k };
       CARDM = true;
+      CROPR = crop || null;
       picture();
     });
+  }
+  const shotDim = () => (deps.shotDim && deps.shotDim()) || { w: 564, h: 752, out: 1128, name: 'Datacard' };
+  // the biggest frame of the datacard shape on the picture, in the middle (u, v, w, h of the picture)
+  function cropStart() {
+    const p = pic(),
+      d = shotDim(),
+      a = d.w / d.h,
+      pa = p.c.width / p.c.height;
+    let w = 1,
+      h = pa / a;
+    if (h > 1) {
+      h = 1;
+      w = a / pa;
+    }
+    const s = st(),
+      o =
+        s && s.crop && Math.abs(s.crop.w / s.crop.h - w / h) < 1e-6 ? s.crop : { u: (1 - w) / 2, v: (1 - h) / 2, w, h };
+    CROP = { ...o, name: d.name || 'Datacard', dim: d.w + ' × ' + d.h, aspect: w / h };
+    page = 'g';
+    segSet('page', 'g');
+    q('.tgcropbar').hidden = false;
+    q('.tgmainbar').hidden = true;
+    appear(q('.tgcropbar'));
+    q('.tgcropn').textContent =
+      CROP.name + ' format (' + CROP.dim + '): drag the frame; the wheel or the slider changes its size.';
+    q('.tgcrops').max = String(Math.round(w * 100)); // the largest frame that fits
+    q('.tgcrops').value = String(Math.round(CROP.w * 100));
+    draw();
+  }
+  function cropEnd(ok) {
+    if (!CROP) return;
+    const c = { u: CROP.u, v: CROP.v, w: CROP.w, h: CROP.h };
+    CROP = null;
+    q('.tgcropbar').hidden = true;
+    q('.tgmainbar').hidden = false;
+    draw();
+    if (!ok) return;
+    const s = st();
+    if (s) s.crop = c;
+    deps.putShot(dcShot(c));
+    deps.toast && deps.toast('The target picture is on the datacard, in place of the map screenshot.');
+  }
+  // a new size of the crop frame (w: part of the width of the picture), kept in the picture and around its middle
+  function cropSize(w) {
+    if (!CROP) return;
+    const a = CROP.aspect;
+    let nw = Math.max(0.12, Math.min(w, 1)),
+      nh = nw / a;
+    if (nh > 1) {
+      nh = 1;
+      nw = a;
+    }
+    const cx = CROP.u + CROP.w / 2,
+      cy = CROP.v + CROP.h / 2;
+    CROP.w = nw;
+    CROP.h = nh;
+    cropMove(cx - nw / 2, cy - nh / 2);
+  }
+  function cropMove(u, v) {
+    CROP.u = Math.max(0, Math.min(1 - CROP.w, u));
+    CROP.v = Math.max(0, Math.min(1 - CROP.h, v));
+    draw();
   }
 
   // ---- the controls
@@ -1277,11 +1473,18 @@ export function createTargetPage(deps) {
      PF.range
    )}</div>
     <div class="tgrow"><button type="button" class="btn tgframe">Frame on the map</button><button type="button" class="btn g tgunframe" hidden>Cancel</button></div>
-    <p class="hint">The map of the Map page, with its base map and layers (LEVELS, FILTERS on the Map page). Frame the target, then press Capture.</p></div>
+    <p class="hint">The map of the Map page, with its base map and layers (LEVELS above the picture). Frame the target, then press Capture.</p></div>
    <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
     <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
   <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
-   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn g tgunfill">Remove</button><span class="hint">DTC, attack planner, campaign</span></div></div></div>
+   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn${PF.names ? '' : ' g'} tgnames" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
+     'nscope',
+     [
+       ['dmpi', 'DMPI'],
+       ['all', 'All'],
+     ],
+     PF.nscope
+   )}</span></div><div class="tgrow"><button type="button" class="btn g tgunfill">Remove</button><span class="hint">DTC, attack planner, campaign</span></div></div></div>
   <div class="wcard"><h3>Filter</h3>${seg('filt', FILTERS, PF.filt)}
    <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
    <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label></div>
@@ -1312,13 +1515,14 @@ export function createTargetPage(deps) {
  <div class="tgc wcard"><div class="tgbar">${seg(
    'page',
    [
-     ['g', '1 · Graphic'],
-     ['t', '2 · Target information'],
+     ['g', 'Graphic'],
+     ['t', 'Target information'],
    ],
    page
- )}<span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
-  <div class="tgbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel">Delete selected</button><button type="button" class="btn g rd tgclr">Clear all</button><span class="tgsp"></span>
+  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
+  <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel">Delete selected</button><button type="button" class="btn g rd tgclr">Clear all</button><span class="tgsp"></span>
    <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn g tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
     cv = root.querySelector('canvas');
     wire();
@@ -1362,7 +1566,12 @@ export function createTargetPage(deps) {
         pfSave();
         draw();
       } else if (name == 'page') {
+        if (CROP && v != 'g') cropEnd(false);
         page = v;
+        draw();
+      } else if (name == 'nscope') {
+        PF.nscope = v;
+        pfSave();
         draw();
       }
     });
@@ -1416,6 +1625,28 @@ export function createTargetPage(deps) {
       const t = TL.find(z => z.dmpis.some(d => d.kind == 'pick' && d.short == 'PICK ' + PICKS.length));
       if (t) selT(t.key);
     };
+    q('.tgnames').onclick = () => {
+      PF.names = !PF.names;
+      q('.tgnames').classList.toggle('g', !PF.names);
+      const n = q('.tgnsc');
+      n.hidden = !PF.names;
+      if (PF.names) appear(n);
+      pfSave();
+      draw();
+    };
+    q('.tgcropno').onclick = () => cropEnd(false);
+    q('.tgcropok').onclick = () => cropEnd(true);
+    q('.tgcrops').oninput = e => cropSize(+e.target.value / 100);
+    cv.addEventListener(
+      'wheel',
+      e => {
+        if (!CROP) return;
+        e.preventDefault();
+        cropSize(CROP.w * (e.deltaY > 0 ? 1.06 : 1 / 1.06));
+        q('.tgcrops').value = String(Math.round(CROP.w * 100));
+      },
+      { passive: false }
+    );
     q('.tgfill').onclick = () => {
       const s = st();
       if (!s) return;
@@ -1501,8 +1732,7 @@ export function createTargetPage(deps) {
     q('.tgkb').onclick = () => addCards();
     q('.tgdc').onclick = () => {
       if (!pic()) return deps.toast && deps.toast('There is no picture yet.');
-      deps.putShot(dcShot());
-      deps.toast && deps.toast('The target picture is on the datacard, in place of the map screenshot.');
+      cropStart();
     };
     // drawing on the picture
     const pos = e => {
@@ -1526,6 +1756,19 @@ export function createTargetPage(deps) {
       if (page != 'g' || !pic()) return;
       const [px, py] = pos(e),
         [u, v] = toU(px, py);
+      if (CROP) {
+        if (u >= CROP.u && u <= CROP.u + CROP.w && v >= CROP.v && v <= CROP.v + CROP.h) {
+          mv = { crop: true, u, v, o: { u: CROP.u, v: CROP.v } };
+          cv.setPointerCapture(e.pointerId);
+        }
+        return;
+      }
+      // the × of a DMPI box
+      const D = dmpiList();
+      for (let i = 0; i < Math.min(6, D.length); i++) {
+        const [cx, cy] = boxX(i);
+        if (Math.hypot(px - cx, py - cy) < 11) return removeDmpi(D[i]);
+      }
       if (u < 0 || u > 1 || v < 0 || v > 1) return;
       if (tool == 'select') {
         selA = hit(px, py);
@@ -1587,6 +1830,10 @@ export function createTargetPage(deps) {
       if (!mv && !drag) return;
       const [px, py] = pos(e),
         [u, v] = toU(px, py);
+      if (mv && mv.crop) {
+        cropMove(mv.o.u + u - mv.u, mv.o.v + v - mv.v);
+        return;
+      }
       if (mv) {
         const a = A()[mv.i],
           du = u - mv.u,
@@ -1734,6 +1981,21 @@ export function createTargetPage(deps) {
     q('.tgunframe').hidden = true;
     draw();
   }
+  // the LEVELS menu of the Map page (base map and layers), lent to the bar of the picture while the background is the map
+  let levOn = false;
+  function levels(on) {
+    const el = built && q('.tglev');
+    if (!el || !deps.levelsTo) return;
+    if (on && !levOn && root.isConnected) {
+      levOn = deps.levelsTo(el);
+      el.hidden = !levOn;
+      if (levOn) appear(el);
+    } else if (!on && levOn) {
+      deps.levelsBack();
+      levOn = false;
+      el.hidden = true;
+    }
+  }
   // Kneeboard cards: a small window with the three cards to choose
   function addCards() {
     if (!tgt()) return;
@@ -1818,6 +2080,7 @@ export function createTargetPage(deps) {
       e.hidden = !on;
     });
     q('.tgframe').textContent = s.map ? 'Frame again' : 'Frame on the map';
+    levels(v == 'map');
     PF.filt = v == 'plan' ? (PF.filt == 'none' ? 'recon' : PF.filt) : PF.filt;
     segSet('filt', PF.filt);
     draw();
@@ -1863,18 +2126,79 @@ export function createTargetPage(deps) {
     }
     L.innerHTML = TL.map(
       t =>
-        `<button type="button" class="tgrowt${t.key == sel ? ' on' : ''}" data-k="${esc(t.key)}"><b>${esc(t.label)}</b><span>${esc(t.name)}<small>${esc(
+        `<div role="button" tabindex="0" class="tgrowt${t.key == sel ? ' on' : ''}" data-k="${esc(t.key)}"><b>${esc(t.label)}</b><span>${esc(t.name)}<small>${esc(
           [
             t.dmpis.length ? t.dmpis.length + ' DMPI' : '',
             t.objId != null && t.type >= 0 && OBJ_TYPES[t.type] ? OBJ_TYPES[t.type] : '',
           ]
             .filter(Boolean)
             .join(' · ') || 'point'
-        )}</small></span></button>`
+        )}</small></span><button type="button" class="tgx" title="${esc(rmTitle(t))}">×</button></div>`
     ).join('');
-    L.querySelectorAll('[data-k]').forEach(b => (b.onclick = () => selT(b.dataset.k)));
+    L.querySelectorAll('[data-k]').forEach(b => {
+      b.onclick = e => {
+        const t = TL.find(z => z.key == b.dataset.k);
+        if (e.target.closest('.tgx')) return t && removeTarget(t);
+        selT(b.dataset.k);
+      };
+      b.onkeydown = e => {
+        if (e.key == 'Enter' || e.key == ' ') {
+          e.preventDefault();
+          selT(b.dataset.k);
+        }
+      };
+    });
+  }
+  // ---- taking a target or an aim point away: the TGT steerpoints and the weapon targets are deleted from the DTC (so from the Map too); the target of
+  // the flight, a route steerpoint and a picked point are only taken out of this list
+  const inDtc = d => d && (d.kind == 'prec' || d.kind == 'wpn');
+  const rmTitle = t =>
+    t.dmpis.some(inDtc)
+      ? 'Remove: ' +
+        t.dmpis
+          .filter(inDtc)
+          .map(d => d.short)
+          .join(', ') +
+        ' deleted from the DTC'
+      : 'Remove from this list';
+  async function removeTarget(t) {
+    const del = t.dmpis.filter(inDtc),
+      msg = del.length
+        ? `Remove ${t.name}? ${del.map(d => d.ref).join(', ')} will be deleted from the DTC (and from the map).` +
+          (t.flight ? ' The target of the flight is only taken out of this list.' : '')
+        : `Take ${t.name} out of this list?` +
+          (t.flight ? ' It is the target of the flight: the campaign does not change.' : '');
+    if (deps.confirm && !(await deps.confirm(msg))) return;
+    if (del.length && deps.removeDtc) deps.removeDtc(del);
+    t.dmpis.filter(d => !inDtc(d)).forEach(d => HIDE.add(pid(d)));
+    (t.pts || []).filter(d => d.kind == 'flight').forEach(d => HIDE.add(pid(d)));
+    for (let i = PICKS.length - 1; i >= 0; i--) if (t.dmpis.includes(PICKS[i])) PICKS.splice(i, 1);
+    await loadTargets();
+    selT(sel);
+  }
+  async function removeDmpi(a) {
+    if (!a) return;
+    if (!a.src) {
+      // put by hand
+      const L = A(),
+        i = L.findIndex(z => z.k == 'dmpi' && z.u == a.u && z.v == a.v);
+      if (i >= 0) L.splice(i, 1);
+      return draw();
+    }
+    const d = a.src;
+    if (inDtc(d)) {
+      if (deps.confirm && !(await deps.confirm(`Delete ${d.ref} from the DTC (and from the map)?`))) return;
+      deps.removeDtc && deps.removeDtc([d]);
+    } else {
+      HIDE.add(pid(d));
+      const i = PICKS.indexOf(d);
+      if (i >= 0) PICKS.splice(i, 1);
+    }
+    await loadTargets();
+    selT(sel);
   }
   function selT(k) {
+    if (CROP) cropEnd(false);
     if (framing) unframe();
     sel = k;
     selA = -1;
@@ -1895,13 +2219,23 @@ export function createTargetPage(deps) {
     try {
       const r = await deps.features(t.objId);
       if (r && r.feats && r.feats.length) {
-        const plan = planPicture(
-          r.feats,
-          [t.x, t.y],
-          t.key,
-          t.dmpis.map(d => ({ x: d.x, y: d.y }))
-        );
-        FEAT[t.key] = { feats: r.feats, pct: r.pct, plan };
+        const ex = t.dmpis.map(d => ({ x: d.x, y: d.y })),
+          plan = planPicture(r.feats, [t.x, t.y], t.key, ex);
+        FEAT[t.key] = { feats: r.feats, pct: r.pct, plan, v: 0 };
+        // the relief of the BMS terrain under it, when the BMS folder is known (drawn again when the heights come)
+        if (deps.heights) {
+          const gr = groundGrid(planBox([...r.feats, ...ex], [t.x, t.y], 2160, 1040));
+          deps
+            .heights(gr.pts)
+            .then(h => {
+              if (!h || !h.some(z => z != null)) return;
+              const f = FEAT[t.key];
+              f.plan = planPicture(r.feats, [t.x, t.y], t.key, ex, { cols: gr.cols, rows: gr.rows, h });
+              f.v++;
+              if (sel == t.key) draw();
+            })
+            .catch(() => {});
+        }
       } else FEAT[t.key] = { none: true };
     } catch (e) {
       FEAT[t.key] = { none: true };
@@ -1918,7 +2252,10 @@ export function createTargetPage(deps) {
       r = (deps.points && (await deps.points())) || r;
     } catch (e) {}
     OBJS = r.objs || [];
-    TL = groupTargets([...(r.points || []), ...PICKS], OBJS);
+    const all = [...(r.points || []), ...PICKS].filter(p => !HIDE.has(pid(p)));
+    TL = groupTargets(all, OBJS);
+    // the points of each target (the flight one is not an aim point)
+    TL.forEach(t => (t.pts = all.filter(p => p.kind == 'flight' && Math.hypot(p.x - t.x, p.y - t.y) < 3.2)));
     if (!TL.some(t => t.key == sel)) sel = TL.length ? TL[0].key : '';
   }
 
@@ -1945,7 +2282,9 @@ export function createTargetPage(deps) {
       selT(sel);
     },
     leave() {
+      if (CROP) cropEnd(false);
       if (framing) unframe();
+      levels(false);
     },
     // the picture captured in the frame of the Map page: corners {tl, tr, bl} as [lat, lon]
     setShot(c, g) {
@@ -1961,6 +2300,18 @@ export function createTargetPage(deps) {
       setView('map');
     },
     // for the tests
-    _t: { list: () => TL, sel: () => sel, state: () => st(), card, dcShot, dmpiList, dc, setImg, KM_NM },
+    _t: {
+      crop: () => CROP,
+      boxX,
+      list: () => TL,
+      sel: () => sel,
+      state: () => st(),
+      card,
+      dcShot,
+      dmpiList,
+      dc,
+      setImg,
+      KM_NM,
+    },
   };
 }

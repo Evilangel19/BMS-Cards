@@ -4744,6 +4744,19 @@ export function createMap(host, deps) {
     shotStart,
     shotTake,
     shotStop,
+    // the LEVELS menu (base map and layers) lent to another page (Weapons > Target): moved into el, then back
+    levelsTo: el => {
+      const w = $('mpbasew');
+      if (!w || !el) return false;
+      el.append(w);
+      return true;
+    },
+    levelsBack: () => {
+      const w = $('mpbasew');
+      if (w && w.parentNode !== host) host.append(w);
+    },
+    // the colours of the DTC steerpoints in the palette of the base map shown (dark, light or BMS): TGT STPT, weapon target, flight plan
+    dtcColors: () => ({ prec: pal.dtc.prec, wpn: '#ef4444', stpt: pal.plan, light: pal === PAL.light }),
     toLL,
     fmtLL,
     isReady: () => !!map,
