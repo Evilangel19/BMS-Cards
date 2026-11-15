@@ -1,0 +1,1966 @@
+// Weapons > Target: a target picture in the style of a Basic Target Graphic. Page 1 (graphic): the picture of the target (the plan of the objective, a
+// picture of the Map page or a pasted screenshot) with the BTG symbols drawn on it, the DMPI boxes under it; page 2 (target information): the text and
+// the detail pictures for the positive identification. "Fill from the datacard" draws the DMPIs (DTC), the attack (attack planner, else the flight plan),
+// the SAM rings and the enemy units (campaign). The pages go to the Kneeboard as cards (2:3) or onto the datacard in place of the map screenshot.
+// The rules without the page (place on the ground, targets, threats, plan, filters) are in tgtdraw.js. Nothing is written into the DTC.
+// deps: {esc, anim(), toast(msg), points() -> Promise<{points, objs}>, features(objId) -> Promise<{feats, pct}|null>, threats() -> {sams, units},
+//   attack() -> {segs, t, hdg, egr, spd, rel, fz, wpn}|null, route() -> [{n, x, y}], info() -> {cs, mis, tot, wpn}, geoLL(x, y), pick() -> Promise<{x, y, name}|null>,
+//   mapFrame(el, [x, y], nm) -> Promise<bool>, mapDetach(), fromLL(lat, lon), kbAdd(blob, name) -> Promise<{side, row}|null>, putShot(canvas), shotDim(), prefs: {load, save}}
+import {
+  PAL,
+  COL,
+  KM_NM,
+  toUV,
+  fromUV,
+  geoWidth,
+  geoCorners,
+  brgDist,
+  brg3,
+  groupTargets,
+  threatsNear,
+  planPicture,
+  FILTERS,
+  filterPic,
+} from './tgtdraw.js';
+import { OBJ_TYPES } from './targets.js';
+
+const FT_KM = 3280.84,
+  PW = 1100,
+  PH = 850,
+  FONT = 'system-ui, Segoe UI, sans-serif',
+  PEN = '"BMS Caveat", cursive',
+  CLS = 'FOR SIMULATION USE ONLY · FALCON BMS';
+const TOOLS = [
+  ['select', 'Select / move'],
+  ['callout', 'Callout'],
+  ['dmpi', 'DMPI ▲'],
+  ['num', 'Number ●'],
+  ['box', 'Box'],
+  ['circle', 'Circle'],
+  ['area', 'Area ◇'],
+  ['arrow', 'Arrow'],
+  ['axis', 'Attack axis'],
+  ['north', 'North'],
+  ['scale', 'Scale'],
+  ['text', 'Text'],
+];
+const HINT = {
+  select:
+    'Drag a symbol to move it. Click a symbol to select it, double-click it to change its text. Delete removes the selected symbol.',
+  callout: 'Click the point, then click where the label goes, then type the text.',
+  dmpi: 'Click the aim point: a red triangle with its DMPI number. The boxes under the picture fill themselves.',
+  num: 'Click: a black disc with the next number.',
+  box: 'Drag to draw a box around a building or a group.',
+  circle: 'Drag to draw a circle: red for the primary target, yellow for the secondary.',
+  area: 'Drag to draw a diamond around the installation.',
+  arrow: 'Drag from the label to the point.',
+  axis: 'Drag from the IP side to the target: a dashed arrow with its heading.',
+  north: 'Click where the north arrow goes. Drag a little to turn it.',
+  scale: 'Drag along a known length, then type the length (for example 500 FT).',
+  text: 'Click, then type the text.',
+};
+const COLS = ['#ffffff', '#ff3b30', '#f5d142', '#111111', '#38d6f2', '#4cc38a'];
+const SHOWS = [
+  ['dmpi', 'DMPI'],
+  ['route', 'Route'],
+  ['egr', 'Egress'],
+  ['sam', 'SAM WEZ'],
+  ['unit', 'Enemy units'],
+];
+const VIEWS = [
+  ['plan', 'Plan of the objective'],
+  ['map', 'Map'],
+  ['shot', 'Screenshot'],
+];
+const RANGES = [2, 5, 10, 20, 40];
+
+export function createTargetPage(deps) {
+  const { esc } = deps;
+  const root = document.createElement('div');
+  root.className = 'tgp';
+  // ---- the settings that stay from one session to the next
+  const PF = {
+    filt: 'recon',
+    con: 1.3,
+    grn: 14,
+    lsty: 'prog',
+    pst: 'prog',
+    range: 10,
+    show: { dmpi: true, route: true, egr: true, sam: true, unit: true },
+  };
+  let pfT = 0;
+  const pfSave = () => {
+    clearTimeout(pfT);
+    pfT = setTimeout(() => {
+      try {
+        deps.prefs && deps.prefs.save(PF);
+      } catch (e) {}
+    }, 400);
+  };
+  // ---- the targets and what the pilot did on each (kept for the session: the pictures are not saved)
+  let TL = [],
+    OBJS = [],
+    sel = '',
+    page = 'g',
+    tool = 'select',
+    col = '#ffffff',
+    selA = -1,
+    drag = null,
+    mv = null,
+    pend = null,
+    framing = false,
+    built = false;
+  const PICKS = [],
+    ST = {},
+    FEAT = {};
+  const tgt = () => TL.find(t => t.key == sel) || null;
+  const st = () => {
+    const t = tgt();
+    if (!t) return null;
+    return (
+      ST[t.key] ||
+      (ST[t.key] = {
+        view: t.objId != null ? 'plan' : 'map',
+        shot: null,
+        map: null,
+        ann: { plan: [], map: [], shot: [] },
+        fac: t.name.toUpperCase(),
+        auto: false,
+        rem: '',
+        bv: 0,
+      })
+    );
+  };
+  const A = () => {
+    const s = st();
+    return s ? s.ann[s.view] : [];
+  };
+  // ---- drawing: x is the context drawn into (the page on screen, a card, the datacard picture), in page pixels
+  let x = null,
+    IMG = { x: 10, y: 122, w: 1080, h: 520 },
+    CARDM = false, // the picture fills its frame (a card, the datacard): the middle is kept
+    PLACED = [];
+  const P = () => PAL[PF.pst] || PAL.prog;
+
+  // the picture under the symbols: {c (filtered), geo (null for a screenshot)}
+  const FC = new Map();
+  function rawPic() {
+    const s = st(),
+      t = tgt();
+    if (!s || !t) return null;
+    if (s.view == 'shot') return s.shot ? { c: s.shot, geo: null, k: 'shot' + s.bv } : null;
+    if (s.view == 'map') return s.map ? { c: s.map.c, geo: s.map.geo, k: 'map' + s.bv } : null;
+    const f = FEAT[t.key];
+    return f && f.plan ? { c: f.plan.c, geo: f.plan.geo, k: 'plan' } : null;
+  }
+  function stamp() {
+    const t = tgt(),
+      i = deps.info ? deps.info() : {};
+    return [
+      'FR ' + String(1 + (Math.abs(hash(sel)) % 900)).padStart(4, '0'),
+      t ? t.label : '',
+      i.tot || '',
+      'BMS CARDS',
+    ]
+      .filter(Boolean)
+      .join('   ');
+  }
+  const hash = s => [...String(s)].reduce((h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0, 0);
+  function pic() {
+    const r = rawPic();
+    if (!r) return null;
+    const key = sel + '|' + r.k + '|' + PF.filt + '|' + PF.con + '|' + PF.grn;
+    if (!FC.has(key)) {
+      if (FC.size > 12) FC.clear();
+      FC.set(key, filterPic(r.c, PF.filt, PF.con, PF.grn, stamp()));
+    }
+    return { c: FC.get(key), geo: r.geo };
+  }
+  function prect() {
+    const p = pic(),
+      bw = p ? p.c.width : IMG.w,
+      bh = p ? p.c.height : IMG.h,
+      r = (CARDM ? Math.max : Math.min)(IMG.w / bw, IMG.h / bh),
+      w = bw * r,
+      h = bh * r;
+    return { x: IMG.x + (IMG.w - w) / 2, y: IMG.y + (IMG.h - h) / 2, w, h };
+  }
+  // the part of the picture that is seen
+  function vr() {
+    const r = prect(),
+      x0 = Math.max(r.x, IMG.x),
+      y0 = Math.max(r.y, IMG.y);
+    return { x: x0, y: y0, w: Math.min(r.x + r.w, IMG.x + IMG.w) - x0, h: Math.min(r.y + r.h, IMG.y + IMG.h) - y0 };
+  }
+  const toP = (u, v) => {
+      const r = prect();
+      return [r.x + u * r.w, r.y + v * r.h];
+    },
+    toU = (px, py) => {
+      const r = prect();
+      return [(px - r.x) / r.w, (py - r.y) / r.h];
+    };
+  const geo = () => {
+    const p = pic();
+    return p ? p.geo : null;
+  };
+  const W2P = (gx, gy) => {
+    const [u, v] = toUV(geo(), gx, gy);
+    return toP(u, v);
+  };
+  const pxPerKm = () => prect().w / geoWidth(geo());
+  const inR = (px, py, m = 0) => {
+    const r = vr();
+    return px >= r.x + m && px <= r.x + r.w - m && py >= r.y + m && py <= r.y + r.h - m;
+  };
+
+  // ---- labels and symbols
+  function tag(t, lx, ly, o = {}) {
+    const pen = o.pen,
+      ls = o.ls || PF.lsty;
+    x.font = pen ? '26px ' + PEN : '600 14px ' + FONT;
+    const w = x.measureText(t).width + 14,
+      h = pen ? 28 : 22;
+    let bx = lx - (o.al == 'c' ? w / 2 : o.al == 'r' ? w : 0),
+      by = ly - h / 2;
+    const cl = () => {
+      if (o.clamp || CARDM) {
+        const r = vr();
+        bx = Math.max(r.x + 4, Math.min(r.x + r.w - w - 4, bx));
+        by = Math.max(r.y + 4, Math.min(r.y + r.h - h - 4, by));
+      }
+    };
+    cl();
+    if (o.avoid) {
+      const b0 = bx,
+        y0 = by,
+        hit = () =>
+          PLACED.some(q => bx < q[0] + q[2] + 4 && bx + w + 4 > q[0] && by < q[1] + q[3] + 3 && by + h + 3 > q[1]);
+      for (let i = 1; i < 14 && hit(); i++) {
+        const s = (i % 2 ? 1 : -1) * Math.ceil(i / 2);
+        bx = b0;
+        by = y0 + s * (h + 4);
+        cl();
+        if (hit()) {
+          by = y0;
+          bx = b0 + s * (w * 0.5 + 8);
+          cl();
+        }
+      }
+      PLACED.push([bx, by, w, h]);
+    }
+    x.textAlign = 'left';
+    x.textBaseline = 'middle';
+    if (pen) {
+      x.fillStyle = o.col || '#fff';
+      x.fillText(t, bx + 7, by + h / 2 + 1);
+      return;
+    }
+    const c = o.col;
+    if (ls == 'prog') {
+      x.fillStyle = 'rgba(15,20,25,.88)';
+      x.fillRect(bx, by, w, h);
+      x.strokeStyle = c || '#e6edf3';
+      x.lineWidth = 1.2;
+      x.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+      x.fillStyle = c || '#e6edf3';
+    } else {
+      x.fillStyle = '#fff';
+      x.fillRect(bx, by, w, h);
+      x.strokeStyle = ls == 'red' ? '#d01818' : c && c != '#ffffff' ? c : '#000';
+      x.lineWidth = 1.4;
+      x.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
+      x.fillStyle = ls == 'red' ? '#d01818' : '#000';
+    }
+    x.fillText(t, bx + 7, by + h / 2 + 1);
+  }
+  function tri(px, py) {
+    x.fillStyle = COL.dmpi;
+    x.strokeStyle = '#fff';
+    x.lineWidth = 1.5;
+    x.beginPath();
+    x.moveTo(px, py - 14);
+    x.lineTo(px + 12, py + 8);
+    x.lineTo(px - 12, py + 8);
+    x.closePath();
+    x.fill();
+    x.stroke();
+  }
+  function head(a1, b1, a2, b2, s, c) {
+    const an = Math.atan2(b2 - b1, a2 - a1);
+    x.fillStyle = c;
+    x.beginPath();
+    x.moveTo(a2, b2);
+    x.lineTo(a2 - s * Math.cos(an - 0.42), b2 - s * Math.sin(an - 0.42));
+    x.lineTo(a2 - s * Math.cos(an + 0.42), b2 - s * Math.sin(an + 0.42));
+    x.closePath();
+    x.fill();
+  }
+  // a hostile unit: the red diamond of the Map page (APP-6 look) with its inner sign
+  function unitSym(px, py, g) {
+    const s = 15,
+      q = s * 0.42;
+    x.save();
+    x.translate(px, py);
+    x.fillStyle = 'rgba(15,20,25,.85)';
+    x.strokeStyle = COL.unit;
+    x.lineWidth = 2;
+    x.beginPath();
+    x.moveTo(0, -s);
+    x.lineTo(s, 0);
+    x.lineTo(0, s);
+    x.lineTo(-s, 0);
+    x.closePath();
+    x.fill();
+    x.stroke();
+    x.lineWidth = 1.6;
+    x.beginPath();
+    if (/inf|mech|abn/.test(g)) {
+      x.moveTo(-q, -q * 0.6);
+      x.lineTo(q, q * 0.6);
+      x.moveTo(-q, q * 0.6);
+      x.lineTo(q, -q * 0.6);
+    }
+    if (/armor|mech|armcav/.test(g)) {
+      x.moveTo(q, 0);
+      x.ellipse(0, 0, q, q * 0.6, 0, 0, 7);
+    }
+    if (/cav/.test(g)) {
+      x.moveTo(-q, q * 0.6);
+      x.lineTo(q, -q * 0.6);
+    }
+    if (/ad|aaa|shorad|basedef/.test(g)) {
+      x.moveTo(-q, q * 0.7);
+      x.quadraticCurveTo(0, -q * 1.3, q, q * 0.7);
+    }
+    if (/missile|rocket/.test(g)) {
+      x.moveTo(0, q);
+      x.lineTo(0, -q);
+      x.moveTo(-q * 0.5, -q * 0.4);
+      x.lineTo(0, -q);
+      x.lineTo(q * 0.5, -q * 0.4);
+    }
+    if (/ship|carrier|sub/.test(g)) {
+      x.moveTo(-q, 0);
+      x.lineTo(q, 0);
+      x.lineTo(q * 0.6, q * 0.6);
+      x.lineTo(-q * 0.6, q * 0.6);
+      x.closePath();
+    }
+    x.stroke();
+    if (/art/.test(g)) {
+      x.fillStyle = COL.unit;
+      x.beginPath();
+      x.arc(0, 0, 3.5, 0, 7);
+      x.fill();
+    }
+    if (/hq|eng|sup|sf|mar|unk/.test(g) && !/shorad/.test(g)) {
+      x.fillStyle = COL.unit;
+      x.font = '700 9px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText({ hq: 'HQ', eng: 'E', sup: 'S', sf: 'SF', mar: 'M', unk: '?' }[g] || '', 0, 1);
+    }
+    x.restore();
+  }
+  // an arrow at the edge of the picture, towards something outside it (b: bearing from the middle of the picture)
+  function edge(b, text, c) {
+    const r = vr(),
+      cx = r.x + r.w / 2,
+      cy = r.y + r.h / 2,
+      R2 = Math.PI / 180,
+      dx = Math.sin(b * R2),
+      dy = -Math.cos(b * R2),
+      m = 26;
+    let t = Infinity;
+    if (dx > 1e-6) t = Math.min(t, (r.x + r.w - m - cx) / dx);
+    if (dx < -1e-6) t = Math.min(t, (r.x + m - cx) / dx);
+    if (dy > 1e-6) t = Math.min(t, (r.y + r.h - m - cy) / dy);
+    if (dy < -1e-6) t = Math.min(t, (r.y + m - cy) / dy);
+    const qx = cx + dx * t,
+      qy = cy + dy * t;
+    x.strokeStyle = c;
+    x.lineWidth = 3;
+    x.beginPath();
+    x.moveTo(qx - dx * 22, qy - dy * 22);
+    x.lineTo(qx, qy);
+    x.stroke();
+    head(qx - dx * 22, qy - dy * 22, qx + dx * 6, qy + dy * 6, 14, c);
+    tag(text, qx - dx * 34, qy - dy * 34, {
+      col: c,
+      al: dx > 0.3 ? 'r' : dx < -0.3 ? 'l' : 'c',
+      clamp: true,
+      avoid: true,
+    });
+  }
+
+  // ---- what the datacard gives for the target on screen (ground in km)
+  function dc() {
+    const t = tgt();
+    if (!t) return null;
+    const c = [t.x, t.y],
+      th = deps.threats ? deps.threats() : { sams: [], units: [] },
+      near = threatsNear(c, th.sams, th.units),
+      route = attackRoute(t);
+    return { t, c, sams: near.sams, units: near.units, route };
+  }
+  // the attack: the attack planner when its target is on this target, else the legs of the flight plan in and out of the steerpoint on it
+  function attackRoute(t) {
+    const pts = [[t.x, t.y], ...t.dmpis.map(d => [d.x, d.y])],
+      on = (gx, gy, km) => pts.some(p => Math.hypot(p[0] - gx, p[1] - gy) < km);
+    try {
+      const a = deps.attack && deps.attack();
+      if (a && a.t && on(a.t.e / FT_KM, a.t.n / FT_KM, 3)) {
+        const K = p => [p.e / FT_KM, p.n / FT_KM],
+          ing = a.segs.filter(s => s.k != 'egress' && s.k != 'ref').map(s => s.pts.map(K)),
+          egr = a.segs.filter(s => s.k == 'egress').map(s => s.pts.map(K)),
+          tp = K(a.t);
+        return {
+          src: 'attack',
+          ing,
+          egr,
+          tp,
+          ip: ing.length && ing[0].length ? ing[0][0] : null,
+          ep: egr.length ? egr[egr.length - 1][egr[egr.length - 1].length - 1] : null,
+          hdg: a.hdg,
+          ehdg: a.egr,
+          spd: a.spd,
+          rel: a.rel,
+          mode: a.mode,
+          fz: a.fz,
+          wpn: a.wpn,
+        };
+      }
+    } catch (e) {}
+    const R = (deps.route && deps.route()) || [];
+    let bi = -1,
+      bd = 6;
+    R.forEach((w, i) => {
+      const d = Math.min(...pts.map(p => Math.hypot(p[0] - w.x, p[1] - w.y)));
+      if (d < bd) {
+        bd = d;
+        bi = i;
+      }
+    });
+    if (bi < 0) return null;
+    const w = R[bi],
+      a = R[bi - 1],
+      b = R[bi + 1],
+      tp = [w.x, w.y];
+    return {
+      src: 'route',
+      stpt: w.n,
+      ing: a ? [[[a.x, a.y], tp]] : [],
+      egr: b ? [[tp, [b.x, b.y]]] : [],
+      tp,
+      ip: a ? [a.x, a.y] : null,
+      ep: b ? [b.x, b.y] : null,
+      ipName: a ? 'STPT ' + a.n : '',
+      epName: b ? 'STPT ' + b.n : '',
+      hdg: a ? brgDist([a.x, a.y], tp).brg : null,
+      ehdg: b ? brgDist(tp, [b.x, b.y]).brg : null,
+    };
+  }
+  // the datacard layer of the graphic page
+  function autoLayer() {
+    const D = dc(),
+      g = geo(),
+      r = vr(),
+      sh = PF.show;
+    PLACED = [];
+    if (!D) return;
+    const k = g ? pxPerKm() : 0;
+    if (sh.sam)
+      D.sams.forEach(s => {
+        const txt = `${s.name} · ${s.nm.toFixed(1)} NM ${brg3(s.brg)} · WEZ ${s.rNm.toFixed(0)} NM${s.inside ? ' · TGT INSIDE' : ''}`;
+        if (!g) return edge(s.brg, txt, COL.sam);
+        const [cx, cy] = W2P(s.x, s.y),
+          R = s.r * k,
+          nx = Math.max(r.x, Math.min(r.x + r.w, cx)),
+          ny = Math.max(r.y, Math.min(r.y + r.h, cy)),
+          dn = Math.hypot(nx - cx, ny - cy),
+          df = Math.max(
+            ...[
+              [r.x, r.y],
+              [r.x + r.w, r.y],
+              [r.x, r.y + r.h],
+              [r.x + r.w, r.y + r.h],
+            ].map(([a, b]) => Math.hypot(a - cx, b - cy))
+          );
+        if (dn < R && df > R) {
+          x.fillStyle = 'rgba(255,159,26,.06)';
+          x.beginPath();
+          x.arc(cx, cy, R, 0, 7);
+          x.fill();
+          x.strokeStyle = COL.sam;
+          x.lineWidth = 2.2;
+          x.setLineDash([10, 7]);
+          x.stroke();
+          x.setLineDash([]);
+          let L = null;
+          for (let b = 0; b < 360; b += 30) {
+            const q = [cx + Math.sin((b * Math.PI) / 180) * R, cy - Math.cos((b * Math.PI) / 180) * R];
+            if (inR(q[0], q[1], 40)) {
+              L = q;
+              break;
+            }
+          }
+          if (L)
+            tag(`${s.name} WEZ ${s.rNm.toFixed(0)} NM`, L[0], L[1], {
+              col: COL.sam,
+              al: 'c',
+              clamp: true,
+              avoid: true,
+            });
+          if (inR(cx, cy)) {
+            x.fillStyle = COL.sam;
+            x.beginPath();
+            x.arc(cx, cy, 5, 0, 7);
+            x.fill();
+            tag(s.name.toUpperCase(), cx + 10, cy + 16, { col: COL.sam, clamp: true, avoid: true });
+          } else if (!L) edge(s.brg, txt, COL.sam);
+        } else if (!inR(cx, cy)) edge(s.brg, txt, COL.sam);
+        else {
+          x.fillStyle = COL.sam;
+          x.beginPath();
+          x.arc(cx, cy, 5, 0, 7);
+          x.fill();
+          tag(s.name.toUpperCase(), cx + 10, cy + 16, { col: COL.sam, clamp: true, avoid: true });
+        }
+      });
+    if (sh.unit)
+      D.units.forEach(u => {
+        const txt = `${u.name} · ${u.nm.toFixed(1)} NM`;
+        if (!g) return edge(u.brg, txt, COL.unit);
+        const [px, py] = W2P(u.x, u.y);
+        if (inR(px, py, 16)) {
+          unitSym(px, py, u.glyph);
+          tag(u.name.toUpperCase(), px + 20, py, { col: COL.unit, clamp: true, avoid: true });
+        } else edge(u.brg, txt, COL.unit);
+      });
+    const R = D.route;
+    if (R) {
+      const leg = (lines, c, lab, dash, isIn, end, endName, hdg) => {
+        if (!lines.length) return;
+        if (!g) {
+          if (hdg != null) edge(isIn ? hdg + 180 : hdg, lab, c);
+          return;
+        }
+        x.save();
+        x.beginPath();
+        x.rect(r.x, r.y, r.w, r.h);
+        x.clip();
+        x.lineCap = 'round';
+        x.lineJoin = 'round';
+        x.setLineDash(dash);
+        lines.forEach(pl => {
+          x.beginPath();
+          pl.forEach((p, i) => {
+            const q = W2P(p[0], p[1]);
+            if (i) x.lineTo(q[0], q[1]);
+            else x.moveTo(q[0], q[1]);
+          });
+          x.strokeStyle = 'rgba(0,0,0,.55)';
+          x.lineWidth = 7;
+          x.stroke();
+          x.strokeStyle = c;
+          x.lineWidth = 3.5;
+          x.stroke();
+        });
+        x.setLineDash([]);
+        x.restore();
+        if (hdg == null) return;
+        // the arrow and the label on the straight line through the target, where it is seen
+        const o = W2P(R.tp[0], R.tp[1]),
+          a = (((isIn ? hdg + 180 : hdg) % 360) * Math.PI) / 180,
+          ux = Math.sin(a),
+          uy = -Math.cos(a),
+          dv = Math.min(r.w, r.h) * 0.36,
+          hx = o[0] + ux * dv,
+          hy = o[1] + uy * dv,
+          s = isIn ? -1 : 1;
+        if (inR(hx, hy, 10)) head(hx - s * ux * 10, hy - s * uy * 10, hx + s * ux * 8, hy + s * uy * 8, 18, c);
+        tag(lab, o[0] + ux * dv * 0.6 - uy * 24, o[1] + uy * dv * 0.6 + ux * 24, {
+          col: c,
+          al: 'c',
+          clamp: true,
+          avoid: true,
+        });
+        if (end && endName) {
+          const [px, py] = W2P(end[0], end[1]);
+          if (inR(px, py, 12)) {
+            x.strokeStyle = c;
+            x.lineWidth = 2.5;
+            x.beginPath();
+            x.arc(px, py, 8, 0, 7);
+            x.stroke();
+            tag(endName, px + 12, py - 16, { col: c, clamp: true, avoid: true });
+          }
+        }
+      };
+      if (sh.route)
+        leg(
+          R.ing,
+          COL.ing,
+          'RUN-IN ' + (R.hdg != null ? brg3(R.hdg) : '') + (R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''),
+          [14, 8],
+          true,
+          R.ip,
+          R.src == 'route' ? R.ipName : 'IP',
+          R.hdg
+        );
+      if (sh.egr)
+        leg(
+          R.egr,
+          COL.egr,
+          'EGRESS ' + (R.ehdg != null ? brg3(R.ehdg) : ''),
+          [],
+          false,
+          R.ep,
+          R.src == 'route' ? R.epName : '',
+          R.ehdg
+        );
+    }
+    if (sh.dmpi && g) {
+      const far = geoWidth(g) > 4.5;
+      D.t.dmpis.forEach((d, i) => {
+        const [px, py] = W2P(d.x, d.y);
+        if (!inR(px, py)) return;
+        tri(px, py);
+        if (!far || !i)
+          tag(far && D.t.dmpis.length > 1 ? 'DMPI 1–' + D.t.dmpis.length : dmpiName(d, i), px + 16, py - 16, {
+            avoid: true,
+          });
+      });
+    } // a screenshot has no scale: its aim points are the ones put by hand with the DMPI tool
+  }
+  const dmpiName = (d, i) => 'DMPI ' + (i + 1) + (d.short ? ' · ' + d.short : '');
+  // the symbols drawn by hand
+  function drawSym(a, i) {
+    const [p1x, p1y] = toP(a.u, a.v),
+      p2 = a.u2 !== undefined ? toP(a.u2, a.v2) : null,
+      c = a.col || '#fff',
+      lo = { pen: a.pen, col: a.pen ? c : undefined };
+    x.save();
+    x.lineCap = 'round';
+    x.lineJoin = 'round';
+    const line = (a1, b1, a2, b2, w) => {
+      x.strokeStyle = c;
+      x.lineWidth = w || 2.5;
+      x.beginPath();
+      x.moveTo(a1, b1);
+      x.lineTo(a2, b2);
+      x.stroke();
+    };
+    if (a.k == 'callout') {
+      const [lx, ly] = toP(a.lu, a.lv);
+      x.strokeStyle = PF.lsty == 'red' ? '#d01818' : c;
+      x.lineWidth = 2.4;
+      x.beginPath();
+      x.moveTo(p1x, p1y);
+      x.lineTo(lx, ly);
+      x.stroke();
+      tag(a.t, lx, ly, { ...lo, al: lx < p1x ? 'r' : 'l' });
+    } else if (a.k == 'dmpi') {
+      tri(p1x, p1y);
+      tag(a.t, p1x + 16, p1y - 16, {});
+    } else if (a.k == 'num') {
+      x.fillStyle = '#111';
+      x.strokeStyle = '#fff';
+      x.lineWidth = 2;
+      x.beginPath();
+      x.arc(p1x, p1y, 14, 0, 7);
+      x.fill();
+      x.stroke();
+      x.fillStyle = '#fff';
+      x.font = 'bold 16px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText(a.t, p1x, p1y + 1);
+    } else if (a.k == 'box' && p2) {
+      x.strokeStyle = c;
+      x.lineWidth = 3;
+      x.strokeRect(Math.min(p1x, p2[0]), Math.min(p1y, p2[1]), Math.abs(p2[0] - p1x), Math.abs(p2[1] - p1y));
+      if (a.t) tag(a.t, Math.min(p1x, p2[0]), Math.min(p1y, p2[1]) - 14, lo);
+    } else if (a.k == 'circle' && p2) {
+      x.strokeStyle = c;
+      x.lineWidth = 3;
+      x.beginPath();
+      x.ellipse((p1x + p2[0]) / 2, (p1y + p2[1]) / 2, Math.abs(p2[0] - p1x) / 2, Math.abs(p2[1] - p1y) / 2, 0, 0, 7);
+      x.stroke();
+      if (a.t) tag(a.t, (p1x + p2[0]) / 2, Math.max(p1y, p2[1]) + 16, { ...lo, al: 'c' });
+    } else if (a.k == 'area' && p2) {
+      const cx = (p1x + p2[0]) / 2,
+        cy = (p1y + p2[1]) / 2,
+        rx = Math.abs(p2[0] - p1x) / 2,
+        ry = Math.abs(p2[1] - p1y) / 2;
+      x.strokeStyle = c;
+      x.lineWidth = 3.5;
+      x.beginPath();
+      x.moveTo(cx, cy - ry);
+      x.lineTo(cx + rx, cy);
+      x.lineTo(cx, cy + ry);
+      x.lineTo(cx - rx, cy);
+      x.closePath();
+      x.stroke();
+    } else if (a.k == 'arrow' && p2) {
+      line(p1x, p1y, p2[0], p2[1], 3);
+      head(p1x, p1y, p2[0], p2[1], 16, c);
+      if (a.t) tag(a.t, p1x, p1y, { ...lo, al: 'r' });
+    } else if (a.k == 'axis' && p2) {
+      x.setLineDash([14, 8]);
+      line(p1x, p1y, p2[0], p2[1], 3.5);
+      x.setLineDash([]);
+      head(p1x, p1y, p2[0], p2[1], 20, c);
+      const hd = (Math.atan2(p2[0] - p1x, -(p2[1] - p1y)) * 180) / Math.PI;
+      tag('RUN-IN ' + brg3(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20, {
+        col: c,
+        al: 'c',
+      });
+    } else if (a.k == 'north') {
+      const r = ((a.rot || 0) * Math.PI) / 180;
+      x.translate(p1x, p1y);
+      x.rotate(r);
+      x.fillStyle = c;
+      x.strokeStyle = c;
+      x.lineWidth = 4;
+      x.beginPath();
+      x.moveTo(0, 28);
+      x.lineTo(0, -14);
+      x.stroke();
+      x.beginPath();
+      x.moveTo(0, -30);
+      x.lineTo(11, -10);
+      x.lineTo(-11, -10);
+      x.closePath();
+      x.fill();
+      x.beginPath();
+      x.moveTo(-10, 14);
+      x.lineTo(10, 6);
+      x.stroke();
+      x.rotate(-r);
+      x.font = 'bold 18px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText('N', Math.sin(r) * 44, -Math.cos(r) * 44);
+    } else if (a.k == 'scale' && p2) {
+      line(p1x, p1y, p2[0], p2[1], 3.5);
+      [[p1x, p1y], p2].forEach(([qx, qy]) => line(qx, qy - 8, qx, qy + 8, 3.5));
+      x.font = 'bold 14px ' + FONT;
+      x.fillStyle = c;
+      x.textAlign = 'center';
+      x.textBaseline = 'alphabetic';
+      x.fillText(a.t || '', (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 12);
+      x.fillText('0', p1x, p1y - 12);
+    } else if (a.k == 'text') {
+      x.font = a.pen ? '30px ' + PEN : 'bold 17px ' + FONT;
+      x.fillStyle = c;
+      x.textAlign = 'left';
+      x.textBaseline = 'middle';
+      if (!a.pen) {
+        x.strokeStyle = 'rgba(0,0,0,.7)';
+        x.lineWidth = 3;
+        x.strokeText(a.t, p1x, p1y);
+      }
+      x.fillText(a.t, p1x, p1y);
+    }
+    if (i === selA) {
+      x.setLineDash([4, 3]);
+      x.strokeStyle = '#4cc38a';
+      x.lineWidth = 1.5;
+      const bx = bbox(a);
+      x.strokeRect(bx[0] - 6, bx[1] - 6, bx[2] - bx[0] + 12, bx[3] - bx[1] + 12);
+      x.setLineDash([]);
+    }
+    x.restore();
+  }
+  function bbox(a) {
+    const p = toP(a.u, a.v),
+      q = a.u2 !== undefined ? toP(a.u2, a.v2) : a.lu !== undefined ? toP(a.lu, a.lv) : [p[0] + 30, p[1] + 20];
+    return [
+      Math.min(p[0], q[0]) - 14,
+      Math.min(p[1], q[1]) - 16,
+      Math.max(p[0], q[0]) + (a.k == 'callout' || a.k == 'dmpi' || a.k == 'text' ? 120 : 14),
+      Math.max(p[1], q[1]) + 14,
+    ];
+  }
+  // the picture with its symbols in IMG
+  function picture() {
+    const p = pic(),
+      s = st();
+    x.fillStyle = '#000';
+    x.fillRect(IMG.x, IMG.y, IMG.w, IMG.h);
+    x.save();
+    x.beginPath();
+    x.rect(IMG.x, IMG.y, IMG.w, IMG.h);
+    x.clip();
+    if (p) {
+      const r = prect();
+      x.drawImage(p.c, r.x, r.y, r.w, r.h);
+      if (s && s.auto) autoLayer();
+      A().forEach((a, i) => drawSym(a, i));
+      if (drag && drag.k) drawSym(drag, -1);
+    } else {
+      x.fillStyle = '#8b98a8';
+      x.font = '15px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'middle';
+      x.fillText(emptyText(), IMG.x + IMG.w / 2, IMG.y + IMG.h / 2);
+    }
+    x.restore();
+  }
+  function emptyText() {
+    const s = st(),
+      t = tgt();
+    if (!t) return 'No target: add one with "Add target", or put a target in the DTC.';
+    if (s.view == 'shot') return 'Paste a screenshot (Ctrl+V), drop it on the left or choose a file.';
+    if (s.view == 'map') return 'Press "Frame on the map" and capture the target.';
+    const f = FEAT[t.key];
+    if (t.objId == null) return 'This point is on no objective: use the Map or a screenshot.';
+    if (!f || f.loading) return 'Reading the objective files…';
+    return 'The objective files cannot be read (Settings > Folders: the BMS folder). Use the Map or a screenshot.';
+  }
+
+  // ---- the page frame: header and footer
+  function hdr(title) {
+    const p = P(),
+      t = tgt(),
+      s = st(),
+      i = deps.info ? deps.info() : {},
+      f = t && FEAT[t.key];
+    x.fillStyle = p.page;
+    x.fillRect(0, 0, PW, PH);
+    x.fillStyle = p.panel;
+    x.fillRect(1, 1, PW - 2, 114);
+    x.strokeStyle = p.line;
+    x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+    x.strokeRect(1, 1, PW - 2, 114);
+    x.beginPath();
+    x.moveTo(800, 1);
+    x.lineTo(800, 115);
+    x.stroke();
+    x.textAlign = 'left';
+    x.textBaseline = 'alphabetic';
+    x.fillStyle = p.ac;
+    x.font = '700 12px ' + FONT;
+    x.fillText(title, 16, 24);
+    x.fillStyle = p.tx;
+    x.font = '700 21px ' + FONT;
+    x.fillText(fit((s && s.fac) || '', 770), 16, 50);
+    x.font = '13px ' + FONT;
+    if (t) {
+      const elv = t.dmpis.find(d => d.altFt) ? t.dmpis.find(d => d.altFt).altFt + ' FT MSL' : '—',
+        F = [
+          [
+            ['TGT ID', t.objId != null ? 'OBJ ' + t.objId : t.label],
+            ['FUNCTION', t.type >= 0 && OBJ_TYPES[t.type] ? String(OBJ_TYPES[t.type]).toUpperCase() : '—'],
+            ['STPT', t.refs.join(', ') || '—'],
+          ],
+          [
+            ['COORDS', deps.geoLL ? deps.geoLL(t.x, t.y) : ''],
+            ['ELEV', elv],
+            ['STATUS', f && f.pct != null ? f.pct + '% OPERATIONAL' : '—'],
+          ],
+        ];
+      F.forEach((row, k) => {
+        let xx = 16;
+        row.forEach(([l, v]) => {
+          x.fillStyle = p.mu;
+          x.fillText(l, xx, 78 + k * 20);
+          xx += x.measureText(l).width + 6;
+          x.fillStyle = p.tx;
+          v = fit(String(v), 330);
+          x.fillText(v, xx, 78 + k * 20);
+          xx += x.measureText(v).width + 22;
+        });
+      });
+    }
+    x.textAlign = 'center';
+    x.fillStyle = p.ac;
+    x.font = '700 15px ' + FONT;
+    x.fillText('BMS CARDS', 950, 32);
+    x.fillStyle = p.mu;
+    x.font = '12px ' + FONT;
+    x.fillText(fit(i.cs || '', 280), 950, 54);
+    x.fillText(
+      'SOURCE: ' + (!s ? '—' : s.view == 'shot' ? 'SCREENSHOT' : s.view == 'map' ? 'MAP PAGE' : 'BMS OBJECTIVE FILES'),
+      950,
+      74
+    );
+    x.fillText(fit((t && t.flight && i.tot) || i.mis || '', 280), 950, 94);
+    x.fillStyle = p.band;
+    x.fillRect(0, PH - 34, PW, 34);
+    if (PF.pst == 'prog') {
+      x.strokeStyle = p.line;
+      x.lineWidth = 1;
+      x.strokeRect(0.5, PH - 34, PW - 1, 33);
+    }
+    x.fillStyle = p.btx;
+    x.font = '600 12px ' + FONT;
+    x.fillText(CLS + '   ·   DATUM WGS-84', PW / 2, PH - 13);
+  }
+  const fit = (s, w) => {
+    if (x.measureText(s).width <= w) return s;
+    while (s.length > 1 && x.measureText(s + '…').width > w) s = s.slice(0, -1);
+    return s + '…';
+  };
+  // the aim points of the boxes and of the text page: the DTC ones (with Fill), then the ones put by hand
+  function dmpiList() {
+    const t = tgt(),
+      s = st();
+    if (!t || !s) return [];
+    const R = s.auto ? attackRoute(t) : null,
+      inf = deps.info ? deps.info() : {},
+      D =
+        s.auto && PF.show.dmpi
+          ? t.dmpis.map((d, i) => ({
+              t: 'DMPI ' + (i + 1),
+              ref: d.ref,
+              d: d.name || 'Aim point',
+              ll: deps.geoLL ? deps.geoLL(d.x, d.y) : '',
+              elv: d.altFt ? d.altFt + ' FT MSL' : '—',
+              w: (R && R.wpn) || inf.wpn || '—',
+              fz: (R && R.fz) || '—',
+              x: d.x,
+              y: d.y,
+            }))
+          : [],
+      g = geo();
+    return D.concat(
+      A()
+        .filter(a => a.k == 'dmpi')
+        .map(a => {
+          let ll = 'COORDS: —',
+            gx = null,
+            gy = null;
+          if (g) {
+            [gx, gy] = fromUV(g, a.u, a.v);
+            ll = deps.geoLL ? deps.geoLL(gx, gy) : '';
+          }
+          return {
+            t: a.t,
+            ref: '',
+            d: a.d || 'Aim point',
+            ll,
+            elv: '—',
+            w: '—',
+            fz: '—',
+            x: gx,
+            y: gy,
+            u: a.u,
+            v: a.v,
+          };
+        })
+    );
+  }
+  function boxes(by) {
+    const p = P(),
+      D = dmpiList(),
+      bw = (PW - 20) / 6;
+    for (let i = 0; i < 6; i++) {
+      const bx = 10 + i * bw;
+      x.fillStyle = p.panel;
+      x.fillRect(bx, by, bw - 6, 156);
+      x.strokeStyle = p.line;
+      x.lineWidth = PF.pst == 'prog' ? 1 : 1.2;
+      x.strokeRect(bx, by, bw - 6, 156);
+      const a = D[i];
+      x.textAlign = 'left';
+      x.textBaseline = 'alphabetic';
+      if (!a) {
+        if (!i) {
+          x.fillStyle = p.mu;
+          x.font = '12px ' + FONT;
+          ['DMPI: fill from the', 'datacard, or use the', 'DMPI tool.'].forEach((q, k) =>
+            x.fillText(q, bx + 8, by + 22 + k * 18)
+          );
+        }
+        continue;
+      }
+      x.fillStyle = PF.pst == 'prog' ? '#ff5d5d' : '#000';
+      x.font = '700 13px ' + FONT;
+      x.fillText(a.t, bx + 8, by + 20);
+      if (a.ref) {
+        x.textAlign = 'right';
+        x.fillStyle = PF.pst == 'prog' ? COL.ing : '#000';
+        x.font = '700 11.5px ' + FONT;
+        x.fillText(a.ref, bx + bw - 14, by + 20);
+        x.textAlign = 'left';
+      }
+      x.fillStyle = p.tx;
+      x.font = '11.5px ' + FONT;
+      [a.d.toUpperCase(), a.ll, 'ELEV: ' + a.elv, 'WPN: ' + a.w, 'FUZE: ' + a.fz].forEach((q, k) =>
+        x.fillText(fit(q, bw - 22), bx + 8, by + 44 + k * 21)
+      );
+    }
+  }
+  function graphic() {
+    const p = P();
+    hdr('BASIC TARGET GRAPHIC');
+    picture();
+    x.strokeStyle = p.line;
+    x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+    x.strokeRect(IMG.x, IMG.y, IMG.w, IMG.h);
+    boxes(652);
+  }
+  // the text page: description, components, DMPI, threats, attack, remarks; the detail pictures on the right
+  function textPage() {
+    const p = P(),
+      t = tgt(),
+      s = st();
+    hdr('TARGET INFORMATION');
+    if (!t || !s) return;
+    const f = FEAT[t.key],
+      D = s.auto ? dc() : null,
+      DM = dmpiList(),
+      N = A().filter(a => a.k == 'callout');
+    let y = 152;
+    x.textAlign = 'left';
+    x.textBaseline = 'alphabetic';
+    const H = q => {
+        if (PF.pst == 'prog') {
+          x.fillStyle = p.ac;
+          x.font = '700 12px ' + FONT;
+          x.fillText(q, 22, y);
+          x.strokeStyle = p.line;
+          x.lineWidth = 1;
+          x.beginPath();
+          x.moveTo(22, y + 6);
+          x.lineTo(536, y + 6);
+          x.stroke();
+        } else {
+          x.fillStyle = '#000';
+          x.fillRect(16, y - 15, 520, 20);
+          x.fillStyle = '#fff';
+          x.font = 'bold 12.5px ' + FONT;
+          x.fillText(q, 22, y);
+        }
+        y += 24;
+      },
+      L = (q, c) => {
+        if (y > PH - 50) return;
+        x.fillStyle = c || p.tx;
+        x.font = '13px ' + FONT;
+        x.fillText(fit(q, 510), 24, y);
+        y += 18;
+      },
+      M = () => L('Not filled: press "Fill from the datacard".', p.mu);
+    H('1. TARGET DESCRIPTION');
+    L(
+      t.name.toUpperCase() +
+        (t.objId != null ? ' (OBJ ' + t.objId + ')' : '') +
+        (t.type >= 0 && OBJ_TYPES[t.type] ? ' · ' + OBJ_TYPES[t.type] : '')
+    );
+    L((deps.geoLL ? deps.geoLL(t.x, t.y) : '') + (t.refs.length ? ' · ' + t.refs.join(', ') : ''));
+    L(
+      f && f.feats
+        ? `Status: ${f.pct != null ? f.pct + '% operational · ' : ''}${f.feats.length} components`
+        : 'Status: not known'
+    );
+    y += 6;
+    H('2. COMPONENTS');
+    const comp =
+        f && f.feats
+          ? f.feats.map((q, i) => `${i + 1}. ${q.name}${q.st == 2 ? ' (destroyed)' : q.st == 1 ? ' (damaged)' : ''}`)
+          : [],
+      marked = N.map(a => a.t).filter(Boolean);
+    comp.slice(0, marked.length ? 5 : 6).forEach(q => L(q));
+    if (comp.length > (marked.length ? 5 : 6)) L('… ' + (comp.length - (marked.length ? 5 : 6)) + ' more', p.mu);
+    if (!comp.length) L('—', p.mu);
+    if (marked.length) L('Marked on the picture: ' + marked.join(', '));
+    y += 6;
+    H('3. DMPI');
+    if (DM.length)
+      DM.slice(0, 4).forEach(a => L(`${a.t}${a.ref ? ' (' + a.ref + ')' : ''}: ${a.d} · ${a.w} · fuze ${a.fz}`));
+    else M();
+    y += 6;
+    H('4. THREATS');
+    if (D) {
+      D.sams.forEach(q =>
+        L(
+          `${q.name}: ${q.nm.toFixed(1)} NM ${brg3(q.brg)} · WEZ ${q.rNm.toFixed(0)} NM${q.inside ? ' · the target is inside' : ''}`,
+          PF.pst == 'prog' ? COL.sam : '#a35a00'
+        )
+      );
+      D.units.forEach(q =>
+        L(`${q.name}: ${q.nm.toFixed(1)} NM ${brg3(q.brg)}`, PF.pst == 'prog' ? COL.unit : '#b00000')
+      );
+      if (!D.sams.length && !D.units.length) L('No known enemy SAM or unit near the target.', p.mu);
+    } else M();
+    y += 6;
+    H('5. ATTACK');
+    if (D && D.route) {
+      const R = D.route;
+      if (R.src == 'attack') {
+        L(
+          `${R.mode || 'Attack'} · run-in ${R.hdg != null ? brg3(R.hdg) : '—'}${R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''}${R.rel ? ' · release ' + Math.round(R.rel).toLocaleString('en-US') + ' ft' : ''}`
+        );
+        L(`Egress ${R.ehdg != null ? brg3(R.ehdg) : '—'}${R.wpn ? ' · ' + R.wpn : ''}`);
+      } else {
+        L(
+          `Flight plan: STPT ${R.stpt}${R.ipName ? ' from ' + R.ipName : ''}${R.hdg != null ? ' · in ' + brg3(R.hdg) : ''}`
+        );
+        L(`Out${R.epName ? ' to ' + R.epName : ''}${R.ehdg != null ? ' · ' + brg3(R.ehdg) : ''}`);
+      }
+      const i = deps.info ? deps.info() : {};
+      if (t.flight && i.tot) L('TOT ' + i.tot);
+    } else if (D) L('No attack: plan it on the Pop-up, HADB or TOSS tab.', p.mu);
+    else M();
+    y += 6;
+    H('6. REMARKS');
+    (s.rem || '—').split('\n').forEach(q => L(q));
+    // the detail pictures: around the aim points, on the plan of the objective (or on the screenshot)
+    const shot = s.view == 'shot' && s.shot,
+      fp = f && f.plan,
+      src = shot ? pic() : fp ? { c: planFiltered(), geo: fp.geo } : pic(),
+      pts = [];
+    if (src) {
+      if (src.geo)
+        DM.filter(a => a.x != null).forEach(a => {
+          const [u, v] = toUV(src.geo, a.x, a.y);
+          if (u > -0.1 && u < 1.1 && v > -0.1 && v < 1.1) pts.push({ u, v, t: a.t });
+        });
+      else DM.filter(a => a.u != null).forEach(a => pts.push({ u: a.u, v: a.v, t: a.t }));
+      if (!pts.length) {
+        const q = src.geo ? toUV(src.geo, t.x, t.y) : [0.5, 0.5];
+        pts.push({ u: q[0], v: q[1], t: 'TARGET' });
+      }
+    }
+    pts.slice(0, 2).forEach((a, i) => {
+      const bx = 560,
+        by = 128 + i * 350,
+        bw = 528,
+        bh = 330,
+        sw = src.c.width / 5,
+        sh = (sw * bh) / bw;
+      x.fillStyle = '#000';
+      x.fillRect(bx, by, bw, bh);
+      x.drawImage(src.c, a.u * src.c.width - sw / 2, a.v * src.c.height - sh / 2, sw, sh, bx, by, bw, bh);
+      x.strokeStyle = p.line;
+      x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+      x.strokeRect(bx, by, bw, bh);
+      tri(bx + bw / 2, by + bh / 2);
+      tag('DETAIL · ' + a.t, bx + 8, by + 20, {});
+    });
+  }
+  function planFiltered() {
+    const t = tgt(),
+      f = t && FEAT[t.key];
+    if (!f || !f.plan) return null;
+    const key = sel + '|plan|' + PF.filt + '|' + PF.con + '|' + PF.grn;
+    if (!FC.has(key)) FC.set(key, filterPic(f.plan.c, PF.filt, PF.con, PF.grn, stamp()));
+    return FC.get(key);
+  }
+
+  // ---- the page on screen: drawn at twice its size (sharp), in page pixels
+  let cv = null;
+  function draw() {
+    if (!cv) return;
+    x = cv.getContext('2d');
+    x.setTransform(2, 0, 0, 2, 0, 0);
+    IMG = { x: 10, y: 122, w: 1080, h: 520 };
+    CARDM = false;
+    if (page == 'g') graphic();
+    else textPage();
+    const n = root.querySelector('.tginfo'),
+      t = tgt();
+    if (n) n.textContent = t ? t.label + ' · ' + t.name + ' · ' + A().length + ' symbols' : '';
+  }
+  // another canvas, drawn in page pixels at scale k
+  function into(w, h, k, fn) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const x0 = x,
+      I0 = IMG,
+      C0 = CARDM,
+      s0 = selA;
+    x = c.getContext('2d');
+    x.setTransform(k, 0, 0, k, 0, 0);
+    selA = -1;
+    try {
+      fn();
+    } finally {
+      x = x0;
+      IMG = I0;
+      CARDM = C0;
+      selA = s0;
+    }
+    return c;
+  }
+  // a Kneeboard card (1600 x 2400): g the graphic, t the target information, d the detail pictures
+  function card(kind) {
+    const k = 1600 / PW;
+    return into(1600, 2400, k, () => {
+      const p = P();
+      x.fillStyle = p.page;
+      x.fillRect(0, 0, PW, 2400 / k);
+      if (kind == 'g') {
+        hdr('BASIC TARGET GRAPHIC');
+        x.fillStyle = p.page;
+        x.fillRect(0, 116, PW, PH);
+        IMG = { x: 0, y: 128, w: PW, h: 790 };
+        CARDM = true;
+        picture();
+        CARDM = false;
+        // the DMPI boxes in two rows of three, larger
+        const bx = into(2 * PW, 2 * PH, 2, () => {
+            x.fillStyle = p.page;
+            x.fillRect(0, 0, PW, PH);
+            boxes(652);
+          }),
+          bw = (PW - 20) / 6,
+          sc = PW / (3 * bw);
+        [0, 1].forEach(r =>
+          x.drawImage(bx, (10 + r * 3 * bw) * 2, 650 * 2, 3 * bw * 2, 160 * 2, 0, 930 + r * 335, PW, 160 * sc)
+        );
+      } else {
+        // the page is drawn, then the text column (or the detail column) is moved under the header, larger
+        const pg = into(2 * PW, 2 * PH, 2, () => textPage());
+        hdr('TARGET INFORMATION');
+        x.fillStyle = p.page;
+        x.fillRect(0, 116, PW, 2400 / k - 116);
+        const sx = kind == 't' ? 0 : 554,
+          sw = kind == 't' ? 548 : 540,
+          sc = PW / sw;
+        x.drawImage(pg, sx * 2, 124 * 2, sw * 2, 690 * 2, 0, 128, PW, 690 * sc);
+      }
+      x.fillStyle = p.band;
+      x.fillRect(0, 2400 / k - 34, PW, 34);
+      x.fillStyle = p.btx;
+      x.font = '600 12px ' + FONT;
+      x.textAlign = 'center';
+      x.textBaseline = 'alphabetic';
+      x.fillText(CLS + '   ·   DATUM WGS-84', PW / 2, 2400 / k - 13);
+    });
+  }
+  // the picture for the datacard (the shape of its free space)
+  function dcShot() {
+    const d = deps.shotDim ? deps.shotDim() : { w: 564, h: 752, out: 1128 },
+      w = d.out,
+      h = Math.round((d.out * d.h) / d.w),
+      lw = 760,
+      k = w / lw;
+    return into(w, h, k, () => {
+      IMG = { x: 0, y: 0, w: lw, h: h / k };
+      CARDM = true;
+      picture();
+    });
+  }
+
+  // ---- the controls
+  const seg = (name, opts, cur) =>
+    `<span class="seg" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" class="${String(cur) === String(v) ? 'on' : ''}" data-v="${v}">${esc(l)}</button>`).join('')}</span>`;
+  // the handwriting of the notes by pen (Caveat, SIL Open Font License, in app/vendor/caveat)
+  function penFont() {
+    try {
+      if (typeof FontFace == 'undefined' || document.fonts.check('26px "BMS Caveat"')) return;
+      const f = new FontFace('BMS Caveat', 'url(./vendor/caveat/caveat-latin-600-normal.woff2)');
+      f.load()
+        .then(ff => {
+          document.fonts.add(ff);
+          draw();
+        })
+        .catch(() => {});
+    } catch (e) {}
+  }
+  function build() {
+    built = true;
+    penFont();
+    root.innerHTML = `<div class="tgleft">
+  <div class="wcard"><h3>Target <span class="tgh">DTC and flight</span></h3><div class="tglist"></div><button type="button" class="btn g tgadd">＋ Add target…</button></div>
+  <div class="wcard"><h3>Background</h3>${seg('view', VIEWS, 'plan')}
+   <div class="tgsec" data-sec="plan"><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
+   <div class="tgsec" data-sec="map"><div class="tgrow"><span class="hint">Width</span>${seg(
+     'range',
+     RANGES.map(r => [r, r + ' NM']),
+     PF.range
+   )}</div>
+    <div class="tgrow"><button type="button" class="btn tgframe">Frame on the map</button><button type="button" class="btn g tgunframe" hidden>Cancel</button></div>
+    <p class="hint">The map of the Map page, with its base map and layers (LEVELS, FILTERS on the Map page). Frame the target, then press Capture.</p></div>
+   <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
+    <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
+  <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
+   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn g tgunfill">Remove</button><span class="hint">DTC, attack planner, campaign</span></div></div></div>
+  <div class="wcard"><h3>Filter</h3>${seg('filt', FILTERS, PF.filt)}
+   <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
+   <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label></div>
+  <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(([k, l]) => `<button type="button" data-tool="${k}" class="${k == tool ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+   <div class="tgrow"><span class="hint">Colour</span><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}"></i>`).join('')}</span></div>
+   <div class="tgrow"><span class="hint">Labels</span>${seg(
+     'lsty',
+     [
+       ['prog', 'Program'],
+       ['box', 'Black on white'],
+       ['red', 'Red on white'],
+     ],
+     PF.lsty
+   )}</div>
+   <p class="hint tgthint">${esc(HINT[tool])}</p></div>
+  <div class="wcard"><h3>Page</h3><div class="tgrow"><span class="hint">Style</span>${seg(
+    'pst',
+    [
+      ['prog', 'Program'],
+      ['paper', 'Paper (BTG)'],
+    ],
+    PF.pst
+  )}</div>
+   <label class="tgsl"><span>Facility</span><input type="text" class="tgfac"></label>
+   <label class="tgsl tgrem"><span>Remarks</span><textarea class="tgremt" placeholder="Shown on the text page"></textarea></label>
+   <label class="tgpen"><input type="checkbox"> Notes by pen (handwriting)</label></div>
+ </div>
+ <div class="tgc wcard"><div class="tgbar">${seg(
+   'page',
+   [
+     ['g', '1 · Graphic'],
+     ['t', '2 · Target information'],
+   ],
+   page
+ )}<span class="tgsp"></span><span class="hint tginfo"></span></div>
+  <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
+  <div class="tgbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel">Delete selected</button><button type="button" class="btn g rd tgclr">Clear all</button><span class="tgsp"></span>
+   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn g tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
+    cv = root.querySelector('canvas');
+    wire();
+  }
+  const q = s => root.querySelector(s);
+  const qa = s => root.querySelectorAll(s);
+  function segSet(name, v) {
+    const s = q(`[data-seg="${name}"]`);
+    if (s) s.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.v === String(v)));
+  }
+  const appear = el => {
+    if (!el || (deps.anim && !deps.anim())) return;
+    el.classList.remove('tgapp');
+    void el.offsetWidth;
+    el.classList.add('tgapp');
+  };
+  function wire() {
+    root.addEventListener('click', e => {
+      const b = e.target.closest('[data-seg] button');
+      if (!b) return;
+      const name = b.parentNode.dataset.seg,
+        v = b.dataset.v;
+      segSet(name, v);
+      if (name == 'view') setView(v);
+      else if (name == 'range') {
+        PF.range = +v;
+        pfSave();
+        if (framing) frame();
+      } else if (name == 'filt') {
+        PF.filt = v;
+        pfSave();
+        draw();
+      } else if (name == 'lsty') {
+        PF.lsty = v;
+        pfSave();
+        draw();
+      } else if (name == 'pst') {
+        PF.pst = v;
+        PF.lsty = v == 'paper' ? 'box' : 'prog';
+        segSet('lsty', PF.lsty);
+        pfSave();
+        draw();
+      } else if (name == 'page') {
+        page = v;
+        draw();
+      }
+    });
+    qa('[data-pf]').forEach(
+      i =>
+        (i.oninput = () => {
+          PF[i.dataset.pf] = +i.value;
+          pfSave();
+          draw();
+        })
+    );
+    qa('[data-tool]').forEach(
+      b =>
+        (b.onclick = () => {
+          tool = b.dataset.tool;
+          selA = -1;
+          pend = null;
+          qa('[data-tool]').forEach(z => z.classList.toggle('on', z == b));
+          q('.tgthint').textContent = HINT[tool];
+          cv.classList.toggle('tgmove', tool == 'select');
+          draw();
+        })
+    );
+    cv.classList.add('tgmove');
+    qa('[data-col]').forEach(
+      i =>
+        (i.onclick = () => {
+          col = i.dataset.col;
+          qa('[data-col]').forEach(z => z.classList.toggle('on', z == i));
+          if (selA >= 0 && A()[selA]) {
+            A()[selA].col = col;
+            draw();
+          }
+        })
+    );
+    q('.tgadd').onclick = async () => {
+      if (!deps.pick) return;
+      const p = await deps.pick();
+      if (!p) return;
+      PICKS.push({
+        ref: 'PICKED',
+        short: 'PICK ' + (PICKS.length + 1),
+        name: p.name,
+        x: p.x,
+        y: p.y,
+        altFt: p.altFt || 0,
+        dmpi: true,
+        kind: 'pick',
+      });
+      await loadTargets();
+      const t = TL.find(z => z.dmpis.some(d => d.kind == 'pick' && d.short == 'PICK ' + PICKS.length));
+      if (t) selT(t.key);
+    };
+    q('.tgfill').onclick = () => {
+      const s = st();
+      if (!s) return;
+      s.auto = true;
+      fillUI(true);
+      draw();
+    };
+    q('.tgunfill').onclick = () => {
+      const s = st();
+      if (!s) return;
+      s.auto = false;
+      fillUI();
+      draw();
+    };
+    q('.tgfac').oninput = e => {
+      const s = st();
+      if (s) s.fac = e.target.value;
+      draw();
+    };
+    q('.tgremt').oninput = e => {
+      const s = st();
+      if (s) s.rem = e.target.value;
+      if (page == 't') draw();
+    };
+    q('.tgpen input').onchange = draw;
+    const fi = q('.tgdrop input');
+    fi.onchange = () => setImg(fi.files[0]);
+    const dz = q('.tgdrop');
+    ['dragenter', 'dragover'].forEach(t =>
+      dz.addEventListener(t, e => {
+        e.preventDefault();
+        dz.classList.add('hot');
+      })
+    );
+    ['dragleave', 'drop'].forEach(t =>
+      dz.addEventListener(t, e => {
+        e.preventDefault();
+        dz.classList.remove('hot');
+      })
+    );
+    dz.addEventListener('drop', e => setImg(e.dataTransfer.files[0]));
+    q('.tgframe').onclick = () => frame();
+    q('.tgunframe').onclick = () => unframe();
+    q('.tgundo').onclick = () => {
+      A().pop();
+      selA = -1;
+      draw();
+    };
+    q('.tgdel').onclick = () => {
+      if (selA >= 0) {
+        A().splice(selA, 1);
+        selA = -1;
+        draw();
+      }
+    };
+    q('.tgclr').onclick = () => {
+      const s = st();
+      if (!s) return;
+      s.ann[s.view] = [];
+      selA = -1;
+      draw();
+    };
+    q('.tgpng').onclick = () => {
+      draw();
+      cv.toBlob(b => {
+        if (!b) return;
+        const a = document.createElement('a'),
+          t = tgt();
+        a.href = URL.createObjectURL(b);
+        a.download =
+          'Target ' +
+          (t ? t.name.replace(/[\\/:*?"<>|]/g, '') : '') +
+          (page == 'g' ? ' - graphic' : ' - information') +
+          '.png';
+        document.body.append(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 500);
+      }, 'image/png');
+    };
+    q('.tgkb').onclick = () => addCards();
+    q('.tgdc').onclick = () => {
+      if (!pic()) return deps.toast && deps.toast('There is no picture yet.');
+      deps.putShot(dcShot());
+      deps.toast && deps.toast('The target picture is on the datacard, in place of the map screenshot.');
+    };
+    // drawing on the picture
+    const pos = e => {
+      const r = cv.getBoundingClientRect();
+      return [((e.clientX - r.left) * PW) / r.width, ((e.clientY - r.top) * PH) / r.height];
+    };
+    const hit = (px, py) => {
+      const L = A();
+      for (let i = L.length - 1; i >= 0; i--) {
+        const b = bbox(L[i]);
+        if (px >= b[0] && px <= b[2] && py >= b[1] && py <= b[3]) return i;
+      }
+      return -1;
+    };
+    const nextN = k =>
+      A().filter(a => a.k == k).length +
+      1 +
+      (k == 'dmpi' && st() && st().auto && PF.show.dmpi ? tgt().dmpis.length : 0);
+    const pen = () => q('.tgpen input').checked;
+    cv.onpointerdown = e => {
+      if (page != 'g' || !pic()) return;
+      const [px, py] = pos(e),
+        [u, v] = toU(px, py);
+      if (u < 0 || u > 1 || v < 0 || v > 1) return;
+      if (tool == 'select') {
+        selA = hit(px, py);
+        if (selA >= 0) {
+          mv = { i: selA, u, v, o: JSON.parse(JSON.stringify(A()[selA])) };
+          cv.setPointerCapture(e.pointerId);
+        }
+        draw();
+        return;
+      }
+      if (tool == 'callout') {
+        if (!pend) {
+          pend = { k: 'callout', u, v, col };
+          return;
+        }
+        const a = { ...pend, lu: u, lv: v, pen: pen() };
+        pend = null;
+        ask(px, py, '', t => {
+          if (t) {
+            a.t = a.pen ? t : t.toUpperCase();
+            A().push(a);
+            draw();
+          }
+        });
+        return;
+      }
+      if (tool == 'dmpi') {
+        const n = nextN('dmpi');
+        ask(px, py, 'DMPI ' + n, t => {
+          A().push({ k: 'dmpi', u, v, t: t || 'DMPI ' + n, d: '' });
+          draw();
+        });
+        return;
+      }
+      if (tool == 'num') {
+        A().push({ k: 'num', u, v, t: String(nextN('num')), col });
+        draw();
+        return;
+      }
+      if (tool == 'text') {
+        const p = pen();
+        ask(px, py, '', t => {
+          if (t) {
+            A().push({ k: 'text', u, v, t: p ? t : t.toUpperCase(), col, pen: p });
+            draw();
+          }
+        });
+        return;
+      }
+      if (tool == 'north') {
+        drag = { k: 'north', u, v, col, rot: 0, px, py };
+        cv.setPointerCapture(e.pointerId);
+        return;
+      }
+      drag = { k: tool, u, v, u2: u, v2: v, col, pen: pen() };
+      cv.setPointerCapture(e.pointerId);
+    };
+    cv.onpointermove = e => {
+      if (!mv && !drag) return;
+      const [px, py] = pos(e),
+        [u, v] = toU(px, py);
+      if (mv) {
+        const a = A()[mv.i],
+          du = u - mv.u,
+          dv = v - mv.v;
+        ['u', 'u2', 'lu'].forEach(k => {
+          if (mv.o[k] !== undefined) a[k] = mv.o[k] + du;
+        });
+        ['v', 'v2', 'lv'].forEach(k => {
+          if (mv.o[k] !== undefined) a[k] = mv.o[k] + dv;
+        });
+        draw();
+        return;
+      }
+      if (drag.k == 'north') {
+        drag.rot = Math.round((Math.atan2(px - drag.px, -(py - drag.py)) * 180) / Math.PI);
+        if (Math.hypot(px - drag.px, py - drag.py) < 12) drag.rot = 0;
+      } else {
+        drag.u2 = u;
+        drag.v2 = v;
+      }
+      draw();
+    };
+    cv.onpointerup = e => {
+      mv = null;
+      if (!drag) return;
+      const a = drag;
+      drag = null;
+      const [px, py] = pos(e);
+      if (a.k != 'north') {
+        const p1 = toP(a.u, a.v),
+          p2 = toP(a.u2, a.v2);
+        if (Math.hypot(p2[0] - p1[0], p2[1] - p1[1]) < 8) {
+          draw();
+          return;
+        }
+      }
+      delete a.px;
+      delete a.py;
+      if (a.k == 'scale')
+        return ask(px, py, '500 FT', t => {
+          a.t = t;
+          A().push(a);
+          draw();
+        });
+      if (a.k == 'circle' || a.k == 'box')
+        return ask(px, py, '', t => {
+          a.t = t ? (a.pen ? t : t.toUpperCase()) : '';
+          A().push(a);
+          draw();
+        });
+      A().push(a);
+      draw();
+    };
+    cv.ondblclick = e => {
+      if (page != 'g' || tool != 'select') return;
+      const [px, py] = pos(e),
+        i = hit(px, py);
+      if (i < 0) return;
+      const a = A()[i];
+      ask(px, py, a.t || '', t => {
+        a.t = t;
+        draw();
+      });
+    };
+  }
+  function ask(px, py, def, cb) {
+    const r = cv.getBoundingClientRect(),
+      ed = q('.tged'),
+      inp = ed.querySelector('input');
+    ed.hidden = false;
+    ed.style.left = Math.max(0, Math.min(r.width - 320, (px * r.width) / PW)) + 'px';
+    ed.style.top = (py * r.height) / PH + 10 + 'px';
+    appear(ed);
+    inp.value = def || '';
+    inp.focus();
+    inp.select();
+    const ok = () => {
+      ed.hidden = true;
+      cb(inp.value.trim());
+    };
+    ed.querySelector('button').onclick = ok;
+    inp.onkeydown = e => {
+      if (e.key == 'Enter') ok();
+      if (e.key == 'Escape') ed.hidden = true;
+    };
+  }
+  const onKey = e => {
+    if (!root.isConnected || root.closest('.hide')) return;
+    if (
+      (e.key == 'Delete' || e.key == 'Backspace') &&
+      selA >= 0 &&
+      !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)
+    ) {
+      A().splice(selA, 1);
+      selA = -1;
+      draw();
+    }
+  };
+  const onPaste = e => {
+    if (!root.isConnected || root.closest('.hide') || !tgt()) return;
+    const it = [...((e.clipboardData || {}).items || [])].find(i => i.type.startsWith('image/'));
+    if (it) {
+      e.preventDefault();
+      setImg(it.getAsFile());
+    }
+  };
+  function setImg(file) {
+    const s = st();
+    if (!s || !file || !/^image\//.test(file.type)) return;
+    const im = new Image();
+    im.onload = () => {
+      const c = document.createElement('canvas');
+      c.width = im.naturalWidth;
+      c.height = im.naturalHeight;
+      c.getContext('2d').drawImage(im, 0, 0);
+      URL.revokeObjectURL(im.src);
+      s.shot = c;
+      s.bv++;
+      setView('shot');
+    };
+    im.onerror = () => deps.toast && deps.toast('The picture could not be read.');
+    im.src = URL.createObjectURL(file);
+  }
+  // the Map page borrowed to frame the target
+  async function frame() {
+    const t = tgt();
+    if (!t || !deps.mapFrame) return;
+    const m = q('.tgmap');
+    m.hidden = false;
+    cv.hidden = true;
+    q('.tgunframe').hidden = false;
+    framing = true;
+    const ok = await deps.mapFrame(m, [t.x, t.y], PF.range);
+    if (!ok) {
+      unframe();
+      deps.toast && deps.toast('The map could not be loaded.');
+    }
+  }
+  function unframe() {
+    if (framing && deps.mapDetach) deps.mapDetach();
+    framing = false;
+    if (!built) return;
+    q('.tgmap').hidden = true;
+    cv.hidden = false;
+    q('.tgunframe').hidden = true;
+    draw();
+  }
+  // Kneeboard cards: a small window with the three cards to choose
+  function addCards() {
+    if (!tgt()) return;
+    const d = document.createElement('dialog'),
+      K = [
+        ['g', 'Graphic'],
+        ['t', 'Target information'],
+        ['d', 'Details (positive ID)'],
+      ],
+      on = { g: true, t: true, d: false };
+    d.className = 'tgdlg';
+    d.innerHTML = `<h3>Add cards to the Kneeboard</h3><p class="hint">Each page becomes a card. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
+    document.body.append(d);
+    const C = {},
+      cnt = () => {
+        const n = K.filter(([k]) => on[k]).length,
+          b = d.querySelector('[data-a=ok]');
+        b.textContent = n ? `Add ${n} card${n > 1 ? 's' : ''}` : 'Add';
+        b.classList.toggle('nil', !n);
+      };
+    K.forEach(([k, l]) => {
+      const it = document.createElement('button');
+      it.type = 'button';
+      it.className = 'tgcard' + (on[k] ? ' on' : '');
+      C[k] = card(k);
+      const th = document.createElement('canvas');
+      th.width = 300;
+      th.height = 450;
+      th.getContext('2d').drawImage(C[k], 0, 0, 300, 450);
+      it.append(th);
+      const s = document.createElement('span');
+      s.textContent = l;
+      it.append(s);
+      it.onclick = () => {
+        on[k] = !on[k];
+        it.classList.toggle('on', on[k]);
+        cnt();
+      };
+      d.querySelector('.tgcards').append(it);
+    });
+    cnt();
+    const close = () => {
+      d.close();
+      setTimeout(() => d.remove(), 200);
+    };
+    d.querySelector('[data-a=no]').onclick = close;
+    d.addEventListener('cancel', e => {
+      e.preventDefault();
+      close();
+    });
+    d.querySelector('[data-a=ok]').onclick = async () => {
+      const L = K.filter(([k]) => on[k]);
+      if (!L.length) return;
+      close();
+      const t = tgt(),
+        out = [];
+      for (const [k, l] of L) {
+        const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
+        if (!blob) continue;
+        const at = await deps.kbAdd(blob, 'Target · ' + t.name + ' · ' + l);
+        out.push(l + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
+      }
+      deps.toast &&
+        deps.toast(
+          out.length + ' card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard. ' + out.join(' · ') + '.'
+        );
+    };
+    d.showModal();
+  }
+
+  // ---- the state of the controls
+  function setView(v) {
+    const s = st();
+    if (!s) return;
+    if (framing && v != 'map') unframe();
+    s.view = v;
+    selA = -1;
+    segSet('view', v);
+    qa('.tgsec').forEach(e => {
+      const on = e.dataset.sec == v;
+      if (on && e.hidden) appear(e);
+      e.hidden = !on;
+    });
+    q('.tgframe').textContent = s.map ? 'Frame again' : 'Frame on the map';
+    PF.filt = v == 'plan' ? (PF.filt == 'none' ? 'recon' : PF.filt) : PF.filt;
+    segSet('filt', PF.filt);
+    draw();
+  }
+  function fillUI(anim) {
+    const s = st(),
+      t = tgt(),
+      f = q('.tgfset');
+    q('.tgfill').hidden = !!(s && s.auto);
+    f.hidden = !(s && s.auto);
+    q('.tgfill').disabled = !t;
+    if (s && s.auto) {
+      if (anim) appear(f);
+      const D = dc(),
+        n = t.dmpis.length;
+      q('.tgsrc').textContent = [
+        n + ' DMPI',
+        D.route ? (D.route.src == 'attack' ? 'attack planner' : 'flight plan') : 'no route',
+        D.sams.length + ' SAM',
+        D.units.length + ' unit' + (D.units.length == 1 ? '' : 's'),
+      ].join(', ');
+      const sh = q('.tgshow');
+      sh.innerHTML = SHOWS.map(
+        ([k, l]) => `<button type="button" data-show="${k}" class="${PF.show[k] ? 'on' : ''}">${l}</button>`
+      ).join('');
+      sh.querySelectorAll('[data-show]').forEach(
+        b =>
+          (b.onclick = () => {
+            PF.show[b.dataset.show] = !PF.show[b.dataset.show];
+            b.classList.toggle('on', PF.show[b.dataset.show]);
+            pfSave();
+            draw();
+          })
+      );
+    }
+  }
+  function tlist() {
+    const L = q('.tglist');
+    if (!TL.length) {
+      L.innerHTML =
+        '<p class="hint">No target. The TGT steerpoints and the weapon targets of the DTC, the target of the flight and the points added here show in this list.</p>';
+      return;
+    }
+    L.innerHTML = TL.map(
+      t =>
+        `<button type="button" class="tgrowt${t.key == sel ? ' on' : ''}" data-k="${esc(t.key)}"><b>${esc(t.label)}</b><span>${esc(t.name)}<small>${esc(
+          [
+            t.dmpis.length ? t.dmpis.length + ' DMPI' : '',
+            t.objId != null && t.type >= 0 && OBJ_TYPES[t.type] ? OBJ_TYPES[t.type] : '',
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'point'
+        )}</small></span></button>`
+    ).join('');
+    L.querySelectorAll('[data-k]').forEach(b => (b.onclick = () => selT(b.dataset.k)));
+  }
+  function selT(k) {
+    if (framing) unframe();
+    sel = k;
+    selA = -1;
+    pend = null;
+    tlist();
+    const s = st(),
+      t = tgt();
+    q('.tgfac').value = s ? s.fac : '';
+    q('.tgremt').value = s ? s.rem : '';
+    fillUI();
+    if (t) loadPlan(t);
+    if (s) setView(s.view);
+    else draw();
+  }
+  async function loadPlan(t) {
+    if (t.objId == null || !deps.features || FEAT[t.key]) return;
+    FEAT[t.key] = { loading: true };
+    try {
+      const r = await deps.features(t.objId);
+      if (r && r.feats && r.feats.length) {
+        const plan = planPicture(
+          r.feats,
+          [t.x, t.y],
+          t.key,
+          t.dmpis.map(d => ({ x: d.x, y: d.y }))
+        );
+        FEAT[t.key] = { feats: r.feats, pct: r.pct, plan };
+      } else FEAT[t.key] = { none: true };
+    } catch (e) {
+      FEAT[t.key] = { none: true };
+    }
+    if (sel == t.key) {
+      const s = st();
+      if (s && s.view == 'plan' && !FEAT[t.key].plan && (s.map || s.shot)) s.view = s.map ? 'map' : 'shot';
+      draw();
+    }
+  }
+  async function loadTargets() {
+    let r = { points: [], objs: [] };
+    try {
+      r = (deps.points && (await deps.points())) || r;
+    } catch (e) {}
+    OBJS = r.objs || [];
+    TL = groupTargets([...(r.points || []), ...PICKS], OBJS);
+    if (!TL.some(t => t.key == sel)) sel = TL.length ? TL[0].key : '';
+  }
+
+  return {
+    root,
+    async render() {
+      if (!built) {
+        build();
+        try {
+          const o = deps.prefs && (await deps.prefs.load());
+          if (o && typeof o == 'object') {
+            for (const k of ['filt', 'lsty', 'pst']) if (typeof o[k] == 'string') PF[k] = o[k];
+            for (const k of ['con', 'grn', 'range']) if (isFinite(o[k])) PF[k] = +o[k];
+            if (o.show && typeof o.show == 'object')
+              for (const k of Object.keys(PF.show)) if (typeof o.show[k] == 'boolean') PF.show[k] = o.show[k];
+            ['filt', 'lsty', 'pst', 'range'].forEach(k => segSet(k, PF[k]));
+            qa('[data-pf]').forEach(i => (i.value = PF[i.dataset.pf]));
+          }
+        } catch (e) {}
+        document.addEventListener('paste', onPaste);
+        document.addEventListener('keydown', onKey);
+      }
+      await loadTargets();
+      selT(sel);
+    },
+    leave() {
+      if (framing) unframe();
+    },
+    // the picture captured in the frame of the Map page: corners {tl, tr, bl} as [lat, lon]
+    setShot(c, g) {
+      const s = st();
+      if (!s || !c) return;
+      let gg = null;
+      try {
+        if (g && deps.fromLL) gg = geoCorners(deps.fromLL(...g.tl), deps.fromLL(...g.tr), deps.fromLL(...g.bl));
+      } catch (e) {}
+      s.map = { c, geo: gg };
+      s.bv++;
+      unframe();
+      setView('map');
+    },
+    // for the tests
+    _t: { list: () => TL, sel: () => sel, state: () => st(), card, dcShot, dmpiList, dc, setImg, KM_NM },
+  };
+}

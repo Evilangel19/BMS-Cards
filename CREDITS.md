@@ -30,6 +30,7 @@ Third-party code included:
   user's own BMS installation and to render imported PDF pages as kneeboard pages.
 - Leaflet 1.9.4 (Vladimir Agafonkin and contributors), BSD-2-Clause - app/vendor/leaflet/ (unmodified build). Map page.
 - html2canvas 1.4.1 (Niklas von Hertzen), MIT - app/vendor/html2canvas/ (unmodified build). Map screenshot for the datacard.
+- Caveat (The Caveat Project Authors), SIL Open Font License 1.1 - app/vendor/caveat/ (the latin 600 file of the npm package @fontsource/caveat 5.0.8, unmodified, with its LICENSE). The notes by pen of Weapons > Target.
 - Natural Earth (public domain) coast and border lines, taken from the npm package world-atlas 2.0.2 (ISC, Mike Bostock) and
   clipped to the region with tools/make-basemap.mjs (topojson-client, ISC, used only at build time) - app/js/data/basemap.js (East Asia: Korea) and basemap-med.js (Mediterranean and the Balkans: the theaters of Israel, Hellas and the Balkans).
   The same file holds the Natural Earth 10m rivers and lakes (public domain, github.com/nvkelso/natural-earth-vector, geojson folder).

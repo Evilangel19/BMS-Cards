@@ -21,7 +21,9 @@ const MODES = [
   ['hadb', 'HADB'],
   ['toss', 'TOSS'],
   ['harm', 'HARM'],
+  ['tgt', 'Target'],
 ];
+const ATK = ['popup', 'hadb', 'toss']; // the modes that plan an attack (HARM and Target are pages of their own under the same tabs)
 const SL = [
   // sliders: [field, label, unit, decimals]
   ['diveAngle', 'Dive angle', '°', 0],
@@ -73,6 +75,7 @@ export function createWeaponsPage(deps) {
   const { esc } = deps;
   const blank = () => ({
     mode: 'popup',
+    amode: 'popup', // the last attack mode used (the Target tab shows its attack)
     bomb: 'auto',
     oa1: 'top',
     ref: 'vrp',
@@ -1103,6 +1106,32 @@ export function createWeaponsPage(deps) {
     return { ...d, marks: d.marks.map((m, j) => (j === i ? [m[0], m[1] + ' · VRP', ...m.slice(2)] : m)) };
   }
   // the drawing for the Map page's DTC filter: phases with their colours, in the page's own north / east feet (the caller converts)
+  // the attack of the last attack mode (Pop-up, HADB or TOSS), for the Target tab: the drawing (feet), its target, the headings, the speed, the fuze
+  function attack() {
+    const m0 = st.mode;
+    if (!ATK.includes(st.mode)) st.mode = ATK.includes(st.amode) ? st.amode : 'popup';
+    try {
+      const s = spec();
+      if (!s || !res || !ctx.t) return null;
+      const v = res.v || {},
+        sel = bombSel();
+      return {
+        segs: s.segs,
+        t: { n: ctx.t.n, e: ctx.t.e, name: ctx.t.name, stpt: ctx.t.stpt },
+        mode: (MODES.find(m => m[0] == st.mode) || ['', ''])[1],
+        hdg: v.attackHeading,
+        egr: v.egressHeading,
+        spd: v.releaseSpeed || v.ingressSpeed,
+        rel: v.releaseAltitude,
+        fz: st.fz.mode == 'c2' ? 'C2 · ' + st.fz.c2ba + ' ft' : st.fz.ftype,
+        wpn: sel && (sel.loadout || sel.manual) ? sel.label : '',
+      };
+    } catch (e) {
+      return null;
+    } finally {
+      st.mode = m0;
+    }
+  }
   function spec() {
     try {
       compute();
@@ -1554,34 +1583,39 @@ export function createWeaponsPage(deps) {
   }
 
   function draw(keepLeft) {
-    if (st.mode == 'harm' && deps.harm) {
-      // the HARM shot lives on its own page object, shown under the same mode tabs
+    const sub = st.mode == 'harm' ? deps.harm : st.mode == 'tgt' ? deps.tgt : null;
+    if (sub) {
+      // the HARM shot and the target picture live on their own page objects, shown under the same mode tabs
+      if (st.mode != 'harm' && deps.harm) deps.harm.leave();
+      if (st.mode != 'tgt' && deps.tgt) deps.tgt.leave();
       detachMap();
       failed = false;
       pend = null;
       document.body.classList.add('onharm');
       if (deps.applyBtn) deps.applyBtn.classList.add('nil');
       const root = deps.root;
-      if (!keepLeft || !root.contains(deps.harm.root)) {
+      if (!keepLeft || !root.contains(sub.root)) {
         root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
-        root.appendChild(deps.harm.root);
+        root.appendChild(sub.root);
         root.querySelectorAll('[data-mode]').forEach(
           b =>
             (b.onclick = () => {
               if (st.mode == b.dataset.mode) return;
+              if (ATK.includes(st.mode)) st.amode = st.mode;
               st.mode = b.dataset.mode;
               st.applied = st.cleared = null;
               save();
-              deps.harm.leave();
+              sub.leave();
               draw(false);
             })
         );
       }
-      deps.harm.render();
+      sub.render();
       return;
     }
     document.body.classList.remove('onharm');
     if (deps.harm) deps.harm.leave();
+    if (deps.tgt) deps.tgt.leave();
     compute();
     bombData();
     const root = deps.root,
@@ -2064,6 +2098,7 @@ export function createWeaponsPage(deps) {
       b =>
         (b.onclick = () => {
           if (st.mode == b.dataset.mode) return;
+          if (ATK.includes(st.mode)) st.amode = st.mode;
           st.mode = b.dataset.mode;
           st.applied = st.cleared = null;
           save();
@@ -2285,6 +2320,7 @@ export function createWeaponsPage(deps) {
     leave: () => {
       detachMap();
       if (deps.harm) deps.harm.leave();
+      if (deps.tgt) deps.tgt.leave();
       document.body.classList.remove('onharm');
     },
     setElev: f => {
@@ -2303,6 +2339,7 @@ export function createWeaponsPage(deps) {
       }
     },
     spec,
+    attack,
     apply,
     card: () => st.card,
   };

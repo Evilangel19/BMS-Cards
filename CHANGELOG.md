@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.2.1 (not released yet)
 
+- New: **Weapons > Target**, a target picture in the style of a Basic Target Graphic. Background: the plan of the objective (from the BMS files), the map of the Map page (its base map and layers) or a pasted screenshot (BMS Recon view), with filters (Recon B/W, IR, Recon 1980s). "Fill from the datacard" draws the DMPIs with their TGT STPT, the attack of the attack planner, the enemy SAM rings and units; BTG symbols and notes by pen are drawn by hand. A second page holds the target information and detail pictures. The pages go to the Kneeboard as cards (Add card) or onto the datacard in place of the map screenshot.
 - Fixed: after a visit to the Squadron Briefing, the Map and the other wide pages could become narrow (centred, with empty sides).
 
 ## 1.2.0

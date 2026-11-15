@@ -4,6 +4,12 @@ import { busyWrap } from '../core/busy.js';
 import { CAM } from '../core/cam-core.js';
 import { createMissilesPage } from '../core/missilespage.js';
 import { createWeaponsPage } from '../core/weaponspage.js';
+import { createTargetPage } from '../core/tgtpage.js';
+import { openTargetPicker } from '../core/targetpicker.js';
+import { glyphOf } from '../core/mapsymbols.js';
+import { SHOTS } from '../core/mapconst.js';
+import { featState } from '../parsers/cam.js';
+import { operational } from '../core/objstatus.js';
 import { createSquadronPage } from '../core/squadron.js';
 import {
   isDesktop,
@@ -20,10 +26,16 @@ import {
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
 import { msaOfFlight, msaOfBase } from './msafill.js';
-import { dtcPoints } from '../core/mapdtc.js';
-import { targetLine } from '../core/targets.js';
+import { dtcPoints, WT_N, FT_KM } from '../core/mapdtc.js';
+import { targetLine, readTarget } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
-import { flightRoute as mFlightRoute, toLL as mToLL } from '../core/mapdata.js';
+import {
+  flightRoute as mFlightRoute,
+  toLL as mToLL,
+  fromLL as mFromLL,
+  fmtLL as mFmtLL,
+  mapUnits,
+} from '../core/mapdata.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
 export const nearName = (x, y) => {
@@ -46,7 +58,7 @@ import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from 
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
 import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
-import { kbAddShot, kbAddTray, KBX } from './kneeboard.js';
+import { kbAddShot, kbAddTray, kbAddPic, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { SHOT } from '../core/cardlayout.js';
 import { dtcDir, wxWind, wxAt, wxKey, wxLoadKeys, wxFlight } from './campaign.js';
@@ -221,8 +233,9 @@ export async function init6() {
         h = SHOT[3] - SHOT[1];
       return { w, h, out: 1124 };
     },
-    setShot: (c, k) => {
+    setShot: (c, k, g) => {
       if (k == 'kb') kbAddShot(c);
+      else if (k == 'tg') ST.tgPage && ST.tgPage.setShot(c, g);
       else {
         ST.MAPSHOT = c;
         draw();
@@ -247,6 +260,207 @@ export async function init6() {
   });
 }
 
+// Weapons > Target: the target picture (core/tgtpage.js) reads the DTC, the campaign, the objective files, the attack planner and the Map page through these
+const curFlight = () => {
+  try {
+    const x = ST.C && ST.CL.length && ST.CL[+$('fsel').value || 0];
+    return x ? x.f : null;
+  } catch (e) {
+    return null;
+  }
+};
+function tgtDeps() {
+  const PLACES = [8, 28, 29]; // cities, towns, villages: a target is never put on them
+  return {
+    esc,
+    anim: animOn,
+    toast: appToast,
+    async points() {
+      const pts = [],
+        P = dtcPoints(lines);
+      const f = curFlight();
+      if (f && f.wps) {
+        const a = f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act));
+        if (a && [14, 15, 16, 17, 19].includes(a.act))
+          pts.push({
+            kind: 'flight',
+            short: 'FLIGHT',
+            ref: '',
+            name: F.pri || 'Flight target',
+            x: a.x,
+            y: a.y,
+            dmpi: false,
+          });
+      }
+      if (P)
+        (P.prec || [])
+          .filter(q => !q.empty)
+          .forEach(q =>
+            pts.push({
+              kind: 'prec',
+              ref: 'TGT STPT ' + q.stpt,
+              short: 'STPT ' + q.stpt,
+              name: q.name || nearName(q.x, q.y) || 'STPT ' + q.stpt,
+              x: q.x,
+              y: q.y,
+              altFt: q.altFt,
+              dmpi: true,
+            })
+          );
+      for (let n = 0; n < WT_N; n++) {
+        if (!lines.some(l => l.s == 'STPT' && l.k === 'wpntarget_' + n)) continue;
+        const t = readTarget(G('STPT', 'wpntarget_' + n, ''));
+        if (t && (t.n || t.e))
+          pts.push({
+            kind: 'wpn',
+            ref: 'WPN TGT ' + (n + 1),
+            short: 'WPN ' + (n + 1),
+            name: t.name && !/^not set$/i.test(t.name) ? t.name : 'Weapon target ' + (n + 1),
+            x: t.e / FT_KM,
+            y: t.n / FT_KM,
+            altFt: t.elv,
+            dmpi: true,
+          });
+      }
+      try {
+        const a = ST.wpPage && ST.wpPage.attack();
+        if (a && a.t && a.t.stpt > 0 && a.t.stpt < 31)
+          pts.push({
+            kind: 'stpt',
+            ref: 'STPT ' + a.t.stpt,
+            short: 'STPT ' + a.t.stpt,
+            name: nearName(a.t.e / FT_KM, a.t.n / FT_KM) || 'STPT ' + a.t.stpt,
+            x: a.t.e / FT_KM,
+            y: a.t.n / FT_KM,
+            altFt: 0,
+            dmpi: true,
+          });
+      } catch (e) {}
+      let objs = [];
+      try {
+        const td = targetData();
+        if (td)
+          objs = (await td.objectives()).map(o => ({
+            id: o.id,
+            name: o.name,
+            x: o.e / FT_KM,
+            y: o.n / FT_KM,
+            type: o.type,
+          }));
+      } catch (e) {}
+      if (!objs.length && ST.C && ST.C.D && ST.C.D.ob)
+        objs = ST.C.D.ob.map(o => ({ id: o[0], name: String(o[1]), x: o[2], y: o[3], type: -1 }));
+      return { points: pts, objs: objs.filter(o => !PLACES.includes(o.type)) };
+    },
+    async features(id) {
+      const td = targetData();
+      if (!td) return null;
+      const o = (await td.objectives()).find(z => z.id === id);
+      if (!o) return null;
+      const fs = await td.features(o),
+        S = ST.C && ST.C.objFeat ? ST.C.objFeat.get(id) : null;
+      return {
+        feats: fs.map((q, k) => ({
+          name: q.name,
+          value: q.value,
+          x: q.e / FT_KM,
+          y: q.n / FT_KM,
+          st: S && S[k] !== undefined ? featState(S[k]) : 0,
+        })),
+        pct: S ? operational(fs, S) : null,
+      };
+    },
+    threats() {
+      try {
+        if (!ST.C) return { sams: [], units: [] };
+        const v = ST.VIEW !== null ? ST.VIEW : ST.C.playerTeam != null ? ST.C.playerTeam : 1,
+          UL = mapUnits(ST.C, v);
+        return {
+          sams: UL.filter(m => m.sam && !m.noFcr && m.hostile && m.spotted).map(m => ({
+            name: m.name,
+            x: m.u.x,
+            y: m.u.y,
+            r: m.rng,
+          })),
+          units: UL.filter(m => m.hostile && m.spotted && !m.sam && !m.carrier).map(m => ({
+            name: m.bn,
+            glyph: glyphOf(m.cat),
+            x: m.u.x,
+            y: m.u.y,
+          })),
+        };
+      } catch (e) {
+        return { sams: [], units: [] };
+      }
+    },
+    attack: () => (ST.wpPage ? ST.wpPage.attack() : null),
+    route() {
+      try {
+        const f = curFlight();
+        return f && f.wps ? mFlightRoute(ST.C, f).map(w => ({ n: w.n, x: w.x, y: w.y })) : [];
+      } catch (e) {
+        return [];
+      }
+    },
+    info: () => ({ cs: F.cs || '', mis: F.mis || '', tot: String(F.d1 || '').split(' · ')[0], wpn: F.ag || '' }),
+    geoLL: (x, y) => {
+      try {
+        return ST.C ? CAM.geoLL(ST.C, x, y) : mFmtLL(...mToLL(x, y));
+      } catch (e) {
+        return '';
+      }
+    },
+    async pick() {
+      const data = targetData();
+      if (!data) {
+        appToast('The objectives are read from the BMS folder: set it in Settings > Folders.');
+        return null;
+      }
+      const t = await openTargetPicker({
+        data,
+        fmt: (a, b) => {
+          try {
+            return mFmtLL(...mToLL(b / FT_KM, a / FT_KM));
+          } catch (x) {
+            return '';
+          }
+        },
+        esc,
+        anim: animOn,
+        title: 'Target picture',
+      });
+      return t ? { x: t.e / FT_KM, y: t.n / FT_KM, name: t.name, altFt: 0 } : null;
+    },
+    // the Map page lent to the Target tab, with the frame of the screenshot; the width of the frame on the ground is nm
+    async mapFrame(el, c, nm) {
+      const lm = mapV.leaflet;
+      if (!(lm && el.contains(lm.getContainer()) && document.getElementById('mpfr'))) {
+        const r = await mapV.attach(el);
+        if (!r) return false;
+        mapV.shotStart('tg', { toast: appToast });
+      }
+      const map = mapV.leaflet,
+        fi = document.getElementById('mpfi'),
+        fw = (fi && fi.offsetWidth) || el.clientWidth * 0.7,
+        ll = mToLL(c[0], c[1]),
+        mpp = (nm * 1852) / fw,
+        z = Math.log2((156543.03392 * Math.cos((ll[0] * Math.PI) / 180)) / mpp);
+      map.setView(ll, Math.max(5, Math.min(18, z)), { animate: false });
+      map.panBy([0, 20], { animate: false }); // the frame stands 20 px above the middle of the map
+      return true;
+    },
+    mapDetach: () => mapV.detach(),
+    fromLL: (lat, lon) => mFromLL(lat, lon),
+    kbAdd: (blob, name) => kbAddPic(blob, name),
+    putShot: c => {
+      ST.MAPSHOT = c;
+      draw();
+    },
+    shotDim: () => (ST.MDCON ? { w: SHOT[2] - SHOT[0], h: SHOT[3] - SHOT[1], out: 1124 } : SHOTS.dc),
+    prefs: { load: () => loadPrefs('tgtprefs.json'), save: o => savePrefs('tgtprefs.json', o) },
+  };
+}
+
 // run 9: statements that run when the program starts (in the order of the original file)
 export async function init9() {
   harmRoot = document.createElement('div');
@@ -268,9 +482,11 @@ export async function init9() {
     toggleEdit: () => mapV.toggleEdit(),
     isEdit: () => mapV.isEdit(),
   });
+  ST.tgPage = createTargetPage(tgtDeps());
   ST.wpPage = createWeaponsPage({
     offs: OFFS,
     harm: harmPage,
+    tgt: ST.tgPage,
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
     toggleEdit: () => mapV.toggleEdit(),

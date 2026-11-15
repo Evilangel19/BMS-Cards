@@ -1,0 +1,380 @@
+/* Weapons > Target: the target picture (core/tgtpage.js). Every rule starts with .tgp or .tgdlg. */
+.tgp [hidden] {
+  display: none !important;
+}
+.tgp {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .tgp {
+    grid-template-columns: 1fr;
+  }
+}
+.tgp .tgleft {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tgp .wcard h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tgp .tgh {
+  margin-left: auto;
+  color: var(--mu);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11.5px;
+}
+.tgp .hint {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.tgp .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.tgp .tgadd,
+.tgp .tgfill {
+  width: 100%;
+  margin-top: 4px;
+}
+.tgp .tgrowt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  margin-bottom: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: none;
+  color: var(--tx);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.tgp .tgrowt:hover {
+  background: #ffffff0a;
+}
+.tgp .tgrowt.on {
+  background: #13301f;
+  border-color: var(--ac);
+}
+.tgp .tgrowt b {
+  min-width: 58px;
+  font-size: 11px;
+  color: var(--mu);
+}
+.tgp .tgrowt span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tgp .tgrowt small {
+  color: var(--mu);
+  font-size: 11px;
+}
+.tgp .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tgp .seg button,
+.tgp .tgtools button,
+.tgp .tgchips button {
+  padding: 4px 9px;
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
+}
+.tgp .seg button:last-child {
+  border-right: 0;
+}
+.tgp .seg button.on,
+.tgp .tgtools button.on,
+.tgp .tgchips button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.tgp .seg button:not(.on):hover,
+.tgp .tgtools button:not(.on):hover,
+.tgp .tgchips button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+.tgp .tgtools button:active,
+.tgp .tgchips button:active {
+  transform: scale(0.97);
+}
+.tgp .tgtools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.tgp .tgtools button,
+.tgp .tgchips button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.tgp .tgchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.tgp .tgrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tgp .tgrow .hint {
+  margin: 0;
+}
+.tgp .tgsec {
+  margin-top: 6px;
+}
+.tgp .tgsl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.tgp .tgsl > span {
+  width: 62px;
+  flex: none;
+}
+.tgp .tgsl input,
+.tgp .tgsl textarea {
+  flex: 1;
+  min-width: 0;
+}
+.tgp .tgrem {
+  align-items: flex-start;
+}
+.tgp .tgremt {
+  min-height: 64px;
+  resize: vertical;
+}
+.tgp .tgpen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.tgp .tgpen input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.tgp .tgcols {
+  display: flex;
+  gap: 5px;
+}
+.tgp .tgcols i {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid #4a586b;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.tgp .tgcols i:hover {
+  transform: scale(1.1);
+}
+.tgp .tgcols i.on {
+  border-color: #fff;
+}
+.tgp .tgdrop {
+  display: block;
+  border: 1.5px dashed #3a4758;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  color: var(--mu);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.tgp .tgdrop:hover,
+.tgp .tgdrop.hot {
+  border-color: var(--ac);
+  background: #13301f;
+}
+.tgp .tgdrop u {
+  color: var(--ac);
+}
+.tgp .tgok {
+  color: var(--ac);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.tgp .tgc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.tgp .tgbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tgp .tgsp {
+  flex: 1;
+}
+.tgp .tginfo {
+  margin: 0;
+}
+.tgp .tgstage {
+  position: relative;
+}
+.tgp .tgstage canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #000;
+  touch-action: none;
+  cursor: crosshair;
+}
+.tgp .tgstage canvas.tgmove {
+  cursor: move;
+}
+.tgp .tgmap {
+  position: relative;
+  height: 620px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d1b2a;
+}
+.tgp .tgmap #mpmap {
+  position: absolute;
+  inset: 0;
+}
+.tgp .tged {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid #3a4758;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 6px 18px #000a;
+  z-index: 5;
+}
+.tgp .tged[hidden] {
+  display: none;
+}
+.tgp .tged input {
+  width: 240px;
+}
+.tgp .tgapp {
+  animation: tgapp 0.22s ease-out;
+}
+@keyframes tgapp {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* the window of the Kneeboard cards */
+.tgdlg {
+  background: var(--card);
+  color: var(--tx);
+  border: 1px solid #3a4758;
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: min(620px, 94vw);
+}
+.tgdlg::backdrop {
+  background: #0008;
+}
+.tgdlg h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ac);
+}
+.tgdlg .tgcards {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin: 12px 0;
+}
+.tgdlg .tgcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #10161d;
+  color: var(--mu);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+.tgdlg .tgcard:active {
+  transform: scale(0.98);
+}
+.tgdlg .tgcard.on {
+  border-color: var(--ac);
+  background: #13301f;
+  color: var(--tx);
+}
+.tgdlg .tgcard canvas {
+  width: 150px;
+  height: 225px;
+  border-radius: 3px;
+}
+.tgdlg .tgbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tgdlg .tgsp {
+  flex: 1;
+}

@@ -155,7 +155,11 @@ export const PAL = {
 };
 // size of the screenshot area: the empty space of the datacard (page 2 bottom left of the 2048 px card) or one kneeboard card
 // kinds: dc = datacard (564 x 752 px), kb = kneeboard card (a page of 1024 x 2048). out = width of the saved picture.
-export const SHOTS = { dc: { w: 564, h: 752, out: 1128 }, kb: { w: 1024, h: 2048, out: 1024 } };
+export const SHOTS = {
+  dc: { w: 564, h: 752, out: 1128 },
+  kb: { w: 1024, h: 2048, out: 1024 },
+  tg: { w: 1080, h: 520, out: 1620 },
+}; // tg: the picture of Weapons > Target
 
 let LEAF = null;
 export function loadLeaflet() {

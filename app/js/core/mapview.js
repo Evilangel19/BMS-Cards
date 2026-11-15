@@ -4302,6 +4302,11 @@ export function createMap(host, deps) {
     fr.innerHTML =
       '<div id="mpfi"></div><div id="mpfb"><button class="btn" id="mpcap">Capture</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px" title="Turn the frame: the map inside it is straightened into the picture">Angle <input type="range" id="mpang" min="0" max="359" step="1" value="0" style="width:130px"><b id="mpangv" style="min-width:34px;text-align:right">0°</b></label><button class="btn g" id="mprot" title="Turn the frame by another quarter">+90°</button><button class="btn g" id="mpcan">Cancel</button></div>';
     (away || host).append(fr); // a page that borrows the map (Briefing) frames it where it is
+    if (shotK == 'tg') {
+      // the target picture keeps north up: its place on the ground goes with it
+      fr.querySelector('#mpfb label').remove();
+      $('mprot').remove();
+    }
     sizeFrame();
     shotBtn();
     ZO = { snap: map.options.zoomSnap, wheel: map.options.wheelPxPerZoomLevel };
@@ -4316,14 +4321,15 @@ export function createMap(host, deps) {
       sizeFrame();
     };
     let angRaf = 0;
-    $('mpang').oninput = () => {
-      if (angRaf) return;
-      angRaf = requestAnimationFrame(() => {
-        angRaf = 0;
-        setAng(+$('mpang').value);
-      });
-    };
-    $('mprot').onclick = () => setAng(shotAng + 90);
+    if ($('mpang'))
+      $('mpang').oninput = () => {
+        if (angRaf) return;
+        angRaf = requestAnimationFrame(() => {
+          angRaf = 0;
+          setAng(+$('mpang').value);
+        });
+      };
+    if ($('mprot')) $('mprot').onclick = () => setAng(shotAng + 90);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', sizeFrame);
   }
@@ -4396,11 +4402,13 @@ export function createMap(host, deps) {
           },
         });
       const to =
-        shotK == 'kb'
-          ? 'the kneeboard cards'
-          : deps.mdcShot && deps.mdcShot()
-            ? 'the datacard (MDC format, the big white box)'
-            : 'the datacard (page 2, bottom left)';
+        shotK == 'tg'
+          ? 'the target picture (Weapons > Target)'
+          : shotK == 'kb'
+            ? 'the kneeboard cards'
+            : deps.mdcShot && deps.mdcShot()
+              ? 'the datacard (MDC format, the big white box)'
+              : 'the datacard (page 2, bottom left)';
       let c,
         warn = '';
       // html2canvas leaves a picture it cannot read (cross-origin) blank without any error, so it is checked first
@@ -4450,8 +4458,19 @@ export function createMap(host, deps) {
         q.drawImage(c, -c.width / 2, -c.height / 2);
         c = r;
       }
-      deps.setShot(c, shotK);
+      // the target picture: where its corners are (north up)
+      let geo = null;
+      if (shotK == 'tg') {
+        const fi = $('mpfi').getBoundingClientRect(),
+          at = (px, py) => {
+            const l = map.containerPointToLatLng([px - mb.left, py - mb.top]);
+            return [l.lat, l.lng];
+          };
+        geo = { tl: at(fi.left, fi.top), tr: at(fi.right, fi.top), bl: at(fi.left, fi.bottom) };
+      }
+      const k0 = shotK;
       shotStop();
+      deps.setShot(c, k0, geo);
       (SHOTOPT.toast || toast)(
         warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.',
         !!warn
