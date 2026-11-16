@@ -162,7 +162,9 @@ export function createMap(host, deps) {
     });
     persist();
   };
-  const $ = id => host.querySelector('#' + id) || (away && away.querySelector('#' + id)); // the map (and its frame) may be borrowed by another page
+  // the map (and its frame) may be borrowed by another page, the LEVELS menu by the Target tab (LEVW, declared below)
+  const $ = id =>
+    host.querySelector('#' + id) || (away && away.querySelector('#' + id)) || (LEVW && LEVW.querySelector('#' + id));
 
   let home = null,
     away = null,
@@ -220,9 +222,24 @@ export function createMap(host, deps) {
     });
     return EDIT;
   }
+  // the zoom of the map locked (the Target tab: the width is chosen there), except while the frame of a picture is open
+  let ZL = false;
+  function zoomApply() {
+    if (!map) return;
+    const off = ZL && !shotOn;
+    ['scrollWheelZoom', 'doubleClickZoom', 'touchZoom', 'boxZoom'].forEach(
+      h => map[h] && map[h][off ? 'disable' : 'enable']()
+    );
+    map.getContainer().classList.toggle('mpzl', off);
+  }
+  function zoomLock(on) {
+    ZL = !!on;
+    zoomApply();
+  }
   function detach() {
     if (!away || !map) return;
     if (shotOn) shotStop(); // a frame opened on the page that borrowed the map goes with it
+    if (ZL) zoomLock(false);
     if (MO) {
       MO.disconnect();
       MO = null;
@@ -4307,6 +4324,7 @@ export function createMap(host, deps) {
     shotAng = 0;
     shotK = k || 'dc';
     host.classList.add('shoting');
+    if (ZL) zoomApply();
     map.closePopup();
     if (addM) addStop(true);
     const fr = document.createElement('div');
@@ -4358,6 +4376,7 @@ export function createMap(host, deps) {
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', sizeFrame);
     shotBtn();
+    if (ZL) zoomApply();
   }
   const tainted = c => {
     try {
@@ -4836,6 +4855,7 @@ export function createMap(host, deps) {
       }
     },
     detach: () => detach(),
+    zoomLock,
     toggleEdit: () => {
       const r = setEdit(!EDIT);
       if (away) WEDIT = r;

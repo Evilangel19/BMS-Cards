@@ -472,6 +472,7 @@ function tgtDeps() {
         mpp = (nm * 1852) / fw,
         z = Math.log2((156543.03392 * Math.cos((ll[0] * Math.PI) / 180)) / mpp);
       map.setView(ll, Math.max(5, Math.min(18, z)), { animate: false });
+      mapV.zoomLock(true); // the width chosen on the tab: the zoom comes back only for the frame of the picture
       return true;
     },
     // the frame on the lent map: as wide as nm, around the middle of the map as it was left

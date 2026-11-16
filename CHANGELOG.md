@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.2.1 (not released yet)
 
+- Fixed: the message boxes of the program stood at the bottom of the window after the Missions list was opened; all the groups of the Missions list can be closed.
+- Fixed: Weapons > Target: the levels chosen on the lent map did nothing. Changed: the zoom of the live map is the Width chosen (free again in the frame of the picture).
 - Changed: Squadron > Missions: each campaign has its colour in the list; the Squadron groups are your online squadron (the one that sent the mission, or the one you were in when you saved it).
 - Changed: Weapons > Target: the Map background is the live map first (choose what it shows), then Take picture; Handwritten notes in the Filter card, also for the remarks; the plan of an airbase shows its runways and taxiways. Fixed: the handwriting was not shown.
 - Fixed: the tabs of the Squadron page moved when the Briefing was opened.

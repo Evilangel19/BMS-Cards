@@ -1849,8 +1849,8 @@ export function createTargetPage(deps) {
      RANGES.map(r => [r, r + ' NM']),
      PF.range
    )}</div>
-    <div class="tgrow"><button type="button" class="btn tgframe">📷 Take picture</button><button type="button" class="btn g tgunframe" hidden>Back to the picture</button></div>
-    <p class="hint">The map of the Map page: choose what it shows (LEVELS, Edit points, Map filters above it), then Take picture, frame the target and press Capture. The picture is then drawn on as the others.</p></div>
+    <div class="tgrow"><button type="button" class="btn g gn tgframe">📷 Take picture</button><button type="button" class="btn g tgunframe" hidden>Back to the picture</button></div>
+    <p class="hint">The map of the Map page: choose what it shows (LEVELS, Edit points, Map filters above it; the zoom is the Width above), then Take picture: the frame can be zoomed; press Capture. The picture is then drawn on as the others.</p></div>
    <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
     <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
   <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
@@ -1901,7 +1901,7 @@ export function createTargetPage(deps) {
      ['t', 'Target information'],
    ],
    page
- )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn g tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn g gn tgcropok">Put on datacard</button></div>
   <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel" title="Delete the symbol chosen with the select tool" disabled>🗑 Selected</button><button type="button" class="btn g rd tgclr" title="Delete all the symbols and notes drawn on this background">🗑 Annotations</button><span class="tgsp"></span>
@@ -2044,7 +2044,7 @@ export function createTargetPage(deps) {
       elab = () => {
         const o = deps.isEdit && deps.isEdit();
         eb.textContent = 'Edit points: ' + (o ? 'On' : 'Off');
-        eb.classList.toggle('g', !o);
+        eb.classList.toggle('gn', !!o); // the dark green of the chosen settings
       };
     eb.onclick = () => {
       if (deps.toggleEdit) deps.toggleEdit();
@@ -2054,10 +2054,10 @@ export function createTargetPage(deps) {
       PLAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'];
     pf.onclick = () => (pf.textContent = PLAB[deps.cyclePlan ? deps.cyclePlan() : 0]);
     const bl = q('.tgbld');
-    bl.classList.toggle('g', !PF.bld);
+    bl.classList.toggle('gn', !!PF.bld);
     bl.onclick = () => {
       PF.bld = !PF.bld;
-      bl.classList.toggle('g', !PF.bld);
+      bl.classList.toggle('gn', PF.bld);
       pfSave();
       draw();
     };

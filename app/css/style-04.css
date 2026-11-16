@@ -860,3 +860,7 @@ details.sqmod summary {
     align-items: flex-start;
   }
 }
+/* the zoom of the map locked (lent to the Target tab, outside the frame of a picture) */
+.mpzl .leaflet-control-zoom {
+  display: none;
+}

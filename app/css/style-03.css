@@ -1710,7 +1710,7 @@ body.og-dragging * {
 .msbt {
   flex: none !important;
 }
-.msg {
+.msgrpb {
   border: 1px solid var(--line);
   border-radius: 8px;
   margin-bottom: 6px;
@@ -1738,6 +1738,12 @@ body.og-dragging * {
   font-style: normal;
   color: var(--mu);
   width: 12px;
+}
+.msgh i.msdot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  margin-right: 0;
 }
 .msgh b {
   margin-left: auto;

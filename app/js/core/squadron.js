@@ -2615,12 +2615,16 @@ export function createSquadronPage(deps) {
           '. Drag missions onto a folder to put them in it.</div>';
     else {
       const G = MX.groupBy(L, MV.group);
-      if (!MV.open.size && G.length) MV.open.add(MV.group + ':' + G[0].key);
+      // the first group opens by itself once (when the grouping is chosen): then all can be closed
+      if (MV.auto != MV.group && G.length) {
+        MV.auto = MV.group;
+        MV.open.add(MV.group + ':' + G[0].key);
+      }
       body = G.length
         ? G.map(g => {
             const k = MV.group + ':' + g.key,
               op = MV.open.has(k);
-            return `<div class="msg${op ? ' on' : ''}"><button type="button" class="msgh" data-grp="${esc(k)}"><i>${op ? '▾' : '▸'}</i> ${MV.group == 'campaign' && camp.get(g.key) ? `<i class="msdot" style="background:${camp.get(g.key)}"></i>` : ''}${esc(g.label)} <b>${g.items.length}</b></button>${op ? '<div class="msgb">' + rows(g.items, k) + '</div>' : ''}</div>`;
+            return `<div class="msgrpb${op ? ' on' : ''}"><button type="button" class="msgh" data-grp="${esc(k)}"><i>${op ? '▾' : '▸'}</i> ${MV.group == 'campaign' && camp.get(g.key) ? `<i class="msdot" style="background:${camp.get(g.key)}"></i>` : ''}${esc(g.label)} <b>${g.items.length}</b></button>${op ? '<div class="msgb">' + rows(g.items, k) + '</div>' : ''}</div>`;
           }).join('')
         : '<div class="hint">No mission for this search.</div>';
     }
@@ -2693,6 +2697,7 @@ export function createSquadronPage(deps) {
         (b.onclick = () => {
           MV.group = b.dataset.g;
           MV.open.clear();
+          MV.auto = '';
           MV.lim = {};
           redraw();
           mAnim(box.querySelector('.mslist'));

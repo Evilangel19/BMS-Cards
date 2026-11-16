@@ -91,6 +91,7 @@ try:
         pg.click('#sqmis [data-all]'); pg.wait_for_timeout(200)
         check('the box of the list selects all the missions shown (250)', '250 selected' in pg.inner_text('#sqmis .mshead'))
         pg.click('#sqmis [data-selnone]'); pg.wait_for_timeout(200)
+        check('the boxes of the program (dialog.msg: alert, confirm) are in the middle of the window', pg.evaluate("()=>{const d=document.createElement('dialog');d.className='msg';d.innerHTML='<div class=mt>x</div><button data-ok></button>';document.body.append(d);d.showModal();const r=d.getBoundingClientRect(),ok=Math.abs((r.top+r.bottom)/2-innerHeight/2)<4;d.remove();return ok}"))
         check('two columns: Saved missions and Received missions side by side', pg.evaluate("()=>{const c=document.querySelectorAll('.mstwo > .sqc');return c.length==2&&c[0].getBoundingClientRect().top==c[1].getBoundingClientRect().top}"))
         check('All missions and Unfiled are coloured dots; one colour for each campaign, green the first', pg.locator('#sqmis .msf .msdot').count() == 2 and pg.evaluate("()=>{const m={};document.querySelectorAll('#sqmis .msr').forEach(r=>{const c=r.querySelector('em').textContent.split(' · ')[0];(m[c]=m[c]||new Set()).add(r.querySelector('b').style.color)});const v=Object.values(m);return v.length>1&&v.every(s=>s.size==1)&&new Set(v.map(s=>[...s][0])).size==v.length&&v.some(s=>s.has('rgb(76, 195, 138)'))}"))
         # search
@@ -101,9 +102,13 @@ try:
         # groups
         pg.click('#sqmis [data-g=campaign]'); pg.wait_for_timeout(300)
         heads = pg.locator('#sqmis .msgh').all_inner_texts()
-        check('by campaign: three groups with their counts %s' % heads, len(heads) == 3 and all(h.split()[-1].isdigit() for h in heads) and pg.locator('#sqmis .msg.on').count() == 1)
+        check('by campaign: three groups with their counts %s' % heads, len(heads) == 3 and all(h.split()[-1].isdigit() for h in heads) and pg.locator('#sqmis .msgrpb.on').count() == 1)
         pg.click('#sqmis .msgh >> nth=1'); pg.wait_for_timeout(200)
-        check('...a click opens another group', pg.locator('#sqmis .msg.on').count() == 2)
+        check('...a click opens another group', pg.locator('#sqmis .msgrpb.on').count() == 2)
+        pg.click('#sqmis .msgh >> nth=0'); pg.wait_for_timeout(150); pg.click('#sqmis .msgh >> nth=1'); pg.wait_for_timeout(200)
+        check('...all the groups can be closed (the first does not open again by itself)', pg.locator('#sqmis .msgrpb.on').count() == 0)
+        check('...the dots of the campaigns are round', pg.evaluate("()=>{const r=document.querySelector('#sqmis .msgh .msdot').getBoundingClientRect();return Math.abs(r.width-r.height)<0.5}"))
+        pg.click('#sqmis .msgh >> nth=0'); pg.wait_for_timeout(150)
         if shots: pg.locator('#sqmis').screenshot(path=shots + '/missions-groups.png')
         pg.click('#sqmis [data-g=date]'); pg.wait_for_timeout(200)
         check('by date: one group a month, newest first', 'November 2026' in pg.locator('#sqmis .msgh >> nth=0').inner_text())
