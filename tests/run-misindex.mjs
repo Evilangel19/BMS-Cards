@@ -87,10 +87,15 @@ const me = metaOf({
   created: '2026-10-02T10:00:00Z',
   theater: { name: 'Korea KTO' },
   squadron: '35th FS',
+  osquad: 'Vipers VA',
   datacard: { label: 'Falcon 2 · F-16C x4 · Strike · 10:18:08', final: { mis: 'Tiger Spirit', cs: 'Falcon 2' } },
 });
 ok(
-  me.campaign == 'Tiger Spirit' && me.squadron == '35th FS' && me.callsign == 'Falcon 2' && me.kind == 'Strike',
+  me.campaign == 'Tiger Spirit' &&
+    me.squadron == '35th FS' &&
+    me.osquad == 'Vipers VA' &&
+    me.callsign == 'Falcon 2' &&
+    me.kind == 'Strike',
   'the meta of a mission'
 );
 const L = [
@@ -115,8 +120,8 @@ ok(
 ok(
   groupBy(L, 'squadron')
     .map(g => g.label)
-    .join() == '104 Ciola,35th FS,Squadron not known',
-  'by squadron: the one of the flight, else the sender'
+    .join() == '104 Ciola,Vipers VA,Personal / no squadron',
+  'by squadron: the online squadron that sent it, else the one of the player when it was saved'
 );
 ok(
   groupBy(L, 'date')

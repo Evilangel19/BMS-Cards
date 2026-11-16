@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.2.1 (not released yet)
 
+- Changed: Squadron > Missions: each campaign has its colour in the list; the Squadron groups are your online squadron (the one that sent the mission, or the one you were in when you saved it).
+- Changed: Weapons > Target: the Map background is the live map first (choose what it shows), then Take picture; Handwritten notes in the Filter card, also for the remarks; the plan of an airbase shows its runways and taxiways. Fixed: the handwriting was not shown.
+- Fixed: the tabs of the Squadron page moved when the Briefing was opened.
 - Changed: Squadron > Missions: Saved and Received side by side; New folder at the top, ＋ for a folder inside one; folders open and close; folders can be dragged into each other; select all, Move to and Delete at the head of the list. Fixed: dragging missions in the desktop program.
 - Changed: Weapons > Target: the map background has Edit points, Map filters and Buildings (the buildings of the objective on the picture); the plan zooms (wheel or − all +); Add target makes a WPN TGT in the DTC; the select tool shows a pointer. Fixed: the LEVELS menu went missing from the Map page after a frame of the map.
 - New: Squadron > Missions: search, groups by campaign, squadron or date, and folders of your own (drag missions onto them, or select several and Move to). The folders are only in the list: the missions stay where they are on the disk. Long lists open at once and show a hundred missions at a time.

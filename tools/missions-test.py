@@ -92,6 +92,7 @@ try:
         check('the box of the list selects all the missions shown (250)', '250 selected' in pg.inner_text('#sqmis .mshead'))
         pg.click('#sqmis [data-selnone]'); pg.wait_for_timeout(200)
         check('two columns: Saved missions and Received missions side by side', pg.evaluate("()=>{const c=document.querySelectorAll('.mstwo > .sqc');return c.length==2&&c[0].getBoundingClientRect().top==c[1].getBoundingClientRect().top}"))
+        check('All missions and Unfiled are coloured dots; one colour for each campaign, green the first', pg.locator('#sqmis .msf .msdot').count() == 2 and pg.evaluate("()=>{const m={};document.querySelectorAll('#sqmis .msr').forEach(r=>{const c=r.querySelector('em').textContent.split(' · ')[0];(m[c]=m[c]||new Set()).add(r.querySelector('b').style.color)});const v=Object.values(m);return v.length>1&&v.every(s=>s.size==1)&&new Set(v.map(s=>[...s][0])).size==v.length&&v.some(s=>s.has('rgb(76, 195, 138)'))}"))
         # search
         pg.fill('#sqmis .msq', 'balkan sead'); pg.wait_for_timeout(300)
         found = pg.locator('#sqmis .msr').count()

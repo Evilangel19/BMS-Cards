@@ -59,7 +59,9 @@ try:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br, 'Evil'); B, eb = start(br, 'Wing2')
         check('the Squadron page has a Briefing tab between Organization and Missions (ROE / SOP after Members)', A.locator('#sqtabs button').all_text_contents() == ['Members', 'ROE / SOP', 'Organization', 'Briefing', 'Missions', 'Me', 'Settings'])
+        x0 = A.locator('#sqtabs button').first.bounding_box()['x']
         brief(A)
+        check('the tabs of the Squadron page do not move when the Briefing widens the page (%.0f -> %.0f)' % (x0, A.locator('#sqtabs button').first.bounding_box()['x']), abs(A.locator('#sqtabs button').first.bounding_box()['x'] - x0) < 2)
         check('without a squadron the room says to join or create one first', 'squadron first' in A.inner_text('.brjoin'))
         check('the Briefing holds the map of the Map page (not editable)', A.locator('.brw .brmap #mpmap').count() == 1 and A.evaluate('()=>__app.mapV.isEdit()') is False)
         check('the page is wide while the Briefing is shown', A.evaluate("()=>document.querySelector('main').classList.contains('wide')"))

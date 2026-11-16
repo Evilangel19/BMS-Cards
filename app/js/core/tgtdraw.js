@@ -182,6 +182,95 @@ function trees(c, seed) {
   TREES.set(k, out);
   return out;
 }
+// ---- the runways and taxiways of an airbase (from its point files): the corners of the runways are exact, the taxi paths approximate
+const inPoly = (p, x, y, m = 0) => {
+  let ins = false;
+  for (let i = 0, j = p.length - 1; i < p.length; j = i++)
+    if (p[i][1] > y != p[j][1] > y && x < ((p[j][0] - p[i][0]) * (y - p[i][1])) / (p[j][1] - p[i][1]) + p[i][0])
+      ins = !ins;
+  return ins || (m > 0 && p.some((a, i) => segDist(a, p[(i + 1) % p.length], x, y) < m));
+};
+const segDist = (a, b, x, y) => {
+  const dx = b[0] - a[0],
+    dy = b[1] - a[1],
+    l = dx * dx + dy * dy,
+    t = l ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l)) : 0;
+  return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
+};
+function airfield(g, air, RW, TX, twid, mpx) {
+  g.save();
+  g.lineCap = g.lineJoin = 'round';
+  // the taxiways: a darker edge, then the surface
+  for (const [w, col] of [
+    [twid + 3, '#55534d'],
+    [twid, '#8a867c'],
+  ]) {
+    g.strokeStyle = col;
+    g.lineWidth = w;
+    for (const l of TX) {
+      g.beginPath();
+      l.forEach((p, i) => (i ? g.lineTo(p[0], p[1]) : g.moveTo(p[0], p[1])));
+      g.stroke();
+    }
+  }
+  RW.forEach((p, k) => {
+    g.shadowColor = 'rgba(0,0,0,.45)';
+    g.shadowBlur = 4;
+    g.fillStyle = '#7f7b72';
+    g.beginPath();
+    p.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])));
+    g.closePath();
+    g.fill();
+    g.shadowColor = 'transparent';
+    // the long axis: the middles of the two short sides
+    const d = i => Math.hypot(p[(i + 1) % 4][0] - p[i][0], p[(i + 1) % 4][1] - p[i][1]),
+      s = d(0) < d(1) ? 0 : 1,
+      mid = i => [(p[i][0] + p[(i + 1) % 4][0]) / 2, (p[i][1] + p[(i + 1) % 4][1]) / 2],
+      A = mid(s),
+      B = mid(s + 2),
+      len = Math.hypot(B[0] - A[0], B[1] - A[1]),
+      wid = d(s),
+      ux = (B[0] - A[0]) / len,
+      uy = (B[1] - A[1]) / len;
+    if (len < 20) return;
+    // the edges and the centre line
+    g.strokeStyle = 'rgba(235,235,225,.75)';
+    g.lineWidth = Math.max(1, 1 * mpx);
+    g.beginPath();
+    p.forEach((q, i) => (i ? g.lineTo(q[0], q[1]) : g.moveTo(q[0], q[1])));
+    g.closePath();
+    g.stroke();
+    g.setLineDash([Math.max(6, 30 * mpx), Math.max(5, 20 * mpx)]);
+    g.lineWidth = Math.max(1, 0.9 * mpx);
+    g.beginPath();
+    g.moveTo(A[0] + ux * wid, A[1] + uy * wid);
+    g.lineTo(B[0] - ux * wid, B[1] - uy * wid);
+    g.stroke();
+    g.setLineDash([]);
+    // the numbers at the ends: the end a runway is landed from is the one behind its heading
+    const ends = (air.rwy[k] && air.rwy[k].ends) || [],
+      fs = Math.max(11, Math.min(42, wid * 0.55));
+    g.fillStyle = '#f2f2ea';
+    g.font = '700 ' + fs + 'px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    for (const e of ends) {
+      const hx = Math.sin((e.dir * Math.PI) / 180),
+        hy = -Math.cos((e.dir * Math.PI) / 180),
+        at = hx * ux + hy * uy > 0 ? A : B,
+        sg = at == A ? 1 : -1,
+        px = at[0] + ux * sg * fs * 1.4,
+        py = at[1] + uy * sg * fs * 1.4;
+      g.save();
+      g.translate(px, py);
+      g.rotate(Math.atan2(hy, hx) + Math.PI / 2);
+      g.fillText(String(e.n).padStart(2, '0'), 0, 0);
+      g.restore();
+    }
+  });
+  g.restore();
+}
+
 /**
  * the symbol of a building (light roof and shadow, dark when destroyed), its size in metres at mpx px a metre (never smaller than a few px)
  * @param {CanvasRenderingContext2D} g @param {{name:string, st?:number}} f
@@ -311,7 +400,7 @@ export function hillshade(h, cols, rows, cellM, z = 2) {
  * 2 destroyed)}]. ground (optional): {cols, rows, h (ft, null outside the theater)} on the grid of groundGrid(planBox(...)): relief, and water where it is 0.
  * @returns {{c: HTMLCanvasElement, geo: any}}
  */
-export function planPicture(feats, c, seed, extra = [], ground = null, box = null) {
+export function planPicture(feats, c, seed, extra = [], ground = null, box = null, air = null) {
   const W = 2160,
     H = 1040,
     geo = box || planBox([...feats, ...extra], c, W, H),
@@ -378,12 +467,19 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
   // trees: small dark green dots in groups, never on the water nor on the buildings (they are only a look: BMS gives no trees). They stand on the
   // ground (a zoom keeps them in place and makes them bigger)
   const near = feats.map(f => P(f.x, f.y)),
-    clear = Math.max(30, 45 * mpx);
+    clear = Math.max(30, 45 * mpx),
+    RW = air && air.rwy && air.rwy.length ? air.rwy.map(r => r.c.map(q => P(q[0], q[1]))) : [],
+    TX = RW.length && air.taxi ? air.taxi.map(l => l.map(q => P(q[0], q[1]))) : [],
+    twid = Math.max(5, 23 * mpx), // a taxiway about 23 m wide
+    onAir = (px, py) =>
+      RW.some(p => inPoly(p, px, py, 25)) ||
+      TX.some(l => l.some((a, i) => i && segDist(l[i - 1], a, px, py) < twid + 25));
   for (const t of trees(c, seed)) {
     const [px, py] = P(t[0], t[1]),
       rad = Math.max(2.2, Math.min(18, t[2] * mpx));
     if (px < -20 || py < -20 || px > W + 20 || py > H + 20) continue;
     if (water(px, py) || near.some(q => Math.abs(q[0] - px) < clear && Math.abs(q[1] - py) < clear)) continue;
+    if (RW.length && onAir(px, py)) continue;
     g.fillStyle = 'rgba(20,30,16,.35)';
     g.beginPath();
     g.arc(px + rad * 0.5, py + rad * 0.5, rad, 0, 7);
@@ -408,7 +504,19 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
     g.fillRect(-W * 2, -Math.max(40, 90 * mpx), W * 4, Math.max(80, 180 * mpx));
     g.restore();
   }
+  if (RW.length) airfield(g, air, RW, TX, twid, mpx);
   for (const f of feats) {
+    // the runway sections are in the runway drawn above: only the destroyed ones show (craters)
+    if (RW.length && featKind(f.name) == 'rwy') {
+      if (f.st == 2) {
+        const [px, py] = P(f.x, f.y);
+        g.fillStyle = 'rgba(40,34,28,.85)';
+        g.beginPath();
+        g.arc(px, py, Math.max(5, 14 * mpx), 0, 7);
+        g.fill();
+      }
+      continue;
+    }
     const [px, py] = P(f.x, f.y);
     featSym(g, f, px, py, mpx, ang);
   }

@@ -11,6 +11,9 @@ import {
   featuresOf,
   fedPath,
   ocdPath,
+  phdPath,
+  pdxPath,
+  parseAirfield,
 } from './targets.js';
 export function createTargetData(io) {
   let OBJC = null,
@@ -69,6 +72,18 @@ export function createTargetData(io) {
         await this.ct(),
         FCDN.names
       );
+    },
+    // the runways and taxi paths of an objective (null when it has no point files)
+    async airfield(o) {
+      try {
+        return parseAirfield(
+          this.dec(await io.readBytes(io.jp(io.dir(), ...phdPath(o.ocd).split('/')))),
+          this.dec(await io.readBytes(io.jp(io.dir(), ...pdxPath(o.ocd).split('/')))),
+          o
+        );
+      } catch (e) {
+        return null;
+      }
     },
     // fixed radar stations (objective type 21): [{o, feats:[{k,n,e,det}]}] with the radar features of each (FED -> CT -> FCD)
     async radars() {

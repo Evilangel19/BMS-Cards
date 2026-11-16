@@ -120,3 +120,61 @@ export function readTarget(v) {
   if (p[4] === 'Not set' && +p[0] === 0 && +p[1] === 0) return null;
   return { n: +p[0], e: +p[1], elv: Math.round(-p[2]), name: p.slice(4).join(', ') };
 }
+
+// The runways and taxiways of an airbase from its point files (PHD / PDX: offsets in ft, OffsetX east, OffsetY north, from the centre of the objective):
+// the four corners of each runway (header and points of Type 8, as bmsdata/runways.js), the numbers of its ends (the landing headers, Type 1: Data = heading)
+// and the taxi paths (runs of points of Type 2-4, takeoff and taxi, one after another in a header, never more than 2,500 ft apart: approximate).
+// -> {rwy: [{c: [[n, e] x4], ends: [{n, dir}]}], taxi: [[[n, e], ...]]} in ft on the ground
+export function parseAirfield(phdXml, pdxXml, obj) {
+  const tg = (b, k) => {
+      const q = b.match(new RegExp('<' + k + '>([^<]*)<'));
+      return q ? q[1].trim() : '';
+    },
+    pts = [...String(pdxXml).matchAll(/<PD Num="(\d+)">([\s\S]*?)<\/PD>/g)].map(m => ({
+      n: obj.n + +tg(m[2], 'OffsetY'),
+      e: obj.e + +tg(m[2], 'OffsetX'),
+      t: +tg(m[2], 'Type'),
+    })),
+    H = [...String(phdXml).matchAll(/<PHD Num="(\d+)">([\s\S]*?)<\/PHD>/g)].map(m => ({
+      t: +tg(m[2], 'Type'),
+      rw: +tg(m[2], 'RunwayNumber'),
+      dir: +tg(m[2], 'Data'),
+      first: +tg(m[2], 'FirstPtIdx'),
+      count: +tg(m[2], 'PointCount'),
+    })),
+    rwy = [],
+    taxi = [];
+  for (const h of H) {
+    const P = pts.slice(h.first, h.first + h.count);
+    if (h.t === 8) {
+      const c = P.filter(p => p.t === 8);
+      if (c.length !== 4) continue;
+      // the corners in order around the centre
+      const cn = c.reduce((a, p) => a + p.n, 0) / 4,
+        ce = c.reduce((a, p) => a + p.e, 0) / 4;
+      c.sort((a, b) => Math.atan2(a.n - cn, a.e - ce) - Math.atan2(b.n - cn, b.e - ce));
+      const ends = H.filter(x => x.t === 1 && x.rw === h.rw).map(x => ({
+        n: Math.round(x.dir / 10 + 0.01) % 36 || 36,
+        dir: x.dir,
+      }));
+      rwy.push({ c: c.map(p => [p.n, p.e]), ends: ends.filter((x, i) => ends.findIndex(y => y.n === x.n) === i) });
+      continue;
+    }
+    let run = [];
+    const flush = () => {
+      if (run.length >= 2) taxi.push(run);
+      run = [];
+    };
+    for (const p of P) {
+      if (p.t < 2 || p.t > 4) {
+        flush();
+        continue;
+      }
+      const q = run[run.length - 1];
+      if (q && Math.hypot(q[0] - p.n, q[1] - p.e) > 2500) flush();
+      run.push([p.n, p.e]);
+    }
+    flush();
+  }
+  return { rwy, taxi };
+}

@@ -2,6 +2,7 @@
 import { mergeItems, parseAip, aipFor } from '../app/js/bmsdata/aip.js';
 import { parseAtc, buildAirbases } from '../app/js/bmsdata/airbases.js';
 import { parseRunways, runwayLengths, describeRunways } from '../app/js/bmsdata/runways.js';
+import { parseAirfield } from '../app/js/core/targets.js';
 let bad = 0,
   n = 0;
 const ok = (name, cond, info = '') => {
@@ -158,6 +159,36 @@ ok(
     rl[1784].max.w === 100,
   JSON.stringify(rl)
 );
+// the runways and taxi paths drawn on the plan of the Target tab
+{
+  const pdx2 = pdx.replace(
+      '</PDRecords>',
+      [pd(0, 0, 3), pd(800, 0, 4), pd(800, 600, 3), pd(9000, 9000, 3)].join('') + '</PDRecords>'
+    ),
+    phd2 = phd
+      .replace('<Type>1</Type><PointCount>1</PointCount>', '<Type>1</Type><Data>85</Data><PointCount>1</PointCount>')
+      .replace(
+        '</PHDRecords>',
+        '<PHD Num="3"><Type>3</Type><PointCount>4</PointCount><FirstPtIdx>10</FirstPtIdx><RunwayNumber>0</RunwayNumber></PHD></PHDRecords>'
+      ),
+    af = parseAirfield(phd2, pdx2, { n: 1000, e: 2000 });
+  ok(
+    'airfield: two runways, four corners each, on the ground of the objective',
+    af.rwy.length === 2 &&
+      af.rwy.every(r => r.c.length === 4) &&
+      af.rwy[0].c.some(([n, e]) => n === 1100 && e === 9000),
+    JSON.stringify(af.rwy[0])
+  );
+  ok(
+    '...the end numbers of the first one from its landing header (085 -> 09)',
+    af.rwy[0].ends.length === 1 && af.rwy[0].ends[0].n === 9
+  );
+  ok(
+    '...one taxi path of three points (the far point is left out)',
+    af.taxi.length === 1 && af.taxi[0].length === 3,
+    JSON.stringify(af.taxi)
+  );
+}
 ok('no runway data: nothing', Object.keys(runwayLengths([atc2], {})).length === 0);
 console.log(bad ? `${bad} of ${n} AIP checks failed` : `OK - ${n} AIP/ATC checks`);
 process.exit(bad ? 1 : 0);

@@ -147,6 +147,7 @@ export function metaOf(o) {
     campaign: String(fin.mis || (o.package && o.package.name) || ''),
     theater: String((o.theater && o.theater.name) || ''),
     squadron: String(o.squadron || ''),
+    osquad: String(o.osquad || ''),
     callsign: String(fin.cs || p[0] || ''),
     kind: String((p[2] || '').trim()),
     flight: lab,
@@ -168,18 +169,19 @@ export function matches(m, q, folderName = '') {
   return w.every(x => t.includes(x));
 }
 /**
- * groups of missions: by campaign, squadron (the squadron of the flight, else the online squadron that sent it) or date (month); newest first inside
+ * groups of missions: by campaign, squadron (the online squadron of the player: the one that sent it, else the one chosen when it was saved) or date (month); newest first inside
  * @returns {{key: string, label: string, items: any[]}[]}
  */
 export function groupBy(list, by) {
   const key = m => {
       const me = m.meta || {};
       if (by == 'campaign') return me.campaign || me.theater || '';
-      if (by == 'squadron') return me.squadron || m.squad || '';
+      if (by == 'squadron') return m.squad || me.osquad || '';
       const d = me.created || m.created || '';
       return d && !isNaN(Date.parse(d)) ? new Date(d).toISOString().slice(0, 7) : '';
     },
-    none = { campaign: 'Campaign not known', squadron: 'Squadron not known', date: 'Date not known' }[by] || 'Other',
+    none =
+      { campaign: 'Campaign not known', squadron: 'Personal / no squadron', date: 'Date not known' }[by] || 'Other',
     M = new Map();
   list.forEach(m => {
     const k = key(m);

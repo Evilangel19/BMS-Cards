@@ -367,8 +367,14 @@ function tgtDeps() {
       const o = (await td.objectives()).find(z => z.id === id);
       if (!o) return null;
       const fs = await td.features(o),
-        S = ST.C && ST.C.objFeat ? ST.C.objFeat.get(id) : null;
+        S = ST.C && ST.C.objFeat ? ST.C.objFeat.get(id) : null,
+        af = td.airfield ? await td.airfield(o) : null,
+        K = ([n, e]) => [e / FT_KM, n / FT_KM];
       return {
+        air:
+          af && af.rwy.length
+            ? { rwy: af.rwy.map(r => ({ c: r.c.map(K), ends: r.ends })), taxi: af.taxi.map(l => l.map(K)) }
+            : null,
         feats: fs.map((q, k) => ({
           name: q.name,
           value: q.value,
@@ -452,12 +458,12 @@ function tgtDeps() {
       return t ? { x: t.e / FT_KM, y: t.n / FT_KM, name: t.name, altFt: 0 } : null;
     },
     // the Map page lent to the Target tab, with the frame of the screenshot; the width of the frame on the ground is nm
-    async mapFrame(el, c, nm) {
+    // the map lent to the Target tab, around the target (nm wide); mapShoot opens the frame on it
+    async mapShow(el, c, nm) {
       const lm = mapV.leaflet;
-      if (!(lm && el.contains(lm.getContainer()) && document.getElementById('mpfr'))) {
+      if (!(lm && el.contains(lm.getContainer()))) {
         const r = await mapV.attach(el);
         if (!r) return false;
-        mapV.shotStart('tg', { toast: appToast });
       }
       const map = mapV.leaflet,
         fi = document.getElementById('mpfi'),
@@ -466,8 +472,19 @@ function tgtDeps() {
         mpp = (nm * 1852) / fw,
         z = Math.log2((156543.03392 * Math.cos((ll[0] * Math.PI) / 180)) / mpp);
       map.setView(ll, Math.max(5, Math.min(18, z)), { animate: false });
-      map.panBy([0, 20], { animate: false }); // the frame stands 20 px above the middle of the map
       return true;
+    },
+    // the frame on the lent map: as wide as nm, around the middle of the map as it was left
+    mapShoot(nm) {
+      const map = mapV.leaflet;
+      if (!map || document.getElementById('mpfr')) return;
+      const ll = map.getCenter();
+      mapV.shotStart('tg', { toast: appToast });
+      const fi = document.getElementById('mpfi'),
+        fw = (fi && fi.offsetWidth) || map.getContainer().clientWidth * 0.7,
+        z = Math.log2((156543.03392 * Math.cos((ll.lat * Math.PI) / 180)) / ((nm * 1852) / fw));
+      map.setView(ll, Math.max(5, Math.min(18, z)), { animate: false });
+      map.panBy([0, 20], { animate: false }); // the frame stands 20 px above the middle of the map
     },
     mapDetach: () => mapV.detach(),
     isEdit: () => mapV.isEdit(),

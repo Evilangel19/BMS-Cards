@@ -187,7 +187,10 @@ export async function msfBuild() {
     weapons: msfWeapons(),
     mapshot: ST.MAPSHOT ? ST.MAPSHOT.toDataURL('image/png') : null,
   });
-  msf.squadron = squadron; // shown in Squadron > Missions (grouped by squadron)
+  msf.squadron = squadron; // the squadron of the flight in the campaign (searched in Squadron > Missions)
+  try {
+    msf.osquad = (sqPage && sqPage.current && sqPage.current()) || ''; // the online squadron of the player (grouped by squadron)
+  } catch (e) {}
   return msf;
 }
 export async function msfSave() {

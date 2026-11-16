@@ -1778,3 +1778,28 @@ body.og-dragging * {
   padding: 3px 9px;
   font-size: 12px;
 }
+.msdot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 0;
+  background: #8b98a8;
+}
+.msdot.all {
+  background: #4aa3ff;
+}
+.msdot.none {
+  background: transparent;
+  border: 2px solid #8b98a8;
+  width: 7px;
+  height: 7px;
+}
+.msgh .msdot {
+  font-style: normal;
+}
+/* the Briefing makes the page wider: the tabs of the Squadron page stay where they are (only what is under them grows) */
+main.wide #sqtabs {
+  padding-left: max(0px, calc((100% + 40px - 1300px) / 2));
+}

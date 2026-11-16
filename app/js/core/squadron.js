@@ -2556,6 +2556,22 @@ export function createSquadronPage(deps) {
       savedBusy = false;
     }
   }
+  // a colour for each campaign: green for the first one (by the date of its oldest mission), then the colours of the HARM tables
+  const CAMPC = ['#4cc38a', '#4aa3ff', '#f0b040', '#b07cff', '#f87171', '#22d3ee', '#f472b6', '#a3e635'];
+  const campKey = m => (m.meta && (m.meta.campaign || m.meta.theater)) || '';
+  function campColors(list) {
+    const first = new Map();
+    list.forEach(m => {
+      const k = campKey(m),
+        d = (m.meta && m.meta.created) || m.created || '9';
+      if (k && (!first.has(k) || d < first.get(k))) first.set(k, d);
+    });
+    const out = new Map();
+    [...first.entries()]
+      .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0].localeCompare(b[0])))
+      .forEach(([k], i) => out.set(k, CAMPC[i % CAMPC.length]));
+    return out;
+  }
   const fname = id => (MF.find(f => f.id == id) || { name: '' }).name;
   const mDate = m => (m.created ? new Date(m.created).toLocaleDateString('en-CA') : '');
   function paintSaved(box) {
@@ -2564,6 +2580,7 @@ export function createSquadronPage(deps) {
         (MV.group != 'folder' || MV.folder == 'all' || (MV.folder == '' ? !m.folder : m.folder == MV.folder)) &&
         MX.matches(m, q, fname(m.folder)),
       L = MS.filter(inView),
+      camp = campColors(MS),
       cnt = id => MS.filter(m => (id == '' ? !m.folder : m.folder == id)).length,
       row = m => {
         const me = m.meta || {},
@@ -2575,7 +2592,7 @@ export function createSquadronPage(deps) {
             m.from ? 'received from ' + m.from : '',
             MV.group != 'folder' || MV.folder == 'all' ? (m.folder ? '📁 ' + fname(m.folder) : '') : '',
           ].filter(Boolean);
-        return `<div class="sqm msr${MV.sel.has(m.label) ? ' on' : ''}" data-k="${esc(m.label)}"><input type="checkbox" data-ck${MV.sel.has(m.label) ? ' checked' : ''} title="Select (Shift: a range)"><span><b>${esc(m.label)}</b><em>${esc(sub.join(' · '))}</em></span><span class="msbt"><button class="btn g gn sm" data-open title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`;
+        return `<div class="sqm msr${MV.sel.has(m.label) ? ' on' : ''}" data-k="${esc(m.label)}"><input type="checkbox" data-ck${MV.sel.has(m.label) ? ' checked' : ''} title="Select (Shift: a range)"><span><b style="color:${camp.get(campKey(m)) || 'inherit'}">${esc(m.label)}</b><em>${esc(sub.join(' · '))}</em></span><span class="msbt"><button class="btn g gn sm" data-open title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`;
       },
       rows = (list, key) => {
         const lim = MV.lim[key] || PAGE,
@@ -2603,7 +2620,7 @@ export function createSquadronPage(deps) {
         ? G.map(g => {
             const k = MV.group + ':' + g.key,
               op = MV.open.has(k);
-            return `<div class="msg${op ? ' on' : ''}"><button type="button" class="msgh" data-grp="${esc(k)}"><i>${op ? '▾' : '▸'}</i> ${esc(g.label)} <b>${g.items.length}</b></button>${op ? '<div class="msgb">' + rows(g.items, k) + '</div>' : ''}</div>`;
+            return `<div class="msg${op ? ' on' : ''}"><button type="button" class="msgh" data-grp="${esc(k)}"><i>${op ? '▾' : '▸'}</i> ${MV.group == 'campaign' && camp.get(g.key) ? `<i class="msdot" style="background:${camp.get(g.key)}"></i>` : ''}${esc(g.label)} <b>${g.items.length}</b></button>${op ? '<div class="msgb">' + rows(g.items, k) + '</div>' : ''}</div>`;
           }).join('')
         : '<div class="hint">No mission for this search.</div>';
     }
@@ -2614,7 +2631,7 @@ export function createSquadronPage(deps) {
         `<div class="msf${MV.folder === id ? ' on' : ''}" data-f="${esc(id)}" style="--d:${d}">${
           MV.edit === id
             ? `<input class="msfin" value="${esc(nm)}" maxlength="80"><button class="btn sm" data-fok>OK</button>`
-            : `<i class="msar"${arr ? ' data-tog' : ''}>${arr}</i><span>${id == 'all' ? '🗂' : id == '' ? '📥' : '📁'} ${esc(nm)}</span><b>${n}</b>${
+            : `<i class="msar"${arr ? ' data-tog' : ''}>${arr}</i><span>${id == 'all' ? '<i class="msdot all"></i>' : id == '' ? '<i class="msdot none"></i>' : '📁'} ${esc(nm)}</span><b>${n}</b>${
                 id && id != 'all'
                   ? '<button class="msfb" data-fsub title="A new folder inside this one">＋</button><button class="msfb" data-fren title="Rename">✎</button><button class="msfb" data-fdel title="Delete the folder (its missions go up one level)">×</button>'
                   : ''
@@ -3963,6 +3980,11 @@ export function createSquadronPage(deps) {
     received: () => recv,
     sendCard,
     canSendCard: () => !!cur(),
+    // the name of the online squadron of the player (the chosen one), '' in none
+    current: () => {
+      const q = cur();
+      return q ? q.name || '' : '';
+    },
     // 'owner': created a squadron (the commander); 'member': is in squadrons made by others; 'none': in no squadron
     role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
     rosterOf,

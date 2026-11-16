@@ -426,3 +426,12 @@
   overflow: auto;
   box-shadow: 0 8px 24px #000a;
 }
+.tgp .btn.g.tgnames.on {
+  background: #1f7a46;
+  color: #fff;
+  border-color: #2fa862;
+}
+.tgp .tgnames,
+.tgp .tgunfill {
+  min-width: 88px;
+}

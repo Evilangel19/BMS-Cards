@@ -100,6 +100,7 @@ export function createTargetPage(deps) {
     bld: true, // the buildings of the objective drawn on a picture of the map
     banner: 'CLASSIFIED', // the top line of the UAV FLIR display
     nscope: 'dmpi', // the names of the sub-objectives: of the DMPIs or all
+    pen: false, // handwritten notes: the notes of the picture and the remarks in handwriting (the font only)
   };
   let pfT = 0;
   const pfSave = () => {
@@ -990,6 +991,9 @@ export function createTargetPage(deps) {
   }
   // the symbols drawn by hand
   function drawSym(a, i) {
+    // the notes: handwritten as typed, else in capitals (the choice of the Filter card)
+    if (a.t && /^(callout|text|circle|box)$/.test(a.k))
+      a = { ...a, pen: PF.pen, t: PF.pen ? String(a.t) : String(a.t).toUpperCase() };
     const [p1x, p1y] = toP(a.u, a.v),
       p2 = a.u2 !== undefined ? toP(a.u2, a.v2) : null,
       c = a.col || '#fff',
@@ -1500,7 +1504,17 @@ export function createTargetPage(deps) {
     else M();
     y += LH / 3;
     H('6. REMARKS');
-    (s.rem || '—').split('\n').forEach(q => L(q));
+    if (PF.pen && s.rem) {
+      // handwritten remarks, in the ink of the page
+      const f0 = FS + 7;
+      s.rem.split('\n').forEach(q => {
+        if (y > MAXY) return;
+        x.fillStyle = PF.pst == 'prog' ? p.tx : '#1b2f7a';
+        x.font = f0 + 'px ' + PEN;
+        x.fillText(fit(q, TW - 4), X0 + 2, y + 2);
+        y += LH + 6;
+      });
+    } else (s.rem || '—').split('\n').forEach(q => L(q));
     if (DET) details(DET, DM);
   }
   // the detail pictures: around the aim points, on the plan of the objective (or on the screenshot); two, one under the other
@@ -1568,6 +1582,8 @@ export function createTargetPage(deps) {
     const n = root.querySelector('.tginfo'),
       t = tgt();
     if (n) n.textContent = t ? t.label + ' · ' + t.name + ' · ' + A().length + ' symbols' : '';
+    const dl = root.querySelector('.tgdel');
+    if (dl) dl.disabled = !(page == 'g' && selA >= 0 && selA < A().length);
   }
   // the crop frame of Put on datacard: the part that goes to the datacard, the rest darker
   function cropMarks() {
@@ -1803,16 +1819,24 @@ export function createTargetPage(deps) {
   // the handwriting of the notes by pen (Caveat, SIL Open Font License, in app/vendor/caveat)
   function penFont() {
     try {
-      if (typeof FontFace == 'undefined' || document.fonts.check('26px "BMS Caveat"')) return;
+      // (fonts.check says true for a family it does not know: the font is looked for in the set itself)
+      if (
+        typeof FontFace == 'undefined' ||
+        penOk ||
+        [...document.fonts].some(z => z.family.replace(/"/g, '') == 'BMS Caveat')
+      )
+        return;
+      penOk = true;
       const f = new FontFace('BMS Caveat', 'url(./vendor/caveat/caveat-latin-600-normal.woff2)');
       f.load()
         .then(ff => {
           document.fonts.add(ff);
           draw();
         })
-        .catch(() => {});
+        .catch(() => (penOk = false));
     } catch (e) {}
   }
+  let penOk = false;
   function build() {
     built = true;
     penFont();
@@ -1825,12 +1849,12 @@ export function createTargetPage(deps) {
      RANGES.map(r => [r, r + ' NM']),
      PF.range
    )}</div>
-    <div class="tgrow"><button type="button" class="btn tgframe">Frame on the map</button><button type="button" class="btn g tgunframe" hidden>Cancel</button></div>
-    <p class="hint">The map of the Map page, with its base map and layers (LEVELS above the picture). Frame the target, then press Capture.</p></div>
+    <div class="tgrow"><button type="button" class="btn tgframe">📷 Take picture</button><button type="button" class="btn g tgunframe" hidden>Back to the picture</button></div>
+    <p class="hint">The map of the Map page: choose what it shows (LEVELS, Edit points, Map filters above it), then Take picture, frame the target and press Capture. The picture is then drawn on as the others.</p></div>
    <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
     <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
   <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
-   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn${PF.names ? '' : ' g'} tgnames" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
+   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn g tgnames${PF.names ? ' on' : ''}" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
      'nscope',
      [
        ['dmpi', 'DMPI'],
@@ -1841,6 +1865,7 @@ export function createTargetPage(deps) {
   <div class="wcard"><h3>Filter</h3>${seg('filt', FILTERS, PF.filt)}
    <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
    <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label>
+   <label class="tgpen" title="The notes of the picture (Text, Callout, the names of Box and Circle) and the remarks of the Target information in handwriting, as typed. Only the font changes."><input type="checkbox"${PF.pen ? ' checked' : ''}> Handwritten notes</label>
    <label class="tgsl tgban"${PF.filt == 'uav' ? '' : ' hidden'}><span>Banner</span><input type="text" class="tgbant" maxlength="40"></label></div>
   <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(
     ([k, l]) =>
@@ -1867,7 +1892,7 @@ export function createTargetPage(deps) {
   )}</div>
    <label class="tgsl"><span>Facility</span><input type="text" class="tgfac"></label>
    <label class="tgsl tgrem"><span>Remarks</span><textarea class="tgremt" placeholder="Shown on the text page"></textarea></label>
-   <label class="tgpen"><input type="checkbox"> Notes by pen (handwriting)</label></div>
+</div>
  </div>
  <div class="tgc wcard"><div class="tgbar">${seg(
    'page',
@@ -1878,9 +1903,9 @@ export function createTargetPage(deps) {
    page
  )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
-  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
-  <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel">Delete selected</button><button type="button" class="btn g rd tgclr">Clear all</button><span class="tgsp"></span>
-   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn g tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
+  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn g gn tgcropok">Put on datacard</button></div>
+  <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel" title="Delete the symbol chosen with the select tool" disabled>🗑 Selected</button><button type="button" class="btn g rd tgclr" title="Delete all the symbols and notes drawn on this background">🗑 Annotations</button><span class="tgsp"></span>
+   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn g gn tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
     cv = root.querySelector('canvas');
     wire();
   }
@@ -1907,7 +1932,7 @@ export function createTargetPage(deps) {
       else if (name == 'range') {
         PF.range = +v;
         pfSave();
-        if (framing) frame();
+        if (framing) live();
       } else if (name == 'filt') {
         PF.filt = v;
         banUI();
@@ -1993,7 +2018,7 @@ export function createTargetPage(deps) {
     };
     q('.tgnames').onclick = () => {
       PF.names = !PF.names;
-      q('.tgnames').classList.toggle('g', !PF.names);
+      q('.tgnames').classList.toggle('on', PF.names);
       const n = q('.tgnsc');
       n.hidden = !PF.names;
       if (PF.names) appear(n);
@@ -2089,7 +2114,12 @@ export function createTargetPage(deps) {
       if (s) s.rem = e.target.value;
       if (page == 't') draw();
     };
-    q('.tgpen input').onchange = draw;
+    q('.tgpen input').onchange = e => {
+      PF.pen = e.target.checked;
+      pfSave();
+      if (PF.pen) penFont();
+      draw();
+    };
     const fi = q('.tgdrop input');
     fi.onchange = () => setImg(fi.files[0]);
     const dz = q('.tgdrop');
@@ -2106,7 +2136,7 @@ export function createTargetPage(deps) {
       })
     );
     dz.addEventListener('drop', e => setImg(e.dataTransfer.files[0]));
-    q('.tgframe').onclick = () => frame();
+    q('.tgframe').onclick = () => (framing ? frame() : live());
     q('.tgunframe').onclick = () => unframe();
     q('.tgundo').onclick = () => {
       A().pop();
@@ -2122,7 +2152,11 @@ export function createTargetPage(deps) {
     };
     q('.tgclr').onclick = () => {
       const s = st();
-      if (!s) return;
+      if (!s || !A().length) return;
+      if (
+        !(deps.confirm ? deps.confirm : confirm)('Delete all the annotations of this background (' + A().length + ')?')
+      )
+        return;
       s.ann[s.view] = [];
       selA = -1;
       draw();
@@ -2169,7 +2203,6 @@ export function createTargetPage(deps) {
       A().filter(a => a.k == k).length +
       1 +
       (k == 'dmpi' && st() && st().auto && PF.show.dmpi ? tgt().dmpis.length : 0);
-    const pen = () => q('.tgpen input').checked;
     cv.onpointerdown = e => {
       if (page != 'g' || !pic()) return;
       const [px, py] = pos(e),
@@ -2202,11 +2235,11 @@ export function createTargetPage(deps) {
           pend = { k: 'callout', u, v, col };
           return;
         }
-        const a = { ...pend, lu: u, lv: v, pen: pen() };
+        const a = { ...pend, lu: u, lv: v };
         pend = null;
         ask(px, py, '', t => {
           if (t) {
-            a.t = a.pen ? t : t.toUpperCase();
+            a.t = t;
             A().push(a);
             draw();
           }
@@ -2227,10 +2260,9 @@ export function createTargetPage(deps) {
         return;
       }
       if (tool == 'text') {
-        const p = pen();
         ask(px, py, '', t => {
           if (t) {
-            A().push({ k: 'text', u, v, t: p ? t : t.toUpperCase(), col, pen: p });
+            A().push({ k: 'text', u, v, t, col });
             draw();
           }
         });
@@ -2241,7 +2273,7 @@ export function createTargetPage(deps) {
         cv.setPointerCapture(e.pointerId);
         return;
       }
-      drag = { k: tool, u, v, u2: u, v2: v, col, pen: pen() };
+      drag = { k: tool, u, v, u2: u, v2: v, col };
       cv.setPointerCapture(e.pointerId);
     };
     cv.onpointermove = e => {
@@ -2298,7 +2330,7 @@ export function createTargetPage(deps) {
         });
       if (a.k == 'circle' || a.k == 'box')
         return ask(px, py, '', t => {
-          a.t = t ? (a.pen ? t : t.toUpperCase()) : '';
+          a.t = t || '';
           A().push(a);
           draw();
         });
@@ -2394,20 +2426,28 @@ export function createTargetPage(deps) {
     im.onerror = () => deps.toast && deps.toast('The picture could not be read.');
     im.src = URL.createObjectURL(file);
   }
-  // the Map page borrowed to frame the target
-  async function frame() {
+  // the Map page lent to the tab (live): what it shows is chosen first, then Take picture opens the frame
+  async function live() {
     const t = tgt();
-    if (!t || !deps.mapFrame) return;
+    if (!t || !deps.mapShow) return;
     const m = q('.tgmap');
+    if (m.hidden) appear(m);
     m.hidden = false;
     cv.hidden = true;
-    q('.tgunframe').hidden = false;
     framing = true;
-    const ok = await deps.mapFrame(m, [t.x, t.y], PF.range);
+    liveUI();
+    const ok = await deps.mapShow(m, [t.x, t.y], PF.range);
     if (!ok) {
       unframe();
       deps.toast && deps.toast('The map could not be loaded.');
+      return;
     }
+    if (!framing || !st() || st().view != 'map') return;
+    levels(true);
+  }
+  async function frame() {
+    if (!framing) await live();
+    if (framing && deps.mapShoot) deps.mapShoot(PF.range);
   }
   function unframe() {
     if (framing && deps.mapDetach) deps.mapDetach();
@@ -2415,8 +2455,23 @@ export function createTargetPage(deps) {
     if (!built) return;
     q('.tgmap').hidden = true;
     cv.hidden = false;
-    q('.tgunframe').hidden = true;
+    levels(false);
+    liveUI();
     draw();
+  }
+  // the buttons of the map section: live map or picture
+  function liveUI() {
+    if (!built) return;
+    const s = st(),
+      b = q('.tgframe');
+    b.textContent = framing ? '📷 Take picture' : '🗺 Back to the map';
+    const u = q('.tgunframe');
+    u.hidden = !(framing && s && s.map);
+    qa('.tgedit, .tgpf').forEach(e => {
+      if (framing && e.hidden) appear(e);
+      e.hidden = !framing;
+    });
+    if (framing) mapBtns();
   }
   // the LEVELS menu of the Map page (base map and layers), lent to the bar of the picture while the background is the map
   let levOn = false,
@@ -2427,7 +2482,7 @@ export function createTargetPage(deps) {
     if (on && root.isConnected && !el.querySelector('#mpbasew')) {
       levOn = !!(await deps.levelsTo(el));
       // the background may have changed while the map was getting ready
-      if (levOn && (!st() || st().view != 'map' || !root.isConnected)) return levels(false);
+      if (levOn && (!st() || st().view != 'map' || !framing || !root.isConnected)) return levels(false);
       el.hidden = !levOn;
       if (levOn) appear(el);
     } else if (!on && levOn) {
@@ -2525,12 +2580,13 @@ export function createTargetPage(deps) {
       if (on && e.hidden) appear(e);
       e.hidden = !on;
     });
-    q('.tgframe').textContent = s.map ? 'Frame again' : 'Frame on the map';
-    levels(v == 'map');
+    if (v != 'map') levels(false);
     const mb = q('.tgmapb');
     if (v == 'map' && mb.hidden) appear(mb);
     mb.hidden = v != 'map';
-    if (v == 'map') mapBtns();
+    // the map: live first, the picture once it is taken
+    if (v == 'map' && !s.map && !framing) live();
+    else liveUI();
     zoomUI();
     PF.filt = v == 'plan' ? (PF.filt == 'none' ? 'recon' : PF.filt) : PF.filt;
     segSet('filt', PF.filt);
@@ -2671,7 +2727,7 @@ export function createTargetPage(deps) {
     try {
       const r = await deps.features(t.objId);
       if (r && r.feats && r.feats.length) {
-        FEAT[t.key] = { feats: r.feats, pct: r.pct, v: 0 };
+        FEAT[t.key] = { feats: r.feats, pct: r.pct, air: r.air || null, v: 0 };
         buildPlan(t);
       } else FEAT[t.key] = { none: true };
     } catch (e) {
@@ -2690,12 +2746,13 @@ export function createTargetPage(deps) {
       s = ST[t.key];
     if (!f || !f.feats) return;
     const ex = t.dmpis.map(d => ({ x: d.x, y: d.y })),
-      g0 = planBox([...f.feats, ...ex], [t.x, t.y], 2160, 1040),
+      ar = f.air ? f.air.rwy.flatMap(r => r.c.map(([x, y]) => ({ x, y }))) : [],
+      g0 = planBox([...f.feats, ...ex, ...ar], [t.x, t.y], 2160, 1040),
       z = (s && s.pz) || { k: 1, c: [t.x, t.y] },
       w = geoWidth(g0) / z.k,
       box = { o: [z.c[0] - w / 2, z.c[1] + (w * 1040) / 2160 / 2], u: [w, 0], v: [0, -(w * 1040) / 2160] },
       key = z.k + ':' + z.c.join(',');
-    f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.gk == key ? f.ground : null, box);
+    f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.gk == key ? f.ground : null, box, f.air);
     f.v++;
     if (!deps.heights || f.gk == key) return;
     clearTimeout(PLT);
@@ -2709,7 +2766,7 @@ export function createTargetPage(deps) {
           if (z2.k + ':' + z2.c.join(',') != key) return; // zoomed again meanwhile
           f.ground = { cols: gr.cols, rows: gr.rows, h };
           f.gk = key;
-          f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.ground, box);
+          f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.ground, box, f.air);
           f.v++;
           if (sel == t.key) draw();
         })
@@ -2789,8 +2846,11 @@ export function createTargetPage(deps) {
           if (o && typeof o == 'object') {
             for (const k of ['filt', 'lsty', 'pst', 'banner', 'nscope']) if (typeof o[k] == 'string') PF[k] = o[k];
             if (typeof o.names == 'boolean') PF.names = o.names;
+            if (typeof o.pen == 'boolean') PF.pen = o.pen;
+            q('.tgpen input').checked = PF.pen;
+            if (PF.pen) penFont();
             q('.tgbant').value = PF.banner;
-            q('.tgnames').classList.toggle('g', !PF.names);
+            q('.tgnames').classList.toggle('on', PF.names);
             q('.tgnsc').hidden = !PF.names;
             segSet('nscope', PF.nscope);
             banUI();
@@ -2842,6 +2902,7 @@ export function createTargetPage(deps) {
     // for the tests
     _t: {
       planZoom,
+      air: () => (FEAT[sel] && FEAT[sel].air) || null,
       crop: () => CROP,
       boxX,
       list: () => TL,

@@ -25,7 +25,9 @@ INI = '\n'.join(['[STPT]',
 FEATS = [('Bunker', 120, -160), ('Bunker', 120, -90), ('Bunker', 40, -160), ('Bunker', 40, -90), ('Warehouse', -70, -140), ('Warehouse', -70, -40),
          ('Fuel tank', -40, 120), ('Fuel tank', -40, 170), ('Admin building', 150, 140), ('Comms tower', 90, 190), ('AAA site', -180, 190)]
 TD = """f=>{const FT=3280.84,cx=%f,cy=%f;window.__targetData={objectives:async()=>[{id:1182,name:'Depot #6',type:10,n:cy*FT,e:cx*FT,ocd:1},{id:7,name:'Okchon',type:8,n:(cy+0.5)*FT,e:cx*FT,ocd:2}],
-  features:async o=>f.map(([nm,dn,de],i)=>({i,name:nm,value:5,n:(cy+dn/1000)*FT,e:(cx+de/1000)*FT}))}}""" % (CX, CY)
+  features:async o=>f.map(([nm,dn,de],i)=>({i,name:nm,value:5,n:(cy+dn/1000)*FT,e:(cx+de/1000)*FT})),
+  airfield:async o=>o.ocd!=1?null:{rwy:[{c:[[cy-0.27,cx-0.25],[cy-0.27,cx+0.25],[cy-0.3,cx+0.25],[cy-0.3,cx-0.25]].map(([n,e])=>[n*FT,e*FT]),ends:[{n:9,dir:90},{n:27,dir:270}]}],
+    taxi:[[[cy-0.27,cx-0.1],[cy-0.2,cx-0.1],[cy-0.2,cx]].map(([n,e])=>[n*FT,e*FT])]}}}""" % (CX, CY)
 b64 = lambda p: base64.b64encode(open(p, 'rb').read()).decode()
 try:
     with sync_playwright() as p:
@@ -47,6 +49,12 @@ try:
         dark = lambda: pg.evaluate("()=>{const c=document.querySelector('.tgp canvas'),d=c.getContext('2d').getImageData(c.width/2-200,c.height/2-100,400,200).data;let s=0;for(let i=0;i<d.length;i+=4)s+=d[i];return s/(d.length/4)}")
         pg.wait_for_timeout(400)
         check('the plan of the objective is drawn (the picture is not black): %.0f' % dark(), dark() > 40)
+        check('the plan of an airbase: its runway (corners from the point files) and a taxi path', T("!!t.air()&&t.air().rwy.length==1&&t.air().taxi.length==1"))
+        check('Delete selected is now a bin, off while nothing is chosen; Clear all is the bin of the annotations', pg.inner_text('.tgp .tgdel').endswith('Selected') and pg.locator('.tgp .tgdel').is_disabled() and pg.inner_text('.tgp .tgclr').endswith('Annotations'))
+        check('Put on datacard is green', pg.evaluate("()=>getComputedStyle(document.querySelector('.tgp .tgdc')).backgroundColor=='rgb(31, 122, 70)'"))
+        pg.click('.tgp .tgpen input'); pg.wait_for_timeout(800)
+        check('Handwritten notes (in the Filter card): the handwriting font is loaded', pg.evaluate("()=>!!document.querySelector('.tgp .tgpen').closest('.wcard').querySelector('[data-seg=filt]') && [...document.fonts].some(f=>f.family.replace(/\"/g,'')=='BMS Caveat'&&f.status=='loaded')"))
+        pg.click('.tgp .tgpen input'); pg.wait_for_timeout(100)
         check('the header names the STPTs of the target', T("t.list()[0].refs.join(',')") == 'STPT 81,STPT 82,WPN 1')
         if shots: pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-plan.png')
         pg.click('.tgp .tgfill'); pg.wait_for_timeout(300)
@@ -72,7 +80,7 @@ try:
         pg.mouse.move(*pt(0.76, 0.75)); pg.wait_for_timeout(100)
         cur1 = pg.evaluate("()=>document.querySelector('.tgp canvas').style.cursor")
         check('the pointer: plain on the empty picture (%s), the move cross on a symbol (%s)' % (cur0, cur1), cur0 == 'default' and cur1 == 'move')
-        check('a callout drawn by hand, in capitals', T("t.state().ann.plan.map(a=>a.k+':'+a.t).join()") == 'callout:FUEL STORAGE')
+        check('a callout drawn by hand: kept as typed (shown in capitals unless Handwritten notes)', T("t.state().ann.plan.map(a=>a.k+':'+a.t).join()") == 'callout:fuel storage')
         pg.click('.tgp [data-tool=select]')
         check('the select tool is a mouse pointer', pg.locator('.tgp [data-tool=select] svg').count() == 1)
         # the zoom of the plan: the symbols drawn by hand stay on their ground
@@ -98,11 +106,12 @@ try:
         check('...the symbols drawn on the plan stay on the plan', T('t.state().ann.shot.length') == 0 and T('t.state().ann.plan.length') == 1)
         if shots: pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-shot.png')
         # the Map page, framed and captured
-        pg.click('.tgp [data-seg=view] [data-v=map]'); pg.wait_for_timeout(200)
+        pg.click('.tgp [data-seg=view] [data-v=map]'); pg.wait_for_timeout(2500)
+        check('Map background: the live map of the Map page first, no frame yet', pg.locator('.tgp .tgmap #mpmap').count() == 1 and pg.locator('#mpfr').count() == 0 and pg.inner_text('.tgp .tgframe').endswith('Take picture'))
         check('Map background: the LEVELS menu of the Map page is in the bar of the picture', pg.locator('.tgp .tglev #mpbaseb').count() == 1)
         pg.click('.tgp .tglev #mpbaseb'); pg.wait_for_timeout(300)
         check('...it opens over the picture', pg.locator('.tgp .tglev #mpbase').is_visible())
-        pg.click('.tgp [data-seg=view] [data-v=plan]'); pg.wait_for_timeout(300); pg.click('.tgp [data-seg=view] [data-v=map]'); pg.wait_for_timeout(300)
+        pg.click('.tgp [data-seg=view] [data-v=plan]'); pg.wait_for_timeout(300); pg.click('.tgp [data-seg=view] [data-v=map]'); pg.wait_for_timeout(1500)
         check('Map background: Edit points and Map filters of the horizontal envelope, and Buildings', pg.locator('.tgp .tgmapb').is_visible() and pg.inner_text('.tgp .tgedit').startswith('Edit points'))
         pg.click('.tgp .tgpf'); pg.wait_for_timeout(150)
         check('...Map filters goes round (No filters)', pg.inner_text('.tgp .tgpf') == 'No filters')
@@ -111,7 +120,7 @@ try:
         check('...and comes closed when the Map background is chosen again (it was left open)', pg.locator('.tgp .tglev #mpbaseb').count() == 1 and not pg.locator('.tgp .tglev #mpbase').is_visible())
         pg.click('.tgp .tgframe'); pg.wait_for_timeout(2500)
         check('...the canvases of the map are not painted black by the page (the base map shows)', pg.evaluate("()=>[...document.querySelectorAll('.tgp .tgmap canvas')].every(c=>getComputedStyle(c).backgroundColor!='rgb(0, 0, 0)')"))
-        check('Frame on the map: the map of the Map page with its frame, without the angle', pg.locator('.tgp .tgmap #mpmap').count() == 1 and pg.locator('#mpfr').count() == 1 and pg.locator('#mpang').count() == 0)
+        check('Take picture: the map of the Map page with its frame, without the angle', pg.locator('.tgp .tgmap #mpmap').count() == 1 and pg.locator('#mpfr').count() == 1 and pg.locator('#mpang').count() == 0)
         if shots: pg.locator('.tgp .tgc').screenshot(path=shots + '/tgt-frame.png')
         pg.click('#mpcap'); pg.wait_for_timeout(4000)
         g = T('t.state().map&&t.state().map.geo')
@@ -121,6 +130,7 @@ try:
             cu = pg.evaluate("([g,x,y])=>{const a=g.u[0],b=g.v[0],c=g.u[1],d=g.v[1],det=a*d-b*c,px=x-g.o[0],py=y-g.o[1];return [(d*px-b*py)/det,(-c*px+a*py)/det]}", [g, CX, CY])
             check('...about 10 NM wide (%.1f NM), the target in the middle (%.2f, %.2f)' % (w, cu[0], cu[1]), 8 < w < 12.5 and abs(cu[0] - 0.5) < 0.06 and abs(cu[1] - 0.5) < 0.06)
         check('...the map goes back to the Map page and the picture is shown', pg.locator('.tgp .tgmap #mpmap').count() == 0 and T("t.state().view") == 'map')
+        check('...with Back to the map, without the buttons of the live map', pg.inner_text('.tgp .tgframe').endswith('Back to the map') and not pg.locator('.tgp .tgedit').is_visible() and pg.locator('.tgp .tglev #mpbaseb').count() == 0)
         if shots: pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-map.png')
         # Kneeboard and datacard
         n0 = pg.evaluate('()=>__app.KBLIB.length')
@@ -152,7 +162,7 @@ try:
         check('...then the picture is the map screenshot of the datacard (564 x 752 shape)', pg.evaluate('()=>{const c=__app.ST.MAPSHOT;return c&&Math.abs(c.width/c.height-564/752)<0.01}') and not pg.locator('.tgp .tgcropbar').is_visible())
         # names, the × of a DMPI box, the × of a target
         pg.click('.tgp [data-seg=view] [data-v=plan]'); pg.wait_for_timeout(300)
-        check('Names: on (green), the names of the DMPIs; All shows them all', pg.evaluate("()=>!document.querySelector('.tgp .tgnames').classList.contains('g')"))
+        check('Names: on (green), the names of the DMPIs; All shows them all', pg.evaluate("()=>{const b=document.querySelector('.tgp .tgnames');return b.classList.contains('on')&&getComputedStyle(b).backgroundColor=='rgb(31, 122, 70)'}"))
         pg.click('.tgp [data-seg=nscope] [data-v=all]'); pg.wait_for_timeout(200)
         if shots: pg.locator('.tgp canvas').screenshot(path=shots + '/tgt-names.png')
         pg.wait_for_timeout(4500)  # the message of Put on datacard stands over the DMPI boxes for a few seconds
