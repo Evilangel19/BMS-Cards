@@ -462,7 +462,7 @@ function tgtDeps() {
     async mapShow(el, c, nm) {
       const lm = mapV.leaflet;
       if (!(lm && el.contains(lm.getContainer()))) {
-        const r = await mapV.attach(el);
+        const r = await mapV.attach(el, true); // the points of the map are not edited on the Target tab
         if (!r) return false;
       }
       const map = mapV.leaflet,
@@ -488,8 +488,6 @@ function tgtDeps() {
       map.panBy([0, 20], { animate: false }); // the frame stands 20 px above the middle of the map
     },
     mapDetach: () => mapV.detach(),
-    isEdit: () => mapV.isEdit(),
-    toggleEdit: () => mapV.toggleEdit(),
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
     // Add target on the Target tab: a weapon target of the DTC, as on the Map page ('ok', 'full', or 'none' without a DTC)

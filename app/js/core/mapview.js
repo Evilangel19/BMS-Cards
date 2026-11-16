@@ -4332,11 +4332,6 @@ export function createMap(host, deps) {
     fr.innerHTML =
       '<div id="mpfi"></div><div id="mpfb"><button class="btn" id="mpcap">Capture</button><label class="hint" style="margin:0;display:flex;align-items:center;gap:6px" title="Turn the frame: the map inside it is straightened into the picture">Angle <input type="range" id="mpang" min="0" max="359" step="1" value="0" style="width:130px"><b id="mpangv" style="min-width:34px;text-align:right">0°</b></label><button class="btn g" id="mprot" title="Turn the frame by another quarter">+90°</button><button class="btn g" id="mpcan">Cancel</button></div>';
     (away || host).append(fr); // a page that borrows the map (Briefing) frames it where it is
-    if (shotK == 'tg') {
-      // the target picture keeps north up: its place on the ground goes with it
-      fr.querySelector('#mpfb label').remove();
-      $('mprot').remove();
-    }
     sizeFrame();
     shotBtn();
     ZO = { snap: map.options.zoomSnap, wheel: map.options.wheelPxPerZoomLevel };
@@ -4489,15 +4484,23 @@ export function createMap(host, deps) {
         q.drawImage(c, -c.width / 2, -c.height / 2);
         c = r;
       }
-      // the target picture: where its corners are (north up)
+      // the target picture: where its corners are (the frame may be turned: its corners go round its middle)
       let geo = null;
       if (shotK == 'tg') {
-        const fi = $('mpfi').getBoundingClientRect(),
-          at = (px, py) => {
-            const l = map.containerPointToLatLng([px - mb.left, py - mb.top]);
+        const fe = $('mpfi'),
+          fi = fe.getBoundingClientRect(),
+          mx = (fi.left + fi.right) / 2,
+          my = (fi.top + fi.bottom) / 2,
+          hw = fe.offsetWidth / 2,
+          hh = fe.offsetHeight / 2,
+          an = (shotAng * Math.PI) / 180,
+          co = Math.cos(an),
+          sn = Math.sin(an),
+          at = (dx, dy) => {
+            const l = map.containerPointToLatLng([mx + dx * co - dy * sn - mb.left, my + dx * sn + dy * co - mb.top]);
             return [l.lat, l.lng];
           };
-        geo = { tl: at(fi.left, fi.top), tr: at(fi.right, fi.top), bl: at(fi.left, fi.bottom) };
+        geo = { tl: at(-hw, -hh), tr: at(hw, -hh), bl: at(-hw, hh) };
       }
       const k0 = shotK;
       shotStop();

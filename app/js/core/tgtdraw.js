@@ -35,6 +35,27 @@ export const COL = { sam: '#ff9f1a', unit: '#ff5d5d', ing: '#38d6f2', egr: '#4cc
  * @param {number} cx @param {number} cy centre (km) @param {number} w @param {number} h width and height (km), north up
  */
 export const geoBox = (cx, cy, w, h) => ({ o: [cx - w / 2, cy + h / 2], u: [w, 0], v: [0, -h] });
+/** a picture turned on the ground: its top points to the heading deg (0 = north up), around (cx, cy), w x h km */
+export function rotBox(cx, cy, w, h, deg = 0) {
+  const a = (deg * Math.PI) / 180,
+    up = [Math.sin(a), Math.cos(a)],
+    rt = [Math.cos(a), -Math.sin(a)];
+  return {
+    o: [cx - (rt[0] * w) / 2 + (up[0] * h) / 2, cy - (rt[1] * w) / 2 + (up[1] * h) / 2],
+    u: [rt[0] * w, rt[1] * w],
+    v: [-up[0] * h, -up[1] * h],
+  };
+}
+/** where north points on a picture: degrees clockwise from its top (0 for north up) */
+export function northOn(g) {
+  if (!g) return 0;
+  const [u0, v0] = toUV(g, g.o[0], g.o[1]),
+    [u1, v1] = toUV(g, g.o[0], g.o[1] + 1),
+    w = geoWidth(g),
+    h = Math.hypot(g.v[0], g.v[1]);
+  // in the units of the ground on both axes (the picture may not be square)
+  return (Math.atan2((u1 - u0) * w, -(v1 - v0) * h) * 180) / Math.PI;
+}
 /** three corners (km) of a picture: top left, top right, bottom left */
 export const geoCorners = (tl, tr, bl) => ({
   o: tl,
@@ -197,7 +218,7 @@ const segDist = (a, b, x, y) => {
     t = l ? Math.max(0, Math.min(1, ((x - a[0]) * dx + (y - a[1]) * dy) / l)) : 0;
   return Math.hypot(a[0] + t * dx - x, a[1] + t * dy - y);
 };
-function airfield(g, air, RW, TX, twid, mpx) {
+function airfield(g, air, RW, TX, twid, mpx, nA = 0) {
   g.save();
   g.lineCap = g.lineJoin = 'round';
   // the taxiways: a darker edge, then the surface
@@ -255,8 +276,9 @@ function airfield(g, air, RW, TX, twid, mpx) {
     g.textAlign = 'center';
     g.textBaseline = 'middle';
     for (const e of ends) {
-      const hx = Math.sin((e.dir * Math.PI) / 180),
-        hy = -Math.cos((e.dir * Math.PI) / 180),
+      // the heading on the picture (north may not be up)
+      const hx = Math.sin(((e.dir + nA) * Math.PI) / 180),
+        hy = -Math.cos(((e.dir + nA) * Math.PI) / 180),
         at = hx * ux + hy * uy > 0 ? A : B,
         sg = at == A ? 1 : -1,
         px = at[0] + ux * sg * fs * 1.4,
@@ -284,6 +306,7 @@ export function featSym(g, f, px, py, mpx, ang = 0, o = {}) {
   g.save();
   g.translate(px, py);
   if (k == 'span') g.rotate(ang);
+  else if (o.grid) g.rotate(o.grid); // square to the grid of the ground, on a turned picture
   g.shadowColor = 'rgba(0,0,0,.6)';
   g.shadowOffsetX = g.shadowOffsetY = Math.max(3 * mn, 4 * mpx);
   g.shadowBlur = 3;
@@ -350,15 +373,21 @@ export function rng(s) {
   };
 }
 /** the ground the plan covers: the features (and the aim points) with a margin, at least 600 m wide, in the proportions w:h */
-export function planBox(pts, c, w = 1080, h = 520) {
+export function planBox(pts, c, w = 1080, h = 520, deg = 0) {
   let ex = 0.3,
     ey = 0.3;
+  const a = (deg * Math.PI) / 180,
+    co = Math.cos(a),
+    sn = Math.sin(a);
   for (const p of pts) {
-    ex = Math.max(ex, Math.abs(p.x - c[0]));
-    ey = Math.max(ey, Math.abs(p.y - c[1]));
+    // across and along the turned picture
+    const dx = p.x - c[0],
+      dy = p.y - c[1];
+    ex = Math.max(ex, Math.abs(dx * co - dy * sn));
+    ey = Math.max(ey, Math.abs(dx * sn + dy * co));
   }
   const wk = Math.max(0.6, ex * 2 * 1.3, ey * 2 * 1.3 * (w / h));
-  return geoBox(c[0], c[1], wk, (wk * h) / w);
+  return rotBox(c[0], c[1], wk, (wk * h) / w, deg);
 }
 // ---- the ground of the plan: the heights of the BMS terrain (HeightMap.raw, about 30 m a sample) on a grid over the plan, shaded as a relief
 /** the grid of the ground over a picture: its points (km, row by row from the top left) and its size; about one point every 30 m, at most `max` across */
@@ -492,6 +521,7 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
   // a bridge: the spans in a line; the water across it
   const spans = feats.filter(f => featKind(f.name) == 'span');
   let ang = 0;
+  const gridA = (northOn(geo) * Math.PI) / 180; // the east of the ground on the picture
   if (spans.length >= 2) {
     const a = P(spans[0].x, spans[0].y),
       b = P(spans[spans.length - 1].x, spans[spans.length - 1].y);
@@ -504,7 +534,7 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
     g.fillRect(-W * 2, -Math.max(40, 90 * mpx), W * 4, Math.max(80, 180 * mpx));
     g.restore();
   }
-  if (RW.length) airfield(g, air, RW, TX, twid, mpx);
+  if (RW.length) airfield(g, air, RW, TX, twid, mpx, northOn(geo));
   for (const f of feats) {
     // the runway sections are in the runway drawn above: only the destroyed ones show (craters)
     if (RW.length && featKind(f.name) == 'rwy') {
@@ -518,7 +548,7 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
       continue;
     }
     const [px, py] = P(f.x, f.y);
-    featSym(g, f, px, py, mpx, ang);
+    featSym(g, f, px, py, mpx, ang, { grid: gridA });
   }
   return { c: cv, geo };
 }
@@ -526,16 +556,16 @@ export function planPicture(feats, c, seed, extra = [], ground = null, box = nul
 // ---- the filters (on the picture only, never on the symbols)
 export const FILTERS = [
   ['none', 'Original'],
-  ['recon', 'Recon B/W'],
-  ['ir', 'IR white-hot'],
+  ['recon', 'IR white-hot'],
+  ['ir', 'IR black-hot'],
   ['r80', 'Recon 1980s'],
   ['uav', 'UAV FLIR'],
-  ['suav', 'Small UAV'],
-  ['irb', 'IR black-hot'],
+  ['suav', 'Small drone'],
+  ['tgp', 'Targeting pod'],
   ['nvg', 'NVG'],
 ];
 /** the filters that put a sensor display over the picture (drawn by the page: it holds the data of the mission) */
-export const HUDS = ['uav', 'suav'];
+export const HUDS = ['uav', 'suav', 'tgp'];
 let NOISE = null;
 /**
  * @param {HTMLCanvasElement} src @param {string} f filter @param {number} con contrast @param {number} grn grain
@@ -548,7 +578,7 @@ export function filterPic(src, f, con, grn, stamp) {
   o.width = W;
   o.height = H;
   const c = /** @type {CanvasRenderingContext2D} */ (o.getContext('2d', { willReadFrequently: true }));
-  const soft = { r80: 3.2, uav: 1.8, suav: 2.4, irb: 1.5, nvg: 2 }[f];
+  const soft = { r80: 3.2, uav: 1.8, suav: 2.4, tgp: 1.7, nvg: 2 }[f];
   if (soft) {
     // lower definition: down and up again (a third for the 1980s film, softer for the video of a drone)
     const q = document.createElement('canvas');
@@ -571,14 +601,15 @@ export function filterPic(src, f, con, grn, stamp) {
     let g = 0.3 * p[i] + 0.59 * p[i + 1] + 0.11 * p[i + 2];
     if (f == 'ir') g = 255 - g * 0.85; // white hot
     if (f == 'uav') {
-      // the sensor of a large drone: a light, soft grey (white hot), a little grain
-      g = (40 + g * 0.8 - 128) * (0.55 + con * 0.35) + 128 + NOISE[j] * gr * 0.6;
+      // the sensor of a large drone: black hot, a soft grey, a little grain
+      g = (215 - g * 0.8 - 128) * (0.55 + con * 0.35) + 128 + NOISE[j] * gr * 0.6;
       p[i] = p[i + 1] = p[i + 2] = g;
       continue;
     }
-    if (f == 'irb') {
-      // thermal, black hot: the warm things dark on a light grey ground, soft and flat
-      g = (175 - g * 0.55 - 128) * (0.6 + con * 0.4) + 128 + NOISE[j] * gr * 0.5;
+    if (f == 'tgp') {
+      // the targeting pod, white hot: a mid grey ground, the light things bright and hard, a fine grain
+      const k = g / 255;
+      g = (Math.pow(k, 0.85) * 255 * 0.82 + 30 - 128) * con * 1.25 + 128 + NOISE[j] * gr * 0.8;
       p[i] = p[i + 1] = p[i + 2] = g;
       continue;
     }
@@ -603,6 +634,25 @@ export function filterPic(src, f, con, grn, stamp) {
   }
   c.putImageData(d, 0, 0);
   if (f == 'r80') retro(c, W, H, stamp || '');
+  if (f == 'tgp') {
+    // the bloom of the hot things: a blurred copy of the picture laid over it, lighter
+    const b = document.createElement('canvas');
+    b.width = Math.max(1, (W / 10) | 0);
+    b.height = Math.max(1, (H / 10) | 0);
+    const bx = /** @type {CanvasRenderingContext2D} */ (b.getContext('2d'));
+    bx.drawImage(o, 0, 0, b.width, b.height);
+    c.save();
+    c.globalCompositeOperation = 'screen';
+    c.globalAlpha = 0.28;
+    c.imageSmoothingEnabled = true;
+    c.drawImage(b, 0, 0, W, H);
+    c.restore();
+    const v = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.72);
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(1, 'rgba(0,0,0,.35)');
+    c.fillStyle = v;
+    c.fillRect(0, 0, W, H);
+  }
   if (f == 'nvg') {
     // the round field of the tube, dark outside, a little glow in the middle
     const R = Math.min(W, H) * 0.62,

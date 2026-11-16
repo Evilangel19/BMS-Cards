@@ -20,6 +20,8 @@ import {
   threatsNear,
   planPicture,
   planBox,
+  rotBox,
+  northOn,
   groundGrid,
   featSym,
   spanAngle,
@@ -84,6 +86,7 @@ const TICON = {
   text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
   undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
   del: '<path d="M8 20h12M5 15l9-9 5 5-7 7H8z"/><path d="M9.5 10.5l5 5"/>',
+  bld: '<path d="M3 21h18M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6M9 11h2M13 11h2"/>',
   clr: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
 };
 const tico = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${TICON[k]}</svg>`;
@@ -97,7 +100,7 @@ const SHOWS = [
   ['imp', 'Impacts'],
 ];
 const VIEWS = [
-  ['plan', 'Plan of the objective'],
+  ['plan', 'Synthetic'],
   ['map', 'Map'],
   ['shot', 'Screenshot'],
 ];
@@ -257,6 +260,8 @@ export function createTargetPage(deps) {
     return toP(u, v);
   };
   const pxPerKm = () => prect().w / geoWidth(geo());
+  // where north points on the picture (degrees clockwise from the top): 0 without a place on the ground (a screenshot)
+  const nUp = () => northOn(geo());
   const inR = (px, py, m = 0) => {
     const r = vr();
     return px >= r.x + m && px <= r.x + r.w - m && py >= r.y + m && py <= r.y + r.h - m;
@@ -798,7 +803,8 @@ export function createTargetPage(deps) {
       ang = spanAngle(f.feats, P);
     f.feats.forEach(q => {
       const [px, py] = P(q.x, q.y);
-      if (inR(px, py, -10)) featSym(x, q, px, py, mpx, ang, { min: 0.6, edge: 'rgba(0,0,0,.6)' });
+      if (inR(px, py, -10))
+        featSym(x, q, px, py, mpx, ang, { min: 0.6, edge: 'rgba(0,0,0,.6)', grid: (nUp() * Math.PI) / 180 });
     });
   }
   // ---- the sensor displays of the UAV filters, over the picture and under the symbols, with the data of the mission (never a real organisation)
@@ -820,6 +826,128 @@ export function createTargetPage(deps) {
       spd: R && R.spd ? Math.round(R.spd) : null,
       wind: w,
     };
+  }
+  // the display of a targeting pod (white hot): the black bands, the heading tape, the data down both sides, the field of view, the cross, the clock
+  function hudTgp() {
+    const R = vr(),
+      u = R.h / 520,
+      D = hudData(),
+      cx = R.x + R.w / 2,
+      cy = R.y + R.h / 2,
+      bh = R.h * 0.07,
+      hd = D.hdg == null ? 0 : D.hdg;
+    x.save();
+    x.fillStyle = '#000';
+    x.fillRect(R.x, R.y, R.w, bh);
+    x.fillRect(R.x, R.y + R.h - bh, R.w, bh);
+    x.strokeStyle = '#f2f2f2';
+    x.fillStyle = '#f2f2f2';
+    x.shadowColor = 'rgba(0,0,0,.85)';
+    x.shadowBlur = 3 * u;
+    x.lineWidth = 2 * u;
+    x.font = '700 ' + 15 * u + 'px monospace';
+    x.textBaseline = 'middle';
+    // the heading tape at the top, with the heading in a box
+    const ty = R.y + bh + 52 * u,
+      tw = R.w * 0.3,
+      pxd = tw / 40;
+    x.beginPath();
+    x.moveTo(cx - tw / 2, ty);
+    x.lineTo(cx + tw / 2, ty);
+    for (let d = Math.ceil((hd - 20) / 5) * 5; d <= hd + 20; d += 5) {
+      const px = cx + (d - hd) * pxd,
+        L = d % 10 ? 7 : 13;
+      x.moveTo(px, ty);
+      x.lineTo(px, ty - L * u);
+    }
+    x.stroke();
+    x.textAlign = 'center';
+    const hs = brg3(hd).replace('°', '') + 'T',
+      hw = x.measureText(hs).width + 12 * u;
+    x.strokeRect(cx - hw / 2, ty - 44 * u, hw, 22 * u);
+    x.fillText(hs, cx, ty - 33 * u);
+    x.beginPath();
+    x.moveTo(cx - 6 * u, ty - 20 * u);
+    x.lineTo(cx + 6 * u, ty - 20 * u);
+    x.lineTo(cx, ty - 12 * u);
+    x.closePath();
+    x.fill();
+    // the field of view and the cross
+    const fw = R.w * 0.52,
+      fh = R.h * 0.52,
+      l = 14 * u;
+    [
+      [-1, -1],
+      [1, -1],
+      [-1, 1],
+      [1, 1],
+    ].forEach(([sx, sy]) => {
+      const px = cx + (sx * fw) / 2,
+        py = cy + (sy * fh) / 2;
+      x.beginPath();
+      x.moveTo(px - sx * l, py);
+      x.lineTo(px, py);
+      x.lineTo(px, py - sy * l);
+      x.stroke();
+    });
+    x.beginPath();
+    [
+      [-26, 0, -9, 0],
+      [9, 0, 26, 0],
+      [0, -20, 0, -9],
+      [0, 9, 0, 20],
+    ].forEach(([a, b2, c2, e]) => {
+      x.moveTo(cx + a * u, cy + b2 * u);
+      x.lineTo(cx + c2 * u, cy + e * u);
+    });
+    x.stroke();
+    // the elevation scale on the left
+    const sx0 = R.x + 140 * u,
+      sy0 = cy - 90 * u,
+      sh = 200 * u;
+    x.beginPath();
+    x.moveTo(sx0, sy0);
+    x.lineTo(sx0, sy0 + sh);
+    for (let k = 0; k <= 6; k++) {
+      x.moveTo(sx0, sy0 + (k * sh) / 6);
+      x.lineTo(sx0 - (k % 3 ? 6 : 12) * u, sy0 + (k * sh) / 6);
+    }
+    x.stroke();
+    x.textAlign = 'right';
+    x.fillText('60', sx0 - 18 * u, sy0);
+    x.fillText('0', sx0 - 18 * u, sy0 + sh / 3);
+    const dep = D.alt != null ? -Math.min(80, Math.max(5, Math.round(D.alt / 200))) : -45;
+    x.textAlign = 'left';
+    x.fillText('<' + dep, sx0 + 8 * u, sy0 + sh / 3 + (-dep / 60) * (sh / 3));
+    // the data down both sides
+    const col = (lines, left, y0) => {
+      x.textAlign = left ? 'left' : 'right';
+      lines
+        .filter(Boolean)
+        .forEach((q, k) => x.fillText(String(q), left ? R.x + 18 * u : R.x + R.w - 18 * u, y0 + k * 21 * u));
+    };
+    col(['POINT', 'UN', 'IR WHT', 'P1', 'NARO'], true, R.y + bh + 40 * u);
+    const ll = String(D.ll).split(/\s+(?=[EW])/);
+    col(
+      ['ACFT', D.spd != null && D.spd + ' KT', D.alt != null && D.alt.toLocaleString('en-US') + ' MSL', D.cs],
+      false,
+      R.y + bh + 40 * u
+    );
+    col(
+      [
+        D.tgt,
+        ll[0],
+        ll[1],
+        D.hdg != null && 'BRG ' + brg3(D.hdg).replace('°', ''),
+        D.elv && 'ELV ' + D.elv.replace(' FT', 'F'),
+      ],
+      false,
+      cy + 60 * u
+    );
+    col(['SEL', D.tot || '00:00:00'], true, R.y + R.h - bh - 46 * u);
+    x.textAlign = 'center';
+    x.fillText('ELRF', cx - R.w * 0.15, R.y + R.h - bh - 46 * u);
+    x.restore();
   }
   function hudUav() {
     const R = vr(),
@@ -888,7 +1016,7 @@ export function createTargetPage(deps) {
     col([D.cs, D.tgt, ll[0], ll[1], D.elv && 'ELEV ' + D.elv, D.tot && 'TOT ' + D.tot], true);
     col(
       [
-        'IR WHT',
+        'BLK HOT',
         'NFOV',
         D.hdg != null && 'HDG ' + brg3(D.hdg),
         D.alt != null && 'ALT ' + D.alt.toLocaleString('en-US'),
@@ -1089,13 +1217,13 @@ export function createTargetPage(deps) {
       line(p1x, p1y, p2[0], p2[1], 3.5);
       x.setLineDash([]);
       head(p1x, p1y, p2[0], p2[1], 20, c);
-      const hd = (Math.atan2(p2[0] - p1x, -(p2[1] - p1y)) * 180) / Math.PI;
+      const hd = (Math.atan2(p2[0] - p1x, -(p2[1] - p1y)) * 180) / Math.PI - nUp(); // a heading on the ground
       tag('RUN-IN ' + brg3(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20, {
         col: c,
         al: 'c',
       });
     } else if (a.k == 'north') {
-      const r = ((a.rot || 0) * Math.PI) / 180;
+      const r = (((a.rot || 0) + nUp()) * Math.PI) / 180; // turned by hand from the true north of the picture
       x.translate(p1x, p1y);
       x.rotate(r);
       x.fillStyle = c;
@@ -1174,7 +1302,7 @@ export function createTargetPage(deps) {
     if (p) {
       const r = prect();
       x.drawImage(p.c, r.x, r.y, r.w, r.h);
-      if (HUDS.includes(PF.filt)) (PF.filt == 'uav' ? hudUav : hudSuav)();
+      if (HUDS.includes(PF.filt)) ({ uav: hudUav, suav: hudSuav, tgp: hudTgp })[PF.filt]();
       if (s && s.view == 'map' && PF.bld && p.geo) mapBuildings();
       if (s && s.auto)
         try {
@@ -1870,7 +1998,8 @@ export function createTargetPage(deps) {
     root.innerHTML = `<div class="tgleft">
   <div class="wcard"><h3>Target <span class="tgh">DTC and flight</span></h3><div class="tglist"></div><button type="button" class="btn g tgadd">＋ Add target…</button></div>
   <div class="wcard"><h3>Background</h3>${seg('view', VIEWS, 'plan')}
-   <div class="tgsec" data-sec="plan"><div class="tgrow"><span class="hint">Zoom</span><span class="seg tgzoom"><button type="button" data-z="-" title="Zoom out">−</button><button type="button" data-z="0" class="tgzk" title="All the objective">all</button><button type="button" data-z="+" title="Zoom in">+</button></span><span class="hint">or the wheel on the picture</span></div><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
+   <div class="tgsec" data-sec="plan"><div class="tgrow"><span class="hint">Zoom</span><span class="seg tgzoom"><button type="button" data-z="-" title="Zoom out">−</button><button type="button" data-z="0" class="tgzk" title="All the objective">all</button><button type="button" data-z="+" title="Zoom in">+</button></span><span class="hint">or the wheel on the picture</span></div>
+    <div class="tgrow"><span class="hint">Turn</span><span class="seg tgrot"><button type="button" data-r="-15" title="Turn the plan 15° to the left">↺ 15°</button><button type="button" data-r="0" title="North at the top">N up</button><button type="button" data-r="+15" title="Turn the plan 15° to the right">↻ 15°</button><button type="button" data-r="atk" title="The attack heading at the top">Attack up</button></span><span class="hint tgrotv">North up</span></div><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
    <div class="tgsec" data-sec="map"><div class="tgrow"><span class="hint">Width</span>${seg(
      'range',
      RANGES.map(r => [r, r + ' NM']),
@@ -1924,13 +2053,13 @@ export function createTargetPage(deps) {
      ['t', 'Target information'],
    ],
    page
- )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn g tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgtb">${TOOLS.map(
     ([k, l]) =>
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
   ).join(
     ''
-  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}</span><i class="vs"></i><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
+  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}</span><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
   <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
@@ -2069,30 +2198,38 @@ export function createTargetPage(deps) {
           planZoom(b.dataset.z == '0' ? 1 : b.dataset.z == '+' ? k * 1.5 : k / 1.5);
         })
     );
-    // the buttons of the horizontal envelope of the Weapons page, for the map lent here
-    const eb = q('.tgedit'),
-      elab = () => {
-        const o = deps.isEdit && deps.isEdit();
-        eb.textContent = 'Edit points: ' + (o ? 'On' : 'Off');
-        eb.classList.toggle('gn', !!o); // the dark green of the chosen settings
-      };
-    eb.onclick = () => {
-      if (deps.toggleEdit) deps.toggleEdit();
-      elab();
-    };
+    qa('.tgrot [data-r]').forEach(
+      b =>
+        (b.onclick = () => {
+          const s = st(),
+            t = tgt(),
+            r = (s && s.pz && s.pz.r) || 0,
+            k = b.dataset.r;
+          if (k == 'atk') {
+            const R = t ? attackRoute(t) : null;
+            if (!R || R.hdg == null) {
+              if (deps.toast)
+                deps.toast(
+                  'No attack heading: plan the attack on the Pop-up, HADB or TOSS tab, or fill from the datacard.'
+                );
+              return;
+            }
+            planTurn(R.hdg);
+          } else planTurn(k == '0' ? 0 : r + +k);
+        })
+    );
+    // Map filters of the horizontal envelope of the Weapons page, for the map lent here (the points of the map are never edited here: the tab is for drawing)
     const pf = q('.tgpf'),
       PLAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'];
     pf.onclick = () => (pf.textContent = PLAB[deps.cyclePlan ? deps.cyclePlan() : 0]);
     const bl = q('.tgbld');
-    bl.classList.toggle('gn', !!PF.bld);
     bl.onclick = () => {
       PF.bld = !PF.bld;
-      bl.classList.toggle('gn', PF.bld);
+      bl.classList.toggle('on', PF.bld);
       pfSave();
       draw();
     };
     mapBtns = () => {
-      elab();
       pf.textContent = PLAB[deps.planMode ? deps.planMode() : 0];
     };
     q('.tgcropno').onclick = () => cropEnd(false);
@@ -2328,7 +2465,7 @@ export function createTargetPage(deps) {
         return;
       }
       if (drag.k == 'north') {
-        drag.rot = Math.round((Math.atan2(px - drag.px, -(py - drag.py)) * 180) / Math.PI);
+        drag.rot = Math.round((Math.atan2(px - drag.px, -(py - drag.py)) * 180) / Math.PI - nUp());
         if (Math.hypot(px - drag.px, py - drag.py) < 12) drag.rot = 0;
       } else {
         drag.u2 = u;
@@ -2497,15 +2634,21 @@ export function createTargetPage(deps) {
     b.textContent = framing ? 'Take picture' : 'Back to the map';
     const u = q('.tgunframe');
     u.hidden = !(framing && s && s.map);
-    qa('.tgedit, .tgpf').forEach(e => {
+    qa('.tgpf').forEach(e => {
       if (framing && e.hidden) appear(e);
       e.hidden = !framing;
     });
-    // Buildings draws on the picture taken: not on the live map
-    const bl = q('.tgbld');
-    if (!framing && bl.hidden) appear(bl);
-    bl.hidden = framing;
+    bldUI();
     if (framing) mapBtns();
+  }
+  // Buildings (in the tool bar) draws on the picture of the map once it is taken: not on the live map, not on the other backgrounds
+  function bldUI() {
+    if (!built) return;
+    const s = st(),
+      bl = q('.tgbld'),
+      h = !(s && s.view == 'map' && !framing);
+    if (!h && bl.hidden) appear(bl);
+    bl.hidden = h;
   }
   // the LEVELS menu of the Map page (base map and layers), lent to the bar of the picture while the background is the map
   let levOn = false,
@@ -2781,11 +2924,12 @@ export function createTargetPage(deps) {
     if (!f || !f.feats) return;
     const ex = t.dmpis.map(d => ({ x: d.x, y: d.y })),
       ar = f.air ? f.air.rwy.flatMap(r => r.c.map(([x, y]) => ({ x, y }))) : [],
-      g0 = planBox([...f.feats, ...ex, ...ar], [t.x, t.y], 2160, 1040),
       z = (s && s.pz) || { k: 1, c: [t.x, t.y] },
+      r = z.r || 0, // the heading at the top of the plan
+      g0 = planBox([...f.feats, ...ex, ...ar], [t.x, t.y], 2160, 1040, r),
       w = geoWidth(g0) / z.k,
-      box = { o: [z.c[0] - w / 2, z.c[1] + (w * 1040) / 2160 / 2], u: [w, 0], v: [0, -(w * 1040) / 2160] },
-      key = z.k + ':' + z.c.join(',');
+      box = rotBox(z.c[0], z.c[1], w, (w * 1040) / 2160, r),
+      key = z.k + ':' + z.c.join(',') + ':' + r;
     f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.gk == key ? f.ground : null, box, f.air);
     f.v++;
     if (!deps.heights || f.gk == key) return;
@@ -2797,7 +2941,7 @@ export function createTargetPage(deps) {
         .then(h => {
           if (!h || !h.some(q => q != null)) return;
           const z2 = (ST[t.key] && ST[t.key].pz) || { k: 1, c: [t.x, t.y] };
-          if (z2.k + ':' + z2.c.join(',') != key) return; // zoomed again meanwhile
+          if (z2.k + ':' + z2.c.join(',') + ':' + (z2.r || 0) != key) return; // zoomed or turned again meanwhile
           f.ground = { cols: gr.cols, rows: gr.rows, h };
           f.gk = key;
           f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.ground, box, f.air);
@@ -2817,6 +2961,36 @@ export function createTargetPage(deps) {
       z = s.pz || { k: 1, c: [t.x, t.y] },
       nk = Math.max(1, Math.min(8, k));
     if (nk == z.k && !g) return;
+    let c = z.c;
+    if (g) {
+      // the point under the pointer stays under it (along and across the picture, which may be turned)
+      const [u, v] = toUV(old, g[0], g[1]),
+        w = geoWidth(old) * (z.k / nk),
+        h = (w * 1040) / 2160,
+        a = ((z.r || 0) * Math.PI) / 180,
+        up = [Math.sin(a), Math.cos(a)],
+        rt = [Math.cos(a), -Math.sin(a)];
+      c = [g[0] - rt[0] * (u - 0.5) * w + up[0] * (v - 0.5) * h, g[1] - rt[1] * (u - 0.5) * w + up[1] * (v - 0.5) * h];
+    }
+    if (nk == 1) c = [t.x, t.y];
+    replan(t, s, f, { ...z, k: nk, c });
+    zoomUI();
+  }
+  // the turn of the plan: its top to the heading deg (0 north up); the symbols drawn by hand stay on their ground
+  function planTurn(deg) {
+    const t = tgt(),
+      s = st(),
+      f = t && FEAT[t.key];
+    if (!t || !s || !f || !f.plan) return;
+    const z = s.pz || { k: 1, c: [t.x, t.y] },
+      r = ((Math.round(deg) % 360) + 360) % 360;
+    if (r == (z.r || 0)) return;
+    replan(t, s, f, { ...z, r });
+    zoomUI();
+  }
+  // the plan made again with another zoom or turn (s.pz = z), the symbols drawn by hand moved with their ground
+  function replan(t, s, f, z) {
+    const old = f.plan.geo;
     const ann = s.ann.plan.map(a => {
       const o = { a };
       [
@@ -2828,15 +3002,7 @@ export function createTargetPage(deps) {
       });
       return o;
     });
-    let c = z.c;
-    if (g) {
-      // the point under the pointer stays under it
-      const [u, v] = toUV(old, g[0], g[1]),
-        w = geoWidth(old) * (z.k / nk);
-      c = [g[0] - (u - 0.5) * w, g[1] + (v - 0.5) * ((w * 1040) / 2160)];
-    }
-    if (nk == 1) c = [t.x, t.y];
-    s.pz = { k: nk, c };
+    s.pz = z;
     buildPlan(t);
     const ng = f.plan.geo;
     ann.forEach(o =>
@@ -2848,14 +3014,16 @@ export function createTargetPage(deps) {
         if (o[u]) [o.a[u], o.a[v]] = toUV(ng, o[u][0], o[u][1]);
       })
     );
-    zoomUI();
     draw();
   }
   function zoomUI() {
     const s = st(),
       k = (s && s.pz && s.pz.k) || 1,
+      r = (s && s.pz && s.pz.r) || 0,
       el = built && q('.tgzk');
     if (el) el.textContent = k == 1 ? 'all' : '× ' + Math.round(k * 10) / 10;
+    const rv = built && q('.tgrotv');
+    if (rv) rv.textContent = r ? brg3(r) + ' up' : 'North up';
   }
   async function loadTargets() {
     let r = { points: [], objs: [] };
@@ -2936,6 +3104,7 @@ export function createTargetPage(deps) {
     // for the tests
     _t: {
       planZoom,
+      nUp: () => nUp(),
       air: () => (FEAT[sel] && FEAT[sel].air) || null,
       crop: () => CROP,
       boxX,
