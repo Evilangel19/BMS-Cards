@@ -163,6 +163,91 @@ const KSIZE = {
   rwy: [60, 40],
 };
 
+// the trees around a target: [x, y (km), radius (m), shade], the same every time, over 4 km around it
+const TREES = new Map();
+function trees(c, seed) {
+  const k = seed + ':' + c[0].toFixed(3) + ',' + c[1].toFixed(3);
+  if (TREES.has(k)) return TREES.get(k);
+  const r = rng(k + 'trees'),
+    out = [];
+  for (let i = 0; i < 160; i++) {
+    const cx = c[0] + (r() - 0.5) * 4,
+      cy = c[1] + (r() - 0.5) * 4,
+      n = 10 + ((r() * 50) | 0),
+      sp = 0.02 + r() * 0.08;
+    for (let j = 0; j < n; j++)
+      out.push([cx + (r() - 0.5) * 2 * sp, cy + (r() - 0.5) * 2 * sp * 0.7, 3 + r() * 3, r() < 0.5 ? 1 : 0]);
+  }
+  if (TREES.size > 20) TREES.clear();
+  TREES.set(k, out);
+  return out;
+}
+/**
+ * the symbol of a building (light roof and shadow, dark when destroyed), its size in metres at mpx px a metre (never smaller than a few px)
+ * @param {CanvasRenderingContext2D} g @param {{name:string, st?:number}} f
+ */
+export function featSym(g, f, px, py, mpx, ang = 0, o = {}) {
+  const k = featKind(f.name),
+    [sw, sh] = KSIZE[k],
+    mn = o.min || 1,
+    w = Math.max(10 * mn, sw * mpx),
+    h = Math.max(8 * mn, sh * mpx);
+  g.save();
+  g.translate(px, py);
+  if (k == 'span') g.rotate(ang);
+  g.shadowColor = 'rgba(0,0,0,.6)';
+  g.shadowOffsetX = g.shadowOffsetY = Math.max(3 * mn, 4 * mpx);
+  g.shadowBlur = 3;
+  g.fillStyle = f.st == 2 ? '#3b3530' : k == 'rwy' ? '#9a968c' : '#d8d4c8';
+  if (o.edge) {
+    g.strokeStyle = o.edge;
+    g.lineWidth = 1.2;
+  }
+  g.beginPath();
+  if (k == 'bunk') {
+    g.moveTo(-w / 2, h / 2);
+    g.lineTo(-w / 2, -h / 6);
+    g.quadraticCurveTo(0, -h * 0.75, w / 2, -h / 6);
+    g.lineTo(w / 2, h / 2);
+    g.closePath();
+  } else if (k == 'tank' || k == 'rad') g.arc(0, 0, w / 2, 0, 7);
+  else if (k != 'aaa') g.rect(-w / 2, -h / 2, w, h);
+  if (k == 'aaa') {
+    g.shadowColor = 'transparent';
+    g.strokeStyle = f.st == 2 ? '#3b3530' : '#d8d4c8';
+    g.lineWidth = Math.max(3, w / 6);
+    g.arc(0, 0, w / 2, 0, 7);
+    g.stroke();
+  } else {
+    g.fill();
+    if (o.edge) {
+      g.shadowColor = 'transparent';
+      g.stroke();
+    }
+  }
+  if (f.st == 2) {
+    g.shadowColor = 'transparent';
+    g.fillStyle = 'rgba(20,15,10,.7)';
+    g.beginPath();
+    g.arc(w * 0.12, h * 0.1, Math.max(w, h) * 0.55, 0, 7);
+    g.fill();
+  } else if (f.st == 1) {
+    g.shadowColor = 'transparent';
+    g.fillStyle = 'rgba(30,25,20,.55)';
+    g.beginPath();
+    g.arc(w * 0.2, 0, Math.max(w, h) * 0.28, 0, 7);
+    g.fill();
+  }
+  g.restore();
+}
+/** the angle of a bridge (its spans in a line), for the plan and for the buildings drawn on a map */
+export function spanAngle(feats, P) {
+  const sp = feats.filter(f => featKind(f.name) == 'span');
+  if (sp.length < 2) return 0;
+  const a = P(sp[0].x, sp[0].y),
+    b = P(sp[sp.length - 1].x, sp[sp.length - 1].y);
+  return Math.atan2(b[1] - a[1], b[0] - a[0]);
+}
 /** a seeded random, the same picture every time */
 export function rng(s) {
   let h = 0;
@@ -226,10 +311,10 @@ export function hillshade(h, cols, rows, cellM, z = 2) {
  * 2 destroyed)}]. ground (optional): {cols, rows, h (ft, null outside the theater)} on the grid of groundGrid(planBox(...)): relief, and water where it is 0.
  * @returns {{c: HTMLCanvasElement, geo: any}}
  */
-export function planPicture(feats, c, seed, extra = [], ground = null) {
+export function planPicture(feats, c, seed, extra = [], ground = null, box = null) {
   const W = 2160,
     H = 1040,
-    geo = planBox([...feats, ...extra], c, W, H),
+    geo = box || planBox([...feats, ...extra], c, W, H),
     cv = document.createElement('canvas');
   cv.width = W;
   cv.height = H;
@@ -290,29 +375,23 @@ export function planPicture(feats, c, seed, extra = [], ground = null) {
       g.fillRect(x0 - rr, y0 - rr, 2 * rr, 2 * rr);
     }
   }
-  // trees: small dark green dots in groups, never on the water nor on the buildings (they are only a look: BMS gives no trees)
+  // trees: small dark green dots in groups, never on the water nor on the buildings (they are only a look: BMS gives no trees). They stand on the
+  // ground (a zoom keeps them in place and makes them bigger)
   const near = feats.map(f => P(f.x, f.y)),
-    clear = Math.max(30, 45 * mpx),
-    tr = Math.max(2.5, Math.min(6, 4 * mpx));
-  for (let i = 0; i < 46; i++) {
-    const cx = r() * W,
-      cy = r() * H,
-      n = 10 + ((r() * 50) | 0),
-      sp = 30 + r() * 110;
-    for (let j = 0; j < n; j++) {
-      const px = cx + (r() - 0.5) * 2 * sp,
-        py = cy + (r() - 0.5) * 2 * sp * 0.7,
-        rad = tr * (0.7 + r() * 0.6);
-      if (water(px, py) || near.some(q => Math.abs(q[0] - px) < clear && Math.abs(q[1] - py) < clear)) continue;
-      g.fillStyle = 'rgba(20,30,16,.35)';
-      g.beginPath();
-      g.arc(px + rad * 0.5, py + rad * 0.5, rad, 0, 7);
-      g.fill();
-      g.fillStyle = r() < 0.5 ? '#3d5a2c' : '#47663a';
-      g.beginPath();
-      g.arc(px, py, rad, 0, 7);
-      g.fill();
-    }
+    clear = Math.max(30, 45 * mpx);
+  for (const t of trees(c, seed)) {
+    const [px, py] = P(t[0], t[1]),
+      rad = Math.max(2.2, Math.min(18, t[2] * mpx));
+    if (px < -20 || py < -20 || px > W + 20 || py > H + 20) continue;
+    if (water(px, py) || near.some(q => Math.abs(q[0] - px) < clear && Math.abs(q[1] - py) < clear)) continue;
+    g.fillStyle = 'rgba(20,30,16,.35)';
+    g.beginPath();
+    g.arc(px + rad * 0.5, py + rad * 0.5, rad, 0, 7);
+    g.fill();
+    g.fillStyle = t[3] ? '#3d5a2c' : '#47663a';
+    g.beginPath();
+    g.arc(px, py, rad, 0, 7);
+    g.fill();
   }
   // a bridge: the spans in a line; the water across it
   const spans = feats.filter(f => featKind(f.name) == 'span');
@@ -330,52 +409,8 @@ export function planPicture(feats, c, seed, extra = [], ground = null) {
     g.restore();
   }
   for (const f of feats) {
-    const k = featKind(f.name),
-      [px, py] = P(f.x, f.y),
-      [sw, sh] = KSIZE[k],
-      w = Math.max(10, sw * mpx),
-      h = Math.max(8, sh * mpx);
-    g.save();
-    g.translate(px, py);
-    if (k == 'span') g.rotate(ang);
-    g.shadowColor = 'rgba(0,0,0,.6)';
-    g.shadowOffsetX = g.shadowOffsetY = Math.max(3, 4 * mpx);
-    g.shadowBlur = 3;
-    g.fillStyle = f.st == 2 ? '#3b3530' : k == 'rwy' ? '#9a968c' : '#d8d4c8';
-    if (k == 'bunk') {
-      g.beginPath();
-      g.moveTo(-w / 2, h / 2);
-      g.lineTo(-w / 2, -h / 6);
-      g.quadraticCurveTo(0, -h * 0.75, w / 2, -h / 6);
-      g.lineTo(w / 2, h / 2);
-      g.closePath();
-      g.fill();
-    } else if (k == 'tank' || k == 'rad') {
-      g.beginPath();
-      g.arc(0, 0, w / 2, 0, 7);
-      g.fill();
-    } else if (k == 'aaa') {
-      g.shadowColor = 'transparent';
-      g.strokeStyle = '#d8d4c8';
-      g.lineWidth = Math.max(3, w / 6);
-      g.beginPath();
-      g.arc(0, 0, w / 2, 0, 7);
-      g.stroke();
-    } else g.fillRect(-w / 2, -h / 2, w, h);
-    if (f.st == 2) {
-      g.shadowColor = 'transparent';
-      g.fillStyle = 'rgba(20,15,10,.7)';
-      g.beginPath();
-      g.arc(w * 0.12, h * 0.1, Math.max(w, h) * 0.55, 0, 7);
-      g.fill();
-    } else if (f.st == 1) {
-      g.shadowColor = 'transparent';
-      g.fillStyle = 'rgba(30,25,20,.55)';
-      g.beginPath();
-      g.arc(w * 0.2, 0, Math.max(w, h) * 0.28, 0, 7);
-      g.fill();
-    }
-    g.restore();
+    const [px, py] = P(f.x, f.y);
+    featSym(g, f, px, py, mpx, ang);
   }
   return { c: cv, geo };
 }

@@ -1502,25 +1502,96 @@ body.og-dragging * {
   background: #1a212b;
   color: var(--tx);
 }
+@media (min-width: 901px) {
+  .sqtwo.mstwo {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  }
+}
+.mshead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 32px;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--mu);
+}
+.mshead label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.mshead input[type='checkbox'] {
+  width: auto;
+  margin: 0 2px;
+}
+.mshead b {
+  color: #4cc38a;
+}
 .mssel {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
-  flex-wrap: wrap;
-  padding: 6px 8px;
-  margin-bottom: 8px;
-  border: 1px solid #4cc38a66;
-  border-radius: 7px;
-  background: #13301f;
-  font-size: 13px;
+  margin-left: auto;
+}
+.mssel select {
+  width: auto;
+}
+.msth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.msar {
+  width: 12px;
+  flex: none;
+  font-style: normal;
+  color: var(--mu);
+  cursor: pointer;
+  text-align: center;
+}
+.msar:hover {
+  color: var(--tx);
+}
+.msghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #1f7a46;
+  color: #fff;
+  font-size: 12.5px;
+  box-shadow: 0 6px 18px #000a;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msdrag,
+.msdrag * {
+  user-select: none;
+  cursor: grabbing !important;
 }
 .mssel[hidden] {
   display: none;
 }
 .msbody {
   display: grid;
-  grid-template-columns: 240px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 10px;
   align-items: start;
 }
 .msbody.nf {
@@ -1593,6 +1664,9 @@ body.og-dragging * {
 }
 .msfb[data-fdel]:hover {
   color: #ff5d5d;
+}
+.mscol {
+  min-width: 0;
 }
 .mslist {
   min-width: 0;
@@ -1696,4 +1770,11 @@ body.og-dragging * {
 }
 .msbody + .hint {
   margin-top: 8px;
+}
+.msth .btn,
+.msbt .btn,
+.mssel .btn,
+.msf .btn {
+  padding: 3px 9px;
+  font-size: 12px;
 }

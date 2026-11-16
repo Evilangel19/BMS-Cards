@@ -21,6 +21,8 @@ import {
   planPicture,
   planBox,
   groundGrid,
+  featSym,
+  spanAngle,
   FILTERS,
   HUDS,
   filterPic,
@@ -62,6 +64,9 @@ const HINT = {
   scale: 'Drag along a known length, then type the length (for example 500 FT).',
   text: 'Click, then type the text.',
 };
+// the select tool: a mouse pointer
+const PTR =
+  '<svg width="14" height="16" viewBox="0 0 14 16" aria-label="Select and move" style="vertical-align:-3px"><path d="M2 1 L2 13.5 L5.2 10.6 L7.6 15 L9.6 14 L7.3 9.7 L11.6 9.6 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>';
 const COLS = ['#ffffff', '#ff3b30', '#f5d142', '#111111', '#38d6f2', '#4cc38a'];
 const SHOWS = [
   ['dmpi', 'DMPI'],
@@ -92,6 +97,7 @@ export function createTargetPage(deps) {
     range: 10,
     show: { dmpi: true, route: true, egr: true, sam: true, unit: true, imp: true },
     names: true,
+    bld: true, // the buildings of the objective drawn on a picture of the map
     banner: 'CLASSIFIED', // the top line of the UAV FLIR display
     nscope: 'dmpi', // the names of the sub-objectives: of the DMPIs or all
   };
@@ -761,6 +767,19 @@ export function createTargetPage(deps) {
     if (!m || (page && m.light)) m = { prec: '#4dd0e1', wpn: '#ef4444', stpt: '#ffd23f' };
     return kind == 'prec' ? m.prec : kind == 'wpn' ? m.wpn : kind == 'stpt' ? m.stpt : undefined;
   }
+  // the buildings of the objective on a picture of the map (where the objective files put them; their size in metres, a few px at least)
+  function mapBuildings() {
+    const t = tgt(),
+      f = t && FEAT[t.key];
+    if (!f || !f.feats) return;
+    const mpx = pxPerKm() / 1000,
+      P = (gx, gy) => W2P(gx, gy),
+      ang = spanAngle(f.feats, P);
+    f.feats.forEach(q => {
+      const [px, py] = P(q.x, q.y);
+      if (inR(px, py, -10)) featSym(x, q, px, py, mpx, ang, { min: 0.6, edge: 'rgba(0,0,0,.6)' });
+    });
+  }
   // ---- the sensor displays of the UAV filters, over the picture and under the symbols, with the data of the mission (never a real organisation)
   function hudData() {
     const t = tgt(),
@@ -1132,6 +1151,7 @@ export function createTargetPage(deps) {
       const r = prect();
       x.drawImage(p.c, r.x, r.y, r.w, r.h);
       if (HUDS.includes(PF.filt)) (PF.filt == 'uav' ? hudUav : hudSuav)();
+      if (s && s.view == 'map' && PF.bld && p.geo) mapBuildings();
       if (s && s.auto)
         try {
           autoLayer();
@@ -1799,7 +1819,7 @@ export function createTargetPage(deps) {
     root.innerHTML = `<div class="tgleft">
   <div class="wcard"><h3>Target <span class="tgh">DTC and flight</span></h3><div class="tglist"></div><button type="button" class="btn g tgadd">＋ Add target…</button></div>
   <div class="wcard"><h3>Background</h3>${seg('view', VIEWS, 'plan')}
-   <div class="tgsec" data-sec="plan"><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
+   <div class="tgsec" data-sec="plan"><div class="tgrow"><span class="hint">Zoom</span><span class="seg tgzoom"><button type="button" data-z="-" title="Zoom out">−</button><button type="button" data-z="0" class="tgzk" title="All the objective">all</button><button type="button" data-z="+" title="Zoom in">+</button></span><span class="hint">or the wheel on the picture</span></div><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
    <div class="tgsec" data-sec="map"><div class="tgrow"><span class="hint">Width</span>${seg(
      'range',
      RANGES.map(r => [r, r + ' NM']),
@@ -1822,7 +1842,10 @@ export function createTargetPage(deps) {
    <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
    <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label>
    <label class="tgsl tgban"${PF.filt == 'uav' ? '' : ' hidden'}><span>Banner</span><input type="text" class="tgbant" maxlength="40"></label></div>
-  <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(([k, l]) => `<button type="button" data-tool="${k}" class="${k == tool ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
+  <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(
+    ([k, l]) =>
+      `<button type="button" data-tool="${k}" class="${k == tool ? 'on' : ''}" title="${esc(k == 'select' ? 'Select and move' : l)}">${k == 'select' ? PTR : esc(l)}</button>`
+  ).join('')}</div>
    <div class="tgrow"><span class="hint">Colour</span><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}"></i>`).join('')}</span></div>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
      'lsty',
@@ -1853,7 +1876,7 @@ export function createTargetPage(deps) {
      ['t', 'Target information'],
    ],
    page
- )}<span class="tglev" hidden></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
   <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel">Delete selected</button><button type="button" class="btn g rd tgclr">Clear all</button><span class="tgsp"></span>
@@ -1944,18 +1967,28 @@ export function createTargetPage(deps) {
       if (!deps.pick) return;
       const p = await deps.pick();
       if (!p) return;
-      PICKS.push({
-        ref: 'PICKED',
-        short: 'PICK ' + (PICKS.length + 1),
-        name: p.name,
-        x: p.x,
-        y: p.y,
-        altFt: p.altFt || 0,
-        dmpi: true,
-        kind: 'pick',
-      });
+      // a weapon target of the DTC (as Add target on the Map page); when the DTC has no free one, a point of this list only
+      const put = deps.addWpn ? await deps.addWpn(p) : 'none';
+      if (put != 'ok') {
+        PICKS.push({
+          ref: 'WPN TGT (this list only)',
+          short: 'WPN TGT',
+          name: p.name,
+          x: p.x,
+          y: p.y,
+          altFt: p.altFt || 0,
+          dmpi: true,
+          kind: 'pick',
+        });
+        deps.toast &&
+          deps.toast(
+            put == 'full'
+              ? 'The DTC has no free weapon target: the target is kept in this list only.'
+              : 'No DTC is open: the target is kept in this list only.'
+          );
+      }
       await loadTargets();
-      const t = TL.find(z => z.dmpis.some(d => d.kind == 'pick' && d.short == 'PICK ' + PICKS.length));
+      const t = TL.find(z => z.dmpis.some(d => Math.hypot(d.x - p.x, d.y - p.y) < 0.01));
       if (t) selT(t.key);
     };
     q('.tgnames').onclick = () => {
@@ -1973,13 +2006,59 @@ export function createTargetPage(deps) {
       pfSave();
       draw();
     };
+    qa('[data-z]').forEach(
+      b =>
+        (b.onclick = () => {
+          const s = st(),
+            k = (s && s.pz && s.pz.k) || 1;
+          planZoom(b.dataset.z == '0' ? 1 : b.dataset.z == '+' ? k * 1.5 : k / 1.5);
+        })
+    );
+    // the buttons of the horizontal envelope of the Weapons page, for the map lent here
+    const eb = q('.tgedit'),
+      elab = () => {
+        const o = deps.isEdit && deps.isEdit();
+        eb.textContent = 'Edit points: ' + (o ? 'On' : 'Off');
+        eb.classList.toggle('g', !o);
+      };
+    eb.onclick = () => {
+      if (deps.toggleEdit) deps.toggleEdit();
+      elab();
+    };
+    const pf = q('.tgpf'),
+      PLAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'];
+    pf.onclick = () => (pf.textContent = PLAB[deps.cyclePlan ? deps.cyclePlan() : 0]);
+    const bl = q('.tgbld');
+    bl.classList.toggle('g', !PF.bld);
+    bl.onclick = () => {
+      PF.bld = !PF.bld;
+      bl.classList.toggle('g', !PF.bld);
+      pfSave();
+      draw();
+    };
+    mapBtns = () => {
+      elab();
+      pf.textContent = PLAB[deps.planMode ? deps.planMode() : 0];
+    };
     q('.tgcropno').onclick = () => cropEnd(false);
     q('.tgcropok').onclick = () => cropEnd(true);
     q('.tgcrops').oninput = e => cropSize(+e.target.value / 100);
     cv.addEventListener(
       'wheel',
       e => {
-        if (!CROP) return;
+        if (!CROP) {
+          // the zoom of the plan, around the point under the pointer
+          const s = st(),
+            g = geo();
+          if (page != 'g' || !s || s.view != 'plan' || !g) return;
+          const r = cv.getBoundingClientRect(),
+            [u, v] = toU(((e.clientX - r.left) * PW) / r.width, ((e.clientY - r.top) * PH) / r.height);
+          if (u < 0 || u > 1 || v < 0 || v > 1) return;
+          e.preventDefault();
+          const k = (s.pz && s.pz.k) || 1;
+          planZoom(k * (e.deltaY < 0 ? 1.25 : 0.8), fromUV(g, u, v));
+          return;
+        }
         e.preventDefault();
         cropSize(CROP.w * (e.deltaY > 0 ? 1.06 : 1 / 1.06));
         q('.tgcrops').value = String(Math.round(CROP.w * 100));
@@ -2340,12 +2419,15 @@ export function createTargetPage(deps) {
     draw();
   }
   // the LEVELS menu of the Map page (base map and layers), lent to the bar of the picture while the background is the map
-  let levOn = false;
-  function levels(on) {
+  let levOn = false,
+    mapBtns = () => {};
+  async function levels(on) {
     const el = built && q('.tglev');
     if (!el || !deps.levelsTo) return;
-    if (on && !levOn && root.isConnected) {
-      levOn = deps.levelsTo(el);
+    if (on && root.isConnected && !el.querySelector('#mpbasew')) {
+      levOn = !!(await deps.levelsTo(el));
+      // the background may have changed while the map was getting ready
+      if (levOn && (!st() || st().view != 'map' || !root.isConnected)) return levels(false);
       el.hidden = !levOn;
       if (levOn) appear(el);
     } else if (!on && levOn) {
@@ -2445,6 +2527,11 @@ export function createTargetPage(deps) {
     });
     q('.tgframe').textContent = s.map ? 'Frame again' : 'Frame on the map';
     levels(v == 'map');
+    const mb = q('.tgmapb');
+    if (v == 'map' && mb.hidden) appear(mb);
+    mb.hidden = v != 'map';
+    if (v == 'map') mapBtns();
+    zoomUI();
     PF.filt = v == 'plan' ? (PF.filt == 'none' ? 'recon' : PF.filt) : PF.filt;
     segSet('filt', PF.filt);
     draw();
@@ -2563,6 +2650,7 @@ export function createTargetPage(deps) {
   }
   function selT(k) {
     if (CROP) cropEnd(false);
+    queueMicrotask(zoomUI);
     if (framing) unframe();
     sel = k;
     selA = -1;
@@ -2583,23 +2671,8 @@ export function createTargetPage(deps) {
     try {
       const r = await deps.features(t.objId);
       if (r && r.feats && r.feats.length) {
-        const ex = t.dmpis.map(d => ({ x: d.x, y: d.y })),
-          plan = planPicture(r.feats, [t.x, t.y], t.key, ex);
-        FEAT[t.key] = { feats: r.feats, pct: r.pct, plan, v: 0 };
-        // the relief of the BMS terrain under it, when the BMS folder is known (drawn again when the heights come)
-        if (deps.heights) {
-          const gr = groundGrid(planBox([...r.feats, ...ex], [t.x, t.y], 2160, 1040));
-          deps
-            .heights(gr.pts)
-            .then(h => {
-              if (!h || !h.some(z => z != null)) return;
-              const f = FEAT[t.key];
-              f.plan = planPicture(r.feats, [t.x, t.y], t.key, ex, { cols: gr.cols, rows: gr.rows, h });
-              f.v++;
-              if (sel == t.key) draw();
-            })
-            .catch(() => {});
-        }
+        FEAT[t.key] = { feats: r.feats, pct: r.pct, v: 0 };
+        buildPlan(t);
       } else FEAT[t.key] = { none: true };
     } catch (e) {
       FEAT[t.key] = { none: true };
@@ -2609,6 +2682,89 @@ export function createTargetPage(deps) {
       if (s && s.view == 'plan' && !FEAT[t.key].plan && (s.map || s.shot)) s.view = s.map ? 'map' : 'shot';
       draw();
     }
+  }
+  // the plan of the objective, for its zoom (s.pz: {k, c}); the relief of the BMS terrain comes after, when the BMS folder is known
+  let PLT = 0;
+  function buildPlan(t) {
+    const f = FEAT[t.key],
+      s = ST[t.key];
+    if (!f || !f.feats) return;
+    const ex = t.dmpis.map(d => ({ x: d.x, y: d.y })),
+      g0 = planBox([...f.feats, ...ex], [t.x, t.y], 2160, 1040),
+      z = (s && s.pz) || { k: 1, c: [t.x, t.y] },
+      w = geoWidth(g0) / z.k,
+      box = { o: [z.c[0] - w / 2, z.c[1] + (w * 1040) / 2160 / 2], u: [w, 0], v: [0, -(w * 1040) / 2160] },
+      key = z.k + ':' + z.c.join(',');
+    f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.gk == key ? f.ground : null, box);
+    f.v++;
+    if (!deps.heights || f.gk == key) return;
+    clearTimeout(PLT);
+    PLT = setTimeout(() => {
+      const gr = groundGrid(box);
+      deps
+        .heights(gr.pts)
+        .then(h => {
+          if (!h || !h.some(q => q != null)) return;
+          const z2 = (ST[t.key] && ST[t.key].pz) || { k: 1, c: [t.x, t.y] };
+          if (z2.k + ':' + z2.c.join(',') != key) return; // zoomed again meanwhile
+          f.ground = { cols: gr.cols, rows: gr.rows, h };
+          f.gk = key;
+          f.plan = planPicture(f.feats, [t.x, t.y], t.key, ex, f.ground, box);
+          f.v++;
+          if (sel == t.key) draw();
+        })
+        .catch(() => {});
+    }, 250);
+  }
+  // zoom of the plan (k: 1 = all the objective, up to 8), around the ground point g (km); the symbols drawn by hand stay on their ground
+  function planZoom(k, g) {
+    const t = tgt(),
+      s = st(),
+      f = t && FEAT[t.key];
+    if (!t || !s || !f || !f.plan) return;
+    const old = f.plan.geo,
+      z = s.pz || { k: 1, c: [t.x, t.y] },
+      nk = Math.max(1, Math.min(8, k));
+    if (nk == z.k && !g) return;
+    const ann = s.ann.plan.map(a => {
+      const o = { a };
+      [
+        ['u', 'v'],
+        ['u2', 'v2'],
+        ['lu', 'lv'],
+      ].forEach(([u, v]) => {
+        if (a[u] !== undefined) o[u] = fromUV(old, a[u], a[v]);
+      });
+      return o;
+    });
+    let c = z.c;
+    if (g) {
+      // the point under the pointer stays under it
+      const [u, v] = toUV(old, g[0], g[1]),
+        w = geoWidth(old) * (z.k / nk);
+      c = [g[0] - (u - 0.5) * w, g[1] + (v - 0.5) * ((w * 1040) / 2160)];
+    }
+    if (nk == 1) c = [t.x, t.y];
+    s.pz = { k: nk, c };
+    buildPlan(t);
+    const ng = f.plan.geo;
+    ann.forEach(o =>
+      [
+        ['u', 'v'],
+        ['u2', 'v2'],
+        ['lu', 'lv'],
+      ].forEach(([u, v]) => {
+        if (o[u]) [o.a[u], o.a[v]] = toUV(ng, o[u][0], o[u][1]);
+      })
+    );
+    zoomUI();
+    draw();
+  }
+  function zoomUI() {
+    const s = st(),
+      k = (s && s.pz && s.pz.k) || 1,
+      el = built && q('.tgzk');
+    if (el) el.textContent = k == 1 ? 'all' : '× ' + Math.round(k * 10) / 10;
   }
   async function loadTargets() {
     let r = { points: [], objs: [] };
@@ -2669,8 +2825,23 @@ export function createTargetPage(deps) {
       unframe();
       setView('map');
     },
+    // files dropped on the window (the desktop program takes the drops): a picture is the screenshot when this tab is shown
+    drop(files) {
+      if (!root.isConnected || root.closest('.hide') || !tgt()) return false;
+      const f = files.find(z => /\.(png|jpe?g|webp|bmp|gif)$/i.test(z.name || '') || /^image\//.test(z.type || ''));
+      if (!f) return false;
+      setImg(
+        f.type
+          ? f
+          : new File([f], f.name, {
+              type: 'image/' + (/\.jpe?g$/i.test(f.name) ? 'jpeg' : f.name.split('.').pop().toLowerCase()),
+            })
+      );
+      return true;
+    },
     // for the tests
     _t: {
+      planZoom,
       crop: () => CROP,
       boxX,
       list: () => TL,

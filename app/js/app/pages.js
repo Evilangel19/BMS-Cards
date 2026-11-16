@@ -23,6 +23,7 @@ import {
   listDir,
   findFiles,
   join as joinPath,
+  onFilesDropped,
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
 import { msaOfFlight, msaOfBase } from './msafill.js';
@@ -469,7 +470,13 @@ function tgtDeps() {
       return true;
     },
     mapDetach: () => mapV.detach(),
-    levelsTo: el => mapV.isReady() && mapV.levelsTo(el),
+    isEdit: () => mapV.isEdit(),
+    toggleEdit: () => mapV.toggleEdit(),
+    cyclePlan: () => mapV.cyclePlan(),
+    planMode: () => mapV.planMode(),
+    // Add target on the Target tab: a weapon target of the DTC, as on the Map page ('ok', 'full', or 'none' without a DTC)
+    addWpn: p => (lines.length ? wtPut({ n: p.y * FT_KM, e: p.x * FT_KM, elv: 0, name: p.name }) : 'none'),
+    levelsTo: async el => (await mapV.ensure()) && mapV.levelsTo(el),
     levelsBack: () => mapV.levelsBack(),
     mapPal: () => (mapV.isReady() ? mapV.dtcColors() : null),
     confirm: m => confirm(m),
@@ -529,6 +536,8 @@ export async function init9() {
     isEdit: () => mapV.isEdit(),
   });
   ST.tgPage = createTargetPage(tgtDeps());
+  // the desktop program takes the files dropped on its window: a picture dropped on Weapons > Target is its screenshot
+  if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));
   ST.wpPage = createWeaponsPage({
     offs: OFFS,
     harm: harmPage,

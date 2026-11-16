@@ -168,7 +168,18 @@ export function createMap(host, deps) {
     away = null,
     MO = null;
   /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
-  let LEVWAS = false; // the LEVELS menu was open when another page borrowed it
+  let LEVWAS = false, // the LEVELS menu was open when another page borrowed it
+    LEVW = null; // the LEVELS menu while it is lent
+  function levelsBack() {
+    const w = LEVW;
+    LEVW = null;
+    if (w && w.parentNode !== host) {
+      host.append(w);
+      const m = w.querySelector('#mpbase');
+      if (LEVWAS && m && m.style.display == 'none') w.querySelector('#mpbaseb').click();
+    }
+    LEVWAS = false;
+  }
   const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo', 'shoting'];
   function mirror() {
     if (!away) return;
@@ -4685,6 +4696,7 @@ export function createMap(host, deps) {
     units: () => UL, // for the tests
     // called when the page becomes visible
     async show() {
+      levelsBack(); // the LEVELS menu comes home if a page still holds it
       detach();
       if (!map) {
         try {
@@ -4747,23 +4759,25 @@ export function createMap(host, deps) {
     shotStop,
     // the LEVELS menu (base map and layers) lent to another page (Weapons > Target): moved into el, then back
     // (the menu comes closed; if it was open on the Map page it opens again there)
+    // (kept in LEVW while it is away: $ only finds what is in the map page or in the page that borrows the map)
     levelsTo: el => {
-      const w = $('mpbasew'),
-        m = $('mpbase');
+      const w = LEVW || $('mpbasew');
       if (!w || !el) return false;
-      LEVWAS = !!(m && m.style.display != 'none');
-      if (LEVWAS) $('mpbaseb').click();
+      const m = w.querySelector('#mpbase');
+      if (!LEVW) LEVWAS = !!(m && m.style.display != 'none');
+      if (m && m.style.display != 'none') w.querySelector('#mpbaseb').click();
+      LEVW = w;
       el.append(w);
       return true;
     },
-    levelsBack: () => {
-      const w = $('mpbasew'),
-        m = $('mpbase');
-      if (w && w.parentNode !== host) {
-        host.append(w);
-        if (LEVWAS && m && m.style.display == 'none') $('mpbaseb').click();
-      }
-      LEVWAS = false;
+    levelsBack,
+    // the map made ready without showing it (for a page that lends a part of it)
+    ensure: async () => {
+      if (!map)
+        try {
+          await init();
+        } catch (e) {}
+      return !!map;
     },
     // the colours of the DTC steerpoints in the palette of the base map shown (dark, light or BMS): TGT STPT, weapon target, flight plan
     dtcColors: () => ({ prec: pal.dtc.prec, wpn: '#ef4444', stpt: pal.plan, light: pal === PAL.light }),
