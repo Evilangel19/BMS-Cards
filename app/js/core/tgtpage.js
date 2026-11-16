@@ -33,18 +33,18 @@ const FT_KM = 3280.84,
   PW = 1100,
   PH = 850,
   FONT = 'system-ui, Segoe UI, sans-serif',
-  PEN = '"BMS Caveat", cursive',
+  PEN = '"BMS Hand", cursive',
   CLS = 'FOR SIMULATION USE ONLY · FALCON BMS';
 const TOOLS = [
-  ['select', 'Select / move'],
+  ['select', 'Select'],
   ['callout', 'Callout'],
-  ['dmpi', 'DMPI ▲'],
-  ['num', 'Number ●'],
+  ['dmpi', 'DMPI'],
+  ['num', 'Number'],
   ['box', 'Box'],
   ['circle', 'Circle'],
-  ['area', 'Area ◇'],
+  ['area', 'Area'],
   ['arrow', 'Arrow'],
-  ['axis', 'Attack axis'],
+  ['axis', 'Axis'],
   ['north', 'North'],
   ['scale', 'Scale'],
   ['text', 'Text'],
@@ -67,6 +67,26 @@ const HINT = {
 // the select tool: a mouse pointer
 const PTR =
   '<svg width="14" height="16" viewBox="0 0 14 16" aria-label="Select and move" style="vertical-align:-3px"><path d="M2 1 L2 13.5 L5.2 10.6 L7.6 15 L9.6 14 L7.3 9.7 L11.6 9.6 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>';
+// the icons of the tool bar (24 x 24, drawn with the stroke, as the bar of the Briefing room)
+const TICON = {
+  select: '<path d="M5 3l12 8-5.5 1.2L9 18z"/>',
+  callout:
+    '<circle cx="5" cy="19" r="1.6" fill="currentColor"/><path d="M6.2 17.8L11 13"/><rect x="11" y="4" width="10" height="9" rx="1"/>',
+  dmpi: '<path d="M12 4l8.5 15h-17z" fill="currentColor" fill-opacity=".3"/>',
+  num: '<circle cx="12" cy="12" r="8.5" fill="currentColor" fill-opacity=".3"/><path d="M10.5 9l2-1.2V16.5"/>',
+  box: '<rect x="4" y="6" width="16" height="12" rx="1"/>',
+  circle: '<circle cx="12" cy="12" r="8"/>',
+  area: '<path d="M12 3l9 9-9 9-9-9z" stroke-dasharray="3 2.4"/>',
+  arrow: '<path d="M5 19L19 5M10 5h9v9"/>',
+  axis: '<path d="M12 21V4M8 8l4-4 4 4M9 14h6M9 17.5h6"/>',
+  north: '<path d="M12 2.5l4 9h-8z" fill="currentColor" fill-opacity=".35"/><path d="M9 21v-6.5l6 6.5v-6.5"/>',
+  scale: '<path d="M3 15h18M3 11.5v7M12 13v4M21 11.5v7"/>',
+  text: '<path d="M5 6V4h14v2M12 4v16M9 20h6"/>',
+  undo: '<path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/>',
+  del: '<path d="M8 20h12M5 15l9-9 5 5-7 7H8z"/><path d="M9.5 10.5l5 5"/>',
+  clr: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/>',
+};
+const tico = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${TICON[k]}</svg>`;
 const COLS = ['#ffffff', '#ff3b30', '#f5d142', '#111111', '#38d6f2', '#4cc38a'];
 const SHOWS = [
   ['dmpi', 'DMPI'],
@@ -247,9 +267,9 @@ export function createTargetPage(deps) {
     if (DEFER) return void DEFER.push([t, lx, ly, o]);
     const pen = o.pen,
       ls = o.ls || PF.lsty;
-    x.font = pen ? '26px ' + PEN : '600 14px ' + FONT;
+    x.font = pen ? '21px ' + PEN : '600 14px ' + FONT;
     const w = x.measureText(t).width + 14,
-      h = pen ? 28 : 22;
+      h = pen ? 30 : 22;
     let bx = lx - (o.al == 'c' ? w / 2 : o.al == 'r' ? w : 0),
       by = ly - h / 2;
     const cl = () => {
@@ -1110,7 +1130,7 @@ export function createTargetPage(deps) {
       x.fillText(a.t || '', (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 12);
       x.fillText('0', p1x, p1y - 12);
     } else if (a.k == 'text') {
-      x.font = a.pen ? '30px ' + PEN : 'bold 17px ' + FONT;
+      x.font = a.pen ? '25px ' + PEN : 'bold 17px ' + FONT;
       x.fillStyle = c;
       x.textAlign = 'left';
       x.textBaseline = 'middle';
@@ -1506,7 +1526,7 @@ export function createTargetPage(deps) {
     H('6. REMARKS');
     if (PF.pen && s.rem) {
       // handwritten remarks, in the ink of the page
-      const f0 = FS + 7;
+      const f0 = FS + 3;
       s.rem.split('\n').forEach(q => {
         if (y > MAXY) return;
         x.fillStyle = PF.pst == 'prog' ? p.tx : '#1b2f7a';
@@ -1584,6 +1604,13 @@ export function createTargetPage(deps) {
     if (n) n.textContent = t ? t.label + ' · ' + t.name + ' · ' + A().length + ' symbols' : '';
     const dl = root.querySelector('.tgdel');
     if (dl) dl.disabled = !(page == 'g' && selA >= 0 && selA < A().length);
+    // the tool bar draws on the graphic only
+    const tb = root.querySelector('.tgtb');
+    if (tb && tb.hidden != (page != 'g')) {
+      tb.hidden = page != 'g';
+      root.querySelector('.tgthint').hidden = page != 'g';
+      if (page == 'g') appear(tb);
+    }
   }
   // the crop frame of Put on datacard: the part that goes to the datacard, the rest darker
   function cropMarks() {
@@ -1816,18 +1843,18 @@ export function createTargetPage(deps) {
   // ---- the controls
   const seg = (name, opts, cur) =>
     `<span class="seg" data-seg="${name}">${opts.map(([v, l]) => `<button type="button" class="${String(cur) === String(v) ? 'on' : ''}" data-v="${v}">${esc(l)}</button>`).join('')}</span>`;
-  // the handwriting of the notes by pen (Caveat, SIL Open Font License, in app/vendor/caveat)
+  // the handwriting of the notes (Homemade Apple, Apache License 2.0, in app/vendor/homemade-apple)
   function penFont() {
     try {
       // (fonts.check says true for a family it does not know: the font is looked for in the set itself)
       if (
         typeof FontFace == 'undefined' ||
         penOk ||
-        [...document.fonts].some(z => z.family.replace(/"/g, '') == 'BMS Caveat')
+        [...document.fonts].some(z => z.family.replace(/"/g, '') == 'BMS Hand')
       )
         return;
       penOk = true;
-      const f = new FontFace('BMS Caveat', 'url(./vendor/caveat/caveat-latin-600-normal.woff2)');
+      const f = new FontFace('BMS Hand', 'url(./vendor/homemade-apple/homemade-apple-latin-400-normal.woff2)');
       f.load()
         .then(ff => {
           document.fonts.add(ff);
@@ -1849,29 +1876,34 @@ export function createTargetPage(deps) {
      RANGES.map(r => [r, r + ' NM']),
      PF.range
    )}</div>
-    <div class="tgrow"><button type="button" class="btn g gn tgframe">📷 Take picture</button><button type="button" class="btn g tgunframe" hidden>Back to the picture</button></div>
+    <div class="tgrow"><button type="button" class="btn g gn tgframe">Take picture</button><button type="button" class="btn g tgunframe" hidden>Back to the picture</button></div>
     <p class="hint">The map of the Map page: choose what it shows (LEVELS, Edit points, Map filters above it; the zoom is the Width above), then Take picture: the frame can be zoomed; press Capture. The picture is then drawn on as the others.</p></div>
    <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
     <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
   <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
-   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow"><button type="button" class="btn g tgnames${PF.names ? ' on' : ''}" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
+   <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow tgnrow"><button type="button" class="btn g tgnames${PF.names ? ' on' : ''}" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
      'nscope',
      [
        ['dmpi', 'DMPI'],
        ['all', 'All'],
      ],
      PF.nscope
-   )}</span></div><div class="tgrow"><button type="button" class="btn g tgunfill">Remove</button><span class="hint">DTC, attack planner, campaign</span></div></div></div>
+   )}</span></div><button type="button" class="btn g rd tgunfill" title="Take away what was filled from the datacard">Remove</button><p class="hint tgunh">Takes away what came from the DTC, the attack planner and the campaign.</p></div></div>
+ </div>
+ <div class="tgright">
   <div class="wcard"><h3>Filter</h3>${seg('filt', FILTERS, PF.filt)}
    <label class="tgsl"><span>Contrast</span><input type="range" min="0.8" max="1.8" step="0.05" data-pf="con" value="${PF.con}"></label>
    <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label>
    <label class="tgpen" title="The notes of the picture (Text, Callout, the names of Box and Circle) and the remarks of the Target information in handwriting, as typed. Only the font changes."><input type="checkbox"${PF.pen ? ' checked' : ''}> Handwritten notes</label>
    <label class="tgsl tgban"${PF.filt == 'uav' ? '' : ' hidden'}><span>Banner</span><input type="text" class="tgbant" maxlength="40"></label></div>
-  <div class="wcard"><h3>Annotate <span class="tgh">BTG symbols</span></h3><div class="tgtools">${TOOLS.map(
-    ([k, l]) =>
-      `<button type="button" data-tool="${k}" class="${k == tool ? 'on' : ''}" title="${esc(k == 'select' ? 'Select and move' : l)}">${k == 'select' ? PTR : esc(l)}</button>`
-  ).join('')}</div>
-   <div class="tgrow"><span class="hint">Colour</span><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}"></i>`).join('')}</span></div>
+  <div class="wcard"><h3>Page</h3><div class="tgrow"><span class="hint">Style</span>${seg(
+    'pst',
+    [
+      ['prog', 'Program'],
+      ['paper', 'Paper (BTG)'],
+    ],
+    PF.pst
+  )}</div>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
      'lsty',
      [
@@ -1881,20 +1913,11 @@ export function createTargetPage(deps) {
      ],
      PF.lsty
    )}</div>
-   <p class="hint tgthint">${esc(HINT[tool])}</p></div>
-  <div class="wcard"><h3>Page</h3><div class="tgrow"><span class="hint">Style</span>${seg(
-    'pst',
-    [
-      ['prog', 'Program'],
-      ['paper', 'Paper (BTG)'],
-    ],
-    PF.pst
-  )}</div>
    <label class="tgsl"><span>Facility</span><input type="text" class="tgfac"></label>
    <label class="tgsl tgrem"><span>Remarks</span><textarea class="tgremt" placeholder="Shown on the text page"></textarea></label>
 </div>
  </div>
- <div class="tgc wcard"><div class="tgbar">${seg(
+ <div class="tgc wcard"><div class="tgbar tgtopbar">${seg(
    'page',
    [
      ['g', 'Graphic'],
@@ -1902,10 +1925,17 @@ export function createTargetPage(deps) {
    ],
    page
  )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgedit" title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on">Edit points: Off</button><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button type="button" class="btn g tgbld" title="The buildings of the objective drawn on the picture of the map">Buildings</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+  <div class="tgtb">${TOOLS.map(
+    ([k, l]) =>
+      `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
+  ).join(
+    ''
+  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}</span><i class="vs"></i><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
+  <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
-  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn g gn tgcropok">Put on datacard</button></div>
-  <div class="tgbar tgmainbar"><button type="button" class="btn g tgundo">↶ Undo</button><button type="button" class="btn g tgdel" title="Delete the symbol chosen with the select tool" disabled>🗑 Selected</button><button type="button" class="btn g rd tgclr" title="Delete all the symbols and notes drawn on this background">🗑 Annotations</button><span class="tgsp"></span>
-   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn g gn tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
+  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
+  <div class="tgbar tgmainbar"><span class="tgsp"></span>
+   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
     cv = root.querySelector('canvas');
     wire();
   }
@@ -2464,13 +2494,17 @@ export function createTargetPage(deps) {
     if (!built) return;
     const s = st(),
       b = q('.tgframe');
-    b.textContent = framing ? '📷 Take picture' : '🗺 Back to the map';
+    b.textContent = framing ? 'Take picture' : 'Back to the map';
     const u = q('.tgunframe');
     u.hidden = !(framing && s && s.map);
     qa('.tgedit, .tgpf').forEach(e => {
       if (framing && e.hidden) appear(e);
       e.hidden = !framing;
     });
+    // Buildings draws on the picture taken: not on the live map
+    const bl = q('.tgbld');
+    if (!framing && bl.hidden) appear(bl);
+    bl.hidden = framing;
     if (framing) mapBtns();
   }
   // the LEVELS menu of the Map page (base map and layers), lent to the bar of the picture while the background is the map

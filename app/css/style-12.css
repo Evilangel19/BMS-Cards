@@ -3,20 +3,31 @@
   display: none !important;
 }
 .tgp {
+  /* three columns as the Pop-up tab: the picture as wide as the horizontal envelope */
   display: grid;
-  grid-template-columns: 320px minmax(0, 1fr);
+  grid-template-columns: 330px minmax(0, 1fr) 400px;
+  grid-template-areas: 'l c r';
   gap: 12px;
   align-items: start;
 }
-@media (max-width: 1000px) {
+@media (max-width: 1180px) {
   .tgp {
     grid-template-columns: 1fr;
+    grid-template-areas: 'l' 'c' 'r';
   }
 }
-.tgp .tgleft {
+.tgp .tgleft,
+.tgp .tgright {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  grid-area: l;
+}
+.tgp .tgright {
+  grid-area: r;
+}
+.tgp .tgc {
+  grid-area: c;
 }
 .tgp .wcard h3 {
   display: flex;
@@ -431,7 +442,165 @@
   color: #fff;
   border-color: #2fa862;
 }
-.tgp .tgnames,
-.tgp .tgunfill {
+.tgp .tgnames {
   min-width: 88px;
+}
+/* From the datacard: the six layers in a grid, Names with its choice, Remove at the bottom */
+.tgp .tgchips.tgshow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+.tgp .tgchips.tgshow button {
+  border-right: 1px solid var(--line);
+  text-align: center;
+  padding: 5px 4px;
+}
+.tgp .tgnrow {
+  margin-top: 10px;
+}
+.tgp .btn.g.rd.tgunfill {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid #a33a3a;
+  color: #ff8a8a;
+}
+.tgp .btn.g.rd.tgunfill:hover {
+  background: #3a1c1c;
+}
+.tgp .tgunh {
+  margin-top: 4px;
+}
+/* the filters: four by two */
+.tgp [data-seg='filt'] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tgp [data-seg='filt'] button {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 2px;
+  text-align: center;
+}
+.tgp [data-seg='filt'] button:nth-child(4n) {
+  border-right: 0;
+}
+.tgp [data-seg='filt'] button:nth-last-child(-n + 4) {
+  border-bottom: 0;
+}
+/* the bar above the picture: the same height, spaced */
+.tgp .tgmapb {
+  display: inline-flex;
+  gap: 8px;
+}
+.tgp .tgtopbar {
+  gap: 10px;
+}
+.tgp .tgtopbar .btn,
+.tgp .tglev #mpbaseb {
+  height: 30px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+}
+.tgp .tglev {
+  margin-left: 6px;
+}
+/* the tool bar of the annotations, as the bar of the Briefing room */
+.tgp .tgtb {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-wrap: wrap;
+  background: #151a21;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 6px;
+  margin-top: 10px;
+}
+.tgp .tgtb .t {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 42px;
+  border-radius: 7px;
+  font-size: 9.5px;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--tx, #e6e9ee);
+  background: none;
+  border: 0;
+  padding: 0 3px;
+  font-family: inherit;
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.1s;
+}
+.tgp .tgtb .t:hover:not(:disabled) {
+  background: #252c36;
+}
+.tgp .tgtb .t:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.tgp .tgtb .t svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tgp .tgtb .t.on {
+  background: #2b3440;
+  box-shadow: inset 0 0 0 1px #3ecf8e;
+  color: #3ecf8e;
+}
+.tgp .tgtb .t.on span {
+  color: var(--tx, #e6e9ee);
+}
+.tgp .tgtb .t:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tgp .tgtb .tgundo {
+  margin-left: auto;
+}
+.tgp .tgtb .t.er {
+  color: #ff9d6b;
+}
+.tgp .tgtb .t.cl {
+  color: #ff8a8a;
+}
+.tgp .tgtb .vs {
+  width: 1px;
+  height: 26px;
+  background: var(--line);
+  margin: 0 4px;
+}
+.tgp .tgtb .tgcols {
+  display: flex;
+  gap: 4px;
+  margin: 0 2px;
+}
+.tgp .tgthint {
+  margin: 5px 2px 8px;
+}
+.tgp .tgtb .tgcols i {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: 0 0 0 1px #0008;
+  transition: box-shadow 0.15s;
+}
+.tgp .tgtb .tgcols i.on {
+  box-shadow:
+    0 0 0 2px #151a21,
+    0 0 0 4px #fff;
 }

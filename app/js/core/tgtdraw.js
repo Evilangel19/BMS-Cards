@@ -531,6 +531,8 @@ export const FILTERS = [
   ['r80', 'Recon 1980s'],
   ['uav', 'UAV FLIR'],
   ['suav', 'Small UAV'],
+  ['irb', 'IR black-hot'],
+  ['nvg', 'NVG'],
 ];
 /** the filters that put a sensor display over the picture (drawn by the page: it holds the data of the mission) */
 export const HUDS = ['uav', 'suav'];
@@ -546,7 +548,7 @@ export function filterPic(src, f, con, grn, stamp) {
   o.width = W;
   o.height = H;
   const c = /** @type {CanvasRenderingContext2D} */ (o.getContext('2d', { willReadFrequently: true }));
-  const soft = { r80: 3.2, uav: 1.8, suav: 2.4 }[f];
+  const soft = { r80: 3.2, uav: 1.8, suav: 2.4, irb: 1.5, nvg: 2 }[f];
   if (soft) {
     // lower definition: down and up again (a third for the 1980s film, softer for the video of a drone)
     const q = document.createElement('canvas');
@@ -574,6 +576,20 @@ export function filterPic(src, f, con, grn, stamp) {
       p[i] = p[i + 1] = p[i + 2] = g;
       continue;
     }
+    if (f == 'irb') {
+      // thermal, black hot: the warm things dark on a light grey ground, soft and flat
+      g = (175 - g * 0.55 - 128) * (0.6 + con * 0.4) + 128 + NOISE[j] * gr * 0.5;
+      p[i] = p[i + 1] = p[i + 2] = g;
+      continue;
+    }
+    if (f == 'nvg') {
+      // night vision: the green of the phosphor, bright and grainy
+      g = (g * 0.9 + 30 - 128) * con + 128 + NOISE[j] * gr * 1.5;
+      p[i] = g * 0.32;
+      p[i + 1] = g * 1.02;
+      p[i + 2] = g * 0.42;
+      continue;
+    }
     if (f == 'suav') {
       // the video of a small drone: cold blue grey, flat, hazy
       g = (g - 128) * con * 0.7 + 128 + 22 + NOISE[j] * gr * 0.7;
@@ -587,6 +603,21 @@ export function filterPic(src, f, con, grn, stamp) {
   }
   c.putImageData(d, 0, 0);
   if (f == 'r80') retro(c, W, H, stamp || '');
+  if (f == 'nvg') {
+    // the round field of the tube, dark outside, a little glow in the middle
+    const R = Math.min(W, H) * 0.62,
+      v = c.createRadialGradient(W / 2, H / 2, R * 0.55, W / 2, H / 2, Math.max(R * 1.25, Math.hypot(W, H) / 2));
+    v.addColorStop(0, 'rgba(0,0,0,0)');
+    v.addColorStop(0.6, 'rgba(0,10,0,.55)');
+    v.addColorStop(1, 'rgba(0,6,0,.95)');
+    c.fillStyle = v;
+    c.fillRect(0, 0, W, H);
+    const gl = c.createRadialGradient(W / 2, H / 2, 0, W / 2, H / 2, R * 0.6);
+    gl.addColorStop(0, 'rgba(120,255,140,.10)');
+    gl.addColorStop(1, 'rgba(120,255,140,0)');
+    c.fillStyle = gl;
+    c.fillRect(0, 0, W, H);
+  }
   if (f == 'uav' || f == 'suav') {
     const v = c.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.4, W / 2, H / 2, Math.max(W, H) * 0.75);
     v.addColorStop(0, 'rgba(0,0,0,0)');
