@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- New: a Weather card for the Kneeboard (Weather page > Add card): the chart around the route (SIGWX or Surface style, smooth isobars with H and L), the profile along the route (clouds, rain, fog, 0 °C, contrails, winds), the METAR and TAF of departure, target, landing and alternate in plain words, and the contrail levels.
+- Fixed: the Weather page showed no clouds above 9 999 ft with the BMS 4.38.2 maps.
 - Changed: checked with Falcon BMS 4.38.2 (4.38.1 still works without a warning).
 - New: BVR timeline: the Su-30SM2 with the AA-13 (R-37M) and the AA-12B (R-77-1) of BMS 4.38.2; their abort range from estimated values.
 - Fixed: weather reports with the maps of BMS 4.38.2 and F4Wx: clouds above 10 000 ft are reported (they read as CAVOK), Sunny has no clouds, the cover is read in eighths, shower cumulus give SHRA / SHSN.

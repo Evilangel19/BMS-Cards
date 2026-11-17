@@ -7,6 +7,7 @@
 //        attach(el) -> Promise<{L, map} | null>, detach(), toLL(xKm, yKm) -> [lat, lon], fromLL(lat, lon) -> [xKm, yKm], bounds: [[lat, lon], [lat, lon]]}
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
 import { WX_MODES as MODES, prOf, legend, drawWx } from './wxlayer.js';
+import { drawWxCard, WXC_W, WXC_H } from './wxcard.js';
 
 const NOTE = ['Clear', 'Fair', 'Poor', 'Inclement'],
   NCOL = ['#7ee2a8', '#7ee2a8', '#f0c46a', '#ff9a9a'],
@@ -45,8 +46,8 @@ export function createWeatherPage(deps) {
 
   const cellInfo = (c, lv, i, j) => {
     const cu =
-      c.cu >= 9999
-        ? 'no cumulus'
+      c.cond == 0 || c.cu === 10000 || !(c.dens > 0)
+        ? 'no cloud'
         : `cumulus ${fmt(c.cu)} ft · density ${c.dens} · size ${c.size.toFixed(1)}${c.tcu ? ' · tower' : ''}${c.shower ? ' · shower' : ''}`;
     return `<b>${WX_COND[Math.min(3, Math.max(0, c.cond))]}</b> · cell ${i + 1}/${j + 1} · wind ${wind(c.hdg, c.spd)} kt at ${fmt(WX_ALT[lv])} ft · ${c.t.toFixed(0)} °C · ${fmt(c.p)} mbar · visibility ${c.fogEnd >= 60 ? '60+' : c.fogEnd.toFixed(0)} km${c.fogEnd < 10 ? ' (fog layer to ' + fmt(c.fogZ) + ' ft)' : ''} · ${cu}`;
   };
@@ -224,7 +225,11 @@ export function createWeatherPage(deps) {
           })()
         : '<p class="hint">No flight selected.</p>';
     const al = alofts(s, W);
-    root.innerHTML = `${tabs}<div class="wxtop"><span class="hint" id="wxtop">${topText(s)}</span><span style="flex:1"></span>${fillBtn}</div>
+    const cs = cardStyle(),
+      cardBtn = fl
+        ? `<span class="seg" title="The look of the chart of the Weather card"><button type="button" data-cst="sigwx" class="${cs == 'sigwx' ? 'on' : ''}">SIGWX</button><button type="button" data-cst="surface" class="${cs == 'surface' ? 'on' : ''}">Surface</button></span><button type="button" class="btn g" data-wxcard title="A Kneeboard card of the weather of the flight: the chart around the route, the profile along it, METAR and TAF of departure, target, landing and alternate, the contrail levels">Add card</button>`
+        : '';
+    root.innerHTML = `${tabs}<div class="wxtop"><span class="hint" id="wxtop">${topText(s)}</span><span style="flex:1"></span>${cardBtn}${fillBtn}</div>
 <div class="wxg"><div class="wxl"><div class="wcard"><h3 id="wxh">Map · ${MODES.find(m => m[0] == st.mode)[1]}</h3><div class="wxmapbox" id="wxbox"></div><div class="wxleg" id="wxleg">${legend(st.mode, W, lv)}</div><div class="hint wxinfo" id="wxinfo">Move over the map for the data of a cell. Scroll to zoom, drag to move.</div></div></div>
 <div class="wxr"><div class="wcard"><h3>Airbases</h3>${bases}</div><div class="wcard"><h3>Along the route</h3>${rte}</div><div class="wcard"><h3>Winds aloft${al.tg ? ' · ' + esc(((fl.labels && fl.labels[fl.wps.indexOf(al.tg)]) || 'target') + ' (STPT ' + (fl.wps.indexOf(al.tg) + 1) + ')') : ''}</h3><div id="wxal">${al.html}</div><div class="hint wxnote">Layers at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet. Direction is where the wind comes from.</div></div></div></div>`;
     // the panel sits on the map (like the filters of the Map page): the map is put in the box first, the panel over it
@@ -321,6 +326,119 @@ export function createWeatherPage(deps) {
       };
     }
   }
+  // ---- the Weather card of the Kneeboard
+  const cardStyle = () => {
+    try {
+      return localStorage.getItem('wxcardstyle') == 'surface' ? 'surface' : 'sigwx';
+    } catch (e) {
+      return 'sigwx';
+    }
+  };
+  const B = [0, 1, 2, 3, 4, 7, 8];
+  // the data of the card: the route to the landing (times, altitudes), the target, the alternate, the samples of the profile, the reports
+  async function cardData(fl) {
+    const end = fl.wps.findIndex((p, i) => i > 0 && p.act == 7),
+      wps = fl.wps.slice(0, end > 0 ? end + 1 : fl.wps.length),
+      t0 = fl.dep;
+    let acc = 0;
+    const route = wps.map((p, i) => {
+      if (i) acc += Math.hypot(p.x - wps[i - 1].x, p.y - wps[i - 1].y) / 1.852;
+      return { x: p.x, y: p.y, alt: Math.max(0, p.z * 10), t: p.arr || p.dep || t0, n: i + 1, d: acc };
+    });
+    const tgt = route.findIndex((_, i) => i > 0 && !B.includes(wps[i].act)),
+      by = r => fl.bases.find(b => b.role == r),
+      dep = by('DEP'),
+      arr = by('ARR'),
+      alt = by('ALTN'),
+      ab = b => (b && (b.name.match(/\((\w+)\)/) || [])[1]) || '';
+    // the profile: samples along the route, each with the weather of the time it is flown
+    const S = [],
+      N = 160;
+    for (let s = 0; s <= N; s++) {
+      const d = (acc * s) / N;
+      let k = route.findIndex((p, i) => i && p.d >= d);
+      if (k < 1) k = route.length - 1;
+      const a = route[k - 1],
+        b = route[k],
+        f = b.d > a.d ? (d - a.d) / (b.d - a.d) : 0,
+        p = {
+          d,
+          x: a.x + (b.x - a.x) * f,
+          y: a.y + (b.y - a.y) * f,
+          t: a.t + (b.t - a.t) * f,
+          alt: a.alt + (b.alt - a.alt) * f,
+        };
+      const Wi = deps.at(p.t);
+      if (Wi) {
+        const c = Wi.at(p.x, p.y);
+        Object.assign(p, { cond: c.cond, cu: c.cu, dens: c.dens, size: c.size, tcu: c.tcu, fogEnd: c.fogEnd, tt: c.t });
+        p.contrail = (Wi.hdr && Wi.hdr.contrail && Wi.hdr.contrail[Math.max(0, Math.min(3, c.cond))]) || 25000;
+      } else Object.assign(p, { cond: 0, cu: 10000, dens: 0, size: 5, tcu: 0, fogEnd: 60, tt: 15, contrail: 25000 });
+      S.push(p);
+    }
+    let H = null;
+    try {
+      H = deps.heights ? await deps.heights(S.map(p => [p.x, p.y])) : null;
+    } catch (e) {
+      H = null;
+    }
+    const e0 = (dep && dep.elev) || 0,
+      e1 = (arr && arr.elev) || 0;
+    S.forEach((p, i) => (p.elev = H && isFinite(H[i]) ? Math.max(0, H[i]) : e0 + ((e1 - e0) * i) / N));
+    const Wt = deps.at(fl.tot != null ? fl.tot : t0);
+    return {
+      title: fl.title,
+      sub:
+        'Weather at ' +
+        hhmm(fl.tot != null ? fl.tot : t0) +
+        'Z' +
+        (fl.hours && fl.hours.length ? ' (hourly maps)' : ' (campaign map)'),
+      dep: t0,
+      tot: fl.tot,
+      land: fl.land,
+      route,
+      tgt,
+      depId: ab(dep),
+      ldgId: ab(arr),
+      altn: alt ? { x: alt.x, y: alt.y, id: ab(alt) } : null,
+      at: deps.at,
+      prof: S,
+      coast: deps.coast ? (await deps.coast().catch(() => [])) || [] : [],
+      contrail: Wt && Wt.hdr ? Wt.hdr.contrail : null,
+      reports: [
+        dep && { lab: 'DEP ' + ab(dep) + '  METAR', text: dep.atis, col: dep.col },
+        fl.tafTgt && { lab: 'TGT  TAF', text: fl.tafTgt },
+        arr && { lab: 'LDG ' + ab(arr) + '  METAR', text: arr.atis, col: arr.col },
+        fl.tafLdg && { lab: 'LDG ' + ab(arr) + '  TAF', text: fl.tafLdg },
+        alt && { lab: 'ALTN ' + ab(alt) + '  METAR', text: alt.atis, col: alt.col },
+      ].filter(Boolean),
+    };
+  }
+  async function addCard(btn) {
+    const fl = deps.flight();
+    if (!fl || !deps.kbAdd) return;
+    btn.disabled = true;
+    try {
+      const D = await cardData(fl),
+        c = document.createElement('canvas');
+      c.width = WXC_W;
+      c.height = WXC_H;
+      drawWxCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, cardStyle());
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      if (!blob) throw new Error('no picture');
+      const at = await deps.kbAdd(blob, 'Weather · ' + (fl.title || ''));
+      if (deps.toast)
+        deps.toast(
+          'Weather card added to the Kneeboard' +
+            (at
+              ? ', ' + at.side + ' column, card ' + (at.row + 1) + '.'
+              : ' (no free slot: it is among the unused cards).')
+        );
+    } catch (e) {
+      if (deps.toast) deps.toast('The Weather card could not be made: ' + ((e && e.message) || e));
+    }
+    btn.disabled = false;
+  }
   function wire() {
     const root = deps.root;
     root.querySelectorAll('#wxtabs [data-mode]').forEach(
@@ -356,6 +474,19 @@ export function createWeatherPage(deps) {
           draw();
         })
     );
+    root.querySelectorAll('[data-cst]').forEach(
+      b =>
+        (b.onclick = () => {
+          try {
+            localStorage.setItem('wxcardstyle', b.dataset.cst);
+          } catch (e) {
+            /* none */
+          }
+          root.querySelectorAll('[data-cst]').forEach(o => o.classList.toggle('on', o === b));
+        })
+    );
+    const cb = root.querySelector('[data-wxcard]');
+    if (cb) cb.onclick = () => addCard(cb);
     const fb = root.querySelector('[data-fill]');
     if (fb)
       fb.onclick = () => {
@@ -382,5 +513,9 @@ export function createWeatherPage(deps) {
     root: deps.root,
     draw,
     layer: () => M,
+    _cardData: () => {
+      const fl = deps.flight();
+      return fl ? cardData(fl) : Promise.resolve(null);
+    },
   };
 }

@@ -128,7 +128,10 @@ const cellColor = (c, mode, W) => {
       t = (c.p - p[0]) / Math.max(1, p[1] - p[0]);
     return lerp([70, 90, 190, 0.5], [200, 110, 220, 0.7], t);
   }
-  if (mode == 'cloud') return c.cu >= 9999 ? [0, 0, 0, 0] : [255, 255, 255, 0.12 + 0.6 * Math.min(1, c.dens / 13)];
+  if (mode == 'cloud')
+    return c.cond == 0 || c.cu === 10000 || !(c.dens > 0)
+      ? [0, 0, 0, 0]
+      : [255, 255, 255, 0.12 + 0.6 * Math.min(1, c.dens / 13)];
   return ramp(RV, c.fogEnd);
 };
 

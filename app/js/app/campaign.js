@@ -14,8 +14,13 @@ import { parseLink16 } from '../parsers/link16.js';
 import { parseIff } from '../parsers/iff.js';
 import { parseTwx } from '../parsers/twx.js';
 import { fmapDrift } from '../parsers/fmap.js';
+import { coastRegion } from '../core/mapconst.js';
+import { kbAddPic } from './kneeboard.js';
+import { terrain, heightsOf } from './gamefiles.js';
+import { FT_KM } from '../core/mapdtc.js';
+import basemap from '../data/basemap.js';
 import { ST } from './state.js';
-import { $, esc, jp, rememberLast } from './base.js';
+import { $, appToast, esc, jp, rememberLast } from './base.js';
 import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
 import { lines } from './dtcfile.js';
@@ -214,6 +219,7 @@ export function wxFlight() {
       rwy: F['ab' + j + '_5'],
       ils: F['ab' + j + '_6'],
       atis: Wb && ms != null ? CAM.atisText(Wb, [id, o[2], o[3], ms], elev) : '',
+      col: Wb && ms != null ? CAM.wxColour(Wb, [id, o[2], o[3], ms], elev) : '',
     });
   });
   return {
@@ -227,6 +233,14 @@ export function wxFlight() {
     hours,
     bases,
     taf: tafFor(f),
+    // both forecasts for the Weather card: of the target and of the landing airbase
+    tafTgt: ta != null && wxAt(ta) ? CAM.tafText(ST.C, wxAt(ta), f, undefined, wxAt) : '',
+    tafLdg: (() => {
+      const o = (F.__ab || [])[1];
+      if (!o || land == null || !wxAt(land)) return '';
+      const id = (o[1].match(/\((\w+)\)/) || [])[1] || o[1];
+      return CAM.tafText(ST.C, wxAt(land), f, { id, x: o[2], y: o[3], arr: land, elev: +F.ab1_4 || 0 }, wxAt);
+    })(),
     tafMode: tafMode(),
     tafId: (tafSite(f) || {}).id || '',
   };
@@ -294,6 +308,28 @@ export async function fillCampaigns() {
   if (!tacs.length) tsel.innerHTML = '<option value="">— no tactical engagements found —</option>';
 }
 // the last choice wins: the arrow keys on the menu choose one campaign after the other, and a slow file of a campaign left behind must not end up over the one chosen last
+// the Weather card: the BMS terrain heights (ft) at points in km, null without the BMS folder
+async function tgtHeights(pts) {
+  const t = await terrain();
+  return t
+    ? heightsOf(
+        t,
+        pts.map(p => ({ n: p[1] * FT_KM, e: p[0] * FT_KM }))
+      )
+    : null;
+}
+// the land of the offline coastlines in km of the theater, kept per region
+const COASTKM = {};
+async function coastKm() {
+  const reg = coastRegion();
+  if (!reg) return [];
+  if (COASTKM[reg]) return COASTKM[reg];
+  const data = reg == 'med' ? (await import('../data/basemap-med.js')).default : basemap,
+    [[la0, lo0], [la1, lo1]] = mBounds(),
+    pad = 2,
+    inBox = r => r.some(([lo, la]) => lo > lo0 - pad && lo < lo1 + pad && la > la0 - pad && la < la1 + pad);
+  return (COASTKM[reg] = data.land.filter(inBox).map(r => r.map(([lo, la]) => mFromLL(la, lo))));
+}
 let CAMGEN = 0;
 // a campaign or a mission opened another way (Open menu): a choice of the menu still loading is dropped
 export const campCancel = () => ++CAMGEN;
@@ -483,6 +519,11 @@ export async function init14() {
     get bounds() {
       return mBounds();
     },
+    // the Weather card: terrain heights, coasts in km, the Kneeboard
+    heights: pts => tgtHeights(pts),
+    coast: () => coastKm(),
+    kbAdd: (blob, name) => kbAddPic(blob, name),
+    toast: m => appToast(m),
   });
   $('csel').onchange = () => selectCampaign($('csel').value);
   $('tesel').onchange = () => selectCampaign($('tesel').value);
