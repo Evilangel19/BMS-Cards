@@ -227,7 +227,22 @@ export function createWeatherPage(deps) {
     const al = alofts(s, W);
     const cs = cardStyle(),
       cardBtn = fl
-        ? `<span class="seg" title="The look of the chart of the Weather card"><button type="button" data-cst="sigwx" class="${cs == 'sigwx' ? 'on' : ''}">SIGWX</button><button type="button" data-cst="surface" class="${cs == 'surface' ? 'on' : ''}">Surface</button></span><button type="button" class="btn g" data-wxcard title="A Kneeboard card of the weather of the flight: the chart around the route, the profile along it, METAR and TAF of departure, target, landing and alternate, the contrail levels">Add card</button>`
+        ? `<span class="seg" title="The kind of Weather card">${[
+            [
+              'sigwx',
+              'SIGWX',
+              'Significant weather chart: clouds, rain, fog and storms, isobars; profile, METAR and TAF',
+            ],
+            ['radar', 'RADAR', 'Satellite clouds and radar echoes, isobars; profile, METAR and TAF'],
+            ['wind', 'WIND', 'Winds and temperatures aloft at FL060, FL180 and FL300 at the target time'],
+          ]
+            .map(
+              ([k, n, t]) =>
+                `<button type="button" data-cst="${k}" class="${cs == k ? 'on' : ''}" title="${t}">${n}</button>`
+            )
+            .join(
+              ''
+            )}</span><button type="button" class="btn" data-wxcard title="A Kneeboard card of the weather of the flight, of the kind chosen at its left (SIGWX, RADAR or WIND)">Add card</button>`
         : '';
     root.innerHTML = `${tabs}<div class="wxtop"><span class="hint" id="wxtop">${topText(s)}</span><span style="flex:1"></span>${cardBtn}${fillBtn}</div>
 <div class="wxg"><div class="wxl"><div class="wcard"><h3 id="wxh">Map · ${MODES.find(m => m[0] == st.mode)[1]}</h3><div class="wxmapbox" id="wxbox"></div><div class="wxleg" id="wxleg">${legend(st.mode, W, lv)}</div><div class="hint wxinfo" id="wxinfo">Move over the map for the data of a cell. Scroll to zoom, drag to move.</div></div></div>
@@ -329,7 +344,8 @@ export function createWeatherPage(deps) {
   // ---- the Weather card of the Kneeboard
   const cardStyle = () => {
     try {
-      return localStorage.getItem('wxcardstyle') == 'surface' ? 'surface' : 'sigwx';
+      const v = localStorage.getItem('wxcardstyle');
+      return v == 'radar' || v == 'surface' ? 'radar' : v == 'wind' ? 'wind' : 'sigwx';
     } catch (e) {
       return 'sigwx';
     }
@@ -426,7 +442,7 @@ export function createWeatherPage(deps) {
       drawWxCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, cardStyle());
       const blob = await new Promise(r => c.toBlob(r, 'image/png'));
       if (!blob) throw new Error('no picture');
-      const at = await deps.kbAdd(blob, 'Weather · ' + (fl.title || ''));
+      const at = await deps.kbAdd(blob, (cardStyle() == 'wind' ? 'Winds · ' : 'Weather · ') + (fl.title || ''));
       if (deps.toast)
         deps.toast(
           'Weather card added to the Kneeboard' +

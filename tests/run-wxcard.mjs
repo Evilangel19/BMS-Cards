@@ -1,6 +1,6 @@
 // The Weather card of the Kneeboard (1.3.0-beta.13): the plain words of the METAR and of the TAF, and the card drawn on a context that only
 // records what is drawn (no browser): the chart, the profile, the big H and L, the small h and l, the reports, the contrails. Small maps made here.
-import { decodeWx, tafParts, drawWxCard, WXC_W, WXC_H } from '../app/js/core/wxcard.js';
+import { decodeWx, tafParts, drawWxCard, WXC_W, WXC_H, WIND_LEVELS } from '../app/js/core/wxcard.js';
 
 let n = 0,
   bad = 0;
@@ -89,7 +89,7 @@ const W = {
   cs,
   hdr: { contrail: [30000, 29000, 28000, 27000] },
   cell: cellAt,
-  wind: (x, y, alt) => ({ spd: 10 + alt / 1000, hdg: 270 }),
+  wind: (x, y, alt) => ({ spd: 5 + alt / 1000 + x / 12, hdg: 270 }),
   at: (x, y) =>
     cellAt(Math.max(0, Math.min(X - 1, Math.floor(x / cs))), Math.max(0, Math.min(Y - 1, Math.floor(y / cs)))),
 };
@@ -142,7 +142,7 @@ const D = {
   ],
 };
 ok(WXC_W == 1600 && WXC_H == 2400, 'the size of a Kneeboard card');
-for (const st of ['sigwx', 'surface']) {
+for (const st of ['sigwx', 'radar']) {
   T.length = 0;
   let err = null;
   try {
@@ -151,7 +151,7 @@ for (const st of ['sigwx', 'surface']) {
     err = e;
   }
   ok(!err, st + ': drawn without errors ' + (err && err.stack));
-  ok(T.includes('WEATHER') && T.includes(st == 'sigwx' ? 'SIGWX' : 'SURFACE'), st + ': the title and the style');
+  ok(T.includes('WEATHER') && T.includes(st == 'sigwx' ? 'SIGWX' : 'RADAR'), st + ': the title and the style');
   ok(T.includes('H') && T.includes('L'), st + ': the big H and L of the centres of pressure');
   ok(T.includes('h') && T.includes('l'), st + ': the small h and l by the isobars');
   ok(
@@ -168,6 +168,35 @@ for (const st of ['sigwx', 'surface']) {
     st + ': the contrail levels'
   );
   if (st == 'sigwx') ok(T.includes('CB'), 'sigwx: the storm cells');
+}
+
+// the WIND card: three levels, no reports
+{
+  T.length = 0;
+  let err = null;
+  try {
+    drawWxCard(/** @type {any} */ (ctx()), D, 'wind');
+  } catch (e) {
+    err = e;
+  }
+  ok(!err, 'wind: drawn without errors ' + (err && err.stack));
+  ok(
+    T.includes('WIND') && WIND_LEVELS.every(a => T.includes('FL' + String(a / 100).padStart(3, '0'))),
+    'wind: the three levels ' + WIND_LEVELS
+  );
+  ok(!T.some(s => s.includes('RKJK 010100Z')) && !T.includes('PROFILE ALONG THE ROUTE'), 'wind: no METAR, no profile');
+  ok(
+    T.some(s => /^\d+ kt$/.test(s)),
+    'wind: the lines of the speed'
+  );
+  ok(
+    T.some(s => /^[+-]\d+$/.test(s)),
+    'wind: the temperatures by the barbs'
+  );
+  ok(
+    T.some(s => /CONTRAILS/.test(s)),
+    'wind: the contrail levels'
+  );
 }
 
 console.log(bad ? `run-wxcard.mjs: ${bad} of ${n} FAILED` : `run-wxcard.mjs: OK - ${n} checks`);
