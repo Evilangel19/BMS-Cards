@@ -232,14 +232,10 @@ export function kbDelete(it) {
 export const kbCopy = a => a.map(r => ({ left: { ...r.left }, right: { ...r.right } }));
 export let KBDEF;
 // Set Default: blue, dimmed once the current cards are the default; Load: green
-let KBSAVED = '';
-const kbSig = () =>
-  JSON.stringify([KBFMT, KBFIT, KBS], (k, v) =>
-    k == 'item' && v && typeof v == 'object' ? String(v.n || v.name || v.id || '') : v
-  );
 function kbDefBtns() {
+  // Save is dimmed when nothing differs from the last Save: the same test as the dot of the tab and the button of the tab bar
   const sv = $('kbsave');
-  if (sv) sv.classList.toggle('nil', !!KBSAVED && KBSAVED === kbSig());
+  if (sv) sv.classList.toggle('nil', !kbUnsaved());
   const a = $('kbdef');
   if (!a || !KBDEF) return;
   const same = JSON.stringify(kbCopy(KBS)) === JSON.stringify(kbCopy(KBDEF));
@@ -1157,7 +1153,6 @@ export async function kbSave() {
     }
     $('kbprog').firstChild.style.width = '100%';
     st.textContent = 'Done: ' + done + ' file(s) written.';
-    KBSAVED = kbSig();
     kbMarkSaved();
     if ($('kn').classList.contains('hide')) appToast('Kneeboard saved: ' + done + ' file(s) written.');
     kbDefBtns();
@@ -1186,25 +1181,43 @@ export async function kbSave() {
 // run 17: statements that run when the program starts (in the order of the original file)
 // ---- "Kneeboard not saved": what the kneeboard would write now (the cards in the slots, the format, the files of the aircraft and, when the datacard pages are
 // on it, the datacard as it is drawn) against what the last Save wrote. Kept between sessions (kbsaved.json), so the same mission opened again is not "not saved".
-let KBLAST = null,
-  KBCVV = -1,
-  KBCVH = '';
+let KBLAST = null;
 const fnv = (str, h = 2166136261) => {
   for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
   return (h >>> 0).toString(36);
 };
-// the datacard as it is drawn (a small copy of the card, so any change of what is written on it counts)
-function cvHash() {
-  const c = $('cv');
-  if (!c || !c.width) return '';
-  const o = document.createElement('canvas');
-  o.width = o.height = 256;
-  const x = o.getContext('2d', { willReadFrequently: true });
-  x.drawImage(c, 0, 0, 256, 256);
-  const d = x.getImageData(0, 0, 256, 256).data;
-  let h = 2166136261;
-  for (let i = 0; i < d.length; i += 4) h = Math.imul(h ^ (d[i] | (d[i + 1] << 8) | (d[i + 2] << 16)), 16777619);
-  return (h >>> 0).toString(36);
+// the datacard by what it is drawn from (its values, the format, the seat, the map screenshot), not by its pixels: the same card drawn again
+// (on another tab, by another graphics path of the window) can differ by a few pixels at the edges of its text, and was taken for a change
+const SHOTH = new WeakMap();
+function shotHash(c) {
+  if (!c) return '';
+  if (SHOTH.has(c)) return SHOTH.get(c);
+  let h = '';
+  try {
+    // a picture taken once and never drawn again: its own pixels, read once
+    const d = c.getContext ? c.getContext('2d').getImageData(0, 0, c.width, c.height).data : null;
+    if (d) {
+      let k = 2166136261;
+      for (let i = 0; i < d.length; i += 4 * 7)
+        k = Math.imul(k ^ (d[i] | (d[i + 1] << 8) | (d[i + 2] << 16)), 16777619);
+      h = c.width + 'x' + c.height + ':' + (k >>> 0).toString(36);
+    } else h = (c.width || 0) + 'x' + (c.height || 0);
+  } catch (e) {
+    h = (c.width || 0) + 'x' + (c.height || 0);
+  }
+  SHOTH.set(c, h);
+  return h;
+}
+function dcSig() {
+  const keys = Object.keys(F).sort();
+  return fnv(
+    JSON.stringify([
+      !!ST.MDCON,
+      !!(ST.C && ST.CL && ST.CL.length && F.cs), // the seat buttons move the text of their cells
+      keys.map(k => [k, F[k] == null ? '' : String(F[k])]),
+      shotHash(ST.MAPSHOT),
+    ])
+  );
 }
 const slotSig = sl => [
   sl.kind,
@@ -1216,10 +1229,6 @@ export function kbNowSig() {
   const rows = KBS.map((r, i) => i).filter(i => rowUsed(KBS[i], i));
   if (!rows.length) return null;
   const dc = dcOnRows(rows);
-  if (dc && (ST.CVV || 0) !== KBCVV) {
-    KBCVV = ST.CVV || 0;
-    KBCVH = cvHash();
-  }
   return (
     fnv(
       JSON.stringify([
@@ -1229,7 +1238,7 @@ export function kbNowSig() {
         kbDir() || '',
         rows.map(i => [i, slotSig(KBS[i].left), slotSig(KBS[i].right)]),
       ])
-    ) + (dc ? '.' + KBCVH : '')
+    ) + (dc ? '.d' + dcSig() : '')
   );
 }
 function kbMarkSaved() {
@@ -1250,8 +1259,11 @@ export function kbUnsaved() {
 }
 // the dot on the Kneeboard tab (the "Ready to fly" button of the tab bar, app/ready.js, lists it with the DTC and the mission)
 function kbWarn() {
-  const tab = document.querySelector('.tab[data-t=kn]');
-  if (tab) tab.classList.toggle('unsaved', kbUnsaved());
+  const tab = document.querySelector('.tab[data-t=kn]'),
+    u = kbUnsaved();
+  if (tab) tab.classList.toggle('unsaved', u);
+  const sv = $('kbsave');
+  if (sv) sv.classList.toggle('nil', !u);
 }
 export function kbWatch() {
   loadPrefs('kbsaved.json')
