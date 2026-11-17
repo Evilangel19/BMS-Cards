@@ -518,7 +518,7 @@ export function objInitial(E) {
     return null;
   }
 }
-// highest campaign file version this reader was checked against (BMS 4.38.1 writes 109); a newer file may carry fields read wrongly
+// highest campaign file version this reader was checked against (BMS 4.38.1 and 4.38.2 write 109); a newer file may carry fields read wrongly
 export const CAM_VER_MAX = 110;
 // Tactical Engagement files (.tac) are campaign files with one more section, "te" (text): the teams of the engagement. Teams that have a name (not "---"): [{n, name}]; the first one is the player's side
 export function teTeams(u8) {

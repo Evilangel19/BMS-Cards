@@ -1,7 +1,9 @@
 // Version of the program (the same as package.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml; tests/run-version.mjs checks it, with the two lock files)
-export const APP_VERSION = '1.2.1-beta.11';
+export const APP_VERSION = '1.3.0-beta.12';
 // the version of Falcon BMS the readers were checked with (the warnings about other files name it)
-export const BMS_TESTED = '4.38.1';
+export const BMS_TESTED = '4.38.2';
+// the older versions still read without a warning (the files did not change between them)
+export const BMS_ALSO = ['4.38.1'];
 // where the program is published: the notice of a newer version reads the tags of this repository (v1.2.0, v1.2.0-beta.3 ...)
 export const REPO = 'Evilangel19/BMS-Cards';
 // '1.3.0-beta.4' or 'v1.3.0' -> {n: [1, 3, 0], pre: ['beta', 4]} (pre: [] for a release); null when it is not a version

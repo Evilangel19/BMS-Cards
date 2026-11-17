@@ -2,8 +2,12 @@
 
 What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
 
-## 1.2.1 (not released yet)
+## 1.3.0 (not released yet)
 
+- Changed: checked with Falcon BMS 4.38.2 (4.38.1 still works without a warning).
+- New: BVR timeline: the Su-30SM2 with the AA-13 (R-37M) and the AA-12B (R-77-1) of BMS 4.38.2; their abort range from estimated values.
+- Fixed: weather reports with the maps of BMS 4.38.2 and F4Wx: clouds above 10 000 ft are reported (they read as CAVOK), Sunny has no clouds, the cover is read in eighths, shower cumulus give SHRA / SHSN.
+- Changed: the weather of an hour without its own map follows the moving map of BMS (as its briefing does); the TAF gives the changes of the coming hours (FM / TEMPO) from the hourly weather maps.
 - Fixed: "Not saved: Kneeboard" came back when the Datacard tab was opened after a save, with nothing changed; the Save button of the Kneeboard page now agrees with the tab bar.
 - Changed: Weapons > Target: the plan (now Synthetic) and the picture of the map can be turned (Attack up puts the attack heading at the top); new Targeting pod filter with its display; the infrared filters renamed; no Edit points on the tab.
 - Changed: Weapons > Target: three columns as the Pop-up tab, the annotation tools as a bar over the picture (as in the Briefing room), a tidier From the datacard card, two more filters (IR black-hot, NVG), a cursive handwriting for the notes.

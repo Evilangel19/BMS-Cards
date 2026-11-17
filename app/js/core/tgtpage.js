@@ -66,9 +66,6 @@ const HINT = {
   scale: 'Drag along a known length, then type the length (for example 500 FT).',
   text: 'Click, then type the text.',
 };
-// the select tool: a mouse pointer
-const PTR =
-  '<svg width="14" height="16" viewBox="0 0 14 16" aria-label="Select and move" style="vertical-align:-3px"><path d="M2 1 L2 13.5 L5.2 10.6 L7.6 15 L9.6 14 L7.3 9.7 L11.6 9.6 Z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/></svg>';
 // the icons of the tool bar (24 x 24, drawn with the stroke, as the bar of the Briefing room)
 const TICON = {
   select: '<path d="M5 3l12 8-5.5 1.2L9 18z"/>',

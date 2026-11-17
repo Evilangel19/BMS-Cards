@@ -13,6 +13,7 @@ import { toLL as mToLL, fromLL as mFromLL, theaterBounds as mBounds } from '../c
 import { parseLink16 } from '../parsers/link16.js';
 import { parseIff } from '../parsers/iff.js';
 import { parseTwx } from '../parsers/twx.js';
+import { fmapDrift } from '../parsers/fmap.js';
 import { ST } from './state.js';
 import { $, esc, jp, rememberLast } from './base.js';
 import { F, dEl, MIR, pushOne } from './datacard.js';
@@ -39,7 +40,22 @@ export const wxKey = ms => {
   const t = Math.floor(ms / 1000);
   return (Math.floor(t / 86400) + 1) * 10000 + Math.floor((t % 86400) / 3600) * 100;
 };
-export const wxAt = ms => (ms != null && WXS.get(wxKey(ms))) || ST.WX;
+// the time of a key of the hourly maps (DHHMM, Zulu: day 1 = the first day of the campaign)
+const keyMs = k => ((Math.floor(k / 10000) - 1) * 24 + Math.floor((k % 10000) / 100)) * 3600000;
+// the weather of a time: the hourly map of that hour (WeatherMapsUpdates: BMS loads it at its hour and keeps it until the next one); without it the last
+// hourly map before, moved with its wind; without hourly maps the map of the campaign, moved with its wind from the time of the campaign
+export const wxAt = ms => {
+  if (ms == null) return ST.WX;
+  const k = wxKey(ms),
+    w = WXS.get(k);
+  if (w) return w;
+  let bk = -1;
+  for (const kk of WXS.keys()) if (kk < k && kk > bk) bk = kk;
+  if (bk > 0) return fmapDrift(WXS.get(bk), ms - keyMs(bk));
+  if (WXDIR.files && Object.keys(WXDIR.files).length) return ST.WX;
+  const now = ST.C && ST.C.now;
+  return ST.WX && now != null ? fmapDrift(ST.WX, ms - now) : ST.WX;
+};
 // wind aloft at a position (km), time and altitude (ft): the layer nearest to the altitude, from the map of that hour
 export const wxWind = (x, y, t, a) => {
   const w = wxAt(t);
@@ -56,8 +72,17 @@ export const wxKeys = f => {
     b = Math.max(...ts),
     o = [];
   for (let t = Math.floor(a / 3600000) * 3600000; t <= b; t += 3600000) o.push(wxKey(t));
+  // the hours of the forecasts (TAF): from one hour before the target and the landing to two hours after
+  [taMs(f), landMs(f)].forEach(m => {
+    if (m == null) return;
+    for (let t = Math.floor((m - 3600000) / 3600000) * 3600000; t <= m + 3 * 3600000; t += 3600000) {
+      const k = wxKey(t);
+      if (!o.includes(k)) o.push(k);
+    }
+  });
   return o;
 };
+const taMs = f => ((f && f.wps ? f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) : null) || {}).arr;
 export async function wxList() {
   const c = [];
   try {
@@ -107,7 +132,7 @@ export const tafFor = f => {
   const site = tafSite(f),
     ta = (f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || {}).arr,
     W = wxAt(site ? site.arr : ta);
-  return W ? CAM.tafText(ST.C, W, f, site || undefined) : '';
+  return W ? CAM.tafText(ST.C, W, f, site || undefined, wxAt) : '';
 };
 export function setTafMode(m) {
   ST.CFG.ui = ST.CFG.ui || {};

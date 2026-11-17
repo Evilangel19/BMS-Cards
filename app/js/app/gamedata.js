@@ -1,4 +1,4 @@
-import { BMS_TESTED } from '../core/version.js';
+import { BMS_TESTED, BMS_ALSO } from '../core/version.js';
 import {
   isDesktop,
   readBytes,
@@ -342,7 +342,9 @@ async function readGameData(reloadTheaters, stage = () => {}) {
             '), the game version is not checked.';
         else if (v.every(x => !x))
           bmsVerNote = 'Falcon BMS.exe has no version number (0.0.0.0), the game version is not checked.';
-        const cv = compareVersion(v, BMS_TESTED);
+        let cv = compareVersion(v, BMS_TESTED);
+        if (cv.level == 'other' && BMS_ALSO.some(t => compareVersion(v, t).level == 'ok'))
+          cv = { level: 'ok', text: cv.text };
         bmsVer = cv.text;
         bmsLevel = cv.level;
         if (cv.level == 'newer' || cv.level == 'other')
