@@ -4,7 +4,8 @@ import D0 from '../data/index.js';
 const PPTL = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini)
 import { cbuFootprint } from '../bmsdata/bombdata.js';
 import { analyse, envelope, pickBomb, isGuided, maneuvers, PULL_G, PULL_DELAY } from './lethal.js';
-import { computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow } from './popup.js';
+import { computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow, norm } from './popup.js';
+import { attackTrack, fragZone, deconflict } from './deconf.js';
 import {
   computeHadb,
   computeToss,
@@ -107,6 +108,11 @@ export function createWeaponsPage(deps) {
     const d = blank(),
       g = k => (o[k] && typeof o[k] == 'object' && !Array.isArray(o[k]) ? part(d[k], o[k]) : keep[k]),
       r = { ...keep, ...o, inp: g('inp'), hadb: g('hadb'), toss: g('toss'), map: g('map'), mat: g('mat'), fz: g('fz') };
+    // the sets of the lead and of the element belong to the state they came with (an older file has none: the flight only)
+    r.grp = o.grp && typeof o.grp == 'object' ? o.grp : {};
+    r.fls = o.fls && typeof o.fls == 'object' ? o.fls : null;
+    r.inMode = r.fls && ATK.includes(o.inMode) ? o.inMode : null;
+    if (!r.inMode) r.fls = null;
     if (!r.inp.heading) r.inp.heading = 360;
     if (!MODES.some(m => m[0] === r.mode)) r.mode = keep.mode;
     return r;
@@ -133,6 +139,176 @@ export function createWeaponsPage(deps) {
     elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
 
   const cur = () => (st.mode == 'hadb' ? st.hadb : st.mode == 'toss' ? st.toss : st.inp);
+  const ENG = m => (m == 'hadb' ? computeHadb : m == 'toss' ? computeToss : computePopup);
+
+  // ---------- the aircraft of the flight: FLIGHT (all of it), LEAD (1-2; 1 in a two-ship) and ELEMENT (3-4; 3 in a three-ship) or WINGMAN (2).
+  // Each attack section (Pop-up, HADB, TOSS) keeps a set for each: the panel shows, and the sliders change, the set chosen; FLIGHT is the set this page always had.
+  // The set shown lives in the usual fields (st.inp / st.hadb / st.toss and SHARED); the others wait in st.grp[section], and while a group is shown the
+  // flight's values wait in st.fls. st.inMode: the section whose set is in the fields (the last attack section shown).
+  const SHARED = ['ref', 'oa1', 'refPt', 'tgt', 'bomb', 'fz'],
+    WHO = ['flight', 'lead', 'elem'],
+    PK = m => (m == 'popup' ? 'inp' : m),
+    PD = m => (m == 'hadb' ? HADB_DEFAULTS : m == 'toss' ? TOSS_DEFAULTS : DEFAULTS),
+    clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
+  const grpOf = m => {
+    if (!st.grp || typeof st.grp != 'object') st.grp = {};
+    const g = st.grp[m];
+    if (!g || typeof g != 'object' || !WHO.includes(g.who))
+      st.grp[m] = { who: 'flight', lead: null, elem: null, mir: false };
+    return st.grp[m];
+  };
+  // the seat chosen on the Datacard (0-3) and how many aircraft the flight has (4 when there is no flight: the groups stay possible)
+  const seatInfo = () => {
+    try {
+      const s = deps.seat && deps.seat();
+      return s && s.size > 0 ? s : { n: 0, size: 4 };
+    } catch (e) {
+      return { n: 0, size: 4 };
+    }
+  };
+  const whoName = w => {
+    const z = seatInfo().size;
+    return w == 'lead'
+      ? z <= 2
+        ? 'LEAD 1'
+        : 'LEAD 1-2'
+      : w == 'elem'
+        ? z <= 2
+          ? 'WINGMAN 2'
+          : z == 3
+            ? 'ELEMENT 3'
+            : 'ELEMENT 3-4'
+        : 'FLIGHT';
+  };
+  const secName = () => (seatInfo().size <= 2 ? 'wingman' : 'element');
+  const snapOf = m => {
+    const s = { p: clone(st[PK(m)]) };
+    SHARED.forEach(k => (s[k] = clone(st[k])));
+    return s;
+  };
+  const putSnap = (m, s) => {
+    st[PK(m)] = part(PD(m), s.p);
+    SHARED.forEach(k => {
+      if (s[k] !== undefined) st[k] = clone(s[k]);
+    });
+  };
+  // the attack and the ingress headings of a set, worked out in its own fields (for the mirror)
+  function headingOf(m, s) {
+    const keep = snapOf(m);
+    try {
+      putSnap(m, s);
+      const c = gather();
+      if (!c.t || !c.ref) return null;
+      const r = ENG(m)(c.tPos, c.ref, { ...st[PK(m)], ...fuzeInputs() });
+      return r && !r.error ? { A: r.v.attackHeading, I: r.v.ingressHeading } : null;
+    } catch (e) {
+      return null;
+    } finally {
+      putSnap(m, keep);
+    }
+  }
+  // the lead's attack mirrored about the ingress (the split attack: the two come in together and turn to opposite sides): the same target and
+  // reference, the turn on the other side, the attack and the egress headings mirrored about the ingress heading
+  function mirrorOf(m, s) {
+    const o = clone(s),
+      p = o.p,
+      H = headingOf(m, s),
+      flip = x => (x == 'left' ? 'right' : x == 'right' ? 'left' : x),
+      mir = (h, I) => Math.round(norm(2 * I - h)) || 360;
+    p.side = flip(p.side);
+    p.egressTurn = flip(p.egressTurn);
+    if (H && isFinite(H.I)) {
+      if (p.egressTurn == 'set' && isFinite(p.egressHeading)) p.egressHeading = mir(p.egressHeading, H.I);
+      // the heading slider is the attack heading (in the pop-up, unless it is the climb heading, which stays: the same ingress)
+      if (!(m == 'popup' && p.headingMode == 'ingress') && isFinite(H.A)) p.heading = mir(H.A, H.I);
+    }
+    return o;
+  }
+  function leave() {
+    const m = st.inMode;
+    st.inMode = null;
+    if (!ATK.includes(m)) return;
+    const g = grpOf(m);
+    if (g.who == 'flight' || !st.fls) return;
+    g[g.who] = snapOf(m);
+    putSnap(m, st.fls);
+    st.fls = null;
+  }
+  function enter(m) {
+    st.inMode = m;
+    const g = grpOf(m);
+    if (seatInfo().size <= 1) g.who = 'flight';
+    if (g.who == 'flight') return;
+    st.fls = snapOf(m);
+    putSnap(m, g.who == 'elem' && g.mir ? mirrorOf(m, g.lead || st.fls) : g[g.who] || clone(st.fls));
+  }
+  const sync = () => {
+    if (ATK.includes(st.mode) && st.inMode !== st.mode) {
+      leave();
+      enter(st.mode);
+    }
+  };
+  const switchWho = w => {
+    const m = st.inMode;
+    if (!ATK.includes(m)) return;
+    leave();
+    grpOf(m).who = w;
+    enter(m);
+  };
+  // fn run with the set of another group in the fields (res and ctx worked out for it), then everything back as it was
+  function withGroup(w, fn) {
+    const m = st.inMode;
+    if (!ATK.includes(m)) return null;
+    const g = grpOf(m),
+      was = g.who,
+      R0 = res,
+      C0 = ctx;
+    leave();
+    g.who = w;
+    enter(m);
+    try {
+      compute(true);
+      return fn();
+    } catch (e) {
+      return null;
+    } finally {
+      leave();
+      g.who = was;
+      enter(m);
+      res = R0;
+      ctx = C0;
+    }
+  }
+  // the group of the seat chosen on the Datacard, and the set Apply writes for it (the flight's when that group has none)
+  const seatWho = () => {
+    const s = seatInfo();
+    if (s.size <= 1) return 'flight';
+    return (s.size <= 2 ? s.n >= 1 : s.n >= 2) ? 'elem' : 'lead';
+  };
+  const applyWho = () => {
+    const m = st.inMode;
+    if (!ATK.includes(m)) return 'flight';
+    const g = grpOf(m),
+      w = seatWho();
+    return w != 'flight' && (g.who == w || g[w] || (w == 'elem' && g.mir)) ? w : 'flight';
+  };
+  // the aircraft whose loadout gives the bomb: 1 for the flight and the lead, 3 for the element (2 for the wingman)
+  const acOf = () => {
+    const m = st.inMode,
+      w = ATK.includes(m) ? grpOf(m).who : 'flight';
+    return w == 'elem' ? (seatInfo().size <= 2 ? 1 : 2) : 0;
+  };
+  // a change of the element's own values ends its mirror
+  const own = () => {
+    const m = st.inMode;
+    if (!ATK.includes(m)) return;
+    const g = grpOf(m);
+    if (g.who == 'elem' && g.mir) {
+      g.mir = false;
+      const b = deps.root.querySelector('[data-mir]');
+      if (b) b.classList.remove('on');
+    }
+  };
   const lim = f =>
     (st.mode == 'toss' && st.mat.on && f == 'ingressAltitude' ? [50, 50000, 250] : null) ||
     (st.mode == 'hadb' ? HADB_LIMITS[f] : st.mode == 'toss' ? TOSS_LIMITS[f] : null) ||
@@ -328,7 +504,7 @@ export function createWeaponsPage(deps) {
         el = h ? Object.fromEntries(ks.map((k, i) => [k, h[i]])) : null;
         const rv = deps.root.querySelector('#wpr');
         if (rv && res && !res.error) {
-          rv.innerHTML = results();
+          rv.innerHTML = dcCard() + results();
           rv.querySelectorAll('.wpvs').forEach(e => {
             e.scrollLeft = e.scrollWidth;
           });
@@ -383,7 +559,7 @@ export function createWeaponsPage(deps) {
     const b = st.bomb || 'auto';
     if (b == 'off') return { env: null, label: 'not calculated' };
     if (b != 'auto') return { env: envelope(+b), label: BOMBS.find(x => x[0] == b)[1], manual: true };
-    const L = deps.loadout ? deps.loadout() : [],
+    const L = deps.loadout ? deps.loadout(acOf()) : [],
       p = pickBomb(L),
       names = [...new Set(L.map(w => w.name).filter(n => n && !/^(AIM|AA-|R-\d|ALQ|AN\/|TANK|.*tank)/i.test(n)))];
     return p
@@ -405,12 +581,13 @@ export function createWeaponsPage(deps) {
   const fzKeys = () => (st.fz.mode == 'c2' ? ['c2ad'] : ['c1ad1', 'c1ad2']);
   const bombOpts = () =>
     `<option value="auto"${(st.bomb || 'auto') == 'auto' ? ' selected' : ''}>Auto · ${esc(bombSel().label)}</option>${BOMBS.map(([v, l]) => `<option value="${v}"${st.bomb == v ? ' selected' : ''}>${l}</option>`).join('')}`;
-  function compute() {
+  function compute(noElev) {
+    sync();
     if (!st.fz.loaded) fzLoad();
     ctx = gather();
     res = null;
     if (!ctx.t || !ctx.ref) return;
-    const eng = st.mode == 'hadb' ? computeHadb : st.mode == 'toss' ? computeToss : computePopup;
+    const eng = ENG(st.mode);
     res = eng(ctx.tPos, ctx.ref, { ...cur(), ...fuzeInputs() });
     if (st.mode == 'toss' && st.mat.on && res && !res.error) {
       // MAT: the toss against the WEZ of a PPT
@@ -442,7 +619,7 @@ export function createWeaponsPage(deps) {
       res.an = analyse(res, sel.env, sel.guided && st.fz.mode == 'c1' ? [] : keys.map(k => st.fz[k]));
       res.an.sel = sel;
     }
-    loadElev();
+    if (!noElev) loadElev();
   }
 
   // ---------- horizontal view: the Map page's own Leaflet map (its chosen layer and flight plan) with the pop-up drawn over it ----------
@@ -595,6 +772,111 @@ export function createWeaponsPage(deps) {
       ],
     };
   }
+  // ---------- the other group (lead <-> element / wingman): drawn white under the attack shown, and the deconfliction of the two ----------
+  let GHO = null,
+    DC = null,
+    SWEEP = {},
+    sweepT = 0;
+  function ghost() {
+    const m = st.inMode;
+    if (!ATK.includes(m) || st.mode !== m || !res || res.error) return null;
+    const g = grpOf(m);
+    if (g.who == 'flight') return null;
+    const o = g.who == 'lead' ? 'elem' : 'lead';
+    if (o == 'elem' && !g.elem && !g.mir) return null; // the lead always has an attack: its own, or the flight's
+    return withGroup(o, () => {
+      if (!res || res.error || !ctx.t) return null;
+      const vip = st.ref == 'vip' ? ctx.vipPos : null,
+        D = oa1Plan(res.draw || popupDraw(res, vip), res);
+      return { who: o, r: res, segs: D.segs.filter(z => z[0] != 'ref'), env: res.an && res.an.env };
+    });
+  }
+  const trackOf = (r, segs) => attackTrack(segs, r.v, st.inMode);
+  const sidesOf = (r, env, other) => {
+    const vip = st.ref == 'vip' ? ctx.vipPos : null,
+      me = { trk: trackOf(r, oa1Plan(r.draw || popupDraw(r, vip), r).segs), zone: fragZone(r, env) },
+      lead = grpOf(st.inMode).who == 'lead';
+    return lead ? [me, other] : [other, me];
+  };
+  const otherSide = () => ({ trk: trackOf(GHO.r, GHO.segs), zone: fragZone(GHO.r, GHO.env) });
+  function deconfNow() {
+    if (!GHO || !res || res.error) return null;
+    const [A, B] = sidesOf(res, res.an && res.an.env, otherSide());
+    return deconflict(A, B);
+  }
+  // the sliders that, moved over their range, clear the conflict: the side to move them to (worked out after the last change, not while dragging).
+  // On one target the fragments are often met whatever the attack (only the timing keeps them out): then the sliders that keep the paths apart.
+  let SWEEPK = 'all';
+  function sweep() {
+    SWEEP = {};
+    const paths = {};
+    if (!GHO || !DC || !DC.conflict || !res || res.error || !ctx.t) return;
+    const m = st.inMode,
+      eng = ENG(m),
+      base = { ...cur(), ...fuzeInputs() },
+      env = res.an && res.an.env,
+      ot = otherSide();
+    deps.root.querySelectorAll('.wpl input[data-sl]').forEach(inp => {
+      const i = /** @type {HTMLInputElement} */ (inp),
+        f = i.dataset.sl;
+      if (!(f in base)) return;
+      const a = +i.min,
+        b = +i.max,
+        now = +i.value;
+      let best = null,
+        bestP = null;
+      for (let k = 0; k <= 12; k++) {
+        const x = a + ((b - a) * k) / 12;
+        if (Math.abs(x - now) < 1e-9) continue;
+        try {
+          const r = eng(ctx.tPos, ctx.ref, {
+            ...base,
+            [f]: NM[f] ? x * FT_NM : x,
+            ...(f == 'egressHeading' ? { egressTurn: 'set' } : {}),
+          });
+          if (!r || r.error) continue;
+          const [A, B] = sidesOf(r, env, ot),
+            d = deconflict(A, B),
+            nearer = q => q == null || Math.abs(x - now) < Math.abs(q - now);
+          if (!d.conflict && nearer(best)) best = x;
+          if (DC.close && !d.close && nearer(bestP)) bestP = x;
+        } catch (e) {
+          /* none */
+        }
+      }
+      if (best != null) SWEEP[f] = best > now ? 1 : -1;
+      if (bestP != null) paths[f] = bestP > now ? 1 : -1;
+    });
+    SWEEPK = 'all';
+    if (!Object.keys(SWEEP).length && Object.keys(paths).length) {
+      SWEEP = paths;
+      SWEEPK = 'paths';
+    }
+  }
+  function dcCard() {
+    const m = st.inMode;
+    if (!ATK.includes(m) || st.mode !== m || grpOf(m).who == 'flight') return '';
+    const sec = secName(),
+      Sec = sec[0].toUpperCase() + sec.slice(1);
+    if (!GHO)
+      return `<div class="wcard wdc"><h3>Lead and ${sec}</h3><p class="hint">The ${sec} has no attack of its own yet: show it with the aircraft button, or press Mirror there.</p></div>`;
+    if (!DC) return '';
+    const L = [];
+    if (DC.frag)
+      L.push(
+        'One attack passes through the fragment zone of the other: only the timing keeps it out (the spacing above), or change the attack (the red sliders).'
+      );
+    if (DC.close)
+      L.push(
+        `The two paths come within ${fmt(Math.round(DC.close.d / 50) * 50)} ft of each other at about the same altitude.`
+      );
+    if (!DC.conflict) L.push("No conflict: each path keeps out of the other's fragments, and they stay apart.");
+    return `<div class="wcard wdc${DC.conflict ? ' bad' : ''}"><h3>Lead and ${sec}</h3>${
+      DC.zones
+        ? `<div class="tiles"><div class="tile"><span>${Sec} after the lead</span><b>at least +${DC.spacing} s</b></div></div>`
+        : '<p class="hint">Fragments not calculated (no bomb with a lethal envelope): the spacing is unknown.</p>'
+    }${L.map(x => `<p class="${DC.conflict ? 'wwarn' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
+  }
   function drawMap(r) {
     const { L, map, WL } = M,
       RN = map._wpR,
@@ -698,6 +980,32 @@ export function createWeaponsPage(deps) {
         interactive: false,
       }).addTo(WL);
       lab(project(r.target, 0, k * ringStep * FT_NM), k * ringStep + ' nm', 'top', [0, 0]);
+    }
+    // the other group first, so the attack shown stays on top
+    if (GHO) {
+      GHO.segs
+        .filter(z => z[0] != 'fall')
+        .forEach(([, pts]) => {
+          const q = pts.map(ll);
+          L.polyline(q, { renderer: RN, color: '#000', weight: 5, opacity: 0.45, interactive: false }).addTo(WL);
+          L.polyline(q, { renderer: RN, color: '#fff', weight: 3, opacity: 0.95, interactive: false }).addTo(WL);
+        });
+      const zn = fragZone(GHO.r, GHO.env);
+      if (zn)
+        zn.pts.forEach(q =>
+          L.circle(ll(q), {
+            renderer: RN,
+            radius: zn.out * 0.3048,
+            color: '#fff',
+            weight: 1.5,
+            opacity: 0.9,
+            dashArray: '4 5',
+            fill: false,
+            interactive: false,
+          }).addTo(WL)
+        );
+      const g0 = GHO.segs[0] && GHO.segs[0][1][0];
+      if (g0) lab(g0, whoName(GHO.who), 'left', [-8, 0]);
     }
     D.segs.forEach(([k, pts]) => line(pts, k, k == 'egress' || k == 'ref' ? 3 : 4));
     (D.arrows || []).forEach(a => arrow(...a));
@@ -1157,7 +1465,9 @@ export function createWeaponsPage(deps) {
     const r = res,
       vip = st.ref == 'vip' ? ctx.vipPos : null,
       D = oa1Plan(r.draw || popupDraw(r, vip), r);
+    const gh = ghost();
     return {
+      ghost: gh ? gh.segs.filter(z => z[0] != 'fall').map(z => z[1]) : [],
       segs: D.segs.map(([k, pts]) => ({ k, color: PH[k][1], dash: PH[k][2], pts })),
       marks: [
         ...D.marks.map(m => ({ p: m[0], label: m[1], color: m[2], r: m[3] == 'big' ? 6 : 4 })),
@@ -1238,6 +1548,15 @@ export function createWeaponsPage(deps) {
   }
 
   async function apply() {
+    // the DTC is the one of the seat chosen on the Datacard: its group's set is shown, then written
+    const tw = applyWho(),
+      am = st.inMode;
+    if (ATK.includes(am) && st.mode === am && grpOf(am).who !== tw) {
+      switchWho(tw);
+      fit = true;
+      save();
+      draw(false);
+    }
     if (!res || res.error || !ctx.sp) return;
     // the Manual entry writes no offsets to the DTC, so it does not need the section: Apply then gives the datacard its values
     const nav = deps.lines().some(l => l.s == 'NAV OFFSETS');
@@ -1338,7 +1657,20 @@ export function createWeaponsPage(deps) {
     return w.some(([sec, k, v]) => !exists(sec, k) || nz(deps.G(sec, k, '')) !== nz(v));
   }
   const btn = () => {
-    if (deps.applyBtn) deps.applyBtn.classList.toggle('nil', !pending());
+    if (deps.applyBtn) {
+      const m = st.inMode,
+        tw = applyWho(),
+        other = ATK.includes(m) && st.mode === m && grpOf(m).who !== tw;
+      let p = false;
+      try {
+        p = other ? !!withGroup(tw, () => pending()) : pending();
+      } catch (e) {
+        p = true;
+      }
+      deps.applyBtn.classList.toggle('nil', !p);
+      deps.applyBtn.textContent =
+        'Apply to the DTC' + (tw == 'lead' ? ' (lead)' : tw == 'elem' ? ' (' + secName() + ')' : '');
+    }
     if (deps.clearBtn) {
       let n = false;
       try {
@@ -1632,6 +1964,9 @@ export function createWeaponsPage(deps) {
     if (deps.harm) deps.harm.leave();
     if (deps.tgt) deps.tgt.leave();
     compute();
+    GHO = ghost();
+    DC = deconfNow();
+    if (!DC || !DC.conflict) SWEEP = {};
     bombData();
     const root = deps.root,
       i = cur();
@@ -1664,7 +1999,10 @@ export function createWeaponsPage(deps) {
         .join('');
       const md = st.mode,
         tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
-      const refCard = `<div class="wcard"><h3>Reference</h3>
+      const gq = grpOf(st.inMode),
+        one = seatInfo().size <= 1,
+        grpRow = `<div class="wrow wgrp"><label>Aircraft</label><span class="wgrpb"><button type="button" class="btn g wgb w-${gq.who}" data-grp${one ? ' disabled' : ''} title="Who flies this attack: the whole flight, or the lead and the ${secName()} each with their own. Press to change. Apply writes the set of the seat chosen on the Datacard.">${whoName(gq.who)}</button>${gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turns and the egress on the other side. Moving a slider makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>`;
+      const refCard = `<div class="wcard"><h3>Reference</h3>${grpRow}
           <div class="wrow"><label>Reference</label>${seg(
             'ref',
             [
@@ -1886,7 +2224,7 @@ export function createWeaponsPage(deps) {
     }
     const rv = root.querySelector('#wpr');
     paint();
-    rv.innerHTML = results();
+    rv.innerHTML = dcCard() + results();
     rv.querySelectorAll('.wpvs').forEach(e => {
       e.scrollLeft = e.scrollWidth;
     });
@@ -1894,15 +2232,38 @@ export function createWeaponsPage(deps) {
     if (mn) mn.textContent = mapNote;
     flagSliders();
     note();
+    // the sliders that clear a conflict: worked out once the sliders rest
+    clearTimeout(sweepT);
+    if (DC && DC.conflict)
+      sweepT = setTimeout(() => {
+        try {
+          sweep();
+          flagSliders();
+        } catch (e) {
+          /* none */
+        }
+      }, 350);
   }
   // sliders whose value breaks a limit turn red (lethal.js flags): a tip says why. The release altitude track shows the minimum acceptable altitude as a red stretch.
   function flagSliders() {
     const root = deps.root,
       an = res && !res.error && res.an;
     root.querySelectorAll('.slr.bad').forEach(e => {
-      e.classList.remove('bad');
+      e.classList.remove('bad', 'dcl');
       e.removeAttribute('title');
     });
+    root.querySelectorAll('.slr .dcd').forEach(e => e.remove());
+    // a conflict with the other group: the sliders that clear it, with the side to move them to
+    if (DC && DC.conflict)
+      Object.entries(SWEEP).forEach(([f, d]) => {
+        const i = root.querySelector(`.wpl input[data-sl="${f}"]`),
+          row = i && i.closest('.slr'),
+          lb = row && row.querySelector('label');
+        if (!row || !lb) return;
+        row.classList.add('bad', 'dcl');
+        row.title = `Conflict with the ${grpOf(st.inMode).who == 'lead' ? secName() : 'lead'}: moving this ${d > 0 ? 'up (▶)' : 'down (◀)'} ${SWEEPK == 'paths' ? 'keeps the two paths apart (the fragments still need the spacing)' : 'clears it'}.`;
+        lb.insertAdjacentHTML('beforeend', `<i class="dcd">${d > 0 ? '▶' : '◀'}</i>`);
+      });
     root.querySelectorAll('input.zone').forEach(i => {
       i.classList.remove('zone');
       i.style.removeProperty('--z');
@@ -1954,6 +2315,32 @@ export function createWeaponsPage(deps) {
       save();
       draw(true);
     };
+    const gb = root.querySelector('[data-grp]');
+    if (gb)
+      gb.onclick = () => {
+        const g = grpOf(st.inMode);
+        switchWho(WHO[(WHO.indexOf(g.who) + 1) % WHO.length]);
+        st.applied = st.cleared = null;
+        fit = true;
+        save();
+        draw(false);
+      };
+    const mb = root.querySelector('[data-mir]');
+    if (mb)
+      mb.onclick = () => {
+        const m = st.inMode,
+          g = grpOf(m);
+        g.mir = !g.mir;
+        if (g.mir) {
+          // the element's own values make way for the mirror of the lead
+          leave();
+          enter(m);
+        }
+        st.applied = st.cleared = null;
+        fit = true;
+        save();
+        draw(false);
+      };
     root.querySelectorAll('[data-mat]').forEach(e => {
       const f = e.dataset.mat;
       if (e.tagName == 'BUTTON')
@@ -2007,6 +2394,7 @@ export function createWeaponsPage(deps) {
             b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
             return;
           }
+          if (f != 'mapon') own();
           if (f == 'mapon') {
             st.map.on = v == '1';
             root.querySelector('.wmap .slr').hidden = !st.map.on;
@@ -2032,6 +2420,7 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('[data-oa1]').forEach(
       b =>
         (b.onclick = () => {
+          own();
           st.oa1 = b.dataset.oa1;
           root.querySelectorAll('[data-oa1]').forEach(x => x.classList.toggle('on', x.dataset.oa1 === st.oa1));
           st.applied = st.cleared = null;
@@ -2048,6 +2437,7 @@ export function createWeaponsPage(deps) {
       inp.oninput = () => {
         const f = inp.dataset.sl,
           x = sliderOf(f);
+        own();
         cur()[f] = NM[f] ? Math.round(+inp.value * FT_NM) : +inp.value;
         if (f == 'egressHeading') cur().egressTurn = 'set';
         oa2Vis();
@@ -2065,6 +2455,7 @@ export function createWeaponsPage(deps) {
           const f = nb.dataset.slnum,
             [a, b] = lim(f);
           let n = Math.round(+nb.value);
+          own();
           if (isNaN(n)) n = cur()[f];
           n = Math.min(b, Math.max(a, n));
           nb.value = n;
@@ -2081,6 +2472,7 @@ export function createWeaponsPage(deps) {
       inp =>
         (inp.oninput = () => {
           const k = inp.dataset.fz;
+          own();
           st.fz[k] = +inp.value;
           root.querySelector(`[data-fzem="${k}"]`).textContent =
             k == 'c2ba' ? fmt(st.fz[k]) + ' ft' : st.fz[k].toFixed(2) + ' s';
@@ -2090,6 +2482,7 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('[data-set=fzmode],[data-set=fzprof],[data-set=fzftype],[data-set=fzsub]').forEach(
       b =>
         (b.onclick = () => {
+          own();
           if (b.dataset.set == 'fzmode') st.fz.mode = b.dataset.v;
           else if (b.dataset.set == 'fzftype') st.fz.ftype = b.dataset.v;
           else if (b.dataset.set == 'fzsub') st.fz.sub = b.dataset.v;
@@ -2157,6 +2550,7 @@ export function createWeaponsPage(deps) {
             inp.value = cur()[f];
             return;
           }
+          own();
           cur()[f] = n;
           inp.value = n;
           st.applied = st.cleared = null;
@@ -2166,6 +2560,7 @@ export function createWeaponsPage(deps) {
     root.querySelectorAll('select[data-pick]').forEach(
       s =>
         (s.onchange = () => {
+          own();
           if (s.dataset.pick == 'bomb') {
             st.bomb = s.value;
             save();
@@ -2357,5 +2752,11 @@ export function createWeaponsPage(deps) {
     attack,
     apply,
     card: () => st.card,
+    // for the tests: the other group (phases of its drawing) and the deconfliction
+    _dc: () => ({
+      ghost: GHO ? GHO.segs.map(z => [z[0], z[1].map(q => [Math.round(q.n), Math.round(q.e)])]) : null,
+      dc: DC,
+      sweep: SWEEP,
+    }),
   };
 }

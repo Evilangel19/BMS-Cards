@@ -3596,6 +3596,11 @@ export function createMap(host, deps) {
     const A = !away && deps.attack && deps.attack();
     if (!A) return;
     const L = window.L;
+    // the other group of the flight (lead / element) in white, under the attack shown
+    (A.ghost || []).forEach(q => {
+      L.polyline(q, { pane: 'atkP', color: '#000', weight: 5, opacity: 0.4, interactive: false }).addTo(G.da);
+      L.polyline(q, { pane: 'atkP', color: '#fff', weight: 2.5, opacity: 0.95, interactive: false }).addTo(G.da);
+    });
     A.segs.forEach(z => {
       const q = z.pts;
       L.polyline(q, { pane: 'atkP', color: '#000', weight: 6, opacity: 0.35, interactive: false }).addTo(G.da);

@@ -86,6 +86,7 @@ import {
   missionToSave,
 } from './mission.js';
 import { roeDraw } from './roepage.js';
+import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
 const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
@@ -118,6 +119,7 @@ export async function init6() {
       if (!a) return null;
       const ll = p => mapV.toLL(p.e / 3280.84, p.n / 3280.84);
       return {
+        ghost: (a.ghost || []).map(pts => pts.map(ll)),
         segs: a.segs.map(z => ({ color: z.color, dash: z.dash, pts: z.pts.map(ll) })),
         marks: a.marks.map(m => ({ ll: ll(m.p), label: m.label, color: m.color, r: m.r, perm: m.perm })),
       };
@@ -612,10 +614,11 @@ export async function init9() {
         return [];
       }
     },
-    loadout: () => {
+    // the loadout of aircraft k of the flight (0 the lead; the element's is 2): the first one's when the flight has no other
+    loadout: (k = 0) => {
       try {
         const f = ST.C && ST.CL.length && ST.CL[+$('fsel').value || 0] && ST.CL[+$('fsel').value || 0].f,
-          L = f && f.loads && f.loads[0],
+          L = f && f.loads && (f.loads[k] || f.loads[0]),
           Dd = ST.C && ST.C.D;
         if (!L || !Dd) return [];
         const o = [];
@@ -629,6 +632,8 @@ export async function init9() {
       }
     },
     points: () => dtcPoints(lines),
+    // the seat chosen on the Datacard and the aircraft of the flight (lead / element envelopes)
+    seat: () => ({ n: seatIdx(), size: [0, 1, 2, 3].filter(seatExists).length }),
     changed: (sec, key) => dtcChanged(sec, key),
     confirm: m => confirm(m),
     alert: m => alert(m),

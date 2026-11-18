@@ -1,0 +1,65 @@
+"""Checks the lead / element envelopes of the Weapons page (FLIGHT, LEAD, ELEMENT per attack section, Mirror, the white drawing of the other group,
+the deconfliction card, the sliders that clear a conflict, Apply by the seat). Usage: python3 tools/wpgroups-test.py [dtc.ini]
+(default: the Bear Trap DTC of tests/fixtures)."""
+import subprocess, sys, time, os
+from playwright.sync_api import sync_playwright
+R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DTC = sys.argv[1] if len(sys.argv) > 1 else R + '/tests/fixtures/beartrap/Evil19_2_.ini'
+srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8784', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
+ok = True
+def check(n, c):
+    global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
+try:
+    ini = open(DTC, encoding='latin1').read()
+    with sync_playwright() as p:
+        br = p.chromium.launch(); errs = []
+        pg = br.new_page(viewport={'width': 1500, 'height': 1000}, reduced_motion='reduce')
+        pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept())
+        pg.goto('http://localhost:8784/app/index.html'); pg.wait_for_timeout(800)
+        pg.click('[data-t=wp]'); pg.evaluate("t=>__app.parse(t)", ini); pg.wait_for_timeout(1500)
+        pg.click('[data-t=dtc]'); pg.click('[data-t=wp]'); pg.wait_for_timeout(800)
+        pg.select_option('select[data-pick=bomb]', '500'); pg.wait_for_timeout(300)
+        grp = lambda: pg.locator('[data-grp]').inner_text()
+        dive = lambda: pg.locator('input[data-sl=diveAngle]').input_value()
+        setdive = lambda v: pg.locator('input[data-sl=diveAngle]').evaluate("(e,v)=>{e.value=v;e.dispatchEvent(new Event('input'))}", v)
+        dc = lambda: pg.evaluate("()=>__app.wpPage._dc()")
+        check('the aircraft button starts on FLIGHT, Apply has no group', grp() == 'FLIGHT' and pg.inner_text('#wpapply').strip() == 'Apply to the DTC')
+        d0 = dive()
+        pg.click('[data-grp]'); pg.wait_for_timeout(400)
+        check('LEAD 1-2 with the flight values, no Mirror', grp() == 'LEAD 1-2' and dive() == d0 and pg.locator('[data-mir]').count() == 0)
+        check('the lead alone: the card asks for the element', 'no attack of its own' in pg.inner_text('#wpr') and dc()['ghost'] is None)
+        setdive('30'); pg.wait_for_timeout(300)
+        pg.click('[data-grp]'); pg.wait_for_timeout(400)
+        check('ELEMENT 3-4 starts from the flight values, with Mirror', grp() == 'ELEMENT 3-4' and dive() == d0 and pg.locator('[data-mir]').count() == 1)
+        g = dc()
+        check('the lead is drawn under the element (its phases)', g['ghost'] and [k for k, _ in g['ghost']][:2] == ['ingress', 'climb'])
+        pg.click('[data-mir]'); pg.wait_for_timeout(500)
+        if os.environ.get('SHOT'): pg.screenshot(path=os.environ['SHOT'].replace('.png', '-mirror.png'))
+        check('Mirror: the dive of the lead, the turn on the other side', dive() == '30' and 'on' in pg.get_attribute('[data-mir]', 'class') and pg.locator('.wpl [data-set=side][data-v=left].on').count() == 1)
+        check('the deconfliction card gives the spacing after the lead', 'ELEMENT AFTER THE LEAD' in pg.inner_text('#wpr .wdc').upper() and '+' in pg.inner_text('#wpr .wdc'))
+        g = dc()
+        check('the mirrored attack on the same target: fragments, a spacing of at least the fragment time', g['dc']['frag'] and g['dc']['spacing'] >= 25)
+        pg.locator('input[data-sl=timeOnFinal]').evaluate("e=>{e.value=7;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(300)
+        check('a slider of its own ends the mirror, the values stay', 'on' not in pg.get_attribute('[data-mir]', 'class') and dive() == '30')
+        # a conflict that a slider clears: the element on the lead's own attack (same heading, same side)
+        pg.click('.wpl [data-set=side][data-v=right]'); pg.wait_for_timeout(300)
+        pg.locator('input[data-slnum=heading]').evaluate("e=>{e.value=360;e.dispatchEvent(new Event('change'))}"); pg.wait_for_timeout(1200)
+        g = dc()
+        check('the same attack as the lead: a conflict, and sliders that clear it marked red with their side', g['dc']['conflict'] and len(g['sweep']) > 0 and pg.locator('.wpl .slr.dcl .dcd').count() == len(g['sweep']))
+        if os.environ.get('SHOT'): pg.screenshot(path=os.environ['SHOT'])
+        pg.click('[data-grp]'); pg.wait_for_timeout(400)
+        check('back to FLIGHT with its own values', grp() == 'FLIGHT' and dive() == d0 and pg.locator('.wpl .slr.dcl').count() == 0)
+        pg.click('[data-grp]'); pg.wait_for_timeout(400)
+        check('the lead kept its values', grp() == 'LEAD 1-2' and dive() == '30')
+        pg.click('[data-mode=hadb]'); pg.wait_for_timeout(500)
+        check('HADB has its own aircraft button', grp() == 'FLIGHT')
+        pg.click('[data-mode=popup]'); pg.wait_for_timeout(500)
+        check('the pop-up comes back on the lead', grp() == 'LEAD 1-2' and dive() == '30')
+        check('Apply names the group of the seat (no flight: seat 1, the lead)', pg.inner_text('#wpapply').strip() == 'Apply to the DTC (lead)')
+        s = pg.evaluate("()=>{const s=__app.wpPage.state();return {grp:!!s.grp.popup.lead&&!!s.grp.popup.elem,who:s.grp.popup.who,inMode:s.inMode}}")
+        check('the state keeps the sets for the mission file', s == {'grp': True, 'who': 'lead', 'inMode': 'popup'})
+        check('no page errors', not errs)
+        if errs: print(errs)
+finally:
+    srv.terminate()
+print('ALL OK' if ok else 'SOME FAILED'); sys.exit(0 if ok else 1)

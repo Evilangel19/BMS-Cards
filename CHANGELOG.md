@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- New: lead and element (or wingman) envelopes on the Weapons page: in Pop-up, HADB and TOSS an Aircraft button switches between FLIGHT, LEAD and ELEMENT / WINGMAN, each with its own attack; Mirror gives the element the lead's attack turned to the other side; the other group is drawn in white; a deconfliction card gives the spacing after the lead, and the sliders that clear a conflict turn red. Apply writes the attack of the seat chosen on the Datacard.
 - New: Weather cards for the Kneeboard (Weather page > Add card), three kinds. SIGWX and RADAR (satellite clouds and radar echoes): the chart around the route with smooth isobars and H / L, the profile along the route (clouds, rain, fog, 0 °C, contrails, winds), the METAR and TAF of departure, target, landing and alternate in plain words, the contrail levels. WIND: winds and temperatures aloft at FL060, FL180 and FL300 at the target time.
 - Fixed: the Weather page showed no clouds above 9 999 ft with the BMS 4.38.2 maps.
 - Changed: checked with Falcon BMS 4.38.2 (4.38.1 still works without a warning).

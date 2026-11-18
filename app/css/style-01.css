@@ -417,6 +417,54 @@ textarea {
 .wpg .slr.bad input[type='range'] {
   accent-color: #ff5d5d;
 }
+/* the aircraft of an attack: FLIGHT, LEAD, ELEMENT / WINGMAN; the mirror; the side a conflict slider should move to */
+.wpg .wgrp .wgrpb {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wpg .wgrp .wgb {
+  min-width: 96px;
+  padding-left: 10px;
+  padding-right: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+.wpg .wgrp .wgb.w-lead {
+  background: #1d4ed8;
+  border-color: #3b82f6;
+  color: #fff;
+}
+.wpg .wgrp .wgb.w-elem {
+  background: #b45309;
+  border-color: #f59e0b;
+  color: #fff;
+}
+.wpg .wgrp .wmir {
+  padding-left: 10px;
+  padding-right: 10px;
+  animation: popin 0.25s ease-out;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.wpg .wgrp .wmir.on {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #08130d;
+}
+.wpg .slr .dcd {
+  font-style: normal;
+  margin-left: 4px;
+  animation: popin 0.25s ease-out;
+}
+.wpg .wdc.bad {
+  border-color: #ff5d5d;
+}
 .wpg .slr input.zone {
   background: linear-gradient(to right, #ff5d5d99 var(--z, 0%), transparent var(--z, 0%)) no-repeat center/100% 4px;
 }
