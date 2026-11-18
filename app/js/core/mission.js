@@ -458,7 +458,7 @@ export function missionShapeError(o) {
   const x = o.weapons;
   if (x != null) {
     if (!isObj(x)) return 'weapons is not an object';
-    for (const k of ['wp', 'harm', 'bvr'])
+    for (const k of ['wp', 'harm', 'sead', 'bvr'])
       if (x[k] != null && !isObj(x[k])) return 'weapons.' + k + ' is not an object';
   }
   if (o.tanks != null && !Array.isArray(o.tanks)) return 'tanks is not a list';

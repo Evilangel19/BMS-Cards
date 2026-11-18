@@ -1454,6 +1454,52 @@ export function createMap(host, deps) {
           : 'The SAMs crossing the flight plan are already in the DTC.'
       );
   }
+  // the AUTO PPT for a list of SAMs chosen elsewhere (Weapons > HARM > SEAD: the threats assigned): each one not in the DTC yet in a free PPT slot; the
+  // SAM threats already there stay. list: [{x, y (km), rng (km), name}]. The message of what was done.
+  function autoPptFor(list) {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the threats are added to it.', bad: true };
+    let added = 0,
+      dup = 0,
+      full = 0;
+    if (!AU.ppt) AU.ppt = [];
+    list.forEach(m => {
+      const Q = deps.dtc.points();
+      if (Q.ppt.some(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5)) return dup++;
+      const slot = freeSlot(Q, 'ppt');
+      if (slot < 0) return full++;
+      const k = pptForUnit(m.name),
+        en = k >= 0 ? PPT[k] : null;
+      deps.dtc.set('ppt', slot, {
+        x: m.x,
+        y: m.y,
+        altFt: 0,
+        name: en
+          ? en[0]
+          : String(m.name)
+              .replace(/[\s,]+/g, ' ')
+              .trim()
+              .slice(0, 6),
+        rngNm: en ? pptRng(en) : m.rng / 1.852,
+      });
+      added++;
+      AU.ppt.push({ slot, x: m.x, y: m.y });
+    });
+    if (added && map) {
+      showLayer('dq');
+      sync();
+      dtc();
+    }
+    return {
+      added,
+      msg:
+        (added ? added + ' pre-planned threats added' : 'No pre-planned threat added') +
+        (dup ? ' (' + dup + ' already in the DTC)' : '') +
+        (full ? '; ' + full + ' more did not fit: no free PPT slot' : '') +
+        '.',
+      bad: !!full,
+    };
+  }
   // CLEAR opens three buttons: PPT, TGT, LINES
   async function clearPoints(g) {
     const P = deps.dtc && deps.dtc.points();
@@ -4801,6 +4847,7 @@ export function createMap(host, deps) {
     refreshDtcButtons: () => {
       if (map) dtcInfo();
     },
+    autoPptFor: list => autoPptFor(list),
     autoPptSlots: () => {
       const P = deps.dtc && deps.dtc.points(),
         o = new Set();

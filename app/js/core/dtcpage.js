@@ -38,6 +38,7 @@ const SEC_OF = {
 import { ewsEvents, ewsSummary, createEwsFx } from './ewsfx.js';
 import { readTarget, targetLine } from './targets.js';
 import { openTargetPicker } from './targetpicker.js';
+import { THREATS } from './harmcodes.js';
 export const pageOf = s => SEC_OF[s] || 'raw';
 const STPT_TYPES = {
   0: 'Nav',
@@ -68,45 +69,6 @@ const MFD_PG = [
 ];
 const MFD_NAME = new Map(MFD_PG.map(([c, n]) => [c, n]));
 const MFD_MODES = ['A-G', 'A-A', 'NAV', 'MSL OVRD', 'DGFT OVRD', 'S-J'];
-// HARM threat codes (ALIC codes of the BMS manual): [code, name, symbol, group]
-const THREATS = [
-  [102, 'SA2', '2', 'SAM'],
-  [103, 'SA3', '3', 'SAM'],
-  [104, 'SA4', '4', 'SAM'],
-  [105, 'SA5', '5', 'SAM'],
-  [106, 'SA6', '6', 'SAM'],
-  [110, 'SA10', '10', 'SAM'],
-  [111, 'SA11', '11', 'SAM'],
-  [117, 'SA17', '17', 'SAM'],
-  [130, 'HAWK', 'H', 'SAM'],
-  [692, 'AAA', 'AAA', 'SAM'],
-  [801, 'SEARCH', 'S', 'SAM'],
-  [99, 'UNKNOWN', 'U', 'SAM'],
-  [202, 'FAN SONG', '2T', 'FCR'],
-  [203, 'LOW BLOW', '3T', 'FCR'],
-  [204, 'PAT HAND', '4T', 'FCR'],
-  [205, 'SQUARE PAIR', '5T', 'FCR'],
-  [206, 'STRAIGHT FLUSH', '6T', 'FCR'],
-  [608, 'SA8', '8', 'FCR'],
-  [210, 'FLAPLID', '10T', 'FCR'],
-  [211, 'FIREDOME', '11T', 'FCR'],
-  [615, 'SCRUMHALF', '15', 'FCR'],
-  [217, 'CHAIRBACK', '17T', 'FCR'],
-  [619, 'HOTSHOT', '19', 'FCR'],
-  [693, 'AN/MPQ-53', 'P', 'FCR'],
-  [230, 'AN/MPQ-46', 'HT', 'FCR'],
-  [696, 'NIKE', 'N', 'FCR'],
-  [695, 'SKYGUARD', 'SKY', 'FCR'],
-  [402, 'SPOON REST', '2A', 'EWR'],
-  [403, 'FLATFACE', 'F', 'EWR'],
-  [404, 'LONG TRACK', '4A', 'EWR'],
-  [405, 'BARLOCK', '5A', 'EWR'],
-  [609, 'DOGEAR', 'D', 'EWR'],
-  [410, 'BIGBIRD', '10A', 'EWR'],
-  [411, 'SNOWDRIFT 11A', '11A', 'EWR'],
-  [417, 'SNOWDRIFT 17A', '17A', 'EWR'],
-  [430, 'AN/MPQ-50', 'HA', 'EWR'],
-];
 const THR = new Map(THREATS.map(t => [t[0], t]));
 const ICO = {
   save: '<svg width="14" height="14" viewBox="0 0 16 16" class="mpic" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"><path d="M2 2h9l3 3v9H2z"/><path d="M5 2v4h5V2M4.5 14V9h7v5"/></svg>',

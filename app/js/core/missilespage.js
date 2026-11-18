@@ -1307,5 +1307,16 @@ export function createMissilesPage(deps) {
       }
     },
     result: () => res,
+    // the missile and the HARM settings of this page, for the SEAD page (the missile files read first)
+    harm: async () => {
+      load();
+      try {
+        await loadP;
+      } catch (e) {
+        /* the built-in table */
+      }
+      const L = names('harm');
+      return { m: DB[st.harm.msl] || DB[L[0]] || null, v: st.harm };
+    },
   };
 }

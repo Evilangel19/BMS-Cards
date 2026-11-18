@@ -5,7 +5,7 @@
 // (arrival -> departure) is spent on it. The plan ends at the first landing; steerpoints without a time are skipped.
 
 /** the times [t0, t1] (ms) a leg from a (at ta) to b (at tb) is inside the circle (cx, cy, r); null when it never is */
-function legIn(a, b, ta, tb, cx, cy, r) {
+export function legIn(a, b, ta, tb, cx, cy, r) {
   const dx = b.x - a.x,
     dy = b.y - a.y,
     fx = a.x - cx,
