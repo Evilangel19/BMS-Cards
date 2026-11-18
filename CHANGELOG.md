@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: the Objects box of the map filters switches the political places (cities, towns, villages) too.
 - Changed: opening a campaign chooses the flight the player chose in BMS (its seat too), else the next flight of the player's squadron.
 - Changed: the Target information card shows the graphic in place of the list of the components.
 - New: the aim points of the two detail pictures can be chosen (Target information > Details).

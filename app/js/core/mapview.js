@@ -593,6 +593,8 @@ export function createMap(host, deps) {
     'Objects',
   ]; // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]); // the "only ..." switches are not part of a section's master switch
+  // the box of a section: the Objects panel holds the political places too, so its box switches them as well
+  const mstKeys = n => (n == 'Objects' ? secKeys('Objects').concat(secKeys('Political')) : secKeys(n));
   // the all / none button of the Objects panel says what its next click does; the political button is lit while its three layers are on
   function objBtns() {
     const t = $('mpobj') && $('mpobj').querySelector('a[data-a=tog]'),
@@ -607,14 +609,14 @@ export function createMap(host, deps) {
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
     host.querySelectorAll('#mpbar input.mst').forEach(i => {
-      const k = secKeys(i.dataset.sec),
+      const k = mstKeys(i.dataset.sec),
         n = k.filter(x => st.on[x]).length;
       i.checked = n == k.length;
       i.indeterminate = n > 0 && n < k.length;
     });
     objBtns();
     host.querySelectorAll('#mpbar .mpo').forEach(r => {
-      const n = secKeys(r.dataset.sec).filter(x => st.on[x]).length;
+      const n = mstKeys(r.dataset.sec).filter(x => st.on[x]).length;
       r.querySelector('.mpcn').textContent = n ? n + ' on' : '';
     });
     clrLabel();
@@ -877,7 +879,7 @@ export function createMap(host, deps) {
     objFly(el);
     el.querySelectorAll('input.mst').forEach(i => {
       i.onclick = e => e.stopPropagation();
-      i.onchange = () => setLayers(secKeys(i.dataset.sec), i.checked);
+      i.onchange = () => setLayers(mstKeys(i.dataset.sec), i.checked);
     });
     el.querySelectorAll('input[data-k]').forEach(
       i =>
@@ -4869,7 +4871,7 @@ export function createMap(host, deps) {
     state: () => st,
     // number of objects drawn in a layer (0 when the layer is off); picture overlay (for tests)
     objectsAll: on => {
-      OBJ_LAYERS.forEach(([t]) => {
+      OBJ_ALL.forEach(([t]) => {
         st.on['o' + t] = !!on;
         const c = host.querySelector(`input[data-k=o${t}]`);
         if (c) c.checked = !!on;

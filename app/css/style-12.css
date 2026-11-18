@@ -518,6 +518,19 @@
 }
 .tgp .tgdetb select {
   height: 30px;
+  box-sizing: border-box;
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.tgp .tgdetb select:hover,
+.tgp .tgdetb select:focus {
+  border-color: var(--ac, #4cc38a);
+  outline: none;
 }
 /* the tool bar of the annotations, as the bar of the Briefing room */
 .tgp .tgtb {
