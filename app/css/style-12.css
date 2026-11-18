@@ -508,6 +508,17 @@
 .tgp .tglev {
   margin-left: 6px;
 }
+.tgp .tgdetb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tgp .tgdetb[hidden] {
+  display: none;
+}
+.tgp .tgdetb select {
+  height: 30px;
+}
 /* the tool bar of the annotations, as the bar of the Briefing room */
 .tgp .tgtb {
   display: flex;

@@ -1596,18 +1596,39 @@ export function createTargetPage(deps) {
         : 'Status: not known'
     );
     y += LH / 3;
-    H('2. COMPONENTS');
-    const comp =
+    const marked = N.map(a => a.t).filter(Boolean);
+    if (o.pic) {
+      // the card: the graphic in small (the DMPIs, the attack, the threats) in place of the list of the components
+      if (marked.length) L('Marked on the picture: ' + marked.join(', '));
+      y += LH / 3;
+      H('2. GRAPHIC');
+      const I0 = IMG,
+        C0 = CARDM;
+      IMG = { x: X0 - 6, y: y - LH + 2, w: TW + 6, h: o.pic };
+      CARDM = true;
+      try {
+        picture();
+        x.strokeStyle = p.line;
+        x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+        x.strokeRect(IMG.x, IMG.y, IMG.w, IMG.h);
+      } finally {
+        IMG = I0;
+        CARDM = C0;
+      }
+      y += o.pic + LH / 2;
+    } else {
+      H('2. COMPONENTS');
+      const comp =
         f && f.feats
           ? f.feats.map((q, i) => `${i + 1}. ${q.name}${q.st == 2 ? ' (destroyed)' : q.st == 1 ? ' (damaged)' : ''}`)
-          : [],
-      marked = N.map(a => a.t).filter(Boolean);
-    const nc = marked.length ? NC - 1 : NC;
-    comp.slice(0, nc).forEach(q => L(q));
-    if (comp.length > nc) L('… ' + (comp.length - nc) + ' more', p.mu);
-    if (!comp.length) L('—', p.mu);
-    if (marked.length) L('Marked on the picture: ' + marked.join(', '));
-    y += LH / 3;
+          : [];
+      const nc = marked.length ? NC - 1 : NC;
+      comp.slice(0, nc).forEach(q => L(q));
+      if (comp.length > nc) L('… ' + (comp.length - nc) + ' more', p.mu);
+      if (!comp.length) L('—', p.mu);
+      if (marked.length) L('Marked on the picture: ' + marked.join(', '));
+      y += LH / 3;
+    }
     H('3. DMPI');
     if (DM.length)
       DM.slice(0, o.dmpis || 4).forEach(a =>
@@ -1680,27 +1701,31 @@ export function createTargetPage(deps) {
           if (u > -0.1 && u < 1.1 && v > -0.1 && v < 1.1) pts.push({ u, v, t: a.t });
         });
       else DM.filter(a => a.u != null).forEach(a => pts.push({ u: a.u, v: a.v, t: a.t }));
-      if (!pts.length) {
+      if (!pts.length || (s.det && s.det.includes('TARGET'))) {
         const q = src.geo ? toUV(src.geo, t.x, t.y) : [0.5, 0.5];
         pts.push({ u: q[0], v: q[1], t: 'TARGET' });
       }
     }
-    pts.slice(0, 2).forEach((a, i) => {
-      const bx = o.x,
-        by = o.y + i * (o.h + o.gap),
-        bw = o.w,
-        bh = o.h,
-        sw = src.c.width / 5,
-        sh = (sw * bh) / bw;
-      x.fillStyle = '#000';
-      x.fillRect(bx, by, bw, bh);
-      x.drawImage(src.c, a.u * src.c.width - sw / 2, a.v * src.c.height - sh / 2, sw, sh, bx, by, bw, bh);
-      x.strokeStyle = p.line;
-      x.lineWidth = PF.pst == 'prog' ? 1 : 2;
-      x.strokeRect(bx, by, bw, bh);
-      tri(bx + bw / 2, by + bh / 2);
-      tag('DETAIL · ' + a.t, bx + 8, by + 20, {});
-    });
+    // the two pictures: the aim points chosen above the page (Details), else the first two
+    const pick = s.det ? s.det.map(n => pts.find(a => a.t == n)).filter(Boolean) : [];
+    (pick.length ? pick.concat(pts.filter(a => !pick.includes(a) && !s.det.includes(a.t))) : pts)
+      .slice(0, 2)
+      .forEach((a, i) => {
+        const bx = o.x,
+          by = o.y + i * (o.h + o.gap),
+          bw = o.w,
+          bh = o.h,
+          sw = src.c.width / 5,
+          sh = (sw * bh) / bw;
+        x.fillStyle = '#000';
+        x.fillRect(bx, by, bw, bh);
+        x.drawImage(src.c, a.u * src.c.width - sw / 2, a.v * src.c.height - sh / 2, sw, sh, bx, by, bw, bh);
+        x.strokeStyle = p.line;
+        x.lineWidth = PF.pst == 'prog' ? 1 : 2;
+        x.strokeRect(bx, by, bw, bh);
+        tri(bx + bw / 2, by + bh / 2);
+        tag('DETAIL · ' + a.t, bx + 8, by + 20, {});
+      });
   }
   function planFiltered() {
     const t = tgt(),
@@ -1729,6 +1754,7 @@ export function createTargetPage(deps) {
     if (n) n.textContent = t ? t.label + ' · ' + t.name + ' · ' + A().length + ' symbols' : '';
     const dl = root.querySelector('.tgdel');
     if (dl) dl.disabled = !(page == 'g' && selA >= 0 && selA < A().length);
+    detBar();
     // the tool bar draws on the graphic only
     const tb = root.querySelector('.tgtb');
     if (tb && tb.hidden != (page != 'g')) {
@@ -1736,6 +1762,32 @@ export function createTargetPage(deps) {
       root.querySelector('.tgthint').hidden = page != 'g';
       if (page == 'g') appear(tb);
     }
+  }
+  // the choice of the aim points of the detail pictures (on the plan or the map: a screenshot keeps the DMPIs put by hand, in their order)
+  function detBar() {
+    const b = root.querySelector('.tgdetb'),
+      s = st();
+    if (!b) return;
+    const on = page == 't' && !!s && s.view != 'shot' && !!pic();
+    if (b.hidden == on) {
+      b.hidden = !on;
+      if (on) appear(b);
+    }
+    if (!on) return;
+    const g = pic() && pic().geo,
+      N = dmpiList()
+        .filter(a => (g ? a.x != null : a.u != null))
+        .map(a => a.t)
+        .concat('TARGET'),
+      cur = [0, 1].map(i => (s.det && N.includes(s.det[i]) ? s.det[i] : N[Math.min(i, N.length - 1)]));
+    b.querySelectorAll('select').forEach((e, i) => {
+      const h = N.map(n => `<option value="${esc(n)}"${n == cur[i] ? ' selected' : ''}>${esc(n)}</option>`).join('');
+      if (e.dataset.h != h) {
+        e.innerHTML = h;
+        e.dataset.h = h;
+      }
+      e.value = cur[i];
+    });
   }
   // the crop frame of Put on datacard: the part that goes to the datacard, the rest darker
   function cropMarks() {
@@ -1874,6 +1926,7 @@ export function createTargetPage(deps) {
           comps: 12,
           dmpis: 6,
           det: null,
+          pic: 380,
         });
       } else {
         cardHdr('TARGET INFORMATION · DETAILS');
@@ -2050,7 +2103,7 @@ export function createTargetPage(deps) {
      ['t', 'Target information'],
    ],
    page
- )}<span class="tglev" hidden></span><span class="tgmapb" hidden><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgdetb" hidden title="The aim points of the two detail pictures (Target information and its Details card)"><span class="hint">Details</span><select data-det="0" aria-label="Detail 1"></select><select data-det="1" aria-label="Detail 2"></select></span><span class="tgmapb" hidden><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
   <div class="tgtb">${TOOLS.map(
     ([k, l]) =>
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
@@ -2114,6 +2167,16 @@ export function createTargetPage(deps) {
         draw();
       }
     });
+    qa('[data-det]').forEach(
+      e =>
+        (e.onchange = () => {
+          const s = st();
+          if (!s) return;
+          const v = [...qa('[data-det]')].map(z => z.value);
+          s.det = v;
+          draw();
+        })
+    );
     qa('[data-pf]').forEach(
       i =>
         (i.oninput = () => {

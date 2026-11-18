@@ -210,6 +210,7 @@ export async function pickSeat(i) {
   }
 }
 
+ST.pickSeat = pickSeat; // for the campaign loader (selection.js): the seat the player took in the campaign
 // ---- a card was built (apply): the seat stays, the card of the new flight is checked ----
 // before the card is filled from the DTC: a seat the flight does not have is given up (the card is neutral)
 export function seatCheck() {

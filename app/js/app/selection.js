@@ -169,6 +169,17 @@ export function apply(i, mode) {
   bvrAuto(i);
   roeRefresh(); // the page ROE / SOP shows this flight
 }
+// the flight the player chose in the campaign (a seat of it taken by a player, saved in the campaign file), else the next flight of the player's squadron
+// (the first to take off from the campaign time on, else its first one); null: none (a random flight of the player's faction)
+export function playerFlight() {
+  const C = ST.C,
+    L = ST.CL.map((x, i) => ({ i, f: x.f, t: (x.f.wps[0] && x.f.wps[0].arr) || 0 }));
+  const p = L.find(x => x.f.pslots && x.f.pslots.some(v => v != 255));
+  if (p) return { i: p.i, seat: p.f.pslots.findIndex(v => v != 255) };
+  const sq = L.filter(x => C.playerSq && x.f.sqd && x.f.sqd.n == C.playerSq).sort((a, b) => a.t - b.t),
+    nx = sq.find(x => !C.now || x.t >= C.now) || sq[0];
+  return nx ? { i: nx.i, seat: -1 } : null;
+}
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),
     mine = all.filter(i => ST.CL[i].f.owner == ST.C.playerTeam),
@@ -240,12 +251,15 @@ async function loadCam0(file, stale) {
     const m = pick();
     return m[Math.floor(Math.random() * m.length)];
   };
-  const i = pk();
+  const pf = playerFlight(),
+    i = pf ? pf.i : pk();
   $('fsel').value = i;
   atoSearch();
   apply(i);
   atoCloseState();
   atoSearch();
+  // the seat the player took in the campaign, when it is not the lead's (the lead's is the default) and no seat was chosen by hand
+  if (pf && pf.seat > 0 && !ST.SEAT.set && ST.pickSeat) ST.pickSeat(pf.seat);
 }
 
 // The loadout follows the pilot seat: the group of aircraft that holds the aircraft of the seat (the leader's group when no seat is chosen). force = the pilot pressed a round button

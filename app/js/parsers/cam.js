@@ -201,7 +201,8 @@ export function parseUni(blk, ver, ct) {
       vu();
       r.slots = [u8(), u8(), u8(), u8()];
       r.pilots = [u8(), u8(), u8(), u8()];
-      sk(8);
+      sk(4); // the state of each aircraft
+      r.pslots = [u8(), u8(), u8(), u8()]; // the seats taken by a player (255: none): the flight the player chose in the campaign
       r.lastSlot = u8();
       r.csId = u8();
       r.csNum = u8();

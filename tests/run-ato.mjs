@@ -24,6 +24,15 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
   ck(f + ' packages keep all their flights', groupPackages(A).reduce((s, p) => s + p.flights.length, 0) === A.length);
   ck(f + ' team relations read', C.stance && C.stance.length === 8 && C.stance[1][2] === 1);
   ck(f + ' whole unit file read', C.parse.count === C.parse.num && C.parse.end === C.parse.len);
+  const pl = flights.filter(u => u.pslots && u.pslots.some(v => v != 255));
+  ck(
+    f + ' the seats of the flights are read (255: no player)',
+    flights.every(u => u.pslots && u.pslots.length == 4)
+  );
+  ck(
+    f + ' the flight of the player is one at most, of the player squadron',
+    pl.length <= 1 && pl.every(u => u.sqd.n == C.playerSq)
+  );
   ck(
     f + ' OCA STRIKE is Offensive Counter Air',
     A.filter(e => e.mission === 'OCA STRIKE').every(e => e.cat === 'Offensive Counter Air')

@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: opening a campaign chooses the flight the player chose in BMS (its seat too), else the next flight of the player's squadron.
+- Changed: the Target information card shows the graphic in place of the list of the components.
+- New: the aim points of the two detail pictures can be chosen (Target information > Details).
 - New: Attack cards for the Kneeboard (Weapons > Add card): one for each role of the flight, with the attack drawn on the map chosen on the Map page, the side profile, the parameters, the spacing of a split flight and the nav offsets.
 - Changed: Weather > Add card opens a dialog with the SIGWX, RADAR and WIND cards to choose from.
 - Changed: each mission folder has its own colour; the folders inside take it.
