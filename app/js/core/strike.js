@@ -250,7 +250,7 @@ export function computeHadb(target, ref, inp) {
       pupToTarget: dist(pup, target),
       pupBearing: bearing(pup, target),
       wheelRange: slant,
-      egressHeading: t.egressHeading,
+      egressHeading: t.egressHdg,
       tofStick: fall.time + (gsFps > 0 ? stickLen / gsFps : 0),
     },
   };
@@ -426,7 +426,7 @@ export function computeToss(target, ref, inp) {
       pupToTarget: dist(pup, target),
       pupBearing: bearing(pup, target),
       tofStick: fall.time + (gsFps > 0 ? stickLen / gsFps : 0),
-      egressHeading: tl.egressHeading,
+      egressHeading: tl.egressHdg,
     },
   };
 }

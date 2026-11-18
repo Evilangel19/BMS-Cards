@@ -435,7 +435,9 @@ textarea {
   border-color: #f59e0b;
   color: #fff;
 }
-.wpg .wshow {
+.wpg .wshow.wnew,
+.wpg .wgrp .wmir.wnew,
+.wpg .wegb.wnew {
   animation: popin 0.25s ease-out;
 }
 .wpg .wshow .seg button.w-lead.on {
@@ -449,7 +451,6 @@ textarea {
 .wpg .wgrp .wmir {
   padding-left: 10px;
   padding-right: 10px;
-  animation: popin 0.25s ease-out;
   transition:
     background-color 0.2s,
     color 0.2s;

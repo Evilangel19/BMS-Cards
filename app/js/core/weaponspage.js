@@ -156,10 +156,9 @@ export function createWeaponsPage(deps) {
     if (!st.grp || typeof st.grp != 'object') st.grp = {};
     const g = st.grp[m];
     if (!g || typeof g != 'object' || !WHO.includes(g.who) || typeof g.split != 'boolean')
-      st.grp[m] = { split: false, who: 'lead', elem: null, mir: false, egr: 'own', ealt: false };
+      st.grp[m] = { split: false, who: 'lead', elem: null, mir: false, egr: 'own' };
     const G = st.grp[m];
     if (G.egr != 'shared') G.egr = 'own';
-    G.ealt = !!G.ealt;
     return G;
   };
   // the sets of 1.3.0-beta.15 / 16 (FLIGHT, LEAD and ELEMENT): the lead's becomes the attack, the element's stays as the split
@@ -634,7 +633,7 @@ export function createWeaponsPage(deps) {
     } finally {
       putSnap(m, keep);
     }
-    if (!P) return;
+    if (!P || !isFinite(P.n) || !isFinite(P.e)) return;
     const c = gather();
     if (!c.t || !c.ref) return;
     const me = st[PK(m)],
@@ -644,12 +643,31 @@ export function createWeaponsPage(deps) {
     me.egressHeading = Math.round(bearing(relOf(r), P)) || 360;
     me.egressRange = Math.round(dist(relOf(r), P));
     me.oa2Mode = lp.oa2Mode;
-    me.egressAltitude = lp.egressAltitude + (grpOf(m).ealt ? 1000 : 0);
+    me.egressAltitude = lp.egressAltitude;
+  }
+  // a toss without a turn before the line-up (angle off 0) is flown in formation: the split is the egress only, the element's attack is the lead's
+  const EGF = ['egressRange', 'egressTurn', 'egressHeading', 'egressAngle', 'egressAltitude', 'oa2Mode'];
+  const tossForm = () => {
+    const g = grpOf('toss'),
+      L = g.who == 'elem' ? st.fls : snapOf('toss');
+    return !!L && !(+L.p.angleOff > 0);
+  };
+  function formElem() {
+    const L = st.fls;
+    if (!L) return;
+    const me = st.toss;
+    Object.keys(L.p).forEach(k => {
+      if (!EGF.includes(k)) me[k] = clone(L.p[k]);
+    });
+    SHARED.forEach(k => {
+      if (L[k] !== undefined) st[k] = clone(L[k]);
+    });
   }
   function compute(noElev) {
     sync();
     if (ATK.includes(st.mode) && st.inMode === st.mode) {
       const g = grpOf(st.mode);
+      if (g.split && g.who == 'elem' && st.mode == 'toss' && tossForm()) formElem();
       if (g.split && g.who == 'elem' && g.egr == 'shared') shareEgress(st.mode);
     }
     if (!st.fz.loaded) fzLoad();
@@ -842,7 +860,8 @@ export function createWeaponsPage(deps) {
     };
   }
   // ---------- the other group (lead <-> element / wingman): drawn white under the attack shown, and the deconfliction of the two ----------
-  let GHO = null,
+  let APPEAR = {},
+    GHO = null,
     DC = null,
     SWEEP = {},
     DCK = '',
@@ -860,7 +879,8 @@ export function createWeaponsPage(deps) {
       return {
         who: o,
         r: res,
-        segs: D.segs.filter(z => z[0] != 'ref'),
+        // a point that could not be worked out is left out of the drawing (Leaflet stops at one)
+        segs: D.segs.filter(z => z[0] != 'ref' && z[1].every(q => q && isFinite(q.n) && isFinite(q.e))),
         env: res.an && res.an.env,
         split: splitOf(res),
       };
@@ -875,6 +895,7 @@ export function createWeaponsPage(deps) {
     if (m == 'popup') return r.v.profileType === 1 || !vrp || !r.vrp ? [r.pup, 'PUP'] : [r.vrp, 'VRP'];
     if (m == 'hadb') return r.oa ? [r.oa, 'line-up point'] : [r.pup, 'PUP'];
     if (r.v.angleOff > 0 && r.oa2) return [r.oa2, 'OA2'];
+    if (r.release) return [r.release, 'release']; // in formation up to the release: the split is the egress
     return vrp && c && c.ref ? [c.ref, 'VRP'] : [r.pup, 'PUP'];
   }
   const sideOf = (r, segs, env, sp) => fromSplit(trackOf(r, segs), fragZone(r, env), sp[0]);
@@ -954,31 +975,23 @@ export function createWeaponsPage(deps) {
     // the split point of the attack shown (the lead's has the same name unless the two differ in the kind of attack)
     const sp = splitOf(res)[1],
       gp = GHO.split ? GHO.split[1] : sp,
-      at = sp == gp ? 'the ' + sp : 'the split point',
-      L = [];
-    const lv = dcLevel();
-    if (DC.frag)
-      L.push(
-        lv == 'warn' && !DC.close
-          ? `On this target the fragments of the other attack are met whatever the attack: the timing keeps them out, the ${sec} at ${at} at least ${DC.spacing} s after the lead.`
-          : 'One attack passes through the fragment zone of the other: the timing keeps it out (the spacing above), or change the attack (the red sliders).'
-      );
-    if (DC.close)
-      L.push(
-        `The two come within ${fmt(Math.round(DC.close.d / 50) * 50)} ft of each other at about the same altitude and time, whatever the spacing: change the attack (the red sliders).`
-      );
-    else if (DC.met) L.push(`Flown together the two would meet in the air after ${at}: the spacing keeps them apart.`);
-    if (!DC.conflict) L.push("No conflict: each path keeps out of the other's fragments, and they stay apart.");
-    if (grpOf(m).egr == 'shared')
-      L.push(
-        `Shared egress: the ${sec} rejoins visually with the lead after the release (to the same egress point${grpOf(m).ealt ? ', 1 000 ft higher' : ''}); there the two are checked only against the fragments.`
-      );
-    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3>${
-      `<div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div>` +
-      (DC.zones
-        ? ''
-        : '<p class="hint">Fragments not counted (no bomb with a lethal envelope): the spacing keeps the two apart in the air only.</p>')
-    }${L.map(x => `<p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">From ${at} on: before it the two fly together, so it is not checked, and the times count from it. An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
+      at = sp == gp ? 'the ' + sp : 'the split point';
+    const lv = dcLevel(),
+      why = [DC.frag && 'the fragments', (DC.close || DC.met) && 'the paths in the air'].filter(Boolean).join(' and '),
+      state =
+        lv == 'bad'
+          ? DC.close
+            ? 'Change the attack: the two meet in the air whatever the timing (the red sliders).'
+            : 'Change the attack, or keep the spacing: the red sliders keep the fragments out.'
+          : lv == 'warn'
+            ? `Timing only: the spacing keeps ${why} apart.`
+            : 'No conflict.',
+      joined = grpOf(m).egr == 'shared';
+    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3><div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div><p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${state}</p>${
+      joined
+        ? `<p class="hint">Joined egress: visual rejoin after the release, checked there only against the fragments. 500 ft of altitude between the two until visual.</p>`
+        : ''
+    }${DC.zones ? '' : '<p class="hint">No bomb envelope: fragments not counted.</p>'}<p class="hint wnote">From ${at} on (before it: formation). An estimate. White: the other attack.</p></div>`;
   }
   function drawMap(r) {
     const { L, map, WL } = M,
@@ -1110,7 +1123,10 @@ export function createWeaponsPage(deps) {
       const g0 = GHO.segs[0] && GHO.segs[0][1][0];
       if (g0) lab(g0, whoName(GHO.who), 'left', [-8, 0]);
     }
-    D.segs.forEach(([k, pts]) => line(pts, k, k == 'egress' || k == 'ref' ? 3 : 4));
+    D.segs.forEach(
+      ([k, pts]) =>
+        pts.every(q => q && isFinite(q.n) && isFinite(q.e)) && line(pts, k, k == 'egress' || k == 'ref' ? 3 : 4)
+    );
     (D.arrows || []).forEach(a => arrow(...a));
     (D.labels || []).forEach(a => lab(...a));
     r.impacts.forEach(q =>
@@ -2108,11 +2124,11 @@ export function createWeaponsPage(deps) {
         tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
       const gq = grpOf(st.inMode),
         one = seatInfo().size <= 1,
-        // a toss without a turn before the line-up is flown in formation: no split (Rejoin stays possible)
-        noTurn = st.inMode == 'toss' && !(+st.toss.angleOff > 0) && !gq.split,
-        grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one || noTurn ? ' disabled' : ''} title="${noTurn ? 'No turn before the line-up (angle off 0): the toss is flown in formation, there is no split.' : gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
+        // the rows and buttons of the split fade in when they appear, not each time the panel is drawn again (a click on them would be lost)
+        nw = k => (APPEAR[k] ? '' : ' wnew'),
+        grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one ? ' disabled' : ''} title="${gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}${nw('mir')}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
           gq.split
-            ? `<div class="wrow wgrp wshow"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
+            ? `<div class="wrow wgrp wshow${nw('show')}"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
             : ''
         }`;
       const refCard = `<div class="wcard"><h3>Reference</h3>${grpRow}
@@ -2195,31 +2211,7 @@ export function createWeaponsPage(deps) {
       );
       const ge = grpOf(st.inMode),
         egShare = ge.split
-          ? `<div class="wrow wegsh"><label>Flight egress</label><span class="seg">${[
-              ['own', 'Own', "Each its own egress (the mirror turns the element's to the other side)"],
-              [
-                'shared',
-                'Shared',
-                'One egress for the flight: the element goes out to the egress point of the lead and rejoins visually',
-              ],
-            ]
-              .map(
-                ([k, n, t]) =>
-                  `<button type="button" data-egr="${k}" class="${ge.egr == k ? 'on' : ''}" title="${t}">${n}</button>`
-              )
-              .join('')}</span></div>${
-              ge.egr == 'shared'
-                ? `<div class="wrow wegsh"><label>${secName()[0].toUpperCase() + secName().slice(1)} alt.</label><span class="seg">${[
-                    ['0', 'Same'],
-                    ['1', '+1 000 ft'],
-                  ]
-                    .map(
-                      ([k, n]) =>
-                        `<button type="button" data-ealt="${k}" class="${+ge.ealt == +k ? 'on' : ''}" title="The ${secName()}'s egress altitude: the lead's, or 1 000 ft above it until visual">${n}</button>`
-                    )
-                    .join('')}</span></div>`
-                : ''
-            }`
+          ? `<div class="wrow wegsh"><label>Egress</label><button type="button" class="btn g wegb${ge.egr == 'shared' ? '' : ' on'}${APPEAR.eg ? '' : ' wnew'}" data-egsplit title="${ge.egr == 'shared' ? `Off: one egress for the flight, the ${secName()} goes out to the egress point of the lead and rejoins visually. Press to split it.` : `On: each its own egress (the mirror turns the ${secName()}'s to the other side). Press for one egress for the flight, a visual rejoin.`}">Split</button></div>`
           : '';
       const egressCard =
         md == 'toss'
@@ -2361,6 +2353,12 @@ export function createWeaponsPage(deps) {
           <div class="wcard" id="wpic"><div class="wh"><h3>Impact pattern</h3><span class="hint">distance from the target along the attack line</span></div><div id="wpp"></div></div>
           <div class="wmid" id="wpe" hidden></div></div>
         <div class="wpr" id="wpr"></div></div>`;
+      // what is on the panel now: what appears next time fades in, what stays does not
+      APPEAR = {
+        show: !!root.querySelector('.wshow'),
+        mir: !!root.querySelector('.wmir'),
+        eg: !!root.querySelector('.wegb'),
+      };
       wire(root);
     }
     const rv = root.querySelector('#wpr');
@@ -2392,11 +2390,17 @@ export function createWeaponsPage(deps) {
   function flagSliders() {
     const root = deps.root,
       an = res && !res.error && res.an;
+    const keepD = dcLevel() == 'bad' ? SWEEP : {};
     root.querySelectorAll('.slr.bad').forEach(e => {
       e.classList.remove('bad', 'dcl');
       e.removeAttribute('title');
     });
-    root.querySelectorAll('.slr .dcd').forEach(e => e.remove());
+    // the arrows that stay are kept (no fade at each drawing), the others go
+    root.querySelectorAll('.slr .dcd').forEach(e => {
+      const i = e.closest('.slr').querySelector('input[data-sl]'),
+        d = i && keepD[i.dataset.sl];
+      if (!d || e.textContent != (d > 0 ? '▶' : '◀')) e.remove();
+    });
     // a conflict with the other group: the sliders that clear it, with the side to move them to
     if (dcLevel() == 'bad')
       Object.entries(SWEEP).forEach(([f, d]) => {
@@ -2406,7 +2410,7 @@ export function createWeaponsPage(deps) {
         if (!row || !lb) return;
         row.classList.add('bad', 'dcl');
         row.title = `Conflict with the ${grpOf(st.inMode).who == 'lead' ? secName() : 'lead'}: moving this ${d > 0 ? 'up (▶)' : 'down (◀)'} ${SWEEPK == 'paths' ? 'keeps the two paths apart (the fragments still need the spacing)' : 'clears it'}.`;
-        lb.insertAdjacentHTML('beforeend', `<i class="dcd">${d > 0 ? '▶' : '◀'}</i>`);
+        if (!lb.querySelector('.dcd')) lb.insertAdjacentHTML('beforeend', `<i class="dcd">${d > 0 ? '▶' : '◀'}</i>`);
       });
     root.querySelectorAll('input.zone').forEach(i => {
       i.classList.remove('zone');
@@ -2476,27 +2480,15 @@ export function createWeaponsPage(deps) {
         save();
         draw(false);
       };
-    root.querySelectorAll('[data-egr]').forEach(
-      b =>
-        (b.onclick = () => {
-          const g = grpOf(st.inMode);
-          if (g.egr == b.dataset.egr) return;
-          g.egr = b.dataset.egr;
-          st.applied = st.cleared = null;
-          save();
-          draw(false);
-        })
-    );
-    root.querySelectorAll('[data-ealt]').forEach(
-      b =>
-        (b.onclick = () => {
-          const g = grpOf(st.inMode);
-          g.ealt = b.dataset.ealt == '1';
-          st.applied = st.cleared = null;
-          save();
-          draw(false);
-        })
-    );
+    const egb = root.querySelector('[data-egsplit]');
+    if (egb)
+      egb.onclick = () => {
+        const g = grpOf(st.inMode);
+        g.egr = g.egr == 'shared' ? 'own' : 'shared';
+        st.applied = st.cleared = null;
+        save();
+        draw(false);
+      };
     // the element's egress follows the lead's while it is shared: its controls are shown, locked
     {
       const g = ATK.includes(st.inMode) ? grpOf(st.inMode) : null;
@@ -2504,7 +2496,14 @@ export function createWeaponsPage(deps) {
         root.querySelectorAll('[data-egcard] input, [data-egcard] button, [data-egcard] select').forEach(e => {
           if (e.closest('.wegsh')) return;
           e.disabled = true;
-          e.title = "Shared egress: the lead's egress point";
+          e.title = "Joined egress: the lead's egress point";
+        });
+      // a toss in formation: the element flies the lead's attack, only its egress is its own
+      if (g && g.split && g.who == 'elem' && st.inMode == 'toss' && tossForm())
+        root.querySelectorAll('.wpl input, .wpl button, .wpl select').forEach(e => {
+          if (e.closest('[data-egcard]') || e.closest('.wgrp')) return;
+          e.disabled = true;
+          e.title = "Toss in formation (angle off 0): the lead's attack, the split is the egress only";
         });
     }
     root.querySelectorAll('[data-who]').forEach(
