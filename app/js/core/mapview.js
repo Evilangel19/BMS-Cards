@@ -4869,7 +4869,8 @@ export function createMap(host, deps) {
       if (away) WEDIT = r;
       return r;
     },
-    isEdit: () => EDIT,
+    // the borrowing page asks between two drawings too (the map gone home, where it edits): the page's own choice then, so its button does not flicker
+    isEdit: () => (away ? EDIT : WEDIT),
     // the map is taken for a heavy one (the bar shows while it is moved); the tests use it
     heavy: b => (HEAVY = !!b),
     cyclePlan,

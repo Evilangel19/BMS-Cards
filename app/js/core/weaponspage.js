@@ -5,7 +5,7 @@ const PPTL = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.pp
 import { cbuFootprint } from '../bmsdata/bombdata.js';
 import { analyse, envelope, pickBomb, isGuided, maneuvers, PULL_G, PULL_DELAY } from './lethal.js';
 import { computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow, norm } from './popup.js';
-import { attackTrack, fragZone, deconflict } from './deconf.js';
+import { attackTrack, fragZone, deconflict, fromSplit } from './deconf.js';
 import {
   computeHadb,
   computeToss,
@@ -200,7 +200,10 @@ export function createWeaponsPage(deps) {
       const c = gather();
       if (!c.t || !c.ref) return null;
       const r = ENG(m)(c.tPos, c.ref, { ...st[PK(m)], ...fuzeInputs() });
-      return r && !r.error ? { A: r.v.attackHeading, I: r.v.ingressHeading } : null;
+      if (!r || r.error) return null;
+      // the axis of the mirror: the heading flown together up to the split, the approach of a Type 1 pop-up (its PUP lies on it), else the ingress
+      const t1 = m == 'popup' && r.v.profileType === 1 && isFinite(r.v.approachHeading);
+      return { A: r.v.attackHeading, I: t1 ? r.v.approachHeading : r.v.ingressHeading, t1 };
     } catch (e) {
       return null;
     } finally {
@@ -208,7 +211,7 @@ export function createWeaponsPage(deps) {
     }
   }
   // the lead's attack mirrored about the ingress (the split attack: the two come in together and turn to opposite sides): the same target and
-  // reference, the turn on the other side, the attack and the egress headings mirrored about the ingress heading
+  // reference, the turn on the other side, the attack and the egress headings mirrored about the heading flown together (Type 1 pop-up: the approach)
   function mirrorOf(m, s) {
     const o = clone(s),
       p = o.p,
@@ -219,8 +222,11 @@ export function createWeaponsPage(deps) {
     p.egressTurn = flip(p.egressTurn);
     if (H && isFinite(H.I)) {
       if (p.egressTurn == 'set' && isFinite(p.egressHeading)) p.egressHeading = mir(p.egressHeading, H.I);
-      // the heading slider is the attack heading (in the pop-up, unless it is the climb heading, which stays: the same ingress)
-      if (!(m == 'popup' && p.headingMode == 'ingress') && isFinite(H.A)) p.heading = mir(H.A, H.I);
+      // the heading slider is the attack heading; in the pop-up it can be the climb heading: it stays in a Type 2 (the climb is the ingress), it is
+      // mirrored about the approach in a Type 1
+      if (m == 'popup' && p.headingMode == 'ingress') {
+        if (H.t1 && isFinite(p.heading)) p.heading = mir(p.heading, H.I);
+      } else if (isFinite(H.A)) p.heading = mir(H.A, H.I);
     }
     return o;
   }
@@ -788,17 +794,34 @@ export function createWeaponsPage(deps) {
       if (!res || res.error || !ctx.t) return null;
       const vip = st.ref == 'vip' ? ctx.vipPos : null,
         D = oa1Plan(res.draw || popupDraw(res, vip), res);
-      return { who: o, r: res, segs: D.segs.filter(z => z[0] != 'ref'), env: res.an && res.an.env };
+      return {
+        who: o,
+        r: res,
+        segs: D.segs.filter(z => z[0] != 'ref'),
+        env: res.an && res.an.env,
+        split: splitOf(res),
+      };
     });
   }
   const trackOf = (r, segs) => attackTrack(segs, r.v, st.inMode);
+  // where the two split (before it they fly together, so it is not checked, and the times count from it): Type 1 pop-up the PUP, Type 2 the VRP;
+  // HADB the line-up point (OA1 when it is set there); TOSS the OA2 with an angle off, else the VRP; the PUP when the reference is a VIP
+  function splitOf(r) {
+    const m = st.inMode,
+      vrp = st.ref != 'vip';
+    if (m == 'popup') return r.v.profileType === 1 || !vrp || !r.vrp ? [r.pup, 'PUP'] : [r.vrp, 'VRP'];
+    if (m == 'hadb') return r.oa ? [r.oa, 'line-up point'] : [r.pup, 'PUP'];
+    if (r.v.angleOff > 0 && r.oa2) return [r.oa2, 'OA2'];
+    return vrp && ctx.ref ? [ctx.ref, 'VRP'] : [r.pup, 'PUP'];
+  }
+  const sideOf = (r, segs, env, sp) => fromSplit(trackOf(r, segs), fragZone(r, env), sp[0]);
   const sidesOf = (r, env, other) => {
     const vip = st.ref == 'vip' ? ctx.vipPos : null,
-      me = { trk: trackOf(r, oa1Plan(r.draw || popupDraw(r, vip), r).segs), zone: fragZone(r, env) },
+      me = sideOf(r, oa1Plan(r.draw || popupDraw(r, vip), r).segs, env, splitOf(r)),
       lead = grpOf(st.inMode).who == 'lead';
     return lead ? [me, other] : [other, me];
   };
-  const otherSide = () => ({ trk: trackOf(GHO.r, GHO.segs), zone: fragZone(GHO.r, GHO.env) });
+  const otherSide = () => sideOf(GHO.r, GHO.segs, GHO.env, GHO.split);
   function deconfNow() {
     if (!GHO || !res || res.error) return null;
     const [A, B] = sidesOf(res, res.an && res.an.env, otherSide());
@@ -860,8 +883,12 @@ export function createWeaponsPage(deps) {
       Sec = sec[0].toUpperCase() + sec.slice(1);
     if (!GHO)
       return `<div class="wcard wdc"><h3>Lead and ${sec}</h3><p class="hint">The ${sec} has no attack of its own yet: show it with the aircraft button, or press Mirror there.</p></div>`;
-    if (!DC) return '';
-    const L = [];
+    if (!DC || !res || res.error) return '';
+    // the split point of the attack shown (the lead's has the same name unless the two differ in the kind of attack)
+    const sp = splitOf(res)[1],
+      gp = GHO.split ? GHO.split[1] : sp,
+      at = sp == gp ? 'the ' + sp : 'the split point',
+      L = [];
     if (DC.frag)
       L.push(
         'One attack passes through the fragment zone of the other: only the timing keeps it out (the spacing above), or change the attack (the red sliders).'
@@ -873,9 +900,9 @@ export function createWeaponsPage(deps) {
     if (!DC.conflict) L.push("No conflict: each path keeps out of the other's fragments, and they stay apart.");
     return `<div class="wcard wdc${DC.conflict ? ' bad' : ''}"><h3>Lead and ${sec}</h3>${
       DC.zones
-        ? `<div class="tiles"><div class="tile"><span>${Sec} after the lead</span><b>at least +${DC.spacing} s</b></div></div>`
+        ? `<div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div>`
         : '<p class="hint">Fragments not calculated (no bomb with a lethal envelope): the spacing is unknown.</p>'
-    }${L.map(x => `<p class="${DC.conflict ? 'wwarn' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
+    }${L.map(x => `<p class="${DC.conflict ? 'wwarn' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">From ${at} on: before it the two fly together, so it is not checked, and the times count from it. An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
   }
   function drawMap(r) {
     const { L, map, WL } = M,
@@ -2200,7 +2227,7 @@ export function createWeaponsPage(deps) {
           ${oa1Row}
           <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
-        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
+        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
           <div class="wrow wmap"><label>Map layer</label>${seg(
             'mapon',
             [

@@ -2,7 +2,7 @@
 // bombs, the conflict of two attacks and the least spacing after the lead. Pop-ups computed here on one target; no fixtures.
 import { computePopup, project } from '../app/js/core/popup.js';
 import { envelope } from '../app/js/core/lethal.js';
-import { attackTrack, fragZone, deconflict, SEP } from '../app/js/core/deconf.js';
+import { attackTrack, fragZone, deconflict, fromSplit, SEP } from '../app/js/core/deconf.js';
 
 let n = 0,
   bad = 0;
@@ -76,6 +76,36 @@ const hi = { releaseAltitude: 6000, diveAngle: 30, egressAltitude: 6000, ingress
   H2 = pop({ ...hi, side: 'left', heading: (2 * H1.r.v.pullHeading - 360 + 720) % 360 });
 const hd = deconflict(H1, H2);
 ck('a release above the fragments, mirrored: the fragments are kept out of ' + JSON.stringify(hd), !hd.frag);
+
+// ---- the split point: before it the two fly together; times from it
+const S = fromSplit(A.trk, A.zone, A.r.pup),
+  tp = A.trk.reduce((b, p) =>
+    Math.hypot(p.n - A.r.pup.n, p.e - A.r.pup.e) < Math.hypot(b.n - A.r.pup.n, b.e - A.r.pup.e) ? p : b
+  ).t;
+ck(
+  'from the split: the path starts at the PUP at time 0',
+  Math.hypot(S.trk[0].n - A.r.pup.n, S.trk[0].e - A.r.pup.e) < 300 && S.trk[0].t === 0
+);
+ck('from the split: no ingress before the PUP', S.trk.length < A.trk.length);
+ck(
+  'from the split: the fragment times move with it',
+  Math.abs(S.zone.t0 - (A.zone.t0 - tp)) < 1e-6 && Math.abs(S.zone.t1 - (A.zone.t1 - tp)) < 1e-6
+);
+ck('no split point: the whole path', fromSplit(A.trk, A.zone, null).trk === A.trk);
+// two attacks on one ingress line (in trail): from the PUP on, not before
+const far2 = pop({}, project(T, 90, 12 * 6076)),
+  shared = deconflict(fromSplit(A.trk, A.zone, A.r.pup), fromSplit(far2.trk, far2.zone, far2.r.pup));
+ck('apart after their split points: no conflict', !shared.conflict);
+// the Type 1 mirror about the approach: the same approach and the same PUP
+const T1 = computePopup(T, R, { heading: 360, side: 'right', profileType: 1 }),
+  h1 = T1.v.approachHeading,
+  T1m = computePopup(T, R, { heading: (2 * h1 - 360 + 720) % 360, side: 'left', profileType: 1 });
+ck(
+  'Type 1 mirrored about the approach: the same approach heading and PUP ' + [h1, T1m.v && T1m.v.approachHeading],
+  !T1m.error &&
+    Math.abs(((T1m.v.approachHeading - h1 + 540) % 360) - 180) < 1 &&
+    Math.hypot(T1m.pup.n - T1.pup.n, T1m.pup.e - T1.pup.e) < 200
+);
 
 console.log(bad ? `run-deconf.mjs: ${bad} of ${n} FAILED` : `run-deconf.mjs: OK - ${n} checks`);
 if (bad) process.exit(1);

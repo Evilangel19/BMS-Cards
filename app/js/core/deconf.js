@@ -6,6 +6,7 @@
 //   and the last impact: the radius and the height of the lethal envelope of the bomb (lethal.js);
 // - a conflict is a path that passes inside the fragment zone of the other attack, or two paths closer than SEP at about the same altitude. A conflict
 //   holds whatever the timing: the spacing only says how many seconds after the lead the second attack must come to keep out of the fragments.
+// - the two fly together up to the split point (fromSplit): only what follows it is checked, and the times count from it.
 import { dist } from './popup.js';
 
 export const SEP = 1500, // ft: two paths closer than this at about the same altitude
@@ -79,6 +80,26 @@ export function attackTrack(segs, v, kind) {
     last = p;
   });
   return [...pre, ...post];
+}
+
+/** the part of a path from the point where the two attacks split (before it they fly together, in formation): its times, and those of the fragment zone,
+ * counted from that point. sp {n, e}: the nearest point of the run in is taken (none: the whole path, times from the release). */
+export function fromSplit(trk, zone, sp) {
+  if (!sp || !trk.length) return { trk, zone };
+  let k = 0,
+    best = Infinity;
+  trk.forEach((p, i) => {
+    const d = dist(p, sp);
+    if (p.t <= 0 && d < best) {
+      best = d;
+      k = i;
+    }
+  });
+  const t0 = trk[k].t;
+  return {
+    trk: trk.slice(k).map(p => ({ ...p, t: p.t - t0 })),
+    zone: zone && { ...zone, t0: zone.t0 - t0, t1: zone.t1 - t0 },
+  };
 }
 
 // the fragment zone of an attack: around its first and last impact, while the fragments fall (times from its release)
