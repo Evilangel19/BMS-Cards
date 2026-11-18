@@ -4386,6 +4386,57 @@ export function createMap(host, deps) {
       return true;
     }
   };
+  // a picture of the whole map as it is (base map, flight plan, objects), for a card of another page (the Attack card): scale times its size.
+  // A base map that cannot be copied (cross-origin) is replaced by the offline coastlines, as for the screenshots. -> {canvas, coast} or null
+  async function snap(scale = 2) {
+    const mp = $('mpmap');
+    if (!mp || !map) return null;
+    const h2c = await loadH2C(),
+      run = () =>
+        h2c(mp, {
+          scale,
+          useCORS: true,
+          logging: false,
+          backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
+          ignoreElements: e => e.classList && (e.classList.contains('leaflet-control-container') || e.id == 'mpfr'),
+          onclone: doc => {
+            const w = doc.defaultView;
+            doc.querySelectorAll('#mpmap svg *').forEach(e => {
+              const cs = w.getComputedStyle(e);
+              [
+                'fill',
+                'fill-opacity',
+                'stroke',
+                'stroke-width',
+                'stroke-opacity',
+                'stroke-dasharray',
+                'opacity',
+              ].forEach(pp => e.style.setProperty(pp, cs.getPropertyValue(pp)));
+            });
+          },
+        });
+    let c = OV && OV._url && tainted(OV._url) ? null : await run();
+    if (c && !tainted(c)) return { canvas: c, coast: false };
+    const base = OV || TL,
+      lt = pal !== PAL.dark,
+      cg = lt ? G.coastL : G.coastD,
+      bg = (lt ? COAST.light : COAST.dark).sea,
+      ob = mp.style.background;
+    if (base) map.removeLayer(base);
+    cg.addTo(map);
+    mp.style.background = bg;
+    try {
+      c = await run();
+    } finally {
+      map.removeLayer(cg);
+      mp.style.background = ob;
+      if (base) {
+        base.addTo(map);
+        base.bringToBack();
+      }
+    }
+    return c && !tainted(c) ? { canvas: c, coast: true } : null;
+  }
   async function shotTake() {
     const fr = $('mpfr'),
       cap = $('mpcap');
@@ -4784,6 +4835,7 @@ export function createMap(host, deps) {
     shotStart,
     shotTake,
     shotStop,
+    snap,
     // the LEVELS menu (base map and layers) lent to another page (Weapons > Target): moved into el, then back
     // (the menu comes closed; if it was open on the Map page it opens again there)
     // (kept in LEVW while it is away: $ only finds what is in the map page or in the page that borrows the map)

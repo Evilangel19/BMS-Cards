@@ -4,6 +4,10 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- New: Attack cards for the Kneeboard (Weapons > Add card): one for each role of the flight, with the attack drawn on the map chosen on the Map page, the side profile, the parameters, the spacing of a split flight and the nav offsets.
+- Changed: Weather > Add card opens a dialog with the SIGWX, RADAR and WIND cards to choose from.
+- Changed: each mission folder has its own colour; the folders inside take it.
+- Changed: TOSS Egress: heading, range, then Egress alt. (was OA2 alt.).
 - Changed: the fragments of the bombs follow the envelope graphs of the manual in space and time (a point is dangerous only while the fragments pass it): the lethal zone, the fragmentation MRA, the safe escape and the deconfliction of a split flight (which now says what sets the spacing).
 - Changed: the egress (its heading, its range and the OA2 Egress point) starts at the release point instead of the target, in Pop-up, HADB and TOSS.
 - New: a joined egress for a split flight (Egress: Split off): the element goes out to the lead's egress point and rejoins visually. A toss in formation can be split on the egress only.

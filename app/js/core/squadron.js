@@ -2573,6 +2573,18 @@ export function createSquadronPage(deps) {
     return out;
   }
   const fname = id => (MF.find(f => f.id == id) || { name: '' }).name;
+  // a colour per folder (the colours of the HARM tables first), the folders inside one taking its colour
+  const FCOL = ['#4aa3ff', '#f0b040', '#b07cff', '#34d399', '#ff7a7a', '#22d3ee', '#f472b6', '#a3e635'];
+  const fcol = id => {
+    let top = -1;
+    for (const f of MF) {
+      if (!f.depth) top++;
+      if (f.id == id) return FCOL[Math.max(0, top) % FCOL.length];
+    }
+    return '#8b98a8';
+  };
+  const fico = id =>
+    `<svg class="msfi" viewBox="0 0 16 14" width="16" height="14" aria-hidden="true"><path d="M1 2.2c0-.6.4-1 1-1h3.6l1.5 1.6H14c.6 0 1 .4 1 1v8c0 .6-.4 1-1 1H2c-.6 0-1-.4-1-1z" fill="${fcol(id)}" stroke="rgba(0,0,0,.35)" stroke-width=".8"/></svg>`;
   const mDate = m => (m.created ? new Date(m.created).toLocaleDateString('en-CA') : '');
   function paintSaved(box) {
     const q = MV.q.trim(),
@@ -2590,9 +2602,14 @@ export function createSquadronPage(deps) {
             me.kind,
             mDate(m),
             m.from ? 'received from ' + m.from : '',
-            MV.group != 'folder' || MV.folder == 'all' ? (m.folder ? '📁 ' + fname(m.folder) : '') : '',
-          ].filter(Boolean);
-        return `<div class="sqm msr${MV.sel.has(m.label) ? ' on' : ''}" data-k="${esc(m.label)}"><input type="checkbox" data-ck${MV.sel.has(m.label) ? ' checked' : ''} title="Select (Shift: a range)"><span><b style="color:${camp.get(campKey(m)) || 'inherit'}">${esc(m.label)}</b><em>${esc(sub.join(' · '))}</em></span><span class="msbt"><button class="btn g gn sm" data-open title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`;
+          ].filter(Boolean),
+          fold =
+            MV.group != 'folder' || MV.folder == 'all'
+              ? m.folder
+                ? fico(m.folder) + ' ' + esc(fname(m.folder))
+                : ''
+              : '';
+        return `<div class="sqm msr${MV.sel.has(m.label) ? ' on' : ''}" data-k="${esc(m.label)}"><input type="checkbox" data-ck${MV.sel.has(m.label) ? ' checked' : ''} title="Select (Shift: a range)"><span><b style="color:${camp.get(campKey(m)) || 'inherit'}">${esc(m.label)}</b><em>${esc(sub.join(' · '))}${fold ? (sub.length ? ' · ' : '') + fold : ''}</em></span><span class="msbt"><button class="btn g gn sm" data-open title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`;
       },
       rows = (list, key) => {
         const lim = MV.lim[key] || PAGE,
@@ -2635,7 +2652,7 @@ export function createSquadronPage(deps) {
         `<div class="msf${MV.folder === id ? ' on' : ''}" data-f="${esc(id)}" style="--d:${d}">${
           MV.edit === id
             ? `<input class="msfin" value="${esc(nm)}" maxlength="80"><button class="btn sm" data-fok>OK</button>`
-            : `<i class="msar"${arr ? ' data-tog' : ''}>${arr}</i><span>${id == 'all' ? '<i class="msdot all"></i>' : id == '' ? '<i class="msdot none"></i>' : '📁'} ${esc(nm)}</span><b>${n}</b>${
+            : `<i class="msar"${arr ? ' data-tog' : ''}>${arr}</i><span>${id == 'all' ? '<i class="msdot all"></i>' : id == '' ? '<i class="msdot none"></i>' : fico(id)} ${esc(nm)}</span><b>${n}</b>${
                 id && id != 'all'
                   ? '<button class="msfb" data-fsub title="A new folder inside this one">＋</button><button class="msfb" data-fren title="Rename">✎</button><button class="msfb" data-fdel title="Delete the folder (its missions go up one level)">×</button>'
                   : ''
@@ -2874,7 +2891,7 @@ export function createSquadronPage(deps) {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
         gh = document.createElement('div');
         gh.className = 'msghost';
-        gh.textContent = (what.folder ? '📁 ' : '') + label;
+        gh.innerHTML = (what.folder ? fico(what.folder) + ' ' : '') + esc(label);
         document.body.append(gh);
         box.classList.add('msdrag');
       }

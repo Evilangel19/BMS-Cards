@@ -634,12 +634,22 @@ export async function init9() {
     points: () => dtcPoints(lines),
     // the seat chosen on the Datacard and the aircraft of the flight (lead / element envelopes)
     seat: () => ({ n: seatIdx(), size: [0, 1, 2, 3].filter(seatExists).length }),
+    // the flight chosen in the datacard, for the Attack card
+    title: () => {
+      const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+        e = x && ATOL.find(z => z.f === x.f);
+      return e ? e.callsign + ' · ' + e.n + '× ' + e.ac + ' · ' + e.mission : '';
+    },
     changed: (sec, key) => dtcChanged(sec, key),
     confirm: m => confirm(m),
     alert: m => alert(m),
     ll: (n, e) => mapV.toLL(e / 3280.84, n / 3280.84),
     attach: el => mapV.attach(el),
     detach: () => mapV.detach(),
+    // the Attack cards of the Kneeboard: a picture of the lent map, the cards, the messages
+    snap: scale => mapV.snap(scale),
+    kbAdd: (blob, name) => kbAddPic(blob, name),
+    toast: appToast,
   });
 }
 

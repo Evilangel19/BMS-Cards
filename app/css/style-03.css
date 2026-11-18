@@ -1793,6 +1793,10 @@ body.og-dragging * {
   vertical-align: 0;
   background: #8b98a8;
 }
+.msfi {
+  flex: none;
+  vertical-align: -2px;
+}
 .msdot.all {
   background: #4aa3ff;
 }
