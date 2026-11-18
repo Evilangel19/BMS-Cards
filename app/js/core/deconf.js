@@ -56,10 +56,11 @@ export function attackTrack(segs, v, kind) {
               n: pts[i - 1].n + (pts[i].n - pts[i - 1].n) * f,
               e: pts[i - 1].e + (pts[i].e - pts[i - 1].e) * f,
               alt: a0 + (a1 - a0) * (len ? ss / len : 1),
+              k,
             });
           }
           s += d;
-        } else if (!out.length) out.push({ ...pts[0], alt: a0 });
+        } else if (!out.length) out.push({ ...pts[0], alt: a0, k });
       }
     });
     return out;
@@ -109,75 +110,118 @@ export function fromSplit(trk, zone, sp) {
   return {
     // s: the distance flown from the split point (the two leave it together: the first SEP do not count as close)
     trk: trk.slice(k).map((p, i, a) => ({ ...p, t: p.t - t0, s: (s += i ? dist(a[i - 1], p) : 0) })),
-    zone: zone && { ...zone, t0: zone.t0 - t0, t1: zone.t1 - t0 },
+    zone: zone && { ...zone, t0: zone.t0 - t0, t1: zone.t1 - t0, pts: zone.pts.map(c => ({ ...c, t: c.t - t0 })) },
   };
 }
 
-// the fragment zone of an attack: around its first and last impact, while the fragments fall (times from its release)
+// the fragments of an attack: its first and last impact (each with its time from the release) and the bomb's model of the fragments in space and
+// time (frag.js); t0 / t1 the first impact and the end of the fall of the last
 export function fragZone(r, env) {
-  if (!env || !r || !r.impacts || !r.impacts.length) return null;
+  if (!env || !env.model || !r || !r.impacts || !r.impacts.length) return null;
   const v = r.v || {},
     I = r.impacts,
-    t0 = (v.timeOfFall || 0) + Math.min(...I.map(q => q.t || 0));
+    tof = v.timeOfFall || 0;
   return {
-    pts: [I[0], I[I.length - 1]].filter((q, i, a) => a.indexOf(q) === i).map(q => ({ n: q.n, e: q.e })),
+    pts: [I[0], I[I.length - 1]]
+      .filter((q, i, a) => a.indexOf(q) === i)
+      .map(q => ({ n: q.n, e: q.e, t: tof + (q.t || 0) })),
+    env,
     out: env.out,
     up: env.up,
-    t0,
-    t1: (v.timeOfFall || 0) + Math.max(...I.map(q => q.t || 0)) + env.t,
+    t0: tof + Math.min(...I.map(q => q.t || 0)),
+    t1: tof + Math.max(...I.map(q => q.t || 0)) + env.t,
   };
 }
-const inZone = (p, z) => !!z && p.alt < z.up && z.pts.some(c => dist(c, p) < z.out);
+const PAD = 1; // s around each window of the fragments (the model is read from graphs)
 
 /** A = the first attack (the lead), B = the second; each {trk, zone}; opt.shared: one egress for the two, a visual rejoin after the release (the
- * paths are not checked against each other there, the fragments are). Returns the conflict and the least spacing (s after the lead) that keeps each out of the
- * fragments of the other: B must not be in A's zone while A's fragments fall, and A must be past B's zone before B's bombs land. */
+ * paths are not checked against each other there, the fragments are). The second flies dt after the first: each point of a path is in the fragments
+ * of the other only while they pass it (its window, frag.js), so each point forbids an interval of dt; the spacing is the least dt >= 0 out of every
+ * interval that also keeps the two apart in the air. Returns the conflict (flown together, dt 0), the spacing and what sets it. */
 export function deconflict(A, B, opt = {}) {
-  const inA = B.trk.filter(p => inZone(p, A.zone)),
-    inB = A.trk.filter(p => inZone(p, B.zone));
-  let need = 0;
-  if (A.zone) inA.forEach(p => (need = Math.max(need, A.zone.t1 - p.t)));
-  if (B.zone) inB.forEach(p => (need = Math.max(need, p.t - B.zone.t0)));
-  // the closest approach of the two aircraft: at about the same place, altitude and time, the second one flying dt after the first (two paths that
-  // cross over the target at different times are not too close; two that leave the split point together are not either)
+  const I = [];
+  // B inside A's fragments: B at dt + p.t, A's impact at c.t: dt + p.t - c.t in the window
+  if (A.zone)
+    B.trk.forEach(p =>
+      A.zone.pts.forEach(c => {
+        const w = A.zone.env.model.win(dist(c, p), p.alt);
+        if (w) I.push({ lo: c.t + w[0] - p.t - PAD, hi: c.t + w[1] - p.t + PAD, p, c, me: 'B' });
+      })
+    );
+  // A inside B's fragments: B's impact at dt + c.t: p.t - dt - c.t in the window
+  if (B.zone)
+    A.trk.forEach(p =>
+      B.zone.pts.forEach(c => {
+        const w = B.zone.env.model.win(dist(c, p), p.alt);
+        if (w) I.push({ lo: p.t - c.t - w[1] - PAD, hi: p.t - c.t - w[0] + PAD, p, c, me: 'A' });
+      })
+    );
+  const hot = I.filter(x => x.lo <= 0 && x.hi >= 0),
+    hotA = hot.filter(x => x.me == 'A').map(x => x.p),
+    hotB = hot.filter(x => x.me == 'B').map(x => x.p);
+  // the two aircraft at about the same place, altitude and time, the second dt after the first (the paths are in time order: a window of B)
   const fresh = p => p.s != null && p.s < SEP;
-  const closeAt = dt => {
-    let c = null;
-    for (const a of A.trk)
-      for (const b of B.trk) {
-        if (
-          Math.abs(a.alt - b.alt) >= SEP_ALT ||
-          fresh(a) ||
-          fresh(b) ||
-          (opt.shared && (a.post || b.post)) ||
-          Math.abs(a.t - (b.t + dt)) > SEP_T
-        )
-          continue;
+  const closeAt = (dt, all) => {
+    let c = null,
+      j0 = 0;
+    for (const a of A.trk) {
+      if (fresh(a) || (opt.shared && a.post)) continue;
+      while (j0 < B.trk.length && B.trk[j0].t + dt < a.t - SEP_T) j0++;
+      for (let j = j0; j < B.trk.length && B.trk[j].t + dt <= a.t + SEP_T; j++) {
+        const b = B.trk[j];
+        if (Math.abs(a.alt - b.alt) >= SEP_ALT || fresh(b) || (opt.shared && b.post)) continue;
         const d = dist(a, b);
-        if (d < SEP && (!c || d < c.d)) c = { d, n: (a.n + b.n) / 2, e: (a.e + b.e) / 2 };
+        if (d < SEP && (!c || d < c.d)) {
+          c = { d, n: (a.n + b.n) / 2, e: (a.e + b.e) / 2 };
+          if (!all) return c;
+        }
       }
+    }
     return c;
   };
-  // the spacing keeps them out of the fragments and apart in the air: the least one that does both, up to MAX_DT more
-  let dt = Math.ceil(need),
-    close = closeAt(dt);
-  const met = close;
-  for (let k = 1; close && k <= MAX_DT; k++) {
-    const c = closeAt(dt + k);
-    if (!c) {
-      dt += k;
-      close = null;
+  // the least spacing: out of every interval of the fragments, then apart in the air, up to MAX_DT
+  let dt = 0,
+    by = null,
+    met = false,
+    close = null,
+    dtF = null; // the spacing the fragments alone ask
+  for (let guard = 0; guard < 400; guard++) {
+    const inside = I.filter(x => x.lo <= dt && x.hi >= dt);
+    if (inside.length) {
+      by = inside.reduce((m, x) => (x.hi > m.hi ? x : m));
+      dt = by.hi + 0.01;
+      continue;
     }
+    const t = Math.ceil(dt);
+    if (t > dt && I.some(x => x.lo <= t && x.hi >= t)) {
+      dt = t;
+      continue;
+    }
+    dt = t;
+    if (dtF == null) dtF = dt;
+    const c = closeAt(dt, false);
+    if (!c) break;
+    met = true;
+    if (dt >= dtF + MAX_DT) {
+      close = closeAt(dt, true);
+      break;
+    }
+    by = { air: true };
+    dt += 1;
   }
+  const frag = hot.length > 0;
   return {
-    frag: inA.length > 0 || inB.length > 0,
-    fragAt: inA[0] || inB[0] || null,
-    inA: inA[0] || null, // the first point of B inside A's fragment zone
-    inB: inB[0] || null, // the first point of A inside B's
-    close,
-    met: !!met, // together in the air with the spacing of the fragments alone (the timing then takes more)
-    conflict: inA.length > 0 || inB.length > 0 || !!close || !!met,
-    spacing: dt,
+    frag, // flown together, one is inside the other's fragments
+    fragAt: hotB[0] || hotA[0] || null,
+    inA: hotB[0] || null, // the first point of B inside A's fragments (flown together)
+    inB: hotA[0] || null, // the first point of A inside B's
+    hotA, // the points of A inside B's fragments when flown together
+    hotB,
+    by: dt > 0 && by ? (by.air ? { air: true } : { p: by.p, c: by.c, me: by.me }) : null, // what sets the spacing
+    close, // together in the air whatever the spacing (up to MAX_DT): a conflict of the attacks themselves
+    met: met && !close, // flown with the spacing of the fragments alone they would meet in the air
+    conflict: frag || met || !!close,
+    spacing: Math.ceil(dt),
     zones: !!(A.zone && B.zone),
   };
 }

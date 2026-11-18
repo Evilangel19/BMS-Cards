@@ -56,7 +56,7 @@ try:
         pg.click('.wshow [data-who=elem]'); pg.wait_for_timeout(1300)
         g = dc()
         t = card().inner_text().upper()
-        check('with the fragments: the spacing at the VRP, amber, no red sliders', g['dc']['spacing'] >= 25 and not g['dc']['close'] and 'warn' in card().get_attribute('class') and 'AT THE VRP' in t and pg.locator('.wpl .slr.dcl').count() == 0)
+        check('with the fragments: the spacing at the VRP and what sets it, amber, no red sliders', g['dc']['spacing'] > 0 and 'SET BY' in t and not g['dc']['close'] and 'warn' in card().get_attribute('class') and 'AT THE VRP' in t and pg.locator('.wpl .slr.dcl').count() == 0)
         # the egress: Split on (each its own); off, one egress for the flight: the element's egress controls locked, the card says the rejoin is visual
         check('Egress: the Split toggle, on', pg.locator('[data-egsplit].on').count() == 1)
         pg.click('[data-egsplit]'); pg.wait_for_timeout(700)
@@ -74,15 +74,15 @@ try:
         pg.click('[data-egsplit]'); pg.wait_for_timeout(500)
         check('Egress split again: the controls are free', pg.evaluate("()=>[...document.querySelectorAll('[data-egcard] button')].filter(e=>!e.closest('.wegsh')).some(e=>!e.disabled)"))
         # the yellow lethal zone of the lead in the element's vertical envelope, the orange ring where the element enters it
-        check('vertical envelope: the lead\'s lethal zone in yellow, an orange ring where the element enters it', pg.locator('.wpv path[stroke="#f0c040"]').count() > 0 and pg.locator('.wpv circle[stroke="#ff9f1c"]').count() == 1)
-        # a red case: the element released high, the lead inside its fragments; a parameter of the lead keeps them out
-        pg.locator('input[data-sl=releaseAltitude]').evaluate("e=>{e.value=6000;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(300)
-        pg.click('.wshow [data-who=lead]'); pg.wait_for_timeout(1500)
+        check('vertical envelope: the lead\'s lethal zone in yellow', pg.locator('.wpv path[stroke="#f0c040"]').count() > 0)
+        # the element crossing the target late on another heading: inside the lead's fragments if flown together, a spacing set by a point of its own
+        lh = pg.evaluate("()=>__app.wpPage.state().fls.p.heading")
+        pg.locator('input[data-slnum=heading]').evaluate("(e,v)=>{e.value=v;e.dispatchEvent(new Event('change'))}", (lh + 90 - 1) % 360 + 1); pg.wait_for_timeout(300)
+        pg.locator('input[data-sl=timeOnFinal]').evaluate("e=>{e.value=12;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(1300)
         g = dc(); t = card().inner_text()
-        check('red: the card says your path is inside the element\'s fragments, the horizontal envelope all red, the red sliders', g['level'] == 'bad' and "Your flight path is inside the element's fragments" in t and len(g['sweep']) > 0 and pg.locator('.wpl .slr.dcl').count() > 0)
-        pg.click('.wshow [data-who=elem]'); pg.wait_for_timeout(500)
-        pg.locator('input[data-sl=releaseAltitude]').evaluate("e=>{e.value=2000;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(1200)
-        check('amber again: no red line on the card', dc()['level'] == 'warn' and 'Your flight path' not in card().inner_text())
+        check('inside the lead\'s fragments if flown together: amber (the spacing clears it), the card says it and what sets the spacing, no red sliders', g['level'] == 'warn' and g['dc']['frag'] and "YOUR FLIGHT PATH IS INSIDE THE LEAD'S FRAGMENTS IF FLOWN TOGETHER" in t.upper() and 'SET BY' in t.upper() and pg.locator('.wpl .slr.dcl').count() == 0)
+        check('vertical envelope: the orange part of the path inside the fragments, the ring with the spacing where it is set', pg.locator('.wpv path[stroke="#ff9f1c"]').count() > 0 and (pg.locator('.wpv circle[stroke="#ff9f1c"]').count() == 0 or ('+%d s' % g['dc']['spacing']) in pg.locator('.wpv').text_content()))
+        pg.locator('input[data-sl=timeOnFinal]').evaluate("e=>{e.value=5;e.dispatchEvent(new Event('input'))}"); pg.wait_for_timeout(300)
         s = pg.evaluate("()=>{const s=__app.wpPage.state();return {split:s.grp.popup.split,who:s.grp.popup.who,inMode:s.inMode}}")
         check('the state keeps the split for the mission file', s == {'split': True, 'who': 'elem', 'inMode': 'popup'})
         pg.click('[data-mode=hadb]'); pg.wait_for_timeout(500)

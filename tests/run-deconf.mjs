@@ -46,17 +46,22 @@ ck(
 
 // ---- the fragment zone
 ck(
-  'the zone: the lethal radius and height around the impacts, from the impact while the fragments fall',
-  A.zone.out == 3600 &&
-    A.zone.up == 2450 &&
+  'the zone: the impacts with their times, the envelope of the bomb, from the impact to the end of the fall',
+  A.zone.out == env.out &&
+    A.zone.up == env.up &&
+    A.zone.env === env &&
     Math.abs(A.zone.t0 - A.r.v.timeOfFall) < 0.01 &&
-    Math.abs(A.zone.t1 - A.zone.t0 - 25) < 0.01
+    Math.abs(A.zone.t1 - A.zone.t0 - env.t) < 0.01 &&
+    Math.abs(A.zone.pts[0].t - A.r.v.timeOfFall) < 0.01
 );
 ck('no bomb envelope, no zone', fragZone(A.r, null) === null);
 
 // ---- two attacks
 const same = deconflict(A, pop({}));
-ck('the same attack twice: the fragments, the spacing covers them', same.frag && same.spacing >= 25);
+ck(
+  'the same attack twice: together in the air at once, a spacing keeps them apart ' + same.spacing,
+  same.met && same.spacing > 0
+);
 ck('the same attack twice with that spacing: not together in the air', !same.close);
 const B0 = pop({}),
   nofrag = deconflict({ trk: A.trk, zone: null }, { trk: B0.trk, zone: null });
@@ -80,7 +85,28 @@ ck(
   'the mirrored attack: the release points apart',
   Math.hypot(M.r.release.n - A.r.release.n, M.r.release.e - A.r.release.e) > SEP
 );
-ck('the mirrored attack on the same target still needs a spacing', mir.frag && mir.spacing > 0);
+ck(
+  'the mirrored attack together on the same target: away before the fragments rise (the time windows), no spacing ' +
+    mir.spacing,
+  !mir.frag && mir.spacing === 0
+);
+// the second just behind the first on the same attack: inside its fragments, a spacing past them, set by a point of the second
+{
+  const tr = (A0, dt) => ({
+    trk: A0.trk.map(p => ({ ...p, t: p.t + dt })),
+    zone: A0.zone && {
+      ...A0.zone,
+      pts: A0.zone.pts.map(c => ({ ...c, t: c.t + dt })),
+      t0: A0.zone.t0 + dt,
+      t1: A0.zone.t1 + dt,
+    },
+  });
+  const late = deconflict(A, tr(pop({}), 8));
+  ck(
+    '8 s behind on the same attack: in the fragments of the first, the spacing set by the second ' + late.spacing,
+    late.frag && late.spacing > 0 && late.by && late.by.me == 'B'
+  );
+}
 // a high release above the fragments, egress high: the paths keep out of the zone
 const hi = { releaseAltitude: 6000, diveAngle: 30, egressAltitude: 6000, ingressAltitude: 500 },
   H1 = pop(hi),

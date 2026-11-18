@@ -1,10 +1,12 @@
 // @ts-check
 // Fragmentation area (lethality), minimum acceptable release altitude (MRA) and safe escape of a bomb drop. Pure functions, no DOM.
-// Source: TO 1F-16CMAM-34-1-1 BMS, 4.2.15 (the three minimum release altitudes), 4.2.16 (safe escape manoeuvres) and the lethality graphs of the
-// general-purpose bombs. The numbers are READ FROM THE GRAPHS (a general estimate, not BMS code): 500 lb class (MK-82) about 3 600 ft out, 2 450 ft up,
-// 25 s; 2 000 lb class (MK-84) about 3 700 ft out, 2 500 ft up, 27 s. The 1 000 lb class is interpolated by weight (approximate).
+// Source: TO 1F-16CMAM-34-1-1 BMS, 4.2.15 (the three minimum release altitudes), 4.2.16 (safe escape manoeuvres) and the maximum fragment envelope
+// graphs of the general-purpose bombs (4.2.7.7), modelled in frag.js: the fragments in space and time, a point dangerous only while they pass it
+// (READ FROM THE GRAPHS: a general estimate, not BMS code). 500 lb class (MK-82) about 3 700 ft out, 3 050 ft up over the impact, 26 s; 2 000 lb class
+// (MK-84) about 3 700 ft out, 3 100 ft up, 28 s. The 1 000 lb class is blended by weight (approximate).
 // Only free-fall general-purpose bombs: cluster, incendiary, armour-piercing and other special bombs are not covered (bombClass answers null).
 import { bombFall, FT_KT } from './popup.js';
+import { fragModel } from './frag.js';
 
 const G0 = 32.2,
   rad = d => (d * Math.PI) / 180;
@@ -13,14 +15,19 @@ export const PULL_G = 5,
   BUFFER = 120,
   ARM_MARGIN = 0.5; // 5 G pull, begun 2 s after the last release; 120 ft ground clearance; the SMS arming delay needs this much more than the arming delay (tolerance and inherent delay, assumed)
 
-// lethal envelope of a bomb of `lb` pounds: radius on the ground (ft), height (ft), time the fragments keep falling after the impact (s)
+// lethal envelope of a bomb of `lb` pounds: radius on the ground (ft), height over the impact (ft), time the last fragments fall after the impact (s),
+// and the model of the fragments in space and time (frag.js): model.win(r, z) the seconds after the impact they pass a point
 export function envelope(lb) {
   lb = +lb;
   if (!(lb > 0)) return null;
-  const f = Math.min(1, Math.max(0, (lb - 500) / 1500)),
-    mix = (a, b) => a + (b - a) * f;
-  return { lb, out: mix(3600, 3700), up: mix(2450, 2500), t: mix(25, 27), approx: lb !== 500 && lb !== 2000 };
+  const M = fragModel(lb);
+  return { lb, out: M.out, up: M.up, t: M.t, approx: lb !== 500 && lb !== 2000, model: M };
 }
+// is a point (r from the impact, z above it) inside the fragments t seconds after the impact?
+export const inFrags = (env, r, z, t) => {
+  const w = env && env.model ? env.model.win(r, z) : null;
+  return !!w && t >= w[0] && t <= w[1];
+};
 
 // a loadout weapon name -> {lb} for the free-fall general-purpose bombs the model covers, null for everything else
 const OUT =
@@ -104,7 +111,7 @@ function inside(v, alt, env) {
     if (s.alt <= 0) return { t: s.t, x: s.x, alt: 0, ground: true, D, path };
     for (let i = 0; i < D.imp.length; i++) {
       const te = D.imp[i].t + D.tof;
-      if (s.t >= te && s.t <= te + env.t && ((s.x - D.imp[i].d) / env.out) ** 2 + (s.alt / env.up) ** 2 <= 1)
+      if (s.t >= te && s.t <= te + env.t && inFrags(env, Math.abs(s.x - D.imp[i].d), s.alt, s.t - te))
         return { t: s.t, x: s.x, alt: s.alt, bomb: i + 1, D, path };
     }
   }

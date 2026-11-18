@@ -6,6 +6,7 @@ import { cbuFootprint } from '../bmsdata/bombdata.js';
 import { analyse, envelope, pickBomb, isGuided, maneuvers, PULL_G, PULL_DELAY } from './lethal.js';
 import { computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, offsetRow, norm } from './popup.js';
 import { attackTrack, fragZone, deconflict, fromSplit } from './deconf.js';
+import { fragOutline } from './frag.js';
 import {
   computeHadb,
   computeToss,
@@ -921,7 +922,7 @@ export function createWeaponsPage(deps) {
   function sweep() {
     SWEEP = {};
     const paths = {};
-    if (!GHO || !DC || !DC.conflict || !res || res.error || !ctx.t) return;
+    if (!GHO || !DC || !DC.close || !res || res.error || !ctx.t) return;
     const m = st.inMode,
       eng = ENG(m),
       base = { ...cur(), ...fuzeInputs() },
@@ -966,8 +967,9 @@ export function createWeaponsPage(deps) {
   }
   // red: a conflict an attack parameter can clear (the paths close together, or fragments another attack keeps out of); amber: only the timing can
   // (fragments met whatever the attack on this target)
-  const dcLevel = () =>
-    !DC || !DC.conflict ? 'ok' : DC.close || (DC.frag && Object.keys(SWEEP).length) ? 'bad' : 'warn';
+  // red: no spacing clears it (the two together in the air whatever the timing): the attack has to change; amber: the spacing clears it (the
+  // fragments pass each point only for a while, so a spacing always keeps out of them)
+  const dcLevel = () => (!DC || !DC.conflict ? 'ok' : DC.close ? 'bad' : 'warn');
   function dcCard() {
     const m = st.inMode;
     if (!ATK.includes(m) || st.mode !== m || !grpOf(m).split) return '';
@@ -979,28 +981,34 @@ export function createWeaponsPage(deps) {
       gp = GHO.split ? GHO.split[1] : sp,
       at = sp == gp ? 'the ' + sp : 'the split point';
     const lv = dcLevel(),
-      why = [DC.frag && 'the fragments', (DC.close || DC.met) && 'the paths in the air'].filter(Boolean).join(' and '),
+      why = [DC.frag && 'out of the fragments', (DC.close || DC.met) && 'apart in the air']
+        .filter(Boolean)
+        .join(' and '),
       state =
         lv == 'bad'
-          ? DC.close
-            ? 'Change the attack: the two meet in the air whatever the timing (the red sliders).'
-            : 'Change the attack, or keep the spacing: the red sliders keep the fragments out.'
+          ? 'Change the attack: the two meet in the air whatever the timing (the red sliders).'
           : lv == 'warn'
-            ? `Timing only: the spacing keeps ${why} apart.`
+            ? `Timing only: the spacing keeps the two ${why}.`
             : 'No conflict.',
       joined = grpOf(m).egr == 'shared',
       other = grpOf(m).who == 'lead' ? sec : 'lead',
       // A is the lead, B the element: inA, the element inside the lead's fragments; inB, the lead inside the element's
       meIn = grpOf(m).who == 'lead' ? DC.inB : DC.inA,
       heIn = grpOf(m).who == 'lead' ? DC.inA : DC.inB,
-      inside =
-        lv == 'bad'
-          ? [
-              meIn && `Your flight path is inside the ${other}'s fragments.`,
-              heIn && `The ${other}'s flight path is inside your fragments.`,
-            ].filter(Boolean)
-          : [];
-    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3><div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div><p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${state}</p>${inside.map(x => `<p class="wwarn"><b>${x}</b></p>`).join('')}${
+      // flown together (no spacing), who would be inside whose fragments
+      inside = [
+        meIn && `Your flight path is inside the ${other}'s fragments if flown together.`,
+        heIn && `The ${other}'s flight path is inside your fragments if flown together.`,
+      ].filter(Boolean);
+    const PHN = { ingress: 'ingress', climb: 'climb', pull: 'pull', dive: 'dive', egress: 'egress' },
+      mineS = grpOf(m).who == 'lead' ? 'A' : 'B',
+      by = DC.by,
+      setBy = !by
+        ? ''
+        : by.air
+          ? 'set by the two paths meeting in the air'
+          : `set by ${by.me == mineS ? 'your' : `the ${other}'s`} ${PHN[by.p.k] || 'path'} at ${fmt(Math.round(by.p.alt / 50) * 50)} ft, ${(dist(by.p, by.c) / FT_NM).toFixed(1)} nm from ${by.me == mineS ? `the ${other}'s` : 'your'} impact`;
+    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3><div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b>${setBy ? `<span class="wsetby">${setBy}</span>` : ''}</div></div><p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${state}</p>${inside.map(x => `<p class="${lv == 'bad' ? 'wwarn' : 'wamb'}"><b>${x}</b></p>`).join('')}${
       joined
         ? `<p class="hint">Joined egress: visual rejoin after the release, checked there only against the fragments. 500 ft of altitude between the two until visual.</p>`
         : ''
@@ -1399,13 +1407,10 @@ export function createWeaponsPage(deps) {
       if (b > a)
         bubble = `<rect x="${px(a).toFixed(1)}" y="${py(sTop).toFixed(1)}" width="${(px(b) - px(a)).toFixed(1)}" height="${Math.max(2, py(m.samMin) - py(sTop)).toFixed(1)}" rx="10" fill="#ff5d5d" fill-opacity=".14" stroke="#ff5d5d" stroke-dasharray="5 4"/><text x="${(px(a) + 8).toFixed(1)}" y="${(py(sTop) + 13).toFixed(1)}" fill="#ff9d9d" font-size="10" font-family="system-ui,sans-serif">SAM WEZ ${fmt(m.samMin)}–${fmt(m.samMax)} ft</text>`;
     }
+    // the maximum fragment envelope of the graph (frag.js) around an impact, in the attack's vertical plane
     const domePath = d => {
-      const a = [];
-      for (let k = 0; k <= 36; k++) {
-        const th = (Math.PI * k) / 36;
-        a.push([d + env.out * Math.cos(th), env.up * Math.sin(th)]);
-      }
-      return path(a) + ' Z';
+      const a = env.model ? fragOutline(env.model, 0).map(([x, z]) => [d + x, z]) : [];
+      return a.length ? path(a) + ' Z' : '';
     };
     const dome = env
       ? dI
@@ -1431,23 +1436,41 @@ export function createWeaponsPage(deps) {
       [GI[0], GI[GI.length - 1]]
         .filter((q, i, a) => a.indexOf(q) === i)
         .forEach(q => {
-          const h = side(q);
-          if (h >= ge.out) return; // the zone does not reach this attack's line
-          const w = Math.sqrt(ge.out * ge.out - h * h),
+          const h = side(q),
             d = along(q),
-            a = [];
-          for (let k = 0; k <= 36; k++) {
-            const th = (Math.PI * k) / 36;
-            a.push([d + w * Math.cos(th), ge.up * Math.sin(th)]);
-          }
-          gdome += `<path d="${path(a)} Z" fill="#f0c040" fill-opacity=".08" stroke="#f0c040" stroke-width="1.4" stroke-dasharray="2 3"/>`;
+            a = ge.model ? fragOutline(ge.model, h).map(([x, z]) => [d + x, z]) : [];
+          if (a.length)
+            gdome += `<path d="${path(a)} Z" fill="#f0c040" fill-opacity=".08" stroke="#f0c040" stroke-width="1.4" stroke-dasharray="2 3"/>`;
         });
       const lead = grpOf(st.inMode).who == 'lead',
-        p = DC && (lead ? DC.inB : DC.inA);
-      if (p) {
-        const x = along(p);
-        if (x >= x0 && x <= x1 && p.alt <= ymax)
-          gin = `<circle cx="${px(x).toFixed(1)}" cy="${py(p.alt).toFixed(1)}" r="7" fill="none" stroke="#ff9f1c" stroke-width="2.2"><title>Inside the fragments of the ${lead ? secName() : 'lead'}: the spacing keeps you out of them</title></circle>`;
+        mine = lead ? 'A' : 'B',
+        hotP = DC ? (lead ? DC.hotA : DC.hotB) : [];
+      // the part of this path inside the other's fragments if the two flew together: what the spacing keeps it out of
+      if (hotP && hotP.length) {
+        const runs = [];
+        let cur = [];
+        hotP.forEach((p, i) => {
+          if (i && dist(p, hotP[i - 1]) > 600) {
+            runs.push(cur);
+            cur = [];
+          }
+          cur.push([along(p), p.alt]);
+        });
+        runs.push(cur);
+        gin += runs
+          .filter(r => r.length > 1)
+          .map(
+            r =>
+              `<path d="${path(r)}" fill="none" stroke="#ff9f1c" stroke-width="4" stroke-linecap="round" opacity=".85"><title>Inside the fragments of the ${lead ? secName() : 'lead'} if the two flew together: the spacing keeps you out</title></path>`
+          )
+          .join('');
+      }
+      // the point that sets the spacing, when it is on this path
+      const by = DC && DC.by;
+      if (by && !by.air && by.me == mine && by.p) {
+        const x = along(by.p);
+        if (x >= x0 && x <= x1 && by.p.alt <= ymax)
+          gin += `<circle cx="${px(x).toFixed(1)}" cy="${py(by.p.alt).toFixed(1)}" r="7" fill="none" stroke="#ff9f1c" stroke-width="2.2"><title>This point sets the spacing: +${DC.spacing} s after the lead</title></circle><text x="${(px(x) + 10).toFixed(1)}" y="${(py(by.p.alt) - 8).toFixed(1)}" fill="#ffb55c" font-size="11" font-weight="700" font-family="system-ui,sans-serif">+${DC.spacing} s</text>`;
       }
     }
     const seg4 = (d, k) =>
