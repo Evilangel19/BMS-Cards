@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: the egress (its heading, its range and the OA2 Egress point) starts at the release point instead of the target, in Pop-up, HADB and TOSS.
+- New: a shared egress for a split flight (the element goes out to the lead's egress point and rejoins visually, optionally 1 000 ft higher).
+- Changed: Save closes the Settings window.
 - New: a split of the flight on the Weapons page: in Pop-up, HADB and TOSS, Split gives the element (or wingman) an attack of its own, born as the mirror of the lead's (Rejoin drops it), LEAD / ELEMENT chooses the one shown; the other group is drawn in white; a deconfliction card gives the spacing after the lead, amber when only the timing clears a conflict, red (with the sliders that clear it) when an attack parameter can. Apply writes the attack of the seat chosen on the Datacard. The check starts at the split point (pop-up Type 1 PUP, Type 2 VRP; HADB line-up point; TOSS OA2 or VRP), since the flight shares the ingress.
 - Fixed: "Edit points" flickered on the Weapons and HARM pages when they were drawn again.
 - New: Weather cards for the Kneeboard (Weather page > Add card), three kinds. SIGWX and RADAR (satellite clouds and radar echoes): the chart around the route with smooth isobars and H / L, the profile along the route (clouds, rain, fog, 0 °C, contrails, winds), the METAR and TAF of departure, target, landing and alternate in plain words, the contrail levels. WIND: winds and temperatures aloft at FL060, FL180 and FL300 at the target time.

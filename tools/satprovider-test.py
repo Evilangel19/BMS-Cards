@@ -25,7 +25,7 @@ try:
         def settings(on, url='', key='', credit='', z='18'):
             open_map()
             switch(True); pg.fill('#c-url', url); pg.fill('#c-key', key); pg.fill('#c-attr', credit); pg.fill('#c-zoom', z); switch(on)
-            pg.click('#cfgsave'); pg.wait_for_timeout(600); pg.click('#cfgcancel'); pg.wait_for_timeout(400)
+            pg.click('#cfgsave'); pg.wait_for_timeout(600); pg.wait_for_timeout(400)  # Save closes the window
         open_map()
         check('the Settings have the own satellite layer rows (page Map)', pg.locator('[data-a=sw][data-k=sat]').count() == 1 and pg.locator('#c-url').count() == 1 and pg.locator('#c-key').count() == 1 and pg.locator('#c-attr').count() == 1 and pg.locator('#c-zoom').count() == 1)
         pg.click('#nv-general'); pg.wait_for_timeout(300)

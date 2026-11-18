@@ -368,7 +368,6 @@ export async function openSettings() {
           : '<span class="s-okm">' + ic('check', 's') + '</span>';
   }
   const allFolders = () => CFG_PATHS.forEach(([k]) => folderStatus(k));
-  const placeholders = () => CFG_PATHS.forEach(([k]) => (q('f-' + k).placeholder = ph(k)));
   function fillDiag() {
     q('p-diag').innerHTML = diagInner(prog, reportOpen);
     const n = warnCount(),
@@ -479,12 +478,8 @@ export async function openSettings() {
         }
       }
       fillCampaigns();
-      if (dlg.open) {
-        placeholders();
-        allFolders();
-        fillDiag();
-        refresh();
-      }
+      // saved: the window closes (its steps are easy to undo, and the import of settings asks on its own)
+      if (dlg.open) dlg.close();
     } catch (e) {
       loading = false;
       if (dlg.open) refresh();
@@ -575,7 +570,7 @@ export function stepper(i) {
   }
   b.onclick = e => {
     const t = e.target.closest('button');
-    if (!t) return;
+    if (!t || i.disabled) return; // a locked box stays as it is
     try {
       t === b.firstChild ? i.stepUp() : i.stepDown();
     } catch (x) {}

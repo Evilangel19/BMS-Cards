@@ -81,6 +81,7 @@ export function attackTrack(segs, v, kind) {
   }
   const relP = pre[pre.length - 1];
   t = 0;
+  post.forEach(p => (p.post = true)); // after the release
   let last = relP;
   post.forEach(p => {
     t += dist(last, p) / fps;
@@ -128,9 +129,10 @@ export function fragZone(r, env) {
 }
 const inZone = (p, z) => !!z && p.alt < z.up && z.pts.some(c => dist(c, p) < z.out);
 
-/** A = the first attack (the lead), B = the second; each {trk, zone}. Returns the conflict and the least spacing (s after the lead) that keeps each out of the
+/** A = the first attack (the lead), B = the second; each {trk, zone}; opt.shared: one egress for the two, a visual rejoin after the release (the
+ * paths are not checked against each other there, the fragments are). Returns the conflict and the least spacing (s after the lead) that keeps each out of the
  * fragments of the other: B must not be in A's zone while A's fragments fall, and A must be past B's zone before B's bombs land. */
-export function deconflict(A, B) {
+export function deconflict(A, B, opt = {}) {
   const inA = B.trk.filter(p => inZone(p, A.zone)),
     inB = A.trk.filter(p => inZone(p, B.zone));
   let need = 0;
@@ -143,7 +145,14 @@ export function deconflict(A, B) {
     let c = null;
     for (const a of A.trk)
       for (const b of B.trk) {
-        if (Math.abs(a.alt - b.alt) >= SEP_ALT || fresh(a) || fresh(b) || Math.abs(a.t - (b.t + dt)) > SEP_T) continue;
+        if (
+          Math.abs(a.alt - b.alt) >= SEP_ALT ||
+          fresh(a) ||
+          fresh(b) ||
+          (opt.shared && (a.post || b.post)) ||
+          Math.abs(a.t - (b.t + dt)) > SEP_T
+        )
+          continue;
         const d = dist(a, b);
         if (d < SEP && (!c || d < c.d)) c = { d, n: (a.n + b.n) / 2, e: (a.e + b.e) / 2 };
       }

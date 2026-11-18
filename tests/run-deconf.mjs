@@ -125,5 +125,18 @@ ck(
     Math.hypot(T1m.pup.n - T1.pup.n, T1m.pup.e - T1.pup.e) < 200
 );
 
+// the shared egress: together after the release is a visual rejoin, not a conflict
+const pt = (n, e, t, post) => ({ n, e, alt: 2000, t, s: 5000, post });
+const sa = {
+    trk: [pt(0, -9000, -10), pt(0, -3000, -2), pt(0, 0, 0), pt(3000, 0, 4, true), pt(6000, 0, 8, true)],
+    zone: null,
+  },
+  sb = {
+    trk: [pt(0, 9000, -10), pt(0, 3000, -2), pt(0, 1600, 0), pt(3000, 100, 4, true), pt(6000, 50, 8, true)],
+    zone: null,
+  };
+ck('own egress: together after the release is a conflict', !!deconflict(sa, sb).met || !!deconflict(sa, sb).close);
+ck('shared egress: not checked after the release', !deconflict(sa, sb, { shared: true }).conflict);
+
 console.log(bad ? `run-deconf.mjs: ${bad} of ${n} FAILED` : `run-deconf.mjs: OK - ${n} checks`);
 if (bad) process.exit(1);

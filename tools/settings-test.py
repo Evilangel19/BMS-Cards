@@ -33,7 +33,8 @@ try:
             if panel: pg.click('#nv-' + panel); pg.wait_for_timeout(300)
         def dot(pg, panel): return pg.evaluate("p=>document.querySelector('#nv-'+p+' .s-nd').classList.contains('on')", panel)
         def sw(pg, key): return pg.get_attribute('[data-a=sw][data-k=%s]' % key, 'aria-checked') == 'true'
-        def close(pg): pg.click('#cfgcancel'); pg.wait_for_timeout(350)
+        def close(pg):
+            if opened(pg): pg.click('#cfgcancel'); pg.wait_for_timeout(350)
 
         # ================================================================ in the browser
         print('--- the browser version')
@@ -75,25 +76,26 @@ try:
         pg.click('[data-a=sw][data-k=form]'); pg.click('[data-a=sw][data-k=others]'); pg.click('[data-a=sw][data-k=mfd]'); pg.wait_for_timeout(250)
         pg.click('#cfgsave'); pg.wait_for_timeout(700)
         check('Save: the form and Other factions change, MFD 3 and 4 is saved', pg.evaluate("()=>__app.ST.FORMON") == (not form0) and pg.evaluate("()=>__app.ST.OBSERVER") == (not obs0) and pg.evaluate("()=>__app.CFG.ui.showMfd34") is True)
-        check('the window stays open and says Saved, the dots are gone, Save is off, the button says Close', opened(pg) and 'Saved' in pg.inner_text('#cfgnote') and not dot(pg, 'datacard') and pg.is_disabled('#cfgsave') and pg.inner_text('#cfgcancel') == 'Close')
-        pg.wait_for_timeout(2800)
-        check('"Saved" goes away after a moment', pg.inner_text('#cfgnote') == '')
+        check('Save closes the window', not opened(pg))
+        open_settings(pg, 'datacard')
+        check('opened again: no dots, Save is off, the button says Close', not dot(pg, 'datacard') and pg.is_disabled('#cfgsave') and pg.inner_text('#cfgcancel') == 'Close')
         check('the choices of the form and of the other factions are remembered by the browser', pg.evaluate("()=>[localStorage.getItem('bmsform'),localStorage.getItem('bmsobs')]") == [('1' if not form0 else '0'), ('1' if not obs0 else '0')])
         # leave them as they were
         pg.click('[data-a=sw][data-k=form]'); pg.click('[data-a=sw][data-k=others]'); pg.click('[data-a=sw][data-k=mfd]'); pg.click('#cfgsave'); pg.wait_for_timeout(600)
 
         # animations: acts when saved
-        pg.click('#nv-general'); pg.wait_for_timeout(250)
+        open_settings(pg, 'general')
         pg.click('[data-a=sw][data-k=anim]'); pg.wait_for_timeout(250)
         check('Animations: the program keeps its animations until Save', not pg.evaluate("()=>document.documentElement.classList.contains('noanim')"))
         pg.click('#cfgsave'); pg.wait_for_timeout(600)
         check('Animations: off after Save (the page gets the class noanim)', pg.evaluate("()=>document.documentElement.classList.contains('noanim')"))
         check('and the window itself obeys it: no transition on its switches', pg.evaluate("()=>getComputedStyle(document.querySelector('#cfg .s-sw')).transitionDuration.split(',').every(x=>x.trim()=='0s')"))
+        open_settings(pg, 'general')
         pg.click('[data-a=sw][data-k=anim]'); pg.click('#cfgsave'); pg.wait_for_timeout(600)
         check('Animations: on again after Save', not pg.evaluate("()=>document.documentElement.classList.contains('noanim')") and pg.evaluate("()=>getComputedStyle(document.querySelector('#cfg .s-sw')).transitionDuration!='0s'"))
 
         # numbers
-        pg.click('#nv-mission'); pg.wait_for_timeout(250)
+        open_settings(pg, 'mission')
         r0 = pg.input_value('#c-rad')
         pg.fill('#c-rad', ''); pg.type('#c-rad', '9a8x7'); pg.wait_for_timeout(100)
         check('Mission radius takes digits only (3 at most) and not more than 300: "9a8x7" is 300', pg.input_value('#c-rad') == '300', pg.input_value('#c-rad'))
@@ -117,14 +119,16 @@ try:
         check('opened again: the same values and no dot', pg.input_value('#c-rad') == '45' and 'one.example' in pg.input_value('#c-trk') and not dot(pg, 'mission'))
 
         # the satellite layer
-        pg.click('#nv-map'); pg.wait_for_timeout(250)
+        open_settings(pg, 'map')
         check('Map: the fields of the own layer are closed until the switch is on', not pg.is_visible('#c-url'))
         pg.click('[data-a=sw][data-k=sat]'); pg.wait_for_timeout(350)
         check('and open with it (a part that opens with a height transition)', pg.is_visible('#c-url') and pg.evaluate("()=>getComputedStyle(document.getElementById('satbox')).transitionProperty.includes('grid-template-rows')"))
         pg.fill('#c-zoom', '99'); pg.fill('#c-url', 'https://t.example/{z}/{x}/{y}'); pg.click('#cfgsave'); pg.wait_for_timeout(600)
         check('the deepest zoom is kept between 5 and 22', pg.evaluate("()=>__app.CFG.map.satMaxZoom") == 22 and pg.evaluate("()=>__app.CFG.map.satOn") is True)
+        open_settings(pg, 'map')
         pg.fill('#c-zoom', '1'); pg.click('#cfgsave'); pg.wait_for_timeout(600)
         check('(and 5 at least)', pg.evaluate("()=>__app.CFG.map.satMaxZoom") == 5)
+        open_settings(pg, 'map')
         pg.click('[data-a=sw][data-k=sat]'); pg.fill('#c-zoom', ''); pg.click('#cfgsave'); pg.wait_for_timeout(600)
         check('(an empty box goes back to what it was, as the radius does)', pg.evaluate("()=>__app.CFG.map.satMaxZoom") == 5 and pg.evaluate("()=>__app.CFG.map.satOn") is False)
         close(pg)
@@ -177,8 +181,9 @@ try:
         check('Save names the folders that do not exist and asks (Cancel = go back)', len(boxes) == 1 and 'DTC folder: C:\\Typo\\Config' in boxes[0] and 'BMS install folder' not in boxes[0] and 'Campaigns folder' not in boxes[0], str(boxes))
         check('Cancel on that question: nothing is saved and the window still has the changes', pg.evaluate("()=>__app.CFG.paths.dtc") == '' and dot(pg, 'folders') and not pg.is_disabled('#cfgsave'))
         boxes.clear(); pg.ans[0] = True; pg.click('#cfgsave'); pg.wait_for_timeout(1500)
-        check('OK on the question: saved anyway', pg.evaluate("()=>__app.CFG.paths.dtc") == 'C:\\Typo\\Config' and pg.evaluate("()=>__app.CFG.paths.bmsInstall") == 'C:\\BMS' and 'Saved' in pg.inner_text('#cfgnote'))
+        check('OK on the question: saved anyway, the window closes', pg.evaluate("()=>__app.CFG.paths.dtc") == 'C:\\Typo\\Config' and pg.evaluate("()=>__app.CFG.paths.bmsInstall") == 'C:\\BMS' and not opened(pg))
         check('the settings file of the program was written', json.loads(desk.text('D:\\Games\\BMS-Cards\\config.json'))['paths']['dtc'] == 'C:\\Typo\\Config')
+        open_settings(pg, 'folders')
         check('after the save the statuses and the entry of the list are checked again (DTC: not found; the entry counts the folders to look at)', 'Not found' in st('dtc') and pg.inner_text('#nvf') == str(pg.locator('#p-folders .s-st.wn').count()) and pg.locator('#p-folders .s-st.wn').count() == 2)
         check('no permission was refused, and the test file of the folder is not written again by opening the window', not desk.denied)
         # the diagnostics of the desktop version

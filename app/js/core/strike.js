@@ -83,12 +83,16 @@ export const TOSS_LIMITS = {
 const unit = h => ({ n: Math.cos(rad(h)), e: Math.sin(rad(h)) });
 const add = (p, q, k = 1) => ({ n: p.n + q.n * k, e: p.e + q.e * k });
 
-// the common tail: stick, fuze, OA2 / egress, wheel
-function tail(target, attack, v, fall, pulses, gsFps, extra) {
+// the common tail: stick, fuze, OA2 / egress (out along the egress heading from the release point), wheel
+function tail(target, attack, v, fall, pulses, gsFps, extra, release) {
   const stickLen = (pulses - 1) * v.stickSpacing,
     egressHdg = egressHeading(v, attack);
   const oa2 =
-    v.oa2Mode === 'target' ? { ...target } : v.oa2Mode === 'egress' ? project(target, egressHdg, v.egressRange) : null;
+    v.oa2Mode === 'target'
+      ? { ...target }
+      : v.oa2Mode === 'egress'
+        ? project(release || target, egressHdg, v.egressRange)
+        : null;
   return {
     impacts: stickImpacts(target, attack, v, pulses, stickLen, gsFps),
     fuze: fuzeData(fall, v),
@@ -188,12 +192,13 @@ export function computeHadb(target, ref, inp) {
       [[-relRange, v.releaseAltitude], 'Release · ' + Math.round(v.releaseAltitude) + ' ft', '#4aa3ff'],
     ],
   };
-  const t = tail(target, attack, v, fall, pulses, gsFps, {});
+  const t = tail(target, attack, v, fall, pulses, gsFps, {}, release);
   const slant = Math.hypot(dist(pup, target), ingressAlt);
   return {
     target,
     pup,
     vrp: release,
+    release,
     oa,
     oa2: t.oa2,
     oa2Alt: t.oa2Alt,
@@ -206,7 +211,7 @@ export function computeHadb(target, ref, inp) {
         ['pull', arc],
         ['dive', [endTurn, release]],
         ['fall', [release, target]],
-        ...(t.oa2 && v.oa2Mode == 'egress' ? [['egress', [target, t.oa2]]] : []),
+        ...(t.oa2 && v.oa2Mode == 'egress' ? [['egress', [release, t.oa2]]] : []),
       ],
       marks: [
         [oa, 'OA1', '#a78bfa', 'dia'],
@@ -354,7 +359,7 @@ export function computeToss(target, ref, inp) {
       [[xRel, relAlt], 'Release · ' + Math.round(relAlt) + ' ft', '#4aa3ff'],
     ],
   };
-  const tl = tail(target, attack, { ...v, releaseAltitude: relAlt }, fall, pulses, gsFps, {});
+  const tl = tail(target, attack, { ...v, releaseAltitude: relAlt }, fall, pulses, gsFps, {}, release);
   const preTurn = vrp
     ? [
         ['ingress', [oa2L, vrp]],
@@ -380,7 +385,7 @@ export function computeToss(target, ref, inp) {
         ['ingress', [oa, pup]],
         ['climb', [pup, release]],
         ['fall', [release, target]],
-        ['egress', [target, project(target, tl.egressHdg, v.egressRange)]],
+        ['egress', [release, project(release, tl.egressHdg, v.egressRange)]],
       ],
       marks: [
         ...(vrp

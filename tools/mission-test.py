@@ -77,7 +77,7 @@ try:
         check('the hourly maps come back with the mission', pg.evaluate("()=>__app.WXS.size") == nk)
         # the radius is a setting
         pg.click('#cfgbtn'); pg.wait_for_timeout(500); pg.click('#nv-mission'); pg.wait_for_timeout(300)
-        pg.fill('#c-rad', '25'); pg.click('#cfgsave'); pg.wait_for_timeout(500); pg.click('#cfgcancel'); pg.wait_for_timeout(400)
+        pg.fill('#c-rad', '25'); pg.click('#cfgsave'); pg.wait_for_timeout(500); pg.wait_for_timeout(400)  # Save closes the window
         o2 = json.loads(pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())"))
         check('the mission radius comes from the Settings (25 nm)', o2['package'].get('radiusNm') == 25)
         # standalone: the map and the weapons / missiles pages work from the mission alone
