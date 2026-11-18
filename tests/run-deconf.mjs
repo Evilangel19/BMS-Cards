@@ -56,8 +56,19 @@ ck('no bomb envelope, no zone', fragZone(A.r, null) === null);
 
 // ---- two attacks
 const same = deconflict(A, pop({}));
-ck('the same attack twice: a conflict (fragments and the same path)', same.conflict && same.frag && !!same.close);
-ck('the same attack twice: the spacing covers the fragments', same.spacing >= 25);
+ck('the same attack twice: the fragments, the spacing covers them', same.frag && same.spacing >= 25);
+ck('the same attack twice with that spacing: not together in the air', !same.close);
+const B0 = pop({}),
+  nofrag = deconflict({ trk: A.trk, zone: null }, { trk: B0.trk, zone: null });
+ck(
+  'the same attack twice without fragments: together at the same time, a spacing keeps them apart ' + nofrag.spacing,
+  nofrag.met && !nofrag.close && nofrag.spacing > 0 && nofrag.spacing <= 5
+);
+// head on along one line for a long way: no spacing (up to MAX_DT) keeps them apart, a conflict of the attacks
+const line = (n0, dn) =>
+    Array.from({ length: 400 }, (_, i) => ({ n: n0 + dn * i * 250, e: 0, alt: 1000, t: i * 0.5, s: 2000 + i * 250 })),
+  head = deconflict({ trk: line(0, 1), zone: null }, { trk: line(99750, -1), zone: null });
+ck('head on along one line: no spacing clears it', !!head.close && head.conflict);
 const far = deconflict(A, pop({}, project(T, 90, 12 * 6076)));
 ck('another target 12 nm away: no conflict, no spacing', !far.conflict && far.spacing === 0 && far.zones);
 // the split attack: the same ingress, the turn to the other side, the attack heading mirrored about the climb heading
@@ -96,6 +107,13 @@ ck('no split point: the whole path', fromSplit(A.trk, A.zone, null).trk === A.tr
 const far2 = pop({}, project(T, 90, 12 * 6076)),
   shared = deconflict(fromSplit(A.trk, A.zone, A.r.pup), fromSplit(far2.trk, far2.zone, far2.r.pup));
 ck('apart after their split points: no conflict', !shared.conflict);
+// leaving the same split point together is not a close approach
+const T1a = computePopup(T, R, { heading: 360, side: 'right', profileType: 1 }),
+  T1b = computePopup(T, R, { heading: (2 * T1a.v.approachHeading - 360 + 720) % 360, side: 'left', profileType: 1 }),
+  sd = r => fromSplit(attackTrack(segsOf(r), r.v, 'popup'), fragZone(r, env), r.pup),
+  tog = deconflict(sd(T1a), sd(T1b));
+ck('Type 1 and its mirror from the same PUP: not too close ' + JSON.stringify(tog.close), !tog.close);
+ck('from the split: the distance flown', sd(T1a).trk[0].s === 0 && sd(T1a).trk.at(-1).s > 10000);
 // the Type 1 mirror about the approach: the same approach and the same PUP
 const T1 = computePopup(T, R, { heading: 360, side: 'right', profileType: 1 }),
   h1 = T1.v.approachHeading,

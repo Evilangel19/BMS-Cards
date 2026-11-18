@@ -141,22 +141,43 @@ export function createWeaponsPage(deps) {
   const cur = () => (st.mode == 'hadb' ? st.hadb : st.mode == 'toss' ? st.toss : st.inp);
   const ENG = m => (m == 'hadb' ? computeHadb : m == 'toss' ? computeToss : computePopup);
 
-  // ---------- the aircraft of the flight: FLIGHT (all of it), LEAD (1-2; 1 in a two-ship) and ELEMENT (3-4; 3 in a three-ship) or WINGMAN (2).
-  // Each attack section (Pop-up, HADB, TOSS) keeps a set for each: the panel shows, and the sliders change, the set chosen; FLIGHT is the set this page always had.
-  // The set shown lives in the usual fields (st.inp / st.hadb / st.toss and SHARED); the others wait in st.grp[section], and while a group is shown the
-  // flight's values wait in st.fls. st.inMode: the section whose set is in the fields (the last attack section shown).
+  // ---------- the flight and its split: one attack for the whole flight (the lead's), or, after Split, a second one for the ELEMENT (3-4; 3 in a three-ship)
+  // or the WINGMAN (2 in a two-ship). Each attack section (Pop-up, HADB, TOSS) has its own split. The element's attack starts as the mirror of the
+  // lead's (Mirror on) and becomes its own when one of its controls is changed; Rejoin drops it.
+  // The attack shown lives in the usual fields (st.inp / st.hadb / st.toss and SHARED): the lead's, or while the element's is shown, the element's, the
+  // lead's then waiting in st.fls. st.grp[section] = {split, who ('lead' / 'elem': the one shown), elem (its set when not shown), mir}.
+  // st.inMode: the section whose attack is in the fields (the last attack section shown).
   const SHARED = ['ref', 'oa1', 'refPt', 'tgt', 'bomb', 'fz'],
-    WHO = ['flight', 'lead', 'elem'],
+    WHO = ['lead', 'elem'],
     PK = m => (m == 'popup' ? 'inp' : m),
     PD = m => (m == 'hadb' ? HADB_DEFAULTS : m == 'toss' ? TOSS_DEFAULTS : DEFAULTS),
     clone = o => (o == null ? o : JSON.parse(JSON.stringify(o)));
   const grpOf = m => {
     if (!st.grp || typeof st.grp != 'object') st.grp = {};
     const g = st.grp[m];
-    if (!g || typeof g != 'object' || !WHO.includes(g.who))
-      st.grp[m] = { who: 'flight', lead: null, elem: null, mir: false };
+    if (!g || typeof g != 'object' || !WHO.includes(g.who) || typeof g.split != 'boolean')
+      st.grp[m] = { split: false, who: 'lead', elem: null, mir: false };
     return st.grp[m];
   };
+  // the sets of 1.3.0-beta.15 / 16 (FLIGHT, LEAD and ELEMENT): the lead's becomes the attack, the element's stays as the split
+  function migrate() {
+    const G = st.grp;
+    if (!G || typeof G != 'object' || !Object.values(G).some(g => g && (g.who == 'flight' || 'lead' in g))) return;
+    const m0 = st.inMode,
+      g0 = G[m0];
+    if (ATK.includes(m0) && st.fls && g0 && g0.who != 'flight') {
+      g0[g0.who] = snapOf(m0);
+      putSnap(m0, st.fls);
+    }
+    st.fls = null;
+    st.inMode = null;
+    ATK.forEach(m => {
+      const g = G[m];
+      if (!g || typeof g != 'object' || typeof g.split == 'boolean') return;
+      if (g.lead) putSnap(m, g.lead);
+      G[m] = { split: !!(g.elem || g.mir), who: 'lead', elem: g.elem || null, mir: !!g.mir };
+    });
+  }
   // the seat chosen on the Datacard (0-3) and how many aircraft the flight has (4 when there is no flight: the groups stay possible)
   const seatInfo = () => {
     try {
@@ -178,7 +199,7 @@ export function createWeaponsPage(deps) {
           : z == 3
             ? 'ELEMENT 3'
             : 'ELEMENT 3-4'
-        : 'FLIGHT';
+        : '';
   };
   const secName = () => (seatInfo().size <= 2 ? 'wingman' : 'element');
   const snapOf = m => {
@@ -235,20 +256,22 @@ export function createWeaponsPage(deps) {
     st.inMode = null;
     if (!ATK.includes(m)) return;
     const g = grpOf(m);
-    if (g.who == 'flight' || !st.fls) return;
-    g[g.who] = snapOf(m);
+    if (g.who != 'elem' || !st.fls) return;
+    g.elem = snapOf(m);
     putSnap(m, st.fls);
     st.fls = null;
   }
   function enter(m) {
     st.inMode = m;
     const g = grpOf(m);
-    if (seatInfo().size <= 1) g.who = 'flight';
-    if (g.who == 'flight') return;
+    if (seatInfo().size <= 1) g.split = false;
+    if (!g.split) g.who = 'lead';
+    if (g.who != 'elem') return;
     st.fls = snapOf(m);
-    putSnap(m, g.who == 'elem' && g.mir ? mirrorOf(m, g.lead || st.fls) : g[g.who] || clone(st.fls));
+    putSnap(m, g.mir || !g.elem ? mirrorOf(m, st.fls) : g.elem);
   }
   const sync = () => {
+    migrate();
     if (ATK.includes(st.mode) && st.inMode !== st.mode) {
       leave();
       enter(st.mode);
@@ -285,23 +308,19 @@ export function createWeaponsPage(deps) {
       ctx = C0;
     }
   }
-  // the group of the seat chosen on the Datacard, and the set Apply writes for it (the flight's when that group has none)
+  // the attack Apply writes: the element's for the seats of the element (3-4; 2 in a two-ship) when the flight is split, else the lead's
   const seatWho = () => {
     const s = seatInfo();
-    if (s.size <= 1) return 'flight';
-    return (s.size <= 2 ? s.n >= 1 : s.n >= 2) ? 'elem' : 'lead';
+    return s.size > 1 && (s.size <= 2 ? s.n >= 1 : s.n >= 2) ? 'elem' : 'lead';
   };
   const applyWho = () => {
     const m = st.inMode;
-    if (!ATK.includes(m)) return 'flight';
-    const g = grpOf(m),
-      w = seatWho();
-    return w != 'flight' && (g.who == w || g[w] || (w == 'elem' && g.mir)) ? w : 'flight';
+    return ATK.includes(m) && grpOf(m).split && seatWho() == 'elem' ? 'elem' : 'lead';
   };
-  // the aircraft whose loadout gives the bomb: 1 for the flight and the lead, 3 for the element (2 for the wingman)
+  // the aircraft whose loadout gives the bomb: 1 for the lead, 3 for the element (2 for the wingman)
   const acOf = () => {
     const m = st.inMode,
-      w = ATK.includes(m) ? grpOf(m).who : 'flight';
+      w = ATK.includes(m) ? grpOf(m).who : 'lead';
     return w == 'elem' ? (seatInfo().size <= 2 ? 1 : 2) : 0;
   };
   // a change of the element's own values ends its mirror
@@ -782,14 +801,14 @@ export function createWeaponsPage(deps) {
   let GHO = null,
     DC = null,
     SWEEP = {},
+    DCK = '',
     sweepT = 0;
   function ghost() {
     const m = st.inMode;
     if (!ATK.includes(m) || st.mode !== m || !res || res.error) return null;
     const g = grpOf(m);
-    if (g.who == 'flight') return null;
+    if (!g.split) return null;
     const o = g.who == 'lead' ? 'elem' : 'lead';
-    if (o == 'elem' && !g.elem && !g.mir) return null; // the lead always has an attack: its own, or the flight's
     return withGroup(o, () => {
       if (!res || res.error || !ctx.t) return null;
       const vip = st.ref == 'vip' ? ctx.vipPos : null,
@@ -876,33 +895,40 @@ export function createWeaponsPage(deps) {
       SWEEPK = 'paths';
     }
   }
+  // red: a conflict an attack parameter can clear (the paths close together, or fragments another attack keeps out of); amber: only the timing can
+  // (fragments met whatever the attack on this target)
+  const dcLevel = () =>
+    !DC || !DC.conflict ? 'ok' : DC.close || (DC.frag && Object.keys(SWEEP).length) ? 'bad' : 'warn';
   function dcCard() {
     const m = st.inMode;
-    if (!ATK.includes(m) || st.mode !== m || grpOf(m).who == 'flight') return '';
+    if (!ATK.includes(m) || st.mode !== m || !grpOf(m).split) return '';
     const sec = secName(),
       Sec = sec[0].toUpperCase() + sec.slice(1);
-    if (!GHO)
-      return `<div class="wcard wdc"><h3>Lead and ${sec}</h3><p class="hint">The ${sec} has no attack of its own yet: show it with the aircraft button, or press Mirror there.</p></div>`;
-    if (!DC || !res || res.error) return '';
+    if (!GHO || !DC || !res || res.error) return '';
     // the split point of the attack shown (the lead's has the same name unless the two differ in the kind of attack)
     const sp = splitOf(res)[1],
       gp = GHO.split ? GHO.split[1] : sp,
       at = sp == gp ? 'the ' + sp : 'the split point',
       L = [];
+    const lv = dcLevel();
     if (DC.frag)
       L.push(
-        'One attack passes through the fragment zone of the other: only the timing keeps it out (the spacing above), or change the attack (the red sliders).'
+        lv == 'warn' && !DC.close
+          ? `On this target the fragments of the other attack are met whatever the attack: the timing keeps them out, the ${sec} at ${at} at least ${DC.spacing} s after the lead.`
+          : 'One attack passes through the fragment zone of the other: the timing keeps it out (the spacing above), or change the attack (the red sliders).'
       );
     if (DC.close)
       L.push(
-        `The two paths come within ${fmt(Math.round(DC.close.d / 50) * 50)} ft of each other at about the same altitude.`
+        `The two come within ${fmt(Math.round(DC.close.d / 50) * 50)} ft of each other at about the same altitude and time, whatever the spacing: change the attack (the red sliders).`
       );
+    else if (DC.met) L.push(`Flown together the two would meet in the air after ${at}: the spacing keeps them apart.`);
     if (!DC.conflict) L.push("No conflict: each path keeps out of the other's fragments, and they stay apart.");
-    return `<div class="wcard wdc${DC.conflict ? ' bad' : ''}"><h3>Lead and ${sec}</h3>${
-      DC.zones
-        ? `<div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div>`
-        : '<p class="hint">Fragments not calculated (no bomb with a lethal envelope): the spacing is unknown.</p>'
-    }${L.map(x => `<p class="${DC.conflict ? 'wwarn' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">From ${at} on: before it the two fly together, so it is not checked, and the times count from it. An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
+    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3>${
+      `<div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div>` +
+      (DC.zones
+        ? ''
+        : '<p class="hint">Fragments not counted (no bomb with a lethal envelope): the spacing keeps the two apart in the air only.</p>')
+    }${L.map(x => `<p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${x}</p>`).join('')}<p class="hint wnote">From ${at} on: before it the two fly together, so it is not checked, and the times count from it. An estimate: the paths at the ground speed with an altitude per phase, the fragments of the first and the last bomb while they fall. The white drawing is the other group.</p></div>`;
   }
   function drawMap(r) {
     const { L, map, WL } = M,
@@ -1696,7 +1722,8 @@ export function createWeaponsPage(deps) {
       }
       deps.applyBtn.classList.toggle('nil', !p);
       deps.applyBtn.textContent =
-        'Apply to the DTC' + (tw == 'lead' ? ' (lead)' : tw == 'elem' ? ' (' + secName() + ')' : '');
+        'Apply to the DTC' +
+        (ATK.includes(m) && grpOf(m).split ? (tw == 'elem' ? ' (' + secName() + ')' : ' (lead)') : '');
     }
     if (deps.clearBtn) {
       let n = false;
@@ -1993,7 +2020,10 @@ export function createWeaponsPage(deps) {
     compute();
     GHO = ghost();
     DC = deconfNow();
-    if (!DC || !DC.conflict) SWEEP = {};
+    // the red sliders belong to the kind of conflict they were found for
+    const dk = DC && DC.conflict ? DC.frag + '|' + !!DC.close : '';
+    if (dk != DCK) SWEEP = {};
+    DCK = dk;
     bombData();
     const root = deps.root,
       i = cur();
@@ -2028,7 +2058,11 @@ export function createWeaponsPage(deps) {
         tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
       const gq = grpOf(st.inMode),
         one = seatInfo().size <= 1,
-        grpRow = `<div class="wrow wgrp"><label>Aircraft</label><span class="wgrpb"><button type="button" class="btn g wgb w-${gq.who}" data-grp${one ? ' disabled' : ''} title="Who flies this attack: the whole flight, or the lead and the ${secName()} each with their own. Press to change. Apply writes the set of the seat chosen on the Datacard.">${whoName(gq.who)}</button>${gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turns and the egress on the other side. Moving a slider makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>`;
+        grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one ? ' disabled' : ''} title="${gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
+          gq.split
+            ? `<div class="wrow wgrp wshow"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
+            : ''
+        }`;
       const refCard = `<div class="wcard"><h3>Reference</h3>${grpRow}
           <div class="wrow"><label>Reference</label>${seg(
             'ref',
@@ -2266,6 +2300,9 @@ export function createWeaponsPage(deps) {
         try {
           sweep();
           flagSliders();
+          // the card says whether an attack parameter can clear it (red) or only the timing (amber)
+          const c = deps.root.querySelector('#wpr .wdc');
+          if (c) c.outerHTML = dcCard();
         } catch (e) {
           /* none */
         }
@@ -2281,7 +2318,7 @@ export function createWeaponsPage(deps) {
     });
     root.querySelectorAll('.slr .dcd').forEach(e => e.remove());
     // a conflict with the other group: the sliders that clear it, with the side to move them to
-    if (DC && DC.conflict)
+    if (dcLevel() == 'bad')
       Object.entries(SWEEP).forEach(([f, d]) => {
         const i = root.querySelector(`.wpl input[data-sl="${f}"]`),
           row = i && i.closest('.slr'),
@@ -2342,16 +2379,35 @@ export function createWeaponsPage(deps) {
       save();
       draw(true);
     };
-    const gb = root.querySelector('[data-grp]');
-    if (gb)
-      gb.onclick = () => {
-        const g = grpOf(st.inMode);
-        switchWho(WHO[(WHO.indexOf(g.who) + 1) % WHO.length]);
+    const sb = root.querySelector('[data-split]');
+    if (sb)
+      sb.onclick = () => {
+        const m = st.inMode,
+          g = grpOf(m);
+        if (!ATK.includes(m)) return;
+        if (g.split) {
+          // Rejoin: back to the lead's attack, the element's dropped
+          if (g.who == 'elem') leave();
+          Object.assign(g, { split: false, who: 'lead', elem: null, mir: false });
+          st.inMode = m;
+        } else Object.assign(g, { split: true, who: 'lead', elem: null, mir: true });
         st.applied = st.cleared = null;
         fit = true;
         save();
         draw(false);
       };
+    root.querySelectorAll('[data-who]').forEach(
+      b =>
+        (b.onclick = () => {
+          const g = grpOf(st.inMode);
+          if (g.who == b.dataset.who) return;
+          switchWho(b.dataset.who);
+          st.applied = st.cleared = null;
+          fit = true;
+          save();
+          draw(false);
+        })
+    );
     const mb = root.querySelector('[data-mir]');
     if (mb)
       mb.onclick = () => {
@@ -2784,6 +2840,7 @@ export function createWeaponsPage(deps) {
       ghost: GHO ? GHO.segs.map(z => [z[0], z[1].map(q => [Math.round(q.n), Math.round(q.e)])]) : null,
       dc: DC,
       sweep: SWEEP,
+      sides: GHO && res && !res.error ? sidesOf(res, res.an && res.an.env, otherSide()).map(x => x.trk) : null,
     }),
   };
 }
