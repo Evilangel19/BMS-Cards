@@ -172,6 +172,8 @@ export function deconflict(A, B, opt = {}) {
   return {
     frag: inA.length > 0 || inB.length > 0,
     fragAt: inA[0] || inB[0] || null,
+    inA: inA[0] || null, // the first point of B inside A's fragment zone
+    inB: inB[0] || null, // the first point of A inside B's
     close,
     met: !!met, // together in the air with the spacing of the fragments alone (the timing then takes more)
     conflict: inA.length > 0 || inB.length > 0 || !!close || !!met,

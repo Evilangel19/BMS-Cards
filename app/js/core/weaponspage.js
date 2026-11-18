@@ -721,11 +721,13 @@ export function createWeaponsPage(deps) {
     egress: ['Egress / OA', '#a78bfa', '2 6'],
     ref: ['VIP to target', '#cbd5e1', '4 4'],
     leth: ['Lethal zone', '#ff5d5d', '2 3'],
+    gleth: ['Lethal zone of the other', '#f0c040', '2 3'],
     escape: ['Safe escape (CLM)', '#34d399', '8 4'],
   };
   const legendKeys = horiz => [
     ...legendBase(horiz),
     ...(res && res.an && res.an.env ? (horiz || st.mode == 'toss' ? ['leth'] : ['leth', 'escape']) : []),
+    ...(!horiz && GHO && GHO.env ? ['gleth'] : []),
   ];
   const legendBase = horiz =>
     st.mode == 'hadb'
@@ -986,8 +988,19 @@ export function createWeaponsPage(deps) {
           : lv == 'warn'
             ? `Timing only: the spacing keeps ${why} apart.`
             : 'No conflict.',
-      joined = grpOf(m).egr == 'shared';
-    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3><div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div><p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${state}</p>${
+      joined = grpOf(m).egr == 'shared',
+      other = grpOf(m).who == 'lead' ? sec : 'lead',
+      // A is the lead, B the element: inA, the element inside the lead's fragments; inB, the lead inside the element's
+      meIn = grpOf(m).who == 'lead' ? DC.inB : DC.inA,
+      heIn = grpOf(m).who == 'lead' ? DC.inA : DC.inB,
+      inside =
+        lv == 'bad'
+          ? [
+              meIn && `Your flight path is inside the ${other}'s fragments.`,
+              heIn && `The ${other}'s flight path is inside your fragments.`,
+            ].filter(Boolean)
+          : [];
+    return `<div class="wcard wdc${lv == 'bad' ? ' bad' : lv == 'warn' ? ' warn' : ''}"><h3>Lead and ${sec}</h3><div class="tiles"><div class="tile"><span>${Sec} at ${at}, after the lead</span><b>at least +${DC.spacing} s</b></div></div><p class="${lv == 'bad' ? 'wwarn' : lv == 'warn' ? 'wamb' : 'hint'}">${state}</p>${inside.map(x => `<p class="wwarn"><b>${x}</b></p>`).join('')}${
       joined
         ? `<p class="hint">Joined egress: visual rejoin after the release, checked there only against the fragments. 500 ft of altitude between the two until visual.</p>`
         : ''
@@ -1033,8 +1046,10 @@ export function createWeaponsPage(deps) {
             ]
           : m
       );
+    // the attack in red when the timing cannot clear the conflict with the other attack: its parameters have to change
+    const redAll = dcLevel() == 'bad';
     const line = (pts, k, w = 4) => {
-      const c = PH[k][1],
+      const c = redAll && k != 'ref' ? '#ff4d4d' : PH[k][1],
         d = PH[k][2],
         q = pts.map(ll);
       L.polyline(q, { renderer: RN, color: '#000', weight: w + 2, opacity: 0.4, interactive: false }).addTo(WL);
@@ -1401,11 +1416,45 @@ export function createWeaponsPage(deps) {
           .join('') +
         `<g fill="#ff8a8a" font-size="10" font-family="system-ui,sans-serif">${tx([dI[0], env.up], 'lethal ' + Math.round(env.t) + ' s', -14, -6)}</g>`
       : '';
+    // the lethal zone of the other attack across this attack's line (x along the attack heading from the target), and where this attack enters it
+    let gdome = '',
+      gin = '';
+    if (GHO && GHO.env && GHO.r && GHO.r.impacts && GHO.r.impacts.length && r.target && isFinite(r.v.attackHeading)) {
+      const A = (r.v.attackHeading * Math.PI) / 180,
+        ux = Math.sin(A),
+        uy = Math.cos(A),
+        T = r.target,
+        ge = GHO.env,
+        GI = GHO.r.impacts,
+        along = p => (p.e - T.e) * ux + (p.n - T.n) * uy,
+        side = p => Math.abs((p.e - T.e) * uy - (p.n - T.n) * ux);
+      [GI[0], GI[GI.length - 1]]
+        .filter((q, i, a) => a.indexOf(q) === i)
+        .forEach(q => {
+          const h = side(q);
+          if (h >= ge.out) return; // the zone does not reach this attack's line
+          const w = Math.sqrt(ge.out * ge.out - h * h),
+            d = along(q),
+            a = [];
+          for (let k = 0; k <= 36; k++) {
+            const th = (Math.PI * k) / 36;
+            a.push([d + w * Math.cos(th), ge.up * Math.sin(th)]);
+          }
+          gdome += `<path d="${path(a)} Z" fill="#f0c040" fill-opacity=".08" stroke="#f0c040" stroke-width="1.4" stroke-dasharray="2 3"/>`;
+        });
+      const lead = grpOf(st.inMode).who == 'lead',
+        p = DC && (lead ? DC.inB : DC.inA);
+      if (p) {
+        const x = along(p);
+        if (x >= x0 && x <= x1 && p.alt <= ymax)
+          gin = `<circle cx="${px(x).toFixed(1)}" cy="${py(p.alt).toFixed(1)}" r="7" fill="none" stroke="#ff9f1c" stroke-width="2.2"><title>Inside the fragments of the ${lead ? secName() : 'lead'}: the spacing keeps you out of them</title></circle>`;
+      }
+    }
     const seg4 = (d, k) =>
       `<path d="${d}" fill="none" stroke="${PH[k][1]}" stroke-width="2.6"${PH[k][2] ? ` stroke-dasharray="${PH[k][2]}"` : ''}/>`;
     return `<div class="wpvs"><svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="wpv"${r.kind == 'toss' && W > 360 ? ' data-wide' : ''} role="img" aria-label="Side profile of the attack">
       <rect width="${W}" height="${H}" rx="6" fill="#0f1419"/><path d="M0 ${py(0)} H${W}" stroke="#2a3441"/><g stroke="#2a3441" stroke-dasharray="2 4" fill="#8b98a8" font-size="9" font-family="system-ui,sans-serif">${grid}</g>
-      ${bubble}${dome}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${epath.length > 1 ? seg4(path(epath.map(q => [q.x, q.alt])), 'escape') : ''}${an && an.viol && !an.viol.ground ? `<circle cx="${px(an.viol.x).toFixed(1)}" cy="${py(an.viol.alt).toFixed(1)}" r="7" fill="none" stroke="#ff5d5d" stroke-width="2.2"><title>Inside the lethal zone ${an.viol.t.toFixed(1)} s after the release</title></circle>` : ''}${spec.marks.map(m => dot(m[0], m[2])).join('')}${oa1 ? `<path d="M${px(oa1[0]).toFixed(1)} ${(py(oa1[1]) - 7).toFixed(1)} l5.5 12 h-11z" fill="#a78bfa" stroke="#111" stroke-width="1.5"><title>OA1</title></path>` : ''}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
+      ${bubble}${gdome}${dome}${spec.segs.map(([k, a]) => seg4(path(a), k)).join('')}${epath.length > 1 ? seg4(path(epath.map(q => [q.x, q.alt])), 'escape') : ''}${an && an.viol && !an.viol.ground ? `<circle cx="${px(an.viol.x).toFixed(1)}" cy="${py(an.viol.alt).toFixed(1)}" r="7" fill="none" stroke="#ff5d5d" stroke-width="2.2"><title>Inside the lethal zone ${an.viol.t.toFixed(1)} s after the release</title></circle>` : ''}${gin}${spec.marks.map(m => dot(m[0], m[2])).join('')}${oa1 ? `<path d="M${px(oa1[0]).toFixed(1)} ${(py(oa1[1]) - 7).toFixed(1)} l5.5 12 h-11z" fill="#a78bfa" stroke="#111" stroke-width="1.5"><title>OA1</title></path>` : ''}<path d="M${px(0)} ${py(0) - 6} l6 6 l-6 6 l-6 -6z" fill="#fff" stroke="#111" stroke-width="1.5"/>
       <g fill="#9aa8b8" font-size="10" font-family="system-ui,sans-serif">${spec.marks.map(m => tx(m[0], m[1], m[3] === undefined ? 6 : m[3], m[4] === undefined ? -6 : m[4])).join('')}${oa1 ? tx(oa1, 'OA1', 8, 14) : ''}${tx([0, 0], spec.tgt, -70, -8)}</g></svg></div>${legend(legendKeys(false))}`;
   }
 
@@ -2126,7 +2175,7 @@ export function createWeaponsPage(deps) {
         one = seatInfo().size <= 1,
         // the rows and buttons of the split fade in when they appear, not each time the panel is drawn again (a click on them would be lost)
         nw = k => (APPEAR[k] ? '' : ' wnew'),
-        grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one ? ' disabled' : ''} title="${gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}${nw('mir')}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
+        grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one ? ' disabled' : ''} title="${gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : st.inMode == 'toss' && tossForm() ? 'Split egress' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}${nw('mir')}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
           gq.split
             ? `<div class="wrow wgrp wshow${nw('show')}"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
             : ''
@@ -2376,11 +2425,13 @@ export function createWeaponsPage(deps) {
     if (DC && DC.conflict)
       sweepT = setTimeout(() => {
         try {
+          const lv0 = dcLevel();
           sweep();
           flagSliders();
           // the card says whether an attack parameter can clear it (red) or only the timing (amber)
           const c = deps.root.querySelector('#wpr .wdc');
           if (c) c.outerHTML = dcCard();
+          if (dcLevel() != lv0 && res && !res.error && M) drawMap(res);
         } catch (e) {
           /* none */
         }
@@ -2950,6 +3001,7 @@ export function createWeaponsPage(deps) {
       ghost: GHO ? GHO.segs.map(z => [z[0], z[1].map(q => [Math.round(q.n), Math.round(q.e)])]) : null,
       dc: DC,
       sweep: SWEEP,
+      level: dcLevel(),
       oa2: res && !res.error && res.oa2 ? [Math.round(res.oa2.n), Math.round(res.oa2.e)] : null,
       sides: GHO && res && !res.error ? sidesOf(res, res.an && res.an.env, otherSide()).map(x => x.trk) : null,
     }),
