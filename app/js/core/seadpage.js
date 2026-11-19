@@ -37,6 +37,8 @@ export function createSeadPage(deps) {
   const { esc } = deps,
     root = document.createElement('div');
   root.id = 'wpsead';
+  const acts = document.createElement('span');
+  acts.className = 'hacts';
   let st = {
       prot: {},
       skip: {},
@@ -180,7 +182,8 @@ export function createSeadPage(deps) {
   function build() {
     const r = root;
     if (!X || !X.ok) {
-      r.innerHTML = `<div class="wcard sdnone fx"><h3>SEAD</h3><p class="hint">${esc(X ? X.why : 'Open a campaign and choose a SEAD flight.')}</p><p class="hint">SEAD works for a package with a SEAD flight and other flights to protect: choose the SEAD flight in the ATO. The Single shot page plans one HARM shot at a PPT of the DTC.</p></div>`;
+      r.innerHTML = `<div class="wcard sdnone fx"><h3>SEAD</h3><p class="hint">${esc(X ? X.why : 'Open a campaign and choose a SEAD flight.')}</p><p class="hint">SEAD works for a package with a SEAD flight and other flights to protect: choose the SEAD flight in the ATO. Without a DEAD flight, DEAD plans one HARM standoff shot at a PPT of the DTC.</p></div>`;
+      acts.innerHTML = '';
       return;
     }
     r.innerHTML = `<div class="wpg sdg"><div class="wpl sdl"><div class="wcard" id="sdpk"></div><div class="wcard" id="sdth"></div><div class="wcard" id="sdso"></div></div>
@@ -194,7 +197,9 @@ export function createSeadPage(deps) {
         )}</span><span style="flex:1"></span><button class="btn g" type="button" data-sdfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-sdpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
       <div id="sdmapw"><div id="sdmap" class="wmapbox"></div><div class="wleg" id="sdmleg"></div></div><div id="sdsch" hidden></div></div></div>
       <div class="wpr"><div class="wcard" id="sdsh"></div><div class="wcard" id="sdcv"></div><div id="sdpr"></div></div></div>
-      <div class="sdbar"><span class="hint" id="sdnote"></span><span style="flex:1"></span><button type="button" class="btn g" data-sdtab title="Checks the HARM tables of the DTC against the threats of your seat: adds a missing one only after asking">HARM tables…</button><button type="button" class="btn g" data-sdppt title="The threats of your seat as pre-planned threats of the DTC (the AUTO PPT of the Map page): an exact steerpoint for POS. Adds the missing ones after asking.">PPT…</button><button type="button" class="btn" data-sdcard title="A SEAD card for the Kneeboard: with the map or with the scheme">Add card…</button></div>`;
+      <div class="sdbar"><span class="hint" id="sdnote"></span></div>`;
+    // the buttons of the page at the top, in the bar of the HARM tab (harmTab puts them there)
+    acts.innerHTML = `<button type="button" class="btn g" data-sdtab title="Checks the HARM tables of the DTC against the threats of your seat: adds a missing one only after asking">HARM tables</button><button type="button" class="btn g" data-sdppt title="The threats of your seat as pre-planned threats of the DTC (the AUTO PPT of the Map page): an exact steerpoint for POS. Adds the missing ones after asking.">Auto PPT</button><button type="button" class="btn" data-sdcard title="A SEAD card for the Kneeboard: with the map or with the scheme">Add card</button>`;
     wire();
   }
   function fill() {
@@ -854,6 +859,7 @@ export function createSeadPage(deps) {
 
   // ---- the buttons
   function wire() {
+    acts.onclick = e => root.onclick && root.onclick(e); // the buttons at the top (outside the page) work as the page's
     const q = s => root.querySelector(s);
     root.onclick = e => {
       const c = s => e.target.closest && e.target.closest(s);
@@ -1249,6 +1255,7 @@ export function createSeadPage(deps) {
 
   return {
     root,
+    acts: () => acts,
     // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;

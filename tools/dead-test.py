@@ -67,7 +67,7 @@ try:
         pg.click('#wp .wtabs [data-mode=popup]'); pg.wait_for_timeout(700); pg.click('#wp .wtabs [data-mode=harm]'); pg.wait_for_timeout(1500)
         check('...and when you come back from another tab (Pop-up) %s' % [tf(), zz], tf() == zz)
         check('the target list in the colours of the program', pg.evaluate("()=>getComputedStyle(document.querySelector('#ddtg select')).backgroundColor") == 'rgb(11, 15, 20)')
-        check('the map: the rings with their names, the plan, the impact at the SAM and you on the arc then', pg.locator('#ddmap .sdsamm').count() == 1 and pg.locator('#ddmap .sdimp').count() == 2 and 'ON THE ARC' in pg.inner_text('#ddmap') and 'TURN LEFT' in pg.inner_text('#ddmap') and 'WEZ 13 NM' in pg.inner_text('#ddmap'))
+        check('the map: the rings with their names, the plan, the impact at the SAM and you on the arc then', pg.locator('#ddmap .sdsamm').count() == 1 and pg.locator('#ddmap .sdimp').count() == 2 and 'ON THE ARC' in pg.inner_text('#ddmap') and 'TURN LEFT' in pg.inner_text('#ddmap') and 'WEZ (ECM OFF) 13 NM' in pg.inner_text('#ddmap'))
         check('the roles: a tile for each seat, #1 LEAD with the YOU badge', pg.locator('#ddro .ddtile').count() == 2 and pg.locator('#ddro .ddtile.me .you').count() == 1 and 'LEAD' in pg.inner_text('#ddro .ddtile.me'))
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hs.png')
         # the orbit
@@ -95,10 +95,11 @@ try:
         C = P()
         check('Hunter-Killer: #1 killer, #2 hunter; the anchors as OA1 / OA2 of STPT 3', [s['role'] for s in C['seats']] == ['killer', 'hunter'] and C['oa'] and C['oa']['n'] == 3)
         check('...the bait inside the WEZ, on the WEZ with ECM on (%.1f of %.1f nm)' % (C['Rb'], C['R']), abs(C['Rb'] - C['Recm']) < 0.01 and C['Rb'] < C['R'] and 'ECM on' in pg.inner_text('#ddst'))
-        check('...green: the steps of your aircraft (the killer), the attack on its card', pg.locator('#ddst li.sdme').count() >= 3 and 'attack' in pg.inner_text('#ddst') and 'hunter to anchor' in pg.inner_text('#ddst li.sdme >> nth=0') and pg.locator('#dddt .sdme').count() == 1)
+        check('...green: the steps of your aircraft (the killer), the attack on its card', pg.locator('#ddst li.sdme').count() >= 3 and 'attack' in pg.inner_text('#ddst') and 'fighting wing' in pg.inner_text('#ddst li.sdme >> nth=0') and pg.locator('#dddt .sdme').count() == 1)
         oa = pg.inner_text('#ddoa')
         check('...the nav offsets in the right column, from STPT 3, Add buttons for the anchors, Write OA1 · OA2', pg.locator('.wpr #ddoa .oab').count() == 2 and pg.locator('#ddoa [data-ddadd]').count() == 2 and 'Write OA1' in oa and 'type them on board' in oa and 'FROM STPT 3' in oa.upper())
-        check('...the map: the anchors, the defence dashed', pg.locator('#ddmap .ddanc').count() == 2)
+        check('...the map: the anchors, the reset point, the SAM launch on both lines, the fighting wing', pg.locator('#ddmap .ddanc').count() == 2 and 'RESET' in pg.inner_text('#ddmap') and 'HUNTER DEFENDS' in pg.inner_text('#ddmap') and 'KILLER MARKS' in pg.inner_text('#ddmap') and 'FIGHTING WING' in pg.inner_text('#ddmap'))
+        check('the buttons at the top, in the bar of SEAD | DEAD, without dots: HARM tables, Auto PPT, Add card', pg.locator('#wp .hsub .hacts button').all_inner_texts() == ['HARM tables', 'Auto PPT', 'Add card'])
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hk.png')
         msgs = []
         pg.on('dialog', lambda d: (msgs.append(d.message), d.accept()))

@@ -17,6 +17,27 @@ export const at = (c, b, d) => ({
   y: c.y + Math.cos((b * Math.PI) / 180) * d * KM_NM,
 });
 const nm = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) / KM_NM;
+/** a smooth line through points (Catmull-Rom, 10 points between two) */
+export function spline(P, k = 10) {
+  if (P.length < 3) return P.slice();
+  const o = [],
+    g = i => P[Math.max(0, Math.min(P.length - 1, i))];
+  for (let i = 0; i < P.length - 1; i++)
+    for (let j = 0; j < k; j++) {
+      const t = j / k,
+        p0 = g(i - 1),
+        p1 = g(i),
+        p2 = g(i + 1),
+        p3 = g(i + 2),
+        f = (a, b, c, d) =>
+          0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+      o.push({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) });
+    }
+  o.push(P[P.length - 1]);
+  return o;
+}
+/** the length of a line (nm) */
+const plen = P => P.slice(1).reduce((a, p, i) => a + nm(P[i], p), 0);
 /** the points of an arc of radius r nm round c from bearing b0 over span degrees (signed: + clockwise) */
 export function arcPts(c, r, b0, span, step = 4) {
   const n = Math.max(2, Math.ceil(Math.abs(span) / step)),
@@ -185,30 +206,59 @@ export function deadPlan(o) {
     out.path = [prev, L, at(s, th, Ra), ...arc];
     return out;
   }
-  // Hunter-Killer (and the bombs: the killer's run from its anchor): the anchors 8 nm outside the arc, either side of the way in
+  // Hunter-Killer and bombs, as the Training Manual draws it: the 2-ship in fighting wing to the reset point outside the WEZ (the anchors H and K
+  // either side of it), the hunter round the SAM inside the WEZ (on the WEZ with ECM on: the bait), the killer the same way round outside it; at the
+  // SAM launch the hunter defends, the killer marks; both back to the reset point; then the killer attacks from below the way in while the other
+  // gives top cover
   const Da = Ra + 8,
-    bH = th + dir * 15,
-    bK = th - dir * 15,
-    A = at(s, bH, Da),
-    B = at(s, bK, Da),
+    off = (Math.asin(Math.min(0.5, 1.5 / Da)) * 180) / Math.PI, // the anchors 1.5 nm either side of the way in
+    X = at(s, th, Da),
+    A = at(s, th + dir * off, Da),
+    B = at(s, th - dir * off, Da),
     tA = tT - sec(Da),
     // the bait: inside the WEZ, on the edge of the WEZ with ECM on (the jammer keeps the SAM from a lock there; it still sees and may shoot)
     Rb = R * ecm,
-    tArc0 = tA + 60000 + sec(Da - Rb),
-    arc = arcPts(s, Rb, bH, dir * 90),
-    tArc1 = tArc0 + sec((Rb * Math.PI) / 2),
-    bE = bH + dir * 90,
-    def = [at(s, bE, Rb), at(s, bE + dir * 10, Ra + 7), at(s, (bE + bH) / 2, Da + 4), A],
-    tBack = tArc1 + sec(Rb * 0.9 + 14),
-    atk = [B, at(s, bK, R * 0.9), at(s, bK, 4)],
+    Rk = R + 4, // the killer: 4 nm outside the WEZ
+    b0 = th + dir * 30,
+    hIn = spline([A, at(s, th + dir * 10, (Da + Rb) / 2 + 1.5), at(s, b0, Rb)]),
+    arc = arcPts(s, Rb, b0, dir * 85),
+    bE = b0 + dir * 85,
+    def = spline([
+      at(s, bE, Rb),
+      at(s, bE + dir * 15, Rb + 5),
+      at(s, bE - dir * 10, Da + 5),
+      at(s, th + dir * 45, Da + 5),
+      A,
+    ]),
+    kIn = spline([B, at(s, th + dir * 5, (Da + Rk) / 2 + 3), at(s, b0 + dir * 5, Rk)]),
+    kArc = arcPts(s, Rk, b0 + dir * 5, dir * 85),
+    kE = b0 + dir * 90,
+    kBack = spline([
+      at(s, kE, Rk),
+      at(s, kE + dir * 12, Rk + 5),
+      at(s, kE - dir * 10, Da + 9),
+      at(s, th + dir * 40, Da + 9),
+      B,
+    ]),
+    // the SAM launch: at the middle of the bait arc, on both lines
+    bL = b0 + dir * 50,
+    tArc0 = tA + sec(plen(hIn)),
+    tArc1 = tArc0 + sec((Rb * 85 * Math.PI) / 180),
+    tLaunch = tArc0 + sec((Rb * 50 * Math.PI) / 180),
+    tBack = tArc1 + sec(plen(def)),
+    // the killer's attack: from the reset point below the way in, then into the SAM (the last part the weapon)
+    atk = spline([B, at(s, th - dir * 20, Da - 1), at(s, th - dir * 40, R + 2), at(s, th - dir * 35, R * 0.55)]),
     tAtk = tBack + 60000,
-    // the killer orbits the same way as the hunter while it baits, at the distance of the anchors (outside the WEZ), then back to its anchor
-    kArc = arcPts(s, Da, bK, dir * 75),
-    kBack = [kArc[kArc.length - 1], at(s, bK + dir * 40, Da + 3), B],
-    cover = arcPts(s, Ra + 4, bK - dir * 50, dir * 70);
+    aEnd = atk[atk.length - 1],
+    // top cover: an orbit outside the WEZ on the side of the bait
+    cover = arcPts(s, Da + 2, th + dir * 25, dir * 60);
   Object.assign(out, {
     Rb,
+    Rk,
     Da,
+    X,
+    hIn,
+    kIn,
     kArc,
     kBack,
     A,
@@ -217,13 +267,16 @@ export function deadPlan(o) {
     arc,
     tArc0,
     tArc1,
+    tLaunch,
+    launchH: at(s, bL, Rb),
+    launchK: at(s, bL, Rk),
     def,
     tBack,
     atk,
     tAtk,
     cover,
-    bK,
-    attackHdg: (bK + 180) % 360,
+    bK: th - dir * off,
+    attackHdg: (Math.round(brg(s.x - aEnd.x, s.y - aEnd.y)) + 360) % 360 || 360,
   });
   if (o.tactic == 'hk' && !idx('hunter').length) out.warn.push('No hunter: give the role to a seat.');
   if (!idx('killer').length) out.warn.push('No killer: give the role to a seat.');

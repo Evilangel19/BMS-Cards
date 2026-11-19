@@ -1408,3 +1408,8 @@
 .wh .sdvw {
   margin-left: 12px;
 }
+.hsub .hacts {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}

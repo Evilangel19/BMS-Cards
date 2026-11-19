@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: SEAD / DEAD buttons at the top (HARM tables, Auto PPT, Add card); DEAD Hunter-Killer and Bombs / Maverick drawn as the Training Manual; OA elevation 0 by default (no terrain).
 - Changed: SEAD HARMs launched for the most cover (a switch to keep launches outside the rings), the total covered shown; DEAD drawing cleaner (texts apart, longer orbit, smooth dashed egress, thin arrows), the killer orbiting with the hunter, Bombs / Maverick drawing the Weapons attack lines on the map; Map / Scheme next to the title.
 - Fixed: SEAD and DEAD use the SAM rings of the Map page (the Ppt.ini range), so no SAM crossed on the map is left out; the Map page gets its own filters back after the Weapons pages. New: the uncovered parts of the protected routes in red on the SEAD map; the loading bar while the cards are prepared.
 - Changed: the maps of Weapons, SEAD and DEAD keep their view across tabs, the zoom buttons by half a level; SEAD launches kept outside the ring of their SAM, the time before the first impact shown, Azimuth by the side of the route; DEAD roles swapped within a pair, the drawing with its labels, the nav offsets reorganised (OA elevation by 500 ft).

@@ -70,7 +70,7 @@ ck(
 );
 const K = deadPlan({ sam: SAM, wps, tactic: 'hk', roles: ['killer', 'hunter'], shot });
 ck(
-  'Hunter-Killer: the anchors 8 nm outside the arc, either side of the way in',
+  'Hunter-Killer: the anchors at the reset point 8 nm outside the arc, either side of the way in',
   Math.abs(nm(K.A, SAM) - 34) < 0.01 && Math.abs(nm(K.B, SAM) - 34) < 0.01 && K.A.y > 0 && K.B.y < 0,
   [K.A, K.B]
 );
@@ -83,8 +83,14 @@ ck(
     K.tArc1 < K.tBack
 );
 ck(
-  '...the killer attacks from its anchor towards the SAM after the reset',
-  nm(K.atk[0], K.B) < 0.01 && nm(K.atk[2], SAM) < 4.1 && K.tAtk > K.tBack
+  '...the killer the same way round outside the WEZ; at the SAM launch both marked; then the attack from its anchor into the WEZ after the reset',
+  K.kArc.every(p => Math.abs(nm(p, SAM) - K.Rk) < 0.01 && nm(p, SAM) > K.R) &&
+    nm(K.launchH, SAM) < K.R &&
+    nm(K.launchK, SAM) > K.R &&
+    nm(K.atk[0], K.B) < 0.01 &&
+    nm(K.atk[K.atk.length - 1], SAM) < K.R &&
+    K.tAtk > K.tBack &&
+    nm(K.kBack[K.kBack.length - 1], K.B) < 0.01
 );
 ck(
   '...the nav offsets of the anchors from the task steerpoint (STPT 2)',
