@@ -86,7 +86,7 @@ export function drawSeadCard(x, D, kind = 'map') {
     font('700', 40);
     text(r.sam, 76, y + 50);
     font('500', 24);
-    text((r.code != null ? 'CODE ' + r.code : 'NO HARM CODE') + (r.tab ? ' · ' + r.tab : ''), 76, y + 86, MU);
+    text((r.code != null ? 'ALIC ' + r.code : 'NO ALIC') + (r.tab ? ' · ' + r.tab : ''), 76, y + 86, MU);
     text(r.ref, 76, y + 118, MU);
     if (r.why) {
       font('700', 22);

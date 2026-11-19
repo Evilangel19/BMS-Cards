@@ -1,7 +1,7 @@
 // Weapons > HARM > SEAD: the HARM shots of a SEAD flight that protect the other flights of its package. The maths is in sead.js (the rings of the map, the
 // times of the flight plans, 9 nm/min where a steerpoint has no time, all the HARMs of the flight spread over the time inside the rings, ingress first,
 // POS to a steerpoint or HAD at the SAM); the range, the time of flight and the max range of each shot come from the HARM model of the Single shot page
-// (airmissile.js harmShot). The page: the package and the flights it protects, the threats on their routes (HARM code, place in the HARM tables), the
+// (airmissile.js harmShot). The page: the package and the flights it protects, the threats on their routes (ALIC, place in the HARM tables), the
 // shots (Priority or Azimuth, POS or HAD, a seat or a steerpoint changed by hand), the map or the scheme (a lane for each protected flight: inside the
 // rings, not covered, its task; a lane for each seat: launch, flight, impact, glide), the events, the shot chosen and the cover of its SAM.
 // Colours: as on the Map page (your route = the flight plan colour, the protected ones = the package colour, the SAM rings = the enemy SAM colour),
@@ -149,7 +149,7 @@ export function createSeadPage(deps) {
       .map(([t, n]) => 'T' + (t + 1) + '/' + (n + 1))
       .join(' ');
   const tabTag = r => {
-    if (r.sam.code == null) return '<span class="sdw" title="The HARM has no code for this system">no code</span>';
+    if (r.sam.code == null) return '<span class="sdw" title="The HARM has no ALIC for this system">no ALIC</span>';
     if (!deps.dtc.harm()) return '<span class="hint">no DTC</span>';
     const w = inTables(r.sam.code);
     return w.length
@@ -210,7 +210,7 @@ export function createSeadPage(deps) {
     q('#sdth').innerHTML =
       `<h3>Threats on the protected routes</h3>` +
       (R.length
-        ? `<table class="sdt"><tr><th></th><th>SAM</th><th>Code</th><th>Flight</th><th>WEZ in</th><th>Inside</th><th>HARMs</th><th>Table</th></tr>${R.map(
+        ? `<table class="sdt"><tr><th></th><th>SAM</th><th>ALIC</th><th>Flight</th><th>WEZ in</th><th>Inside</th><th>HARMs</th><th>Table</th></tr>${R.map(
             r => {
               const s = shotOf(st.sel);
               return `<tr data-sdsam="${esc(r.id)}" class="${s && s.id == r.id ? 'on' : ''}${st.skip[r.id] ? ' off' : ''}"><td><input type="checkbox" data-sdskip="${esc(r.id)}"${st.skip[r.id] ? '' : ' checked'} title="Shoot at this SAM"></td><td><b>${esc(r.sam.name)}</b></td><td>${r.sam.code == null ? '—' : r.sam.code}</td><td>${esc(r.flight)}${r.by.length > 1 ? ' +' + (r.by.length - 1) : ''}</td><td>${hms(r.tin)}</td><td>${mmss(r.ms / 1000)}</td><td><b>${st.skip[r.id] ? '—' : r.shots.length}</b>${r.gaps.length && !st.skip[r.id] ? ' <span class="sdgap" title="Not covered: ' + r.gaps.map(g => hms(g.t0) + '–' + hms(g.t1)).join(', ') + '">●</span>' : ''}</td><td>${tabTag(r)}</td></tr>`;
@@ -507,7 +507,7 @@ export function createSeadPage(deps) {
                   : ' <span class="sdw">SAM ' + z.ref.d.toFixed(1) + ' nm away: outside the ' + sub() + ' area</span>'
                 : ' <span class="sdw">no steerpoint</span>')
           : 'HAD · at the SAM' + (X.hts ? '' : ' <span class="sdw">no HTS pod</span>')
-      )}${kv('THREAT', (z.sam.code == null ? 'no HARM code' : z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="sdw">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring', L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
+      )}${kv('THREAT', (z.sam.code == null ? 'no ALIC' : 'ALIC ' + z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="sdw">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring', L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
     );
   }
   function coverCard() {
@@ -834,7 +834,7 @@ export function createSeadPage(deps) {
         ).values(),
       ],
       miss = R.filter(z => !inTables(z.sam.code).length);
-    if (!R.length) return deps.toast('No threat with a HARM code for your seat.', true);
+    if (!R.length) return deps.toast('No threat with an ALIC for your seat.', true);
     if (!miss.length)
       return deps.toast(
         'All your threats are in the HARM tables: ' + R.map(z => z.sam.name + ' ' + tabTxt(z.sam.code)).join(', ') + '.'
@@ -845,7 +845,7 @@ export function createSeadPage(deps) {
     const need = plan.filter(q => !q.at);
     let txt =
       'Your threats not in the HARM tables: ' +
-      miss.map(z => z.sam.name + ' (' + z.sam.code + ')').join(', ') +
+      miss.map(z => z.sam.name + ' (ALIC ' + z.sam.code + ')').join(', ') +
       '.\n\n' +
       plan
         .filter(q => q.at)
