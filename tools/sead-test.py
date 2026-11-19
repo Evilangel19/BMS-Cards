@@ -19,7 +19,8 @@ INI = '\r\n'.join(['[STPT]'] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,'
 CTX = """()=>{const T0=10*3600000,r=(x,kt,t0,y0,y1,a=0)=>{const ym=(y0+y1)/2,t1=t0+(ym-y0)/(kt*1.852)*3600000;return [{x,y:y0,z:2500,arr:t0,dep:0,act:0},{x,y:ym,z:2500,arr:t1,dep:0,act:a},{x,y:y1,z:2500,arr:t1+(y1-ym)/(kt*1.852)*3600000,dep:0,act:0}]};
  const me={key:'1',name:'Weasel 1',ac:'F-16CM',n:4,mission:'SEAD',tot:'10:05:00',f:{wps:[{x:480,y:380,z:2500,arr:T0-60000,dep:0,act:0},{x:480,y:520,z:2500,arr:T0-60000+140/(450*1.852)*3600000,dep:0,act:19},{x:483,y:380,z:2500,arr:T0-60000+280/(450*1.852)*3600000,dep:0,act:0}]},pkgNo:12,sead:true};
  const fl=[{key:'2',name:'Viper 2',ac:'F-16CM',n:4,mission:'STRIKE',tot:'10:06:00',f:{wps:[{x:500,y:380,z:2500,arr:T0,dep:0,act:0},{x:500,y:520,z:2500,arr:T0+140/(480*1.852)*3600000,dep:0,act:17},{x:503,y:380,z:2500,arr:T0+280/(480*1.852)*3600000,dep:0,act:0}]},sead:false},
-   {key:'3',name:'Hawg 3',ac:'A-10C',n:2,mission:'BAI',tot:'10:20:00',f:{wps:r(800,300,T0,100,200)},sead:false}];
+   {key:'3',name:'Hawg 3',ac:'A-10C',n:2,mission:'BAI',tot:'10:20:00',f:{wps:r(800,300,T0,100,200)},sead:false},
+   {key:'4',name:'Ford 4',ac:'F-15C',n:2,mission:'ESCORT',tot:'10:06:00',f:{wps:[{x:497,y:380,z:3000,arr:T0+30000,dep:0,act:0},{x:497,y:525,z:3000,arr:T0+30000+145/(480*1.852)*3600000,dep:0,act:10},{x:500,y:380,z:3000,arr:T0+30000+290/(480*1.852)*3600000,dep:0,act:0}]},sead:false}];
  const sams=[{id:'s6',x:505,y:440,rng:25,name:'SA-6',code:106},{id:'s3',x:494,y:470,rng:30,name:'SA-3',code:103},{id:'s2',x:508,y:505,rng:12,name:'SA-8',code:608},{id:'f',x:700,y:700,rng:40,name:'SA-2',code:102}];
  const refs=[{n:1,x:480,y:380},{n:2,x:480,y:520},{n:3,x:483,y:380},{n:4,x:505.5,y:441}];
  window.__sc={ok:true,me,flights:fl,sams,seat:0,harms:[2,2,1,1],hts:true,refs};
@@ -58,13 +59,14 @@ try:
         check('...8 s at least between two launches of one aircraft', all(abs(a - b) >= 7999 for L in same for i, a in enumerate(L) for b in L[i + 1:]))
         check('POS: SA-6 aims at STPT 4 (0.5 nm from it, in the EOM area); SA-3 has no steerpoint close enough %s' % [(r['id'], r['ref'], r['inA']) for r in R['rows']], R['rows'][0]['ref'] == 4 and R['rows'][0]['inA'] and not R['rows'][1]['inA'])
         check('...a problem card for SA-3 (POS) with its fix (PPT, PB or HAD)', 'PPT' in pg.inner_text('#sdpr') and 'SA-3' in pg.inner_text('#sdpr'))
-        check('the map: the launch points, the impacts, the task steerpoint', pg.locator('#sdmap .sdimp').count() == n and pg.locator('#sdmap .sdtri').count() == 1 and pg.locator('#sdmap .sdl .sdme').count() >= 1)
+        check('the map: the launch points, the impacts, the task steerpoint', pg.locator('#sdmap .sdimp').count() == n and pg.locator('#sdmap .sdtri').count() >= 1 and pg.locator('#sdmap .sdl .sdme').count() >= 1)
         check('the shot chosen: yours first (#1 LEAD), with POS STPT 4, cover and margin', 'STPT 4' in pg.inner_text('#sdsh') and 'COVERS' in pg.inner_text('#sdsh').upper() and '#1 LEAD' in pg.inner_text('#sdsh'))
         check('the cover card of its SAM', 'SA-6' in pg.inner_text('#sdcv') and 'NOT COVERED' in pg.inner_text('#sdcv').upper())
         if shots: pg.locator('#wp').screenshot(path=shots + '/sead-page.png')
         # the scheme
         pg.click('#wp [data-sdview=sch]'); pg.wait_for_timeout(500)
-        check('Scheme: the map hidden, the lanes (Viper 2, four seats), the strike, the events', not pg.locator('#sdmap').is_visible() and pg.locator('#sdsch svg.sdscv').count() == 1 and 'Viper 2' in pg.text_content('#sdsch svg') and 'STPT 2' in pg.text_content('#sdsch svg') and pg.locator('#sdsch .sdev div').count() > 6)
+        sv = pg.text_content('#sdsch svg')
+        check('Scheme: one package lane (Viper 2 first in, Ford 4 ESCORT), the task of the first flight in only, the seats with their launches and TOF, the events', not pg.locator('#sdmap').is_visible() and pg.locator('#sdsch svg.sdscv').count() == 1 and 'first in: Viper 2' in sv and 'ESCORT' in sv and sv.count('STPT 2 ·') == 1 and 'TOF' in sv and pg.locator('#sdsch .sdev div').count() > 6)
         ev = pg.evaluate("()=>__app.seadPage.events().map(e=>e.c+':'+e.s)")
         check('...your launches are marked yours (green) in the events', any(e.startswith('me:#1 LAUNCH') for e in ev) and not any(e.startswith('me:#2') for e in ev))
         if shots: pg.locator('#wp').screenshot(path=shots + '/sead-scheme.png')
@@ -110,7 +112,7 @@ try:
             for k in ('map', 'sch'):
                 d = pg.evaluate("async k=>(await __app.seadPage.cardCanvas(k)).toDataURL()", k); open(shots + '/sead-card-%s.png' % k, 'wb').write(base64.b64decode(d.split(',')[1]))
         cd = pg.evaluate("()=>__app.seadPage.card()")
-        check('the SEAD card data: your seat (#2), all the shots, the scheme and the events', cd['seatName'] == '#2' and len(cd['shots']) >= 3 and cd['sm']['lanes'] and len(cd['ev']) > 5)
+        check('the SEAD card data: your seat (#2), all the shots, the scheme and the events', cd['seatName'] == '#2' and len(cd['shots']) >= 3 and cd['sm']['prot'] and cd['sm']['rows'] and len(cd['ev']) > 5)
         k0 = pg.evaluate('()=>__app.KBLIB.length')
         pg.click('#wp [data-sdcard]')
         pg.wait_for_selector('dialog.tgdlg[open]', timeout=15000)

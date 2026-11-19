@@ -276,36 +276,44 @@ export function createSeadPage(deps) {
   }
   function schemeLegend() {
     const c = pal();
-    return `<div class="wleg"><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${c.ring}" opacity=".45"/></svg>inside a ring · tick ${st.k}%</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${GAP}"/></svg>not covered</span><span>${sw(HARM, '', 6)}HARM in the air · L launch</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${HARM}" opacity=".3"/></svg>glide: still searching</span><span><b style="color:${IMP}">◆</b> impact</span><span><b>▲</b> task (strike; two for a time on station) · → ingress, ← egress</span></div>`;
+    return `<div class="wleg"><span>${sw('#fff', '', 3)}the first flight in (it has the priority)</span><span>${SD_COL.MATES.slice(
+      0,
+      2
+    )
+      .map(q => sw(q, '', 2))
+      .join(
+        ''
+      )}the other protected flights: → ingress above, ← egress below</span><span><b>▲</b> the task of the first flight in</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${c.ring}" opacity=".45"/></svg>inside a ring · tick ${st.k}% · line: the SAM on</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${GAP}"/></svg>not covered</span><span>${sw(HARM, '', 6)}HARM in the air · L launch</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${HARM}" opacity=".3"/></svg>glide</span><span><b style="color:${IMP}">◆</b> impact</span></div>`;
   }
-  // ---- the scheme: one model, drawn here in SVG and on the card in canvas (seadcard.js)
+  // the package (one lane): the protected flights that cross a ring, the first one in first (the priority: never a SEAD flight, never yours), each
+  // with its role, its route start, its task and its end; a row for each SAM (the time any of them is inside, the SAM on, the first k, not covered,
+  // the impacts); a lane for each seat, a row for each launch
   function schemeModel() {
     const Z = P.shots.filter(z => !st.skip[z.id]),
-      prot = X.flights.filter(
-        f => !f.sead && st.prot[f.key] !== false && P.rows.some(r => !st.skip[r.id] && r.by.includes(f.name))
-      ),
-      lanes = prot.map(f => {
-        const rows = P.rows
-          .filter(r => !st.skip[r.id] && r.iv.some(v => v[2] == f.key))
-          .map(r => {
-            const iv = r.iv.filter(v => v[2] == f.key).map(v => [v[0], v[1]]);
-            return {
-              sam: r.sam.name,
-              on: r.on,
-              iv,
-              t85: r.key == f.key ? r.t85 : null,
-              gaps: r.gaps.filter(g => iv.some(v => g.t0 < v[1] && g.t1 > v[0])).map(g => [g.t0, g.t1]),
-            };
-          });
-        const w = timed(f.f.wps);
-        return {
-          name: f.name,
-          task: P.task[f.key],
-          rows,
-          t0: w.length ? w[0].arr : 0,
-          t1: w.length ? w[w.length - 1].arr : 0,
-        };
-      }),
+      R = P.rows.filter(r => !st.skip[r.id]),
+      firstIn = f => Math.min(...R.flatMap(r => r.iv.filter(v => v[2] == f.key).map(v => v[0]))),
+      prot = X.flights
+        .filter(f => !f.sead && st.prot[f.key] !== false && R.some(r => r.by.includes(f.name)))
+        .map(f => {
+          const w = timed(f.f.wps);
+          return {
+            name: f.name,
+            role: f.mission,
+            task: P.task[f.key],
+            t0: w.length ? w[0].arr : 0,
+            t1: w.length ? w[w.length - 1].arr : 0,
+            tin: firstIn(f),
+          };
+        })
+        .sort((a, b) => a.tin - b.tin),
+      rows = R.map(r => ({
+        sam: r.sam.name,
+        on: r.on,
+        iv: r.iv.map(v => [v[0], v[1]]),
+        t85: r.t85,
+        gaps: r.gaps.map(g => [g.t0, g.t1]),
+        imp: Z.filter(z => z.id == r.id).map(z => z.imp),
+      })),
       seats = P.seats.map(s => ({
         label: s.label,
         mine: s.i === X.seat,
@@ -317,109 +325,150 @@ export function createSeadPage(deps) {
             sam: z.sam.name + nth(z),
             tl: z.launch.t,
             imp: z.imp,
-            from: z.from,
+            tof: Math.round((z.imp - z.launch.t) / 1000),
             cover: z.cover,
             ok: z.launch.ok,
             aim: mode() == 'pos' && z.ref ? 'STPT ' + z.ref.n : mode() == 'had' ? 'HAD' : '',
           })),
       })),
       ts = [];
-    lanes.forEach(l => {
-      l.rows.forEach(r => r.iv.forEach(v => ts.push(v[0], v[1])));
-      if (l.task) ts.push(l.task.t0, l.task.t1);
-    });
+    rows.forEach(r => r.iv.forEach(v => ts.push(v[0], v[1])));
+    prot.forEach(f => f.task && ts.push(f.task.t0, f.task.t1));
     seats.forEach(s => s.shots.forEach(z => ts.push(z.tl, z.imp)));
-    const t0 = ts.length ? Math.min(...ts) - 30000 : 0,
-      t1 = ts.length ? Math.max(...ts) + 30000 : 1;
+    const t0 = ts.length ? Math.min(...ts) - 60000 : 0,
+      t1 = ts.length ? Math.max(...ts) + 60000 : 1;
     seats.forEach(s => s.shots.forEach(z => (z.cover = Math.min(z.cover, t1))));
-    return { t0, t1, lanes, seats, ring: pal().ring };
+    return { t0, t1, pkg: X.me.pkgNo, prot, rows, seats, ring: pal().ring, mates: SD_COL.MATES };
   }
+  // the scheme in SVG: the arrows are kept in the time area with their labels (shortened when a label needs the room)
   function schemeSvg(m) {
-    if (!m.lanes.length && !m.seats.some(s => s.shots.length)) return '<p class="hint">No shot.</p>';
-    const W = 760,
-      X0 = 112,
-      TW = W - X0 - 14,
-      Xt = t => X0 + ((t - m.t0) / (m.t1 - m.t0)) * TW,
+    if (!m.rows.length) return '<p class="hint">No shot.</p>';
+    const W = 900,
+      X0 = 170,
+      XR = W - 12,
+      TW = XR - X0,
+      Xt = t => X0 + ((Math.min(Math.max(t, m.t0), m.t1) - m.t0) / (m.t1 - m.t0)) * TW,
       span = m.t1 - m.t0,
       step = span > 1800000 ? 300000 : span > 900000 ? 120000 : 60000,
+      cw = (t, px) => t.length * px * 0.58, // text width, about
+      col = i => (i ? m.mates[(i - 1) % m.mates.length] : '#ffffff'),
+      n = m.prot.length,
+      P0 = m.prot[0],
       o = [];
     let y = 26;
-    const top = y;
-    // the protected flights
-    m.lanes.forEach(l => {
-      const tk = l.task,
-        h = 18 + l.rows.length * 24 + 18;
+    // the header, the task of the first flight in (a triangle, a dashed line down to its way back)
+    o.push(
+      `<text x="8" y="${y}" class="sdsl">PACKAGE ${esc(String(m.pkg))}</text><text x="8" y="${y + 15}" class="sdss">${n} protected${P0 ? ' · first in: ' + esc(P0.name) : ''}</text>`
+    );
+    const tkx = P0 && P0.task ? Xt(P0.task.t0) : null;
+    y += 30;
+    const yIn = y + 8,
+      yRows = yIn + n * 13 + 8,
+      yOut = yRows + m.rows.length * 26 + 10,
+      yEnd = yOut + n * 13;
+    if (tkx != null) {
+      o.push(`<path d="M${tkx - 10} ${y - 4}l10-18 10 18z" fill="#fff" stroke="#000" stroke-width="1.5"/>`);
+      const lab =
+          esc(P0.name) +
+          ' · STPT ' +
+          P0.task.n +
+          ' · ' +
+          hms(P0.task.t0).slice(0, 5) +
+          (P0.task.loiter ? '–' + hms(P0.task.t1).slice(0, 5) : ''),
+        right = tkx + 14 + cw(lab, 11.5) < XR;
       o.push(
-        `<text x="8" y="${y + 16}" class="sdsl">${esc(l.name)}</text><text x="8" y="${y + 31}" class="sdss">protected</text>`
+        `<text x="${right ? tkx + 14 : tkx - 14}" y="${y - 8}" class="sdtk"${right ? '' : ' text-anchor="end"'}>${lab}</text>`
       );
-      const ta = tk ? Xt(tk.t0) : null,
-        tb = tk ? Xt(tk.t1) : null;
-      // ingress above, egress below
-      if (tk) {
+      o.push(`<path d="M${tkx} ${y - 2}V${yOut + 2}" stroke="#fff" stroke-dasharray="3 3" opacity=".7"/>`);
+      if (P0.task.loiter)
         o.push(
-          `<path d="M${Math.max(X0, Xt(l.t0)) + 2} ${y + 3}H${ta - 16}" class="sdarr"/><path d="M${ta - 16} ${y + 3}l-7-4v8z" class="sdarrh"/><text x="${Math.max(X0, Xt(l.t0)) + 4}" y="${y - 1}" class="sdss">INGRESS →</text>`
+          `<path d="M${tkx} ${y - 12}H${Xt(P0.task.t1)}" stroke="#fff" stroke-width="3"/><path d="M${Xt(P0.task.t1)} ${y - 2}V${yOut + 2}" stroke="#fff" stroke-dasharray="3 3" opacity=".7"/>`
         );
+    }
+    // the way in: the others farther (above), the first one in next to the SAMs; the way out: the first one in next to the SAMs, the others below
+    m.prot.forEach((f, i) => {
+      const c = col(i),
+        w = i ? 1.4 : 2.4,
+        lab = `${esc(f.name)} <tspan class="sdrole">${esc(f.role)}</tspan>`,
+        lw = cw(f.name + ' ' + f.role, 10.5) + 8,
+        tA = f.task ? f.task.t0 : f.t1,
+        yi = yIn + (n - 1 - i) * 13,
+        xa = Math.max(Xt(f.t0), X0 + lw),
+        xb = Xt(tA) - 8;
+      if (xb > xa + 10)
         o.push(
-          `<path d="M${tb + 16} ${y + h - 6}H${Math.min(W - 14, Xt(l.t1))}" class="sdarr"/><path d="M${tb + 16} ${y + h - 6}l7-4v8z" class="sdarrh"/><text x="${Math.min(W - 16, Xt(l.t1))}" y="${y + h + 8}" class="sdss" text-anchor="end">← EGRESS</text>`
+          `<text x="${xa - 4}" y="${yi + 4}" class="sdar" fill="${c}" text-anchor="end">${lab}</text><path d="M${xa} ${yi}H${xb}" stroke="${c}" stroke-width="${w}"/><path d="M${xb} ${yi}l-7-4v8z" fill="${c}"/>`
         );
-      }
-      l.rows.forEach((r, i) => {
-        const yy = y + 12 + i * 24;
-        r.on.forEach(([a, b]) =>
-          o.push(
-            `<path d="M${Xt(Math.max(a, m.t0))} ${yy + 20}H${Xt(Math.min(b, m.t1))}" stroke="${m.ring}" stroke-width="2" opacity=".55"><title>${esc(r.sam)} on (a flight of the package inside its ring) ${hms(a)}–${hms(b)}</title></path>`
-          )
-        );
-        r.iv.forEach(([a, b]) =>
-          o.push(
-            `<rect x="${Xt(a)}" y="${yy}" width="${Math.max(2, Xt(b) - Xt(a))}" height="16" rx="2" fill="${m.ring}" fill-opacity=".22" stroke="${m.ring}" stroke-dasharray="5 3"/>`
-          )
-        );
-        r.gaps.forEach(([a, b]) =>
-          o.push(
-            `<rect x="${Xt(a)}" y="${yy}" width="${Math.max(2, Xt(b) - Xt(a))}" height="16" fill="${GAP}" fill-opacity=".6" stroke="${GAP}"><title>not covered ${hms(a)}–${hms(b)}</title></rect>`
-          )
-        );
-        o.push(`<text x="${Xt(r.iv[0][0]) + 4}" y="${yy + 12}" fill="${m.ring}" class="sdsm">IN ${esc(r.sam)}</text>`);
-        if (r.t85) o.push(`<path d="M${Xt(r.t85)} ${yy - 3}V${yy + 19}" stroke="${m.ring}" stroke-width="2.5"/>`);
-      });
-      if (tk) {
-        const tri = x => `<path d="M${x - 11} ${y + 1}l11-20 11 20z" fill="#fff" stroke="#000" stroke-width="1.5"/>`;
-        o.push(tri(ta));
-        if (tk.loiter) o.push(tri(tb), `<path d="M${ta} ${y - 2}H${tb}" stroke="#fff" stroke-width="3"/>`);
-        o.push(`<path d="M${ta} ${y + 2}V${y + h - 8}" stroke="#fff" stroke-dasharray="3 3" opacity=".7"/>`);
-        if (tk.loiter)
-          o.push(`<path d="M${tb} ${y + 2}V${y + h - 8}" stroke="#fff" stroke-dasharray="3 3" opacity=".7"/>`);
+      if (i && f.task)
+        o.push(`<text x="${xb + 4}" y="${yi + 4}" class="sdar" fill="${c}">${hms(f.task.t0).slice(0, 5)}</text>`);
+      if (!f.task) return;
+      const yo = yOut + i * 13,
+        xc = Xt(f.task.t1) + 8,
+        xd = Math.min(Xt(f.t1), XR - lw);
+      if (xd > xc + 10)
         o.push(
-          `<text x="${(tk.loiter ? tb : ta) + 14}" y="${y - 6}" class="sdtk">STPT ${tk.n}${tk.loiter ? ' · ON STATION ' + hms(tk.t0).slice(0, 5) + '–' + hms(tk.t1).slice(0, 5) : ' · ' + hms(tk.t0)}</text>`
+          `<path d="M${xc} ${yo}H${xd}" stroke="${c}" stroke-width="${w}"/><path d="M${xc} ${yo}l7-4v8z" fill="${c}"/><text x="${xd + 4}" y="${yo + 4}" class="sdar" fill="${c}">${lab}</text>`
         );
-      }
-      y += h + 22;
     });
-    o.push(`<path d="M6 ${y - 12}H${W - 6}" stroke="#2a3441"/>`);
-    // the seats: one row for each launch (L, the flight, the impact, the glide), the text under it
+    o.push(
+      `<text x="8" y="${yIn + ((n - 1) * 13) / 2 + 4}" class="sdss">INGRESS →</text><text x="8" y="${yOut + ((n - 1) * 13) / 2 + 4}" class="sdss">← EGRESS</text>`
+    );
+    // the SAMs: inside (any protected flight), the SAM on, the first k, not covered, the impacts
+    m.rows.forEach((r, i) => {
+      const yy = yRows + i * 26;
+      o.push(`<text x="${X0 - 8}" y="${yy + 13}" fill="${m.ring}" class="sdsm" text-anchor="end">${esc(r.sam)}</text>`);
+      r.on.forEach(([a, b]) =>
+        o.push(
+          `<path d="M${Xt(a)} ${yy + 20}H${Xt(b)}" stroke="${m.ring}" stroke-width="2" opacity=".5"><title>${esc(r.sam)} on (a flight of the package inside its ring) ${hms(a)}–${hms(b)}</title></path>`
+        )
+      );
+      r.iv.forEach(([a, b]) =>
+        o.push(
+          `<rect x="${Xt(a)}" y="${yy}" width="${Math.max(2, Xt(b) - Xt(a))}" height="16" rx="2" fill="${m.ring}" fill-opacity=".2" stroke="${m.ring}" stroke-dasharray="5 3"/>`
+        )
+      );
+      r.gaps.forEach(([a, b]) =>
+        o.push(
+          `<rect x="${Xt(a)}" y="${yy}" width="${Math.max(2, Xt(b) - Xt(a))}" height="16" fill="${GAP}" fill-opacity=".6" stroke="${GAP}"><title>not covered ${hms(a)}–${hms(b)}</title></rect>`
+        )
+      );
+      o.push(`<path d="M${Xt(r.t85)} ${yy - 3}V${yy + 19}" stroke="${m.ring}" stroke-width="2.5"/>`);
+      r.imp.forEach(t =>
+        o.push(`<path d="M${Xt(t)} ${yy}l8 8-8 8-8-8z" fill="${IMP}" stroke="#fff" stroke-width="1.1"/>`)
+      );
+    });
+    y = yEnd + 24;
+    o.push(`<path d="M6 ${y - 8}H${W - 6}" stroke="#2a3441"/>`);
+    // the seats: the launches and their times of flight under the name, a row for each launch
     m.seats.forEach(s => {
       const a = s.mine ? 1 : 0.62,
-        hh = 8 + Math.max(1, s.shots.length) * 36;
+        rows = Math.max(1, s.shots.length);
       o.push(
-        `<text x="8" y="${y + 14}" class="sdsl${s.mine ? ' sdme' : ''}">${esc(s.label)}</text>${s.mine ? `<text x="8" y="${y + 28}" class="sdss sdme">YOU</text>` : ''}<text x="8" y="${y + (s.mine ? 42 : 28)}" class="sdss">AGM-88 ${s.used}/${s.harms == null ? '?' : s.harms}</text>`
+        `<text x="8" y="${y + 14}" class="sdsl${s.mine ? ' sdme' : ''}">${esc(s.label)}${s.mine ? ' · YOU' : ''}</text><text x="${X0 - 8}" y="${y + 14}" class="sdss" text-anchor="end">${s.used}/${s.harms == null ? '?' : s.harms}</text>`
       );
-      if (!s.shots.length) o.push(`<path d="M${X0} ${y + 12}H${W - 14}" stroke="#202a36"/>`);
+      s.shots.forEach((z, i) =>
+        o.push(
+          `<text x="8" y="${y + 30 + i * 15}" class="sdss${s.mine ? ' sdme' : ''}">L ${hms(z.tl)} · TOF ${z.tof} s</text>`
+        )
+      );
+      if (!s.shots.length) o.push(`<path d="M${X0} ${y + 10}H${XR}" stroke="#202a36"/>`);
       s.shots.forEach((z, i) => {
-        const yy = y + 2 + i * 36,
+        const yy = y + i * 36,
           xl = Xt(z.tl),
           xi = Xt(z.imp),
-          xc = Xt(z.cover);
+          xc = Xt(z.cover),
+          tx = `${esc(z.sam)} · ◆ ${hms(z.imp).slice(3)}${z.aim ? ' · ' + esc(z.aim) : ''}${z.ok ? '' : ' · !'}`,
+          tr = xl + cw(tx, 11) > XR;
         o.push(
-          `<path d="M${X0} ${yy + 10}H${W - 14}" stroke="#202a36"/><g opacity="${a}"><rect x="${xl}" y="${yy + 5}" width="${Math.max(2, xi - xl)}" height="10" rx="2" fill="${HARM}"/><rect x="${xi}" y="${yy + 5}" width="${Math.max(0, xc - xi)}" height="10" fill="${HARM}" fill-opacity=".28"/><text x="${xl - 4}" y="${yy + 14}" text-anchor="end" class="sdsm" fill="${s.mine ? YOU : HARM}">L</text><path d="M${xi} ${yy + 1}l9 9-9 9-9-9z" fill="${IMP}" stroke="#fff" stroke-width="1.2"/><text x="${xl}" y="${yy + 30}" class="sdss${s.mine ? ' sdme' : ''}">${esc(z.sam)} · L ${hms(z.tl).slice(3)} · ◆ ${hms(z.imp).slice(3)}${z.aim ? ' · ' + esc(z.aim) : ''}${z.ok ? '' : ' · !'}</text></g>`
+          `<path d="M${X0} ${yy + 10}H${XR}" stroke="#202a36"/><g opacity="${a}"><rect x="${xl}" y="${yy + 5}" width="${Math.max(2, xi - xl)}" height="10" rx="2" fill="${HARM}"/><rect x="${xi}" y="${yy + 5}" width="${Math.max(0, xc - xi)}" height="10" fill="${HARM}" fill-opacity=".28"/><text x="${xl - 4}" y="${yy + 14}" text-anchor="end" class="sdsm" fill="${s.mine ? YOU : HARM}">L</text><path d="M${xi} ${yy + 1}l9 9-9 9-9-9z" fill="${IMP}" stroke="#fff" stroke-width="1.2"/><text x="${tr ? xi : xl}" y="${yy + 30}" class="sdss${s.mine ? ' sdme' : ''}"${tr ? ' text-anchor="end"' : ''}>${tx}</text></g>`
         );
       });
-      y += Math.max(s.mine ? 52 : 40, hh);
+      y += Math.max(26 + rows * 15, rows * 36) + 8;
     });
     // the time scale
     for (let t = Math.ceil(m.t0 / step) * step; t <= m.t1; t += step)
       o.unshift(
-        `<path d="M${Xt(t)} ${top - 8}V${y - 6}" stroke="#202a36"/><text x="${Xt(t)}" y="12" class="sdss" text-anchor="middle">${hms(t).slice(0, 5)}</text>`
+        `<path d="M${Xt(t)} 18V${y - 6}" stroke="#202a36"/><text x="${Xt(t)}" y="12" class="sdss" text-anchor="middle">${hms(t).slice(0, 5)}</text>`
       );
     return `<svg viewBox="0 0 ${W} ${y}" class="sdscv" role="img" aria-label="SEAD scheme"><rect width="${W}" height="${y}" rx="6" fill="#121820"/>${o.join('')}</svg>`;
   }

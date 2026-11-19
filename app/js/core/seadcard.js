@@ -7,7 +7,13 @@
 //     sm (the scheme model of seadpage.js), ev[{t, c, s}], px (the map picture and its points) | null}
 export const SDC_W = 1600,
   SDC_H = 2400;
-export const SD_COL = { HARM: '#38bdf8', IMP: '#ff3b3b', YOU: '#4cc38a', GAP: '#ff3b3b' };
+export const SD_COL = {
+  HARM: '#38bdf8',
+  IMP: '#ff3b3b',
+  YOU: '#4cc38a',
+  GAP: '#ff3b3b',
+  MATES: ['#c4b5fd', '#f9a8d4', '#fde68a', '#d6d3d1'], // the other protected flights on the scheme
+};
 const BG = '#f4f6f8',
   TX = '#111827',
   MU = '#5b6573',
@@ -19,6 +25,11 @@ const BG = '#f4f6f8',
 const hm = t => {
   const s = Math.round(t / 1000) % 86400;
   return String(Math.floor(s / 3600)).padStart(2, '0') + ':' + String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+};
+const hms = t => {
+  const s = Math.round(t / 1000) % 86400,
+    q = n => String(n).padStart(2, '0');
+  return q(Math.floor(s / 3600)) + ':' + q(Math.floor((s % 3600) / 60)) + ':' + q(s % 60);
 };
 const ms = t => {
   const s = Math.round(t / 1000) % 86400;
@@ -317,7 +328,7 @@ function map(x, D, PX, PY, PW, PH) {
   x.roundRect(PX, PY, PW, PH, 12);
   x.stroke();
 }
-// the scheme and the events
+// the scheme and the events (the same layout as the page, on the light card)
 function scheme(x, D, PX, PY, PW, PH) {
   const m = D.sm,
     font = (w, s) => (x.font = w + ' ' + s + 'px ' + F),
@@ -326,14 +337,40 @@ function scheme(x, D, PX, PY, PW, PH) {
       x.textAlign = /** @type {CanvasTextAlign} */ (a);
       x.fillText(t, X, Y);
     },
-    X0 = PX + 230,
-    TW = PX + PW - 20 - X0,
-    Xt = t => X0 + ((t - m.t0) / (m.t1 - m.t0)) * TW,
-    ring = '#d97706';
+    tw = (t, w, s) => {
+      font(w, s);
+      return x.measureText(t).width;
+    },
+    line = (x0, y0, x1, y1, c, w, dash) => {
+      x.strokeStyle = c;
+      x.lineWidth = w;
+      x.setLineDash(dash || []);
+      x.beginPath();
+      x.moveTo(x0, y0);
+      x.lineTo(x1, y1);
+      x.stroke();
+      x.setLineDash([]);
+    },
+    arrowHead = (xh, yh, dir, c) => {
+      x.fillStyle = c;
+      x.beginPath();
+      x.moveTo(xh, yh);
+      x.lineTo(xh - dir * 12, yh - 6);
+      x.lineTo(xh - dir * 12, yh + 6);
+      x.closePath();
+      x.fill();
+    },
+    X0 = PX + 330,
+    XR = PX + PW - 20,
+    Xt = t => X0 + ((Math.min(Math.max(t, m.t0), m.t1) - m.t0) / (m.t1 - m.t0)) * (XR - X0),
+    ring = '#d97706',
+    MATES = ['#7c3aed', '#db2777', '#a16207', '#57534e'], // darker for the light card
+    col = i => (i ? MATES[(i - 1) % MATES.length] : '#111827'),
+    n = m.prot.length;
   // the events take the lower part: two columns
   const ev = D.ev || [],
-    evRows = Math.min(Math.ceil(ev.length / 2), 14),
-    evH = ev.length ? 50 + evRows * 34 : 0,
+    evRows = Math.min(Math.ceil(ev.length / 2), 12),
+    evH = ev.length ? 50 + evRows * 32 : 0,
     SH = PH - evH;
   x.fillStyle = '#fff';
   x.strokeStyle = LN;
@@ -342,135 +379,151 @@ function scheme(x, D, PX, PY, PW, PH) {
   x.roundRect(PX, PY, PW, SH, 12);
   x.fill();
   x.stroke();
-  // the height the lanes need, scaled into the box
-  const seatH = s => Math.max(s.mine ? 92 : 70, 16 + Math.max(1, s.shots.length) * 56),
-    need = 50 + m.lanes.reduce((a, l) => a + 80 + l.rows.length * 40, 0) + m.seats.reduce((a, s) => a + seatH(s), 0),
-    k = Math.min(1.4, (SH - 20) / need);
-  let y = PY + 50 * k;
-  const span = m.t1 - m.t0,
+  // the room the parts need, scaled into the box
+  const seatH = s => Math.max(Math.max(1, s.shots.length) * 58, 34 + s.shots.length * 24) + 16,
+    // the height is A + B k (the fixed parts and the scaled ones): k so that it fits
+    A = 130 + 10 + 14 + 40 + 16 + 2 * n * 8 + m.rows.length * 6,
+    B = 2 * n * 22 + m.rows.length * 40 + m.seats.reduce((a, s) => a + seatH(s), 0),
+    k = Math.max(0.3, Math.min(1.3, (SH - 30 - A) / B)),
+    span = m.t1 - m.t0,
     step = span > 1800000 ? 300000 : span > 900000 ? 120000 : 60000;
   font('500', 20);
   for (let t = Math.ceil(m.t0 / step) * step; t <= m.t1; t += step) {
-    text(hm(t), Xt(t), PY + 26, MU, 'center');
-    x.strokeStyle = '#e5e9ef';
-    x.lineWidth = 1;
-    x.beginPath();
-    x.moveTo(Xt(t), PY + 34);
-    x.lineTo(Xt(t), PY + SH - 10);
-    x.stroke();
+    text(hm(t), Xt(t), PY + 28, MU, 'center');
+    line(Xt(t), PY + 36, Xt(t), PY + SH - 10, '#e5e9ef', 1);
   }
-  m.lanes.forEach(l => {
-    const tk = l.task,
-      h = (80 + l.rows.length * 40) * k,
-      y0 = y + 26 * k;
-    font('700', 26);
-    text(l.name, PX + 16, y0 + 18);
-    font('500', 20);
-    text('PROTECTED', PX + 16, y0 + 44, MU);
-    if (tk) {
-      const ta = Xt(tk.t0),
-        tb = Xt(tk.t1),
-        ye = y0 + 8 + l.rows.length * 40 * k + 8;
-      x.strokeStyle = MU;
-      x.lineWidth = 2;
-      x.beginPath();
-      x.moveTo(Math.max(X0, Xt(l.t0)), y0 - 4);
-      x.lineTo(ta - 20, y0 - 4);
-      x.moveTo(tb + 20, ye);
-      x.lineTo(Math.min(PX + PW - 20, Xt(l.t1)), ye);
-      x.stroke();
-      font('600', 18);
-      text('INGRESS →', Math.max(X0, Xt(l.t0)) + 4, y0 - 10, MU);
-      text('← EGRESS', Math.min(PX + PW - 22, Xt(l.t1)), ye + 22, MU, 'right');
+  let y = PY + 60 * k + 20;
+  const P0 = m.prot[0];
+  font('800', 26);
+  text('PACKAGE ' + m.pkg, PX + 16, PY + 70);
+  font('500', 20);
+  text(n + ' PROTECTED' + (P0 ? ' · FIRST IN: ' + P0.name.toUpperCase() : ''), PX + 16, PY + 96, MU);
+  y = Math.max(y, PY + 110);
+  const yIn = y + 20,
+    gIn = 22 * k + 8,
+    yRows = yIn + n * gIn + 10,
+    gR = 40 * k + 6,
+    yOut = yRows + m.rows.length * gR + 14,
+    yEnd = yOut + n * gIn;
+  // the task of the first flight in
+  if (P0 && P0.task) {
+    const tx = Xt(P0.task.t0);
+    tri(x, tx, y - 4, 18, '#fff', '#111');
+    font('800', 22);
+    const lab =
+        P0.name.toUpperCase() +
+        ' · STPT ' +
+        P0.task.n +
+        ' · ' +
+        hm(P0.task.t0) +
+        (P0.task.loiter ? '–' + hm(P0.task.t1) : ''),
+      right = tx + 24 + x.measureText(lab).width < XR;
+    text(lab, right ? tx + 24 : tx - 24, y + 4, TX, right ? 'left' : 'right');
+    line(tx, y + 10, tx, yOut + 4, '#111', 2, [6, 6]);
+    if (P0.task.loiter) {
+      line(tx, y - 14, Xt(P0.task.t1), y - 14, '#111', 4);
+      line(Xt(P0.task.t1), y + 10, Xt(P0.task.t1), yOut + 4, '#111', 2, [6, 6]);
     }
-    l.rows.forEach((r, i) => {
-      const yy = y0 + 8 + i * 40 * k,
-        bh = 28 * k;
-      (r.on || []).forEach(([a, b]) => {
-        x.strokeStyle = ring;
-        x.globalAlpha = 0.55;
-        x.lineWidth = 3;
-        x.beginPath();
-        x.moveTo(Xt(Math.max(a, m.t0)), yy + bh + 3);
-        x.lineTo(Xt(Math.min(b, m.t1)), yy + bh + 3);
-        x.stroke();
-        x.globalAlpha = 1;
-      });
-      r.iv.forEach(([a, b]) => {
-        x.fillStyle = 'rgba(217,119,6,.18)';
-        x.fillRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
-        x.strokeStyle = ring;
-        x.setLineDash([8, 5]);
-        x.lineWidth = 2;
-        x.strokeRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
-        x.setLineDash([]);
-      });
-      r.gaps.forEach(([a, b]) => {
-        x.fillStyle = 'rgba(255,59,59,.55)';
-        x.fillRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
-      });
-      font('700', 18);
-      text('IN ' + r.sam, Xt(r.iv[0][0]) + 6, yy + bh - 8, '#92400e');
-      if (r.t85) {
-        x.strokeStyle = ring;
-        x.lineWidth = 4;
-        x.beginPath();
-        x.moveTo(Xt(r.t85), yy - 4);
-        x.lineTo(Xt(r.t85), yy + bh + 4);
-        x.stroke();
+  }
+  font('600', 18);
+  text('INGRESS →', PX + 16, yIn + ((n - 1) * gIn) / 2 + 7, MU);
+  // the arrows: the way in (the others above), the way out (the others below), labels in the time area, arrows shortened for them
+  m.prot.forEach((f, i) => {
+    const c = col(i),
+      w = i ? 2 : 4,
+      lab = f.name.toUpperCase(),
+      role = ' ' + f.role,
+      lw = tw(lab, '700', 19) + tw(role, '500', 15) + 12,
+      tA = f.task ? f.task.t0 : f.t1,
+      yi = yIn + (n - 1 - i) * gIn,
+      xa = Math.max(Xt(f.t0), X0 + lw),
+      xb = Xt(tA) - 10;
+    const label = (xl, yl, align) => {
+      font('700', 19);
+      const a = x.measureText(lab).width;
+      font('500', 15);
+      const b = x.measureText(role).width;
+      const x0 = align == 'right' ? xl - a - b : xl;
+      font('700', 19);
+      text(lab, x0, yl + 7, c);
+      font('500', 15);
+      text(role, x0 + a, yl + 7, c);
+    };
+    if (xb > xa + 14) {
+      label(xa - 6, yi, 'right');
+      line(xa, yi, xb, yi, c, w);
+      arrowHead(xb + 2, yi, 1, c);
+      if (i && f.task) {
+        font('500', 16);
+        text(hm(f.task.t0), xb + 8, yi + 6, c);
       }
-    });
-    if (tk) {
-      const ta = Xt(tk.t0),
-        tb = Xt(tk.t1);
-      if (tk.loiter) {
-        x.strokeStyle = '#111';
-        x.lineWidth = 4;
-        x.beginPath();
-        x.moveTo(ta, y0 - 10);
-        x.lineTo(tb, y0 - 10);
-        x.stroke();
-      }
-      [ta].concat(tk.loiter ? [tb] : []).forEach(tx => tri(x, tx, y0 - 12, 18, '#fff', '#111'));
-      font('800', 20);
-      text(
-        'STPT ' + tk.n + (tk.loiter ? ' · ON STATION ' + hm(tk.t0) + '–' + hm(tk.t1) : ' · ' + hm(tk.t0)),
-        (tk.loiter ? tb : ta) + 22,
-        y0 - 16
-      );
     }
-    y += h + 20 * k;
+    if (!f.task) return;
+    const yo = yOut + i * gIn,
+      xc = Xt(f.task.t1) + 10,
+      xd = Math.min(Xt(f.t1), XR - lw);
+    if (xd > xc + 14) {
+      line(xc, yo, xd, yo, c, w);
+      arrowHead(xc - 2, yo, -1, c);
+      label(xd + 6, yo, 'left');
+    }
   });
-  x.strokeStyle = LN;
-  x.lineWidth = 2;
-  x.beginPath();
-  x.moveTo(PX + 10, y);
-  x.lineTo(PX + PW - 10, y);
-  x.stroke();
-  y += 14 * k;
-  // the seats: one row for each launch, its text under it
+  font('600', 18);
+  text('← EGRESS', PX + 16, yOut + ((n - 1) * gIn) / 2 + 7, MU);
+  // the SAMs
+  m.rows.forEach((r, i) => {
+    const yy = yRows + i * gR,
+      bh = 26 * k + 4;
+    font('800', 22);
+    text(r.sam, X0 - 12, yy + bh - 6, ring, 'right');
+    (r.on || []).forEach(([a, b]) => {
+      x.globalAlpha = 0.5;
+      line(Xt(a), yy + bh + 4, Xt(b), yy + bh + 4, ring, 3);
+      x.globalAlpha = 1;
+    });
+    r.iv.forEach(([a, b]) => {
+      x.fillStyle = 'rgba(217,119,6,.16)';
+      x.fillRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
+      x.strokeStyle = ring;
+      x.setLineDash([8, 5]);
+      x.lineWidth = 2;
+      x.strokeRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
+      x.setLineDash([]);
+    });
+    r.gaps.forEach(([a, b]) => {
+      x.fillStyle = 'rgba(255,59,59,.55)';
+      x.fillRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
+    });
+    line(Xt(r.t85), yy - 4, Xt(r.t85), yy + bh + 4, ring, 4);
+    r.imp.forEach(t => {
+      x.fillStyle = SD_COL.IMP;
+      x.strokeStyle = '#fff';
+      x.lineWidth = 2;
+      diamond(x, Xt(t), yy + bh / 2, 12);
+      x.stroke();
+    });
+  });
+  y = yEnd + 40;
+  line(PX + 10, y, PX + PW - 10, y, LN, 2);
+  y += 16;
+  // the seats: the launches and times of flight under the name, a row for each launch
   m.seats.forEach(s => {
     const yy = y + 10;
-    font(s.mine ? '800' : '600', 26);
-    text(s.label, PX + 16, yy + 22, s.mine ? AC : TX);
-    font('500', 20);
-    if (s.mine) text('YOU', PX + 16, yy + 46, AC);
-    text('AGM-88 ' + s.used + '/' + (s.harms == null ? '?' : s.harms), PX + 16, yy + (s.mine ? 70 : 48), MU);
-    const line = ry => {
-      x.strokeStyle = '#e5e9ef';
-      x.lineWidth = 2;
-      x.beginPath();
-      x.moveTo(X0, ry + 20);
-      x.lineTo(PX + PW - 20, ry + 20);
-      x.stroke();
-    };
-    if (!s.shots.length) line(yy);
+    font(s.mine ? '800' : '700', 24);
+    text(s.label + (s.mine ? ' · YOU' : ''), PX + 16, yy + 22, s.mine ? AC : TX);
+    font('500', 18);
+    text(s.used + '/' + (s.harms == null ? '?' : s.harms), X0 - 12, yy + 22, MU, 'right');
     s.shots.forEach((z, i) => {
-      const ry = yy + i * 56 * k,
+      font(s.mine ? '700' : '500', 19);
+      text('L ' + hms(z.tl) + ' · TOF ' + z.tof + ' S', PX + 16, yy + 48 + i * Math.min(24, 58 * k), s.mine ? AC : MU);
+    });
+    if (!s.shots.length) line(X0, yy + 20, XR, yy + 20, '#e5e9ef', 2);
+    s.shots.forEach((z, i) => {
+      const ry = yy + i * 58 * k,
         xl = Xt(z.tl),
         xi = Xt(z.imp),
         xc = Xt(z.cover);
-      line(ry);
+      line(X0, ry + 20, XR, ry + 20, '#e5e9ef', 2);
       x.globalAlpha = s.mine ? 1 : 0.65;
       x.fillStyle = HB;
       x.fillRect(xl, ry + 12, Math.max(3, xi - xl), 16);
@@ -484,13 +537,10 @@ function scheme(x, D, PX, PY, PW, PH) {
       x.lineWidth = 2;
       diamond(x, xi, ry + 20, 13);
       x.stroke();
-      font(s.mine ? '700' : '500', 20);
-      text(
-        z.sam + ' · L ' + ms(z.tl) + ' · ◆ ' + ms(z.imp) + (z.aim ? ' · ' + z.aim : '') + (z.ok ? '' : ' · !'),
-        xl,
-        ry + 50,
-        s.mine ? AC : MU
-      );
+      const tx = z.sam + ' · ◆ ' + ms(z.imp) + (z.aim ? ' · ' + z.aim : '') + (z.ok ? '' : ' · !'),
+        tr = xl + tw(tx, s.mine ? '700' : '500', 19) > XR;
+      font(s.mine ? '700' : '500', 19);
+      text(tx, tr ? xi : xl, ry + 50, s.mine ? AC : MU, tr ? 'right' : 'left');
     });
     y += seatH(s) * k;
   });
@@ -499,8 +549,8 @@ function scheme(x, D, PX, PY, PW, PH) {
     let ey = PY + SH + 40;
     font('700', 26);
     text('EVENTS', PX, ey, AC);
-    ey += 10;
-    const col = c =>
+    ey += 8;
+    const colE = c =>
       c == 'me'
         ? AC
         : c == 'harm'
@@ -514,11 +564,11 @@ function scheme(x, D, PX, PY, PW, PH) {
                 : TX;
     ev.slice(0, evRows * 2).forEach((e, i) => {
       const cx = PX + (i < evRows ? 0 : PW / 2),
-        cy = ey + 30 + (i % evRows) * 34;
-      font('500', 22);
+        cy = ey + 28 + (i % evRows) * 32;
+      font('500', 21);
       text(e.t, cx, cy, MU);
-      font(e.c == 'me' || e.c == 'task' ? '800' : '600', 22);
-      text(e.s, cx + 110, cy, col(e.c));
+      font(e.c == 'me' || e.c == 'task' ? '800' : '600', 21);
+      text(e.s, cx + 104, cy, colE(e.c));
     });
   }
 }
