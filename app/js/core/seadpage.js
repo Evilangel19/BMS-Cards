@@ -50,6 +50,7 @@ export function createSeadPage(deps) {
     pend = null,
     failed = false,
     fit = true,
+    fitKey = '',
     P = null, // the plan worked out
     X = null, // the context: the package, the SAMs
     H = null, // the missile and the HARM settings of the Single shot page
@@ -207,7 +208,7 @@ export function createSeadPage(deps) {
         })
         .join('')}`;
     const R = P.rows;
-    q('#sdth').innerHTML =
+    const thb =
       `<h3>Threats on the protected routes</h3>` +
       (R.length
         ? `<table class="sdt"><tr><th></th><th>SAM</th><th>ALIC</th><th>Flight</th><th>WEZ in</th><th>Inside</th><th>HARMs</th><th>Table</th></tr>${R.map(
@@ -216,8 +217,17 @@ export function createSeadPage(deps) {
               return `<tr data-sdsam="${esc(r.id)}" class="${s && s.id == r.id ? 'on' : ''}${st.skip[r.id] ? ' off' : ''}"><td><input type="checkbox" data-sdskip="${esc(r.id)}"${st.skip[r.id] ? '' : ' checked'} title="Shoot at this SAM"></td><td><b>${esc(r.sam.name)}</b>${r.sam.telar >= 0 ? ' <span class="sdtel" title="One fire control radar on each launcher (TELAR): a HARM kills one launcher, the others keep shooting">⚠ TELAR</span>' : ''}</td><td>${r.sam.code == null ? '—' : r.sam.code}</td><td>${esc(r.flight)}${r.by.length > 1 ? ' +' + (r.by.length - 1) : ''}</td><td>${hms(r.tin)}</td><td>${mmss(r.ms / 1000)}</td><td><b>${st.skip[r.id] ? '—' : r.shots.length}</b>${r.gaps.length && !st.skip[r.id] ? ' <span class="sdgap" title="Not covered: ' + r.gaps.map(g => hms(g.t0) + '–' + hms(g.t1)).join(', ') + '">●</span>' : ''}</td><td>${tabTag(r)}</td></tr>`;
             }
           ).join('')}</table>`
-        : '<p class="hint">No enemy SAM ring (spotted, radar alive) on the routes of the protected flights.</p>') +
-      `<div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote">All the HARMs of the flight: one for each SAM first, arriving when the protected flight is at ${st.k}% of the ring radius from it (the SAM needs time to lock and shoot); then the others where it is not covered, ingress first (until its task is done). The way back through a ring gets a HARM too. A HARM covers while it flies (the SAM keeps quiet) and from its impact less the flight of a SAM missile (one already flying loses its guidance), never before the SAM is on: it radiates when any flight of the package is inside its ring, so a HARM too early finds it off. ${glide() ? 'It covers to the end of its glide (its max range; at most its 300 s of flight).' : 'Target Isolate and Glide Inhibit are on (Single shot page): no glide, it covers to its impact.'} Flight plan times${P.est ? '; ' + BACKUP_NM_MIN + ' nm/min where a steerpoint has no time' : ''}.</p>`;
+        : '<p class="hint">No enemy SAM ring (spotted, radar alive) on the routes of the protected flights.</p>');
+    // the slider stays while it moves (the plan follows it): the table and the note are written again, not the slider
+    if (!q('#sdthb'))
+      q('#sdth').innerHTML =
+        `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p>`;
+    q('#sdthb').innerHTML = thb;
+    const sk = q('[data-sdk]');
+    if (sk && document.activeElement !== sk) sk.value = st.k;
+    q('[data-sdke]').textContent = st.k + '% R';
+    q('#sdkn').textContent =
+      `One HARM per SAM first, arriving when the protected flight is at ${st.k}% of the ring; then the gaps, ingress first, and the way back. A HARM covers while it flies${glide() ? ' and glides (max 300 s)' : ' (TI and GI on: no glide)'}, from when the SAM is on (any package flight inside its ring). Flight plan times${P.est ? '; ' + BACKUP_NM_MIN + ' nm/min where a steerpoint has no time' : ''}.`;
     const S = P.seats,
       Z = P.shots.filter(z => !st.skip[z.id]),
       refs = X.refs || [];
@@ -786,6 +796,11 @@ export function createSeadPage(deps) {
     }
     const was = X && X.ok;
     compute();
+    const fk = X && X.ok ? X.me.key : ''; // another flight: the map fits again
+    if (fk !== fitKey) {
+      fitKey = fk;
+      fit = true;
+    }
     if (rebuild || !root.querySelector('.sdg') !== !(X && X.ok) || was !== (X && X.ok)) {
       detachMap();
       failed = false;
@@ -853,11 +868,12 @@ export function createSeadPage(deps) {
       save();
       draw(false);
     };
+    // the first impact: the plan follows the slider while it moves
     root.oninput = e => {
       const d = e.target.dataset || {};
       if (d.sdk == null) return;
-      const em = q('[data-sdke]');
-      if (em) em.textContent = e.target.value + '% R';
+      st.k = +e.target.value;
+      draw(false);
     };
     const po = q('[data-sdpf]');
     if (po) {
@@ -1169,9 +1185,10 @@ export function createSeadPage(deps) {
 
   return {
     root,
+    // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;
-      draw(true);
+      draw(false);
     },
     refresh: () => {
       if (shown) draw(false);

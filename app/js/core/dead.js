@@ -159,16 +159,33 @@ export function deadPlan(o) {
     A = at(s, bH, Da),
     B = at(s, bK, Da),
     tA = tT - sec(Da),
-    tArc0 = tA + 60000 + sec(Da - Ra),
-    arc = arcPts(s, Ra, bH, dir * 90),
-    tArc1 = tArc0 + sec((Ra * Math.PI) / 2),
+    // the bait: inside the WEZ, on the edge of the WEZ with ECM on (the jammer keeps the SAM from a lock there; it still sees and may shoot)
+    Rb = R * ecm,
+    tArc0 = tA + 60000 + sec(Da - Rb),
+    arc = arcPts(s, Rb, bH, dir * 90),
+    tArc1 = tArc0 + sec((Rb * Math.PI) / 2),
     bE = bH + dir * 90,
-    def = [at(s, bE, Ra), at(s, bE + dir * 10, Ra + 7), at(s, (bE + bH) / 2, Da + 4), A],
-    tBack = tArc1 + sec(Ra * 0.9 + 14),
+    def = [at(s, bE, Rb), at(s, bE + dir * 10, Ra + 7), at(s, (bE + bH) / 2, Da + 4), A],
+    tBack = tArc1 + sec(Rb * 0.9 + 14),
     atk = [B, at(s, bK, R * 0.9), at(s, bK, 4)],
     tAtk = tBack + 60000,
     cover = arcPts(s, Ra + 4, bK + dir * 20, -dir * 70);
-  Object.assign(out, { A, B, tA, arc, tArc0, tArc1, def, tBack, atk, tAtk, cover, bK, attackHdg: (bK + 180) % 360 });
+  Object.assign(out, {
+    Rb,
+    A,
+    B,
+    tA,
+    arc,
+    tArc0,
+    tArc1,
+    def,
+    tBack,
+    atk,
+    tAtk,
+    cover,
+    bK,
+    attackHdg: (bK + 180) % 360,
+  });
   if (o.tactic == 'hk' && !idx('hunter').length) out.warn.push('No hunter: give the role to a seat.');
   if (!idx('killer').length) out.warn.push('No killer: give the role to a seat.');
   roles.forEach((r, i) => out.seats.push({ i, role: r }));

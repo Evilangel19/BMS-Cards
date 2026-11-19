@@ -24,6 +24,7 @@ const BG = '#f4f6f8',
   LN = '#c9d1db',
   AC = '#1f8a4c',
   BAD = '#b91c1c',
+  HD = '#374151', // the section titles
   F = 'system-ui, Segoe UI, sans-serif';
 const hm = t => {
   const s = Math.round(t / 1000) % 86400;
@@ -71,7 +72,7 @@ export function drawDeadCard(x, D, kind = 'map') {
     font('700', 30);
     const t = 'YOUR SEAT ' + D.seatName,
       w = x.measureText(t).width + 40;
-    x.fillStyle = AC;
+    x.fillStyle = '#374151';
     x.beginPath();
     x.roundRect(W - 40 - w, 84, w, 48, 10);
     x.fill();
@@ -112,11 +113,12 @@ export function drawDeadCard(x, D, kind = 'map') {
   }
   // your role
   const bw = (W - 80 - 3 * 16) / 4;
-  D.box.forEach(([l, b, s], i) => {
+  // green only for a launch or an attack (the 4th field); the role in its colour
+  D.box.forEach(([l, b, s, go], i) => {
     const bx = 40 + i * (bw + 16);
     x.fillStyle = '#fff';
-    x.strokeStyle = i ? LN : AC;
-    x.lineWidth = i ? 2 : 4;
+    x.strokeStyle = go ? AC : i ? LN : roleInk(b);
+    x.lineWidth = i && !go ? 2 : 4;
     x.beginPath();
     x.roundRect(bx, y, bw, 190, 12);
     x.fill();
@@ -125,7 +127,7 @@ export function drawDeadCard(x, D, kind = 'map') {
     font('600', 22);
     text(l, bx + 22, y + 40, MU);
     font('800', i ? 50 : 54);
-    fitText(b, bx + 22, y + 112, bw - 40, i ? TX : AC);
+    fitText(b, bx + 22, y + 112, bw - 40, go ? AC : i ? TX : roleInk(b));
     font('500', 22);
     fitText(s, bx + 22, y + 160, bw - 40, MU);
   });
@@ -136,7 +138,7 @@ export function drawDeadCard(x, D, kind = 'map') {
   // the steps
   y = B.y + B.h + 20;
   font('700', 26);
-  text('STEPS', 40, y + 30, AC);
+  text('STEPS', 40, y + 30, HD);
   y += 50;
   D.steps.slice(0, 8).forEach((o, i) => {
     if (o.me) {
@@ -156,7 +158,7 @@ export function drawDeadCard(x, D, kind = 'map') {
       'NAV OFFSETS · FROM STPT ' + D.oa.n + (D.oa.n >= 1 && D.oa.n <= 24 ? '' : ' (TYPE THEM ON BOARD, DED)'),
       40,
       y + 30,
-      AC
+      HD
     );
     y += 50;
     const C = [40, 260, 520, 760, 980];
@@ -171,7 +173,7 @@ export function drawDeadCard(x, D, kind = 'map') {
       text(k, C[0], y + 26);
       text(String(a.brg).padStart(3, '0') + '°', C[1], y + 26);
       text(a.nm.toFixed(1) + ' NM', C[2], y + 26);
-      text('0', C[3], y + 26);
+      text(Math.round(a.el || 0).toLocaleString('en-US') + ' FT', C[3], y + 26);
       text(l, C[4], y + 26, c);
       y += 40;
     });
@@ -179,7 +181,7 @@ export function drawDeadCard(x, D, kind = 'map') {
   // the flight
   y = H - 56 - 20 - seatsH(D);
   font('700', 26);
-  text('THE FLIGHT', 40, y + 30, AC);
+  text('THE FLIGHT', 40, y + 30, HD);
   y += 50;
   const C = [40, 340, 580];
   font('600', 20);
@@ -187,15 +189,15 @@ export function drawDeadCard(x, D, kind = 'map') {
   y += 36;
   D.seats.forEach(r => {
     if (r.me) {
-      x.fillStyle = '#e8f5ee';
+      x.fillStyle = '#e5e7eb';
       x.fillRect(30, y, W - 60, 38);
     }
     font(r.me ? '700' : '500', 23);
-    text(r.seat + (r.me ? ' · YOU' : ''), C[0], y + 27, r.me ? AC : TX);
+    text(r.seat + (r.me ? ' · YOU' : ''), C[0], y + 27, TX);
     font('700', 23);
     text(r.role, C[1], y + 27, roleInk(r.role));
     font(r.me ? '700' : '500', 23);
-    text(r.times, C[2], y + 27, r.me ? AC : TX);
+    text(r.times, C[2], y + 27, r.me && r.go ? AC : TX);
     x.strokeStyle = LN;
     x.lineWidth = 1;
     x.beginPath();
@@ -247,6 +249,16 @@ function map(x, D, PX, PY, PW, PH) {
     circ(p.sam.Rdet, p.ring, 2, [3, 9]);
     if (p.sam.rTh) circ(p.sam.rTh, SD_COL.HARM, 2.5, [12, 10]);
     if (p.sam.seek) circ(p.sam.seek, '#22d3ee', 2.5, [3, 9]);
+    if (p.sam.foot && p.sam.foot.length > 2) {
+      // the footprint of the HARM submode (the heart of EOM / RUK, the wedge of PB)
+      x.beginPath();
+      p.sam.foot.forEach((q, i) => (i ? x.lineTo(...Q(q)) : x.moveTo(...Q(q))));
+      x.fillStyle = 'rgba(255,255,255,.07)';
+      x.fill();
+      x.lineWidth = 3;
+      x.strokeStyle = '#fff';
+      x.stroke();
+    }
     p.paths.forEach(a => {
       if (a.pts.length < 2) return;
       x.setLineDash(a.dash ? [14, 12] : []);
@@ -379,7 +391,7 @@ function scheme(x, D, PX, PY, PW, PH) {
       ink = roleInk(l.name);
     x.textAlign = 'left';
     x.font = '700 28px ' + F;
-    x.fillStyle = l.me ? AC : TX;
+    x.fillStyle = TX;
     x.fillText(l.seat + (l.me ? ' · YOU' : ''), PX + 24, y + 36);
     x.font = '700 22px ' + F;
     x.fillStyle = ink;

@@ -70,8 +70,9 @@ ck(
   [K.A, K.B]
 );
 ck(
-  '...the hunter: the arc 90 degrees at the arc radius, then back to its anchor',
-  K.arc.every(p => Math.abs(nm(p, SAM) - 26) < 0.01) &&
+  '...the hunter: the bait arc 90 degrees inside the WEZ, on the WEZ with ECM on, then back to its anchor',
+  K.arc.every(p => Math.abs(nm(p, SAM) - K.Recm) < 0.01) &&
+    K.Rb < K.R &&
     nm(K.def[K.def.length - 1], K.A) < 0.01 &&
     K.tArc0 < K.tArc1 &&
     K.tArc1 < K.tBack

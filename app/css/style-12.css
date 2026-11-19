@@ -1105,8 +1105,8 @@
   background: rgba(255, 255, 255, 0.02);
 }
 .ddtile.me {
-  border-color: var(--ac);
-  box-shadow: 0 0 0 1px var(--ac) inset;
+  border-color: #e2e8f0;
+  box-shadow: 0 0 0 1px #e2e8f0 inset;
 }
 .ddtile .th {
   display: flex;
@@ -1123,8 +1123,8 @@
 }
 .ddtile .th .you {
   margin-left: auto;
-  background: var(--ac);
-  color: #06140c;
+  background: #e2e8f0;
+  color: #0b0f14;
   border-radius: 4px;
   padding: 0 6px;
   font-weight: 800;
@@ -1298,4 +1298,13 @@
   left: -12000px;
   top: 0;
   width: 1000px;
+}
+/* your seat on the DEAD page: white (green is for the launches only) */
+#wpdead .ddyou {
+  color: #fff;
+  font-weight: 800;
+}
+#wpdead svg .ddyou {
+  fill: #fff;
+  font-weight: 800;
 }

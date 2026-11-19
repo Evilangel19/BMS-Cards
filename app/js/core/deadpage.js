@@ -7,7 +7,7 @@
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), openMode(mode), snap, kbAdd}
 import { deadPlan, defaultRoles, ROLES, ALT_BLOCKS } from './dead.js';
 import { timed, seatLabels } from './sead.js';
-import { harmShot, NM, HARM_SUB } from './airmissile.js';
+import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { SD_COL } from './seadcard.js';
 import { drawDeadCard, DDC_W, DDC_H, deadBox, DD_PH } from './deadcard.js';
@@ -30,7 +30,18 @@ export function createDeadPage(deps) {
   const { esc } = deps,
     root = document.createElement('div');
   root.id = 'wpdead';
-  let st = { tactic: null, side: 'R', ecm: 70, roles: {}, tgt: null, mode: null, sub: null, view: 'map', ppt: {} },
+  let st = {
+      tactic: null,
+      side: 'R',
+      ecm: 70,
+      roles: {},
+      tgt: null,
+      mode: null,
+      sub: null,
+      view: 'map',
+      ppt: {},
+      oaEl: {},
+    },
     M = null,
     pend = null,
     failed = false,
@@ -38,7 +49,8 @@ export function createDeadPage(deps) {
     P = null,
     X = null,
     H = null,
-    shown = false;
+    shown = false,
+    fitKey = '';
   try {
     const o = JSON.parse(sessionStorage.getItem('dead1') || 'null');
     if (o) st = { ...st, ...o };
@@ -56,6 +68,12 @@ export function createDeadPage(deps) {
     st.view = st.view == 'sch' ? 'sch' : 'map';
     const pp = st.ppt && typeof st.ppt == 'object' && !Array.isArray(st.ppt) ? st.ppt : {};
     st.ppt = Object.fromEntries(['oa1', 'oa2'].filter(k => typeof pp[k] == 'string').map(k => [k, pp[k]]));
+    const oe = st.oaEl && typeof st.oaEl == 'object' && !Array.isArray(st.oaEl) ? st.oaEl : {};
+    st.oaEl = Object.fromEntries(
+      ['oa1', 'oa2']
+        .filter(k => Number.isFinite(oe[k]))
+        .map(k => [k, Math.min(15000, Math.max(0, Math.round(oe[k] / 50) * 50))])
+    );
   };
   norm();
   const save = () => {
@@ -126,7 +144,7 @@ export function createDeadPage(deps) {
     };
   };
 
-  // ---- the steps of the plan, for the page and the card (HARM standoff: your launches marked; the other tactics: the steps of your role)
+  // ---- the steps of the plan, for the page and the card: only your launch (HARM standoff) or your attack (the killer) marked
   function steps() {
     if (!P || P.error) return [];
     const t = tactic(),
@@ -169,20 +187,20 @@ export function createDeadPage(deps) {
         K_ = who('killer'),
         C_ = who('cover');
       O.push({
-        me: true,
+        me: false,
         t: P.tA,
         s: `${hms(P.tA)} split: ${H_.length ? list(H_) + ' hunter to anchor H (OA1)' : ''}${H_.length && K_.length ? ', ' : ''}${K_.length ? list(K_) + ' killer to anchor K (OA2)' : ''}, ${(P.Ra + 8).toFixed(0)} nm from the SAM`,
       });
       if (H_.length)
         O.push({
-          me: me('hunter'),
+          me: false,
           t: P.tArc0,
-          s: `${list(H_)}: ${hms(P.tArc0)} the arc ${P.Ra.toFixed(0)} nm round the WEZ (SAM on the ${st.side == 'R' ? 'right' : 'left'}) to bait it; at its launch: ECM, chaff, notch, back to anchor H`,
+          s: `${list(H_)}: ${hms(P.tArc0)} ECM on, the bait arc ${P.Rb.toFixed(0)} nm inside the WEZ (the WEZ with ECM on; SAM on the ${st.side == 'R' ? 'right' : 'left'}); at its launch: chaff, notch, back to anchor H`,
         });
       if (K_.length)
-        O.push({ me: me('killer'), t: P.tArc0, s: `${list(K_)}: mark the SAM (HAD box → markpoint, TGP to refine)` });
+        O.push({ me: false, t: P.tArc0, s: `${list(K_)}: mark the SAM (HAD box → markpoint, TGP to refine)` });
       O.push({
-        me: true,
+        me: false,
         t: P.tBack,
         s: `${hms(P.tBack)} reset at the anchors${t == 'bomb' ? '' : '; the killer chooses the attack (pop-up, loft, HARM HAD)'}`,
       });
@@ -194,7 +212,7 @@ export function createDeadPage(deps) {
         });
       if (C_.length || H_.length)
         O.push({
-          me: me('cover') || me('hunter'),
+          me: false,
           t: P.tAtk,
           s: `${list(C_.length ? C_ : H_)}: top cover, the arc ${(P.Ra + 4).toFixed(0)} nm on the other side`,
         });
@@ -261,7 +279,7 @@ export function createDeadPage(deps) {
     q('[data-ddtgt]').value = s.id;
     put(
       q('#ddtgk'),
-      `<div class="kv">${kv('ALIC', s.code == null ? 'none' : s.code + (th ? ' ' + esc(th[1]) : '') + (tb ? ' · ' + tb : deps.dtc.harm() ? ' · <span class="sdw">not in a table</span>' : ''))}${kv('WEZ', P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm (' + st.ecm + '%)')}${kv('SEARCH RADAR', P.Rdet.toFixed(0) + ' nm')}${kv('TRACKING RADAR', s.fcr ? 'alive (the priority)' : 'destroyed', s.fcr ? 'sdok' : 'wbad')}${kv('LOCATION', s.spotted ? 'known (spotted)' : 'unknown: not spotted', s.spotted ? '' : 'sdw')}</div>${
+      `<div class="kv">${kv('ALIC', s.code == null ? 'none' : s.code + (th ? ' ' + esc(th[1]) : '') + (tb ? ' · ' + tb : deps.dtc.harm() ? ' · <span class="sdw">not in a table</span>' : ''))}${kv('WEZ', P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm (' + st.ecm + '%)')}${kv('SEARCH RADAR', P.Rdet.toFixed(0) + ' nm')}${kv('TRACKING RADAR', s.fcr ? 'alive (the priority)' : 'destroyed', s.fcr ? '' : 'wbad')}${kv('LOCATION', s.spotted ? 'known (spotted)' : 'unknown: not spotted', s.spotted ? '' : 'sdw')}</div>${
         s.telar >= 0
           ? `<div class="ddtel" data-fx="tel${esc(s.id)}"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM or a weapon kills one launcher of the battalion (${s.telar} alive): the others keep shooting. Plan one for each.</div>`
           : ''
@@ -307,7 +325,7 @@ export function createDeadPage(deps) {
                 ? 'L ' + hms(z.tl) + ' · ◆ ' + hms(z.imp)
                 : 'the arc ' + (P.Ra + 4).toFixed(0) + ' nm'
               : r == 'hunter'
-                ? 'anchor H · the arc ' + P.Ra.toFixed(0) + ' nm'
+                ? 'anchor H · bait arc ' + P.Rb.toFixed(0) + ' nm'
                 : r == 'killer'
                   ? 'anchor K · attack ' + h3(P.attackHdg) + '°'
                   : 'top cover';
@@ -334,7 +352,7 @@ export function createDeadPage(deps) {
         .join('')}</ol>`
     );
     put(q('#dddt'), detail());
-    put(q('#ddoa'), t == 'hs' ? '' : oaCard());
+    fillOA(q);
     put(
       q('#ddwn'),
       P.warn
@@ -344,7 +362,7 @@ export function createDeadPage(deps) {
     put(
       q('#ddnote'),
       X.seat != null
-        ? 'Your seat: <b class="sdme">' + esc(seatName(X.seat)) + ' · ' + esc(ROLE_NAME[R[X.seat]] || '') + '</b>'
+        ? 'Your seat: <b class="ddyou">' + esc(seatName(X.seat)) + ' · ' + esc(ROLE_NAME[R[X.seat]] || '') + '</b>'
         : ''
     );
     const vm = st.view == 'map';
@@ -365,7 +383,7 @@ export function createDeadPage(deps) {
       return `<h3>Shot · ${esc(seatName(z.i))}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(z.tl) + ' · ' + P.dL.toFixed(1) + ' nm · ' + Math.round(P.alt).toLocaleString('en-US') + ' ft · ' + P.gs + ' kt', mine(z.i) ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rTh.toFixed(1) + ' nm', P.dL <= P.rTh ? '' : 'wbad')}${kv('FLIGHT TIME', z.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.imp > P.tTurn ? ' · you on the arc (the SAM on)' : ' · <span class="sdw">before the arc</span>'))}${kv('YOUR MARGIN', (mg >= 0 ? '+' : '−') + Math.abs(mg).toFixed(1) + ' nm ' + (mg >= 0 ? 'outside' : 'INSIDE') + ' the WEZ · +' + (P.dL - P.Recm).toFixed(1) + ' nm (ECM on)', mg < 0 ? 'wbad' : '')}</div><p class="hint wnote">The missile of the HARM page; aimed at the SAM, from the altitude and ground speed of your flight plan on the way in.</p>`;
     }
     const k = P.seats.find(w => w.role == 'killer');
-    return `<h3>${t == 'bomb' ? 'Attack' : 'Killer'}${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('FROM', 'anchor K · ' + (P.Ra + 8).toFixed(0) + ' nm · ' + hms(P.tAtk))}${kv('RUN-IN', h3(P.attackHdg) + '°', k && mine(k.i) ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'the arc ' + P.Ra.toFixed(0) + ' nm · ' + hms(P.tArc0) + '–' + hms(P.tArc1) : '—')}</div><div class="ddbtns"><span class="hint">Plan the attack:</span>${[
+    return `<h3>${t == 'bomb' ? 'Attack' : 'Killer'}${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('FROM', 'anchor K · ' + (P.Ra + 8).toFixed(0) + ' nm')}${kv('ATTACK', hms(P.tAtk) + ' · run-in ' + h3(P.attackHdg) + '°', k && mine(k.i) ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'bait arc ' + P.Rb.toFixed(0) + ' nm (ECM on) · ' + hms(P.tArc0) + '–' + hms(P.tArc1) : '—')}</div><div class="ddbtns"><span class="hint">Plan the attack:</span>${[
       ['popup', 'Pop-up'],
       ['hadb', 'HADB'],
       ['toss', 'TOSS (loft)'],
@@ -378,20 +396,69 @@ export function createDeadPage(deps) {
   }
   // the PPT types BMS knows (Ppt.ini) that are not SAMs: an anchor added as one of them
   const pptTypes = () => (deps.pptTypes ? deps.pptTypes() : []);
-  function oaCard() {
-    if (!P.oa) return '';
+  // the elevation of an anchor (ft): the one set on its slider, else the terrain there (when the theater gives it), else 0
+  let terr = null,
+    terrKey = '';
+  const elOf = k => (st.oaEl[k] != null ? st.oaEl[k] : terr && terr[k] != null ? Math.round(terr[k] / 50) * 50 : 0);
+  function loadTerr() {
+    if (!deps.elev || !P || !P.oa) return;
+    const key = [P.A, P.B].map(p => Math.round(p.x * 10) + ',' + Math.round(p.y * 10)).join('|');
+    if (key === terrKey) return;
+    terrKey = key;
+    terr = null;
+    Promise.resolve(deps.elev([P.A, P.B].map(p => ({ n: p.y * FT_KM, e: p.x * FT_KM }))))
+      .then(h => {
+        if (terrKey !== key || !h) return;
+        terr = { oa1: h[0], oa2: h[1] };
+        if (shown) draw(false);
+      })
+      .catch(() => {});
+  }
+  // the nav offsets card: built once (its sliders stay while they move), its parts written again
+  function fillOA(q) {
+    const box = q('#ddoa');
+    if (tactic() == 'hs' || !P.oa) return put(box, '');
+    if (!q('#ddoat'))
+      put(
+        box,
+        `<div class="wcard" data-fx="oa"><h3 id="ddoah"></h3><div id="ddoat"></div>${['oa1', 'oa2']
+          .map(
+            k =>
+              `<div class="slr"><label>${k.toUpperCase()} elev</label><input type="range" min="0" max="15000" step="50" value="${elOf(k)}" data-ddel="${k}" aria-label="Elevation of ${k.toUpperCase()}"><em data-ddele="${k}"></em></div>`
+          )
+          .join(
+            ''
+          )}<div id="ddoab"></div><p class="hint wnote">Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED).</p></div>`
+      );
     const o = P.oa,
       route = o.n >= 1 && o.n <= 24,
       T = pptTypes(),
       row = (k, a, nmS, col) => {
         const v = st.ppt[k] && T.some(e => e.name == st.ppt[k]) ? st.ppt[k] : T[0] ? T[0].name : '';
-        return `<tr><td><b>${k.toUpperCase()}</b></td><td>${String(a.brg).padStart(3, '0')}°</td><td>${a.nm.toFixed(1)} NM</td><td>0</td><td style="color:${col};font-weight:700">${nmS}</td></tr><tr class="oapt"><td></td><td colspan="4"><select data-ddpptt="${k}" aria-label="The PPT type of ${nmS}"${T.length ? '' : ' disabled'}>${T.length ? T.map(e => `<option value="${esc(e.name)}"${e.name == v ? ' selected' : ''}>${esc(e.label)}</option>`).join('') : '<option>Ppt.ini not read: open the BMS folder</option>'}</select><button type="button" class="btn g ddadd" data-ddadd="${k}"${T.length ? '' : ' disabled'} title="Add ${nmS} to the DTC as a pre-planned point of this type (not a SAM)">+ PPT</button></td></tr>`;
+        return `<tr><td><b>${k.toUpperCase()}</b></td><td>${String(a.brg).padStart(3, '0')}°</td><td>${a.nm.toFixed(1)} NM</td><td>${elOf(k).toLocaleString('en-US')} FT</td><td style="color:${col};font-weight:700">${nmS}</td></tr><tr class="oapt"><td></td><td colspan="4"><select data-ddpptt="${k}" aria-label="The PPT type of ${nmS}"${T.length ? '' : ' disabled'}>${T.length ? T.map(e => `<option value="${esc(e.name)}"${e.name == v ? ' selected' : ''}>${esc(e.label)}</option>`).join('') : '<option>Ppt.ini not read: open the BMS folder</option>'}</select><button type="button" class="btn g ddadd" data-ddadd="${k}"${T.length ? '' : ' disabled'} title="Add ${nmS} to the DTC as a pre-planned point of this type (not a SAM)">+ PPT</button></td></tr>`;
       };
-    return `<div class="wcard"><h3>Nav offsets · from STPT ${o.n}</h3><table class="oat"><tr><th></th><th>BRG</th><th>RNG</th><th>ELEV</th><th>ANCHOR</th></tr>${row('oa1', o.oa1, 'Anchor H', ROLE_COL.hunter)}${row('oa2', o.oa2, 'Anchor K', ROLE_COL.killer)}</table><div class="ddbtns">${
-      route
-        ? `<button type="button" class="btn g" data-ddoaw>Write OA1 · OA2 to the DTC</button><span class="hint">STPT ${o.n} is in the flight plan: BMS takes them from the DTC.</span>`
-        : `<button type="button" class="btn g ddman" disabled title="STPT ${o.n} is not in the flight plan (1-24): BMS does not take its offsets from the DTC">Manual</button><span class="hint">STPT ${o.n} is not in the flight plan (1-24): type OA1 and OA2 in the DED.</span>`
-    }</div><p class="hint wnote">Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED).</p></div>`;
+    put(q('#ddoah'), 'Nav offsets · from STPT ' + o.n);
+    put(
+      q('#ddoat'),
+      `<table class="oat"><tr><th></th><th>BRG</th><th>RNG</th><th>ELEV</th><th>ANCHOR</th></tr>${row('oa1', o.oa1, 'Anchor H', ROLE_COL.hunter)}${row('oa2', o.oa2, 'Anchor K', ROLE_COL.killer)}</table>`
+    );
+    ['oa1', 'oa2'].forEach(k => {
+      const i = q('[data-ddel="' + k + '"]');
+      if (i && document.activeElement !== i) i.value = String(elOf(k));
+      put(
+        q('[data-ddele="' + k + '"]'),
+        elOf(k).toLocaleString('en-US') + ' ft' + (st.oaEl[k] == null && terr ? ' · terrain' : '')
+      );
+    });
+    put(
+      q('#ddoab'),
+      `<div class="ddbtns">${
+        route
+          ? `<button type="button" class="btn g" data-ddoaw>Write OA1 · OA2 to the DTC</button><span class="hint">STPT ${o.n} is in the flight plan: BMS takes them from the DTC.</span>`
+          : `<button type="button" class="btn g ddman" disabled title="STPT ${o.n} is not in the flight plan (1-24): BMS does not take its offsets from the DTC">Manual</button><span class="hint">STPT ${o.n} is not in the flight plan (1-24): type OA1 and OA2 in the DED.</span>`
+      }</div>`
+    );
+    loadTerr();
   }
   const sw = (c, d, w = 3) =>
     `<svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="${w}"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>`;
@@ -400,7 +467,7 @@ export function createDeadPage(deps) {
       t = tactic();
     return `<span>${sw(c.ring, '7 5')}WEZ (ECM off) · dotted: search radar</span><span>${sw('#ff3b3b', '4 4')}WEZ (ECM on)</span>${
       t == 'hs'
-        ? `<span>${sw(ROLE_COL.shooter)}the shooters</span><span>${sw(HARM, '6 5')}HARM range</span><span>${sw(SEEK, '2 6')}seeker opens</span><span>${sw(HARM, '', 2)}HARM</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span>`
+        ? `<span>${sw(ROLE_COL.shooter)}the shooters</span><span>${sw(HARM, '6 5')}HARM range</span><span>${sw(SEEK, '2 6')}seeker opens</span><span>${sw('#fff', '', 2)}footprint (${esc(sub())})</span><span>${sw(HARM, '', 2)}HARM</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span>`
         : `<span>${sw(ROLE_COL.hunter)}hunter</span><span>${sw(ROLE_COL.killer)}killer</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span><span>${sw(ROLE_COL.hunter, '6 5')}defence, back to the anchor</span>`
     }<span><b style="color:${IMP}">◆</b> impact</span><span>yours: thicker, white edge</span>`;
   }
@@ -458,7 +525,7 @@ export function createDeadPage(deps) {
       const c = ROLE_COL[l.role],
         me = mine(l.i);
       o.push(
-        `<text x="8" y="${y + 14}" class="sdsl${me ? ' sdme' : ''}">${esc(seatName(l.i))}${me ? ' · YOU' : ''}</text><text x="8" y="${y + 29}" class="sdss" fill="${c}">${esc(ROLE_NAME[l.role]).toUpperCase()}</text><path d="M${X0} ${y + 12}H${XR}" stroke="#202a36"/>`
+        `<text x="8" y="${y + 14}" class="sdsl${me ? ' ddyou' : ''}">${esc(seatName(l.i))}${me ? ' · YOU' : ''}</text><text x="8" y="${y + 29}" class="sdss" fill="${c}">${esc(ROLE_NAME[l.role]).toUpperCase()}</text><path d="M${X0} ${y + 12}H${XR}" stroke="#202a36"/>`
       );
       l.ph.forEach(p => {
         const x0 = Xt(p.a),
@@ -543,7 +610,36 @@ export function createDeadPage(deps) {
       { x: bk.x + u.y * sz * 0.65, y: bk.y - u.x * sz * 0.65 },
     ];
   }
-  const seekNm = () => (mode() == 'pos' ? (HARM_SUB[sub()] || HARM_SUB.EOM).on : 0);
+  // the HARM shot of the first shooter as the HARM page draws it: its range, where its seeker opens and the footprint of the submode (the heart of
+  // EOM / RUK, the wedge of PB), round the launch point
+  const ftKm = p => ({ x: p.e / FT_KM, y: p.n / FT_KM });
+  function harmGeo() {
+    if (tactic() != 'hs' || !H || !H.m || !(P.rTh > 0)) return null;
+    const s = sam(),
+      z = P.seats.find(w => w.role == 'shooter');
+    if (!z) return null;
+    const r = harmShot(H.m, H.m.loft, {
+      alt: P.alt,
+      speed: P.gs,
+      tgtAlt: 0,
+      heading: z.brgL,
+      offNose: 0,
+      shotPct: Math.min(100, (P.dL / P.rTh) * 100),
+      mode: mode(),
+      sub: sub(),
+      emitter: { n: s.y * FT_KM, e: s.x * FT_KM },
+    });
+    return r && !r.error ? r : null;
+  }
+  // what Fit view shows (as the HARM page and the attack pages: the shot, not the whole route): HARM standoff the HARM range round the SAM and the
+  // launch point; the other tactics the anchors, the arcs and the attack
+  function fitPts() {
+    const s = sam(),
+      g = harmGeo(),
+      r = (g ? g.rMax / NM : Math.max(P.dL || 0, P.Ra + 4)) * KM_NM;
+    if (tactic() == 'hs') return [{ x: s.x - r, y: s.y - r }, { x: s.x + r, y: s.y + r }, P.L, ...P.path.slice(1)];
+    return [P.A, P.B, ...P.arc, ...P.def, ...P.atk, ...P.cover];
+  }
   function paint(force) {
     if (!P || (st.view != 'map' && !force)) return;
     if (!M) {
@@ -615,8 +711,24 @@ export function createDeadPage(deps) {
     const meRole = X.seat != null ? R[X.seat] : null;
     if (t == 'hs') {
       // the HARM: its range round the SAM and, in POS, where its seeker opens
-      if (P.rTh > 0) ring(P.rTh, HARM, '6 5', 1.8);
-      if (seekNm()) ring(seekNm(), SEEK, '2 6', 1.8);
+      const g = harmGeo();
+      if (g) {
+        ring(g.rMax / NM, HARM, '6 5', 1.8);
+        if (g.seekerOn) ring(g.seekerOn.nm, SEEK, '2 6', 1.8);
+        if (g.foot)
+          L.polygon(
+            g.foot.map(p => ll(ftKm(p))),
+            {
+              renderer: RN,
+              color: '#fff',
+              weight: 2,
+              opacity: 0.95,
+              fillColor: '#fff',
+              fillOpacity: 0.06,
+              interactive: false,
+            }
+          ).addTo(WL);
+      } else if (P.rTh > 0) ring(P.rTh, HARM, '6 5', 1.8);
       path(P.path, ROLE_COL.shooter, meRole == 'shooter', false, P.arc);
       P.seats.filter(z => z.role == 'cover').forEach(z => path(z.arc, ROLE_COL.cover, mine(z.i), true, z.arc));
       P.seats
@@ -652,7 +764,7 @@ export function createDeadPage(deps) {
         path(P.def, ROLE_COL.hunter, me, true);
         tag(
           P.arc[Math.floor(P.arc.length / 2)],
-          `<span style="color:${ROLE_COL.hunter}">HUNTER ${hn.map(i => '#' + (i + 1)).join(' ')} · ARC ${P.Ra.toFixed(0)} NM · BAIT</span>`
+          `<span style="color:${ROLE_COL.hunter}">HUNTER ${hn.map(i => '#' + (i + 1)).join(' ')} · BAIT ARC ${P.Rb.toFixed(0)} NM · ECM ON</span>`
         );
       }
       if (kl.length) {
@@ -673,10 +785,10 @@ export function createDeadPage(deps) {
           tag(p, `<i class="ddanc" style="background:${col}"></i><span style="color:${col}">${l}</span>`)
         );
     }
-    if (fit && all.length) {
+    if (fit) {
       fit = false;
       map.invalidateSize();
-      map.fitBounds(L.latLngBounds(all.map(ll)), { padding: [24, 24], maxZoom: 10, animate: false });
+      map.fitBounds(L.latLngBounds(fitPts().map(ll)), { padding: [40, 40], maxZoom: 10, animate: false });
     }
   }
   async function draw(rebuild) {
@@ -691,6 +803,12 @@ export function createDeadPage(deps) {
     }
     const was = !!P;
     compute();
+    // a new flight, target or tactic: the map fits again; any other change keeps the zoom chosen
+    const fk = P && X && X.ok ? X.me.key + '|' + sam().id + '|' + tactic() : '';
+    if (fk !== fitKey) {
+      fitKey = fk;
+      fit = true;
+    }
     if (rebuild || was !== !!P || !root.querySelector(P ? '.dg' : '.sdnone')) {
       detachMap();
       failed = false;
@@ -768,6 +886,7 @@ export function createDeadPage(deps) {
         st.tgt = e.target.value;
         fit = true;
       } else if (d.ddecm != null) st.ecm = +e.target.value;
+      else if (d.ddel != null) st.oaEl = { ...st.oaEl, [d.ddel]: +e.target.value };
       else if (d.ddpptt != null) st.ppt = { ...st.ppt, [d.ddpptt]: e.target.value };
       else return;
       save();
@@ -776,8 +895,9 @@ export function createDeadPage(deps) {
     // the ECM slider: the rings and the plan follow it while it moves
     root.oninput = e => {
       const d = e.target.dataset || {};
-      if (d.ddecm == null) return;
-      st.ecm = +e.target.value;
+      if (d.ddecm != null) st.ecm = +e.target.value;
+      else if (d.ddel != null) st.oaEl = { ...st.oaEl, [d.ddel]: +e.target.value };
+      else return;
       draw(false);
     };
     const po = root.querySelector('[data-ddpf]');
@@ -812,12 +932,12 @@ export function createDeadPage(deps) {
     if (!deps.dtc.has('NAV OFFSETS')) return deps.toast('This DTC has no NAV OFFSETS section.', true);
     if (
       !(await deps.confirm(
-        `Write the anchors as the nav offsets of STPT ${o.n}?\n\nOA1-${o.n} = ${o.oa1.brg}°, ${o.oa1.nm.toFixed(1)} nm (anchor H)\nOA2-${o.n} = ${o.oa2.brg}°, ${o.oa2.nm.toFixed(1)} nm (anchor K)`
+        `Write the anchors as the nav offsets of STPT ${o.n}?\n\nOA1-${o.n} = ${o.oa1.brg}°, ${o.oa1.nm.toFixed(1)} nm, ${elOf('oa1')} ft (anchor H)\nOA2-${o.n} = ${o.oa2.brg}°, ${o.oa2.nm.toFixed(1)} nm, ${elOf('oa2')} ft (anchor K)`
       ))
     )
       return;
-    deps.dtc.setOA('OA1-' + o.n, [o.oa1.brg, o.oa1.rngFt, 0].join(','));
-    deps.dtc.setOA('OA2-' + o.n, [o.oa2.brg, o.oa2.rngFt, 0].join(','));
+    deps.dtc.setOA('OA1-' + o.n, [o.oa1.brg, o.oa1.rngFt, elOf('oa1')].join(','));
+    deps.dtc.setOA('OA2-' + o.n, [o.oa2.brg, o.oa2.rngFt, elOf('oa2')].join(','));
     deps.toast('OA1 and OA2 of STPT ' + o.n + ' written to the DTC.');
   }
   async function tables() {
@@ -863,7 +983,7 @@ export function createDeadPage(deps) {
                 'SHOOTER',
                 seatName(me) + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''),
               ],
-              ['LAUNCH', hms(z.tl), P.dL.toFixed(1) + ' NM · HDG ' + h3(z.brgL) + '°'],
+              ['LAUNCH', hms(z.tl), P.dL.toFixed(1) + ' NM · HDG ' + h3(z.brgL) + '°', true],
               ['THEN', 'TURN ' + (st.side == 'R' ? 'L' : 'R'), hms(P.tTurn) + ' · ARC ' + P.Ra.toFixed(0) + ' NM'],
               ['◆ IMPACT · TOF', hms(z.imp), z.tof + ' S'],
             ]
@@ -880,7 +1000,7 @@ export function createDeadPage(deps) {
           ? [
               ['YOUR ROLE', 'HUNTER', seatName(me)],
               ['ANCHOR H', hms(P.tA), P.oa ? h3(P.oa.oa1.brg) + '° ' + P.oa.oa1.nm.toFixed(0) + ' NM · OA1' : ''],
-              ['BAIT', 'ARC ' + P.Ra.toFixed(0), hms(P.tArc0) + '–' + hms(P.tArc1).slice(3)],
+              ['BAIT · ECM ON', 'ARC ' + P.Rb.toFixed(0), hms(P.tArc0) + '–' + hms(P.tArc1).slice(3)],
               ['THEN', 'DEFEND', 'BACK TO ANCHOR H'],
             ]
           : r == 'killer'
@@ -888,7 +1008,7 @@ export function createDeadPage(deps) {
                 ['YOUR ROLE', 'KILLER', seatName(me)],
                 ['ANCHOR K', hms(P.tA), P.oa ? h3(P.oa.oa2.brg) + '° ' + P.oa.oa2.nm.toFixed(0) + ' NM · OA2' : ''],
                 ['MARK', 'HAD → TGP', t == 'hk' ? 'WHILE THE HUNTER BAITS' : 'HAD BOX → MARKPOINT'],
-                ['ATTACK', h3(P.attackHdg) + '°', hms(P.tAtk)],
+                ['ATTACK', hms(P.tAtk), 'RUN-IN ' + h3(P.attackHdg) + '°', true],
               ]
             : [
                 ['YOUR ROLE', 'COVER', seatName(me)],
@@ -926,11 +1046,15 @@ export function createDeadPage(deps) {
             ' kt' +
             (P.slow ? ' (350 kt or more)' : ' ✓'),
       steps: steps().map(o => ({ me: o.me, s: o.s })),
-      oa: t == 'hs' || !P.oa ? null : P.oa,
+      oa:
+        t == 'hs' || !P.oa
+          ? null
+          : { ...P.oa, oa1: { ...P.oa.oa1, el: elOf('oa1') }, oa2: { ...P.oa.oa2, el: elOf('oa2') } },
       seats: R.map((r, i) => {
         const w = P.seats.find(q => q.i == i);
         return {
           me: mine(i),
+          go: r == 'shooter' || r == 'killer', // the times of a launch or an attack (green when yours)
           seat: seatName(i),
           role: ROLE_NAME[r].toUpperCase(),
           times:
@@ -1007,14 +1131,17 @@ export function createDeadPage(deps) {
       w.classList.add('ddoff');
     }
     try {
+      // the view of the preview (yours: its centre and zoom) when the map is open; else the Fit view
+      let keep = !!M;
       if (!M) {
         failed = false;
         await ensureMap();
         if (!M) return null;
+        keep = false;
       }
       M.map.invalidateSize();
       paint(true);
-      return await snapNow(AR);
+      return await snapNow(AR, keep);
     } finally {
       if (off && w) {
         w.classList.remove('ddoff');
@@ -1025,15 +1152,12 @@ export function createDeadPage(deps) {
       }
     }
   }
-  async function snapNow(AR) {
+  async function snapNow(AR, keep) {
     const { map, L, WL } = M,
       ll = p => deps.toLL(p.x, p.y),
       s = sam(),
       G = geo(),
-      pts = [
-        { x: s.x - P.Rdet * KM_NM, y: s.y - P.Rdet * KM_NM },
-        { x: s.x + P.Rdet * KM_NM, y: s.y + P.Rdet * KM_NM },
-      ],
+      hg = harmGeo(),
       el = map.getContainer(),
       cw = el.clientWidth,
       ch = el.clientHeight,
@@ -1045,12 +1169,14 @@ export function createDeadPage(deps) {
       z0 = map.getZoom();
     WL.remove();
     try {
-      map.fitBounds(L.latLngBounds(pts.map(ll)), {
-        paddingTopLeft: [ox + 10, oy + 10],
-        paddingBottomRight: [ox + 10, oy + 10],
-        animate: false,
-      });
-      await new Promise(r => setTimeout(r, 1200));
+      if (!keep)
+        map.fitBounds(L.latLngBounds(fitPts().map(ll)), {
+          paddingTopLeft: [ox + 10, oy + 10],
+          paddingBottomRight: [ox + 10, oy + 10],
+          maxZoom: 10,
+          animate: false,
+        });
+      await new Promise(r => setTimeout(r, keep ? 600 : 1200));
       const sh = await deps.snap(2);
       if (!sh) return null;
       const k = sh.canvas.width / cw,
@@ -1074,8 +1200,9 @@ export function createDeadPage(deps) {
           R: P.R * nmPx,
           Recm: P.Recm * nmPx,
           Rdet: P.Rdet * nmPx,
-          rTh: hs && P.rTh > 0 ? P.rTh * nmPx : 0,
-          seek: hs ? seekNm() * nmPx : 0,
+          rTh: hs && hg ? (hg.rMax / NM) * nmPx : 0,
+          seek: hs && hg && hg.seekerOn ? hg.seekerOn.nm * nmPx : 0,
+          foot: hs && hg && hg.foot ? hg.foot.map(p => px(ftKm(p))) : null,
           name: s.name,
         },
         paths: G.paths.map(a => ({ ...a, pts: a.pts.map(px) })),
@@ -1176,9 +1303,10 @@ export function createDeadPage(deps) {
 
   return {
     root,
+    // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;
-      draw(true);
+      draw(false);
     },
     refresh: () => {
       if (shown) draw(false);

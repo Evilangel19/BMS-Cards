@@ -645,7 +645,7 @@ export function createMissilesPage(deps) {
     ['#22d3ee', 'Seeker opens', '2 6'],
     ['#ffffff', 'HTS footprint', ''],
     ['#22d3ee', 'HAS ±60°', '4 4'],
-    ['#fbbf24', 'Line to the emitter', ''],
+    ['#3b82f6', 'Line to the emitter', ''],
   ];
   function harmVert(r) {
     if (!r || r.error || !r.shot) return '';
@@ -809,7 +809,7 @@ export function createMissilesPage(deps) {
       opacity: 0.4,
       interactive: false,
     }).addTo(WL);
-    L.polyline([ll(r.launch), ll(r.em)], { renderer: RN, color: '#fbbf24', weight: 3.5, interactive: false }).addTo(WL);
+    L.polyline([ll(r.launch), ll(r.em)], { renderer: RN, color: '#3b82f6', weight: 3.5, interactive: false }).addTo(WL); // the shot (blue)
     const lab = (p, t, d = 'right') =>
       L.circleMarker(ll(p), { radius: 0, opacity: 0, fillOpacity: 0, interactive: false, renderer: RN })
         .bindTooltip(esc(t), { permanent: true, direction: d, className: 'wplab', offset: [8, 0] })

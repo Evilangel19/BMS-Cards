@@ -729,6 +729,10 @@ function deadDeps() {
     },
     addPpt: m => mapV.addPpt(m),
     pptTypes: () => mapV.otherPpt(),
+    elev: async pts => {
+      const t = await terrain();
+      return t ? heightsOf(t, pts) : null;
+    },
     // a Weapons page of the attack (Pop-up, HADB, TOSS), its target the steerpoint nearest to the SAM (pt): the target chosen (or null), then the tab
     openMode: (m, pt) => {
       const a = pt && ST.wpPage && ST.wpPage.aimAt ? ST.wpPage.aimAt(pt.x, pt.y) : null,
