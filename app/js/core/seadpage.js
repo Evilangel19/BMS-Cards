@@ -111,6 +111,7 @@ export function createSeadPage(deps) {
     P = seadPlan({
       prot: prot.map(f => ({ key: f.key, name: f.name, wps: f.f.wps })),
       sead: { wps: X.me.f.wps, n: X.me.n, harms: X.harms },
+      act: [X.me.f.wps, ...X.flights.map(f => f.f.wps)], // the SAM radiates while any flight of the package is inside its ring
       sams: X.sams,
       k: st.k / 100,
       sort: st.sort,
@@ -216,7 +217,7 @@ export function createSeadPage(deps) {
             }
           ).join('')}</table>`
         : '<p class="hint">No enemy SAM ring (spotted, radar alive) on the routes of the protected flights.</p>') +
-      `<div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote">All the HARMs of the flight: one for each SAM first, arriving when the protected flight is at ${st.k}% of the ring radius from it (the SAM needs time to lock and shoot); then the others where it is not covered, ingress first (until its task is done). A SAM can switch its radar off: the shots are spread over the time inside. ${glide() ? 'Each HARM covers from its impact until it would reach its max range (its glide; at most its 300 s of flight).' : 'Target Isolate and Glide Inhibit are on (Single shot page): no glide, a HARM covers its impact only.'} Flight plan times${P.est ? '; ' + BACKUP_NM_MIN + ' nm/min where a steerpoint has no time' : ''}.</p>`;
+      `<div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote">All the HARMs of the flight: one for each SAM first, arriving when the protected flight is at ${st.k}% of the ring radius from it (the SAM needs time to lock and shoot); then the others where it is not covered, ingress first (until its task is done). The way back through a ring gets a HARM too. A HARM covers while it flies (the SAM keeps quiet) and from its impact less the flight of a SAM missile (one already flying loses its guidance), never before the SAM is on: it radiates when any flight of the package is inside its ring, so a HARM too early finds it off. ${glide() ? 'It covers to the end of its glide (its max range; at most its 300 s of flight).' : 'Target Isolate and Glide Inhibit are on (Single shot page): no glide, it covers to its impact.'} Flight plan times${P.est ? '; ' + BACKUP_NM_MIN + ' nm/min where a steerpoint has no time' : ''}.</p>`;
     const S = P.seats,
       Z = P.shots.filter(z => !st.skip[z.id]),
       refs = X.refs || [];
@@ -290,6 +291,7 @@ export function createSeadPage(deps) {
             const iv = r.iv.filter(v => v[2] == f.key).map(v => [v[0], v[1]]);
             return {
               sam: r.sam.name,
+              on: r.on,
               iv,
               t85: r.key == f.key ? r.t85 : null,
               gaps: r.gaps.filter(g => iv.some(v => g.t0 < v[1] && g.t1 > v[0])).map(g => [g.t0, g.t1]),
@@ -309,13 +311,17 @@ export function createSeadPage(deps) {
         mine: s.i === X.seat,
         harms: s.harms,
         used: s.used,
-        shots: Z.filter(z => z.seat === s.i && !z.launch.off).map(z => ({
-          sam: z.sam.name,
-          tl: z.launch.t,
-          imp: z.imp,
-          cover: z.cover,
-          ok: z.launch.ok,
-        })),
+        shots: Z.filter(z => z.seat === s.i && !z.launch.off)
+          .sort((a, b) => a.launch.t - b.launch.t)
+          .map(z => ({
+            sam: z.sam.name + nth(z),
+            tl: z.launch.t,
+            imp: z.imp,
+            from: z.from,
+            cover: z.cover,
+            ok: z.launch.ok,
+            aim: mode() == 'pos' && z.ref ? 'STPT ' + z.ref.n : mode() == 'had' ? 'HAD' : '',
+          })),
       })),
       ts = [];
     lanes.forEach(l => {
@@ -359,6 +365,11 @@ export function createSeadPage(deps) {
       }
       l.rows.forEach((r, i) => {
         const yy = y + 12 + i * 24;
+        r.on.forEach(([a, b]) =>
+          o.push(
+            `<path d="M${Xt(Math.max(a, m.t0))} ${yy + 20}H${Xt(Math.min(b, m.t1))}" stroke="${m.ring}" stroke-width="2" opacity=".55"><title>${esc(r.sam)} on (a flight of the package inside its ring) ${hms(a)}–${hms(b)}</title></path>`
+          )
+        );
         r.iv.forEach(([a, b]) =>
           o.push(
             `<rect x="${Xt(a)}" y="${yy}" width="${Math.max(2, Xt(b) - Xt(a))}" height="16" rx="2" fill="${m.ring}" fill-opacity=".22" stroke="${m.ring}" stroke-dasharray="5 3"/>`
@@ -386,22 +397,24 @@ export function createSeadPage(deps) {
       y += h + 22;
     });
     o.push(`<path d="M6 ${y - 12}H${W - 6}" stroke="#2a3441"/>`);
-    // the seats
+    // the seats: one row for each launch (L, the flight, the impact, the glide), the text under it
     m.seats.forEach(s => {
-      const yy = y,
-        a = s.mine ? 1 : 0.6;
+      const a = s.mine ? 1 : 0.62,
+        hh = 8 + Math.max(1, s.shots.length) * 36;
       o.push(
-        `<text x="8" y="${yy + 14}" class="sdsl${s.mine ? ' sdme' : ''}">${esc(s.label)}</text>${s.mine ? `<text x="8" y="${yy + 28}" class="sdss sdme">YOU</text>` : ''}<text x="8" y="${yy + (s.mine ? 42 : 28)}" class="sdss">AGM-88 ${s.used}/${s.harms == null ? '?' : s.harms}</text><path d="M${X0} ${yy + 12}H${W - 14}" stroke="#2a3441"/>`
+        `<text x="8" y="${y + 14}" class="sdsl${s.mine ? ' sdme' : ''}">${esc(s.label)}</text>${s.mine ? `<text x="8" y="${y + 28}" class="sdss sdme">YOU</text>` : ''}<text x="8" y="${y + (s.mine ? 42 : 28)}" class="sdss">AGM-88 ${s.used}/${s.harms == null ? '?' : s.harms}</text>`
       );
-      s.shots.forEach(z => {
-        const xl = Xt(z.tl),
+      if (!s.shots.length) o.push(`<path d="M${X0} ${y + 12}H${W - 14}" stroke="#202a36"/>`);
+      s.shots.forEach((z, i) => {
+        const yy = y + 2 + i * 36,
+          xl = Xt(z.tl),
           xi = Xt(z.imp),
           xc = Xt(z.cover);
         o.push(
-          `<g opacity="${a}"><rect x="${xl}" y="${yy + 7}" width="${Math.max(2, xi - xl)}" height="10" rx="2" fill="${HARM}"/><rect x="${xi}" y="${yy + 7}" width="${Math.max(0, xc - xi)}" height="10" fill="${HARM}" fill-opacity=".28"/><text x="${xl}" y="${yy + 3}" text-anchor="middle" class="sdsm" fill="${s.mine ? YOU : HARM}">L</text><path d="M${xi} ${yy + 3}l9 9-9 9-9-9z" fill="${IMP}" stroke="#fff" stroke-width="1.2"/><text x="${xl + 2}" y="${yy + 33}" class="sdss${s.mine ? ' sdme' : ''}">${esc(z.sam)} · ${hms(z.tl).slice(3)}${z.ok ? '' : ' !'}</text></g>`
+          `<path d="M${X0} ${yy + 10}H${W - 14}" stroke="#202a36"/><g opacity="${a}"><rect x="${xl}" y="${yy + 5}" width="${Math.max(2, xi - xl)}" height="10" rx="2" fill="${HARM}"/><rect x="${xi}" y="${yy + 5}" width="${Math.max(0, xc - xi)}" height="10" fill="${HARM}" fill-opacity=".28"/><text x="${xl - 4}" y="${yy + 14}" text-anchor="end" class="sdsm" fill="${s.mine ? YOU : HARM}">L</text><path d="M${xi} ${yy + 1}l9 9-9 9-9-9z" fill="${IMP}" stroke="#fff" stroke-width="1.2"/><text x="${xl}" y="${yy + 30}" class="sdss${s.mine ? ' sdme' : ''}">${esc(z.sam)} · L ${hms(z.tl).slice(3)} · ◆ ${hms(z.imp).slice(3)}${z.aim ? ' · ' + esc(z.aim) : ''}${z.ok ? '' : ' · !'}</text></g>`
         );
       });
-      y += s.mine ? 58 : 46;
+      y += Math.max(s.mine ? 52 : 40, hh);
     });
     // the time scale
     for (let t = Math.ceil(m.t0 / step) * step; t <= m.t1; t += step)
@@ -494,7 +507,7 @@ export function createSeadPage(deps) {
                   : ' <span class="sdw">SAM ' + z.ref.d.toFixed(1) + ' nm away: outside the ' + sub() + ' area</span>'
                 : ' <span class="sdw">no steerpoint</span>')
           : 'HAD · at the SAM' + (X.hts ? '' : ' <span class="sdw">no HTS pod</span>')
-      )}${kv('THREAT', (z.sam.code == null ? 'no HARM code' : z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="sdw">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', z.cover > z.imp ? 'to ' + hms(z.cover) + (glide() ? ' (its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : '') + (next ? ', then ' + seatNo(next.seat) : '') : 'its impact only')}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring', L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
+      )}${kv('THREAT', (z.sam.code == null ? 'no HARM code' : z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="sdw">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring', L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
     );
   }
   function coverCard() {
@@ -502,7 +515,7 @@ export function createSeadPage(deps) {
       r = z && P.rows.find(w => w.id == z.id);
     if (!r) return '<h3>Cover</h3><p class="hint">Choose a shot.</p>';
     const g = r.gaps;
-    return `<h3>${esc(r.sam.name)} · cover</h3><div class="kv">${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.imp)).join(' · ') : ''))}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
+    return `<h3>${esc(r.sam.name)} · cover</h3><div class="kv">${kv('SAM ON', r.on.map(v => hms(v[0]) + '–' + hms(v[1])).join('<br>'))}${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.from) + '–' + hms(w.cover)).join('<br>') : ''))}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
   }
   function problems() {
     const md = mode(),

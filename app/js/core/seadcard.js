@@ -343,10 +343,8 @@ function scheme(x, D, PX, PY, PW, PH) {
   x.fill();
   x.stroke();
   // the height the lanes need, scaled into the box
-  const need =
-      50 +
-      m.lanes.reduce((a, l) => a + 80 + l.rows.length * 40, 0) +
-      m.seats.reduce((a, s) => a + (s.mine ? 92 : 76), 0),
+  const seatH = s => Math.max(s.mine ? 92 : 70, 16 + Math.max(1, s.shots.length) * 56),
+    need = 50 + m.lanes.reduce((a, l) => a + 80 + l.rows.length * 40, 0) + m.seats.reduce((a, s) => a + seatH(s), 0),
     k = Math.min(1.4, (SH - 20) / need);
   let y = PY + 50 * k;
   const span = m.t1 - m.t0,
@@ -388,6 +386,16 @@ function scheme(x, D, PX, PY, PW, PH) {
     l.rows.forEach((r, i) => {
       const yy = y0 + 8 + i * 40 * k,
         bh = 28 * k;
+      (r.on || []).forEach(([a, b]) => {
+        x.strokeStyle = ring;
+        x.globalAlpha = 0.55;
+        x.lineWidth = 3;
+        x.beginPath();
+        x.moveTo(Xt(Math.max(a, m.t0)), yy + bh + 3);
+        x.lineTo(Xt(Math.min(b, m.t1)), yy + bh + 3);
+        x.stroke();
+        x.globalAlpha = 1;
+      });
       r.iv.forEach(([a, b]) => {
         x.fillStyle = 'rgba(217,119,6,.18)';
         x.fillRect(Xt(a), yy, Math.max(2, Xt(b) - Xt(a)), bh);
@@ -440,6 +448,7 @@ function scheme(x, D, PX, PY, PW, PH) {
   x.lineTo(PX + PW - 10, y);
   x.stroke();
   y += 14 * k;
+  // the seats: one row for each launch, its text under it
   m.seats.forEach(s => {
     const yy = y + 10;
     font(s.mine ? '800' : '600', 26);
@@ -447,33 +456,43 @@ function scheme(x, D, PX, PY, PW, PH) {
     font('500', 20);
     if (s.mine) text('YOU', PX + 16, yy + 46, AC);
     text('AGM-88 ' + s.used + '/' + (s.harms == null ? '?' : s.harms), PX + 16, yy + (s.mine ? 70 : 48), MU);
-    x.strokeStyle = '#e5e9ef';
-    x.lineWidth = 2;
-    x.beginPath();
-    x.moveTo(X0, yy + 20);
-    x.lineTo(PX + PW - 20, yy + 20);
-    x.stroke();
-    s.shots.forEach(z => {
-      const xl = Xt(z.tl),
+    const line = ry => {
+      x.strokeStyle = '#e5e9ef';
+      x.lineWidth = 2;
+      x.beginPath();
+      x.moveTo(X0, ry + 20);
+      x.lineTo(PX + PW - 20, ry + 20);
+      x.stroke();
+    };
+    if (!s.shots.length) line(yy);
+    s.shots.forEach((z, i) => {
+      const ry = yy + i * 56 * k,
+        xl = Xt(z.tl),
         xi = Xt(z.imp),
         xc = Xt(z.cover);
+      line(ry);
       x.globalAlpha = s.mine ? 1 : 0.65;
       x.fillStyle = HB;
-      x.fillRect(xl, yy + 12, Math.max(3, xi - xl), 16);
+      x.fillRect(xl, ry + 12, Math.max(3, xi - xl), 16);
       x.globalAlpha = s.mine ? 0.3 : 0.2;
-      x.fillRect(xi, yy + 12, Math.max(0, xc - xi), 16);
+      x.fillRect(xi, ry + 12, Math.max(0, xc - xi), 16);
       x.globalAlpha = 1;
       font('800', 20);
-      text('L', xl, yy + 6, s.mine ? AC : HB, 'center');
+      text('L', xl - 6, ry + 27, s.mine ? AC : HB, 'right');
       x.fillStyle = SD_COL.IMP;
       x.strokeStyle = '#fff';
       x.lineWidth = 2;
-      diamond(x, xi, yy + 20, 13);
+      diamond(x, xi, ry + 20, 13);
       x.stroke();
-      font(s.mine ? '700' : '500', 19);
-      text(z.sam + ' · ' + ms(z.tl), xl, yy + 52, s.mine ? AC : MU);
+      font(s.mine ? '700' : '500', 20);
+      text(
+        z.sam + ' · L ' + ms(z.tl) + ' · ◆ ' + ms(z.imp) + (z.aim ? ' · ' + z.aim : '') + (z.ok ? '' : ' · !'),
+        xl,
+        ry + 50,
+        s.mine ? AC : MU
+      );
     });
-    y += (s.mine ? 92 : 76) * k;
+    y += seatH(s) * k;
   });
   // the events
   if (ev.length) {

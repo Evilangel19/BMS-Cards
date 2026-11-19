@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: SEAD cover: a HARM covers while it flies; a SAM is on while any flight of the package is inside its ring; the way back gets HARMs too; one row for each launch in the scheme.
 - Changed: SEAD uses all the HARMs of the flight, spread over the time the protected flights are inside the rings (ingress first, each HARM covering until its max range); POS (to a flight plan steerpoint or a PPT) or HAD; a scheme view with the events; the tasks of the protected flights; two SEAD cards to choose from.
 - New: SEAD planning on Weapons > HARM: the HARM shots of a SEAD flight that protect the flights of its package (the SAMs on their routes, the impact at 85% of the ring, the launch time and point of each aircraft, Priority or Azimuth sort), the HARM tables and PPT checked against them, a SEAD card for the Kneeboard.
 - Fixed: the Objects box of the map filters switches the political places (cities, towns, villages) too.

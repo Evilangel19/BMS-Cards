@@ -58,9 +58,14 @@ ck(
 );
 const z2 = r.shots[1];
 ck(
-  'the second HARM: on the same SAM, arriving when the cover of the first ends, from #2',
-  z2 && Math.abs(z2.imp - z.cover) < 1000 && z2.seat === 1,
-  z2 && [z2.imp - z.cover, z2.seat]
+  'the cover of a HARM starts at its launch (in the air), never before the SAM is on',
+  z.from <= Math.max(z.launch.t, r.on[0][0]) + 1 && z.from >= r.on[0][0] - 1,
+  [z.from - z.launch.t, z.from - r.on[0][0]]
+);
+ck(
+  'the second HARM: on the same SAM, launched when the cover of the first ends, from #2',
+  z2 && Math.abs(z2.from - z.cover) < 5000 && z2.seat === 1,
+  z2 && [z2.from - z.cover, z2.seat]
 );
 ck(
   'two HARMs: what is not covered is listed (the rest of the time inside)',
@@ -68,11 +73,32 @@ ck(
 );
 const NG = base({ glide: false }).rows[0];
 ck(
-  'no glide (TI and GI on): a HARM covers its impact only; the next one in the middle of what is left',
+  'no glide (TI and GI on): a HARM covers while it flies, to its impact; the next one launched then',
   NG.shots.length == 2 &&
-    NG.shots[0].cover - NG.shots[0].imp <= 1000 &&
-    Math.abs(NG.shots[1].imp - (NG.shots[0].cover + NG.tout) / 2) < 1000,
-  NG.shots.map(z => (z.imp - NG.tin) / 1000)
+    Math.abs(NG.shots[0].cover - NG.shots[0].imp) < 1 &&
+    Math.abs(NG.shots[1].from - NG.shots[0].imp) < 2000,
+  NG.shots.map(z => [(z.from - NG.tin) / 1000, (z.imp - NG.tin) / 1000])
+);
+// the SAM is on as soon as any flight of the package is inside (the SEAD flight here, ahead of the protected one): the cover may start before
+const ON = base({ act: [route(3, 450, T0 - 240000)] }).rows[0];
+ck('the SAM switched on by another flight of the package (earlier)', ON.on[0][0] < ON.tin - 60000);
+// the way back through the same ring: the second HARM goes to the egress, not to the ingress
+const back = [
+  { x: 0, y: 0, z: 2500, arr: T0, act: 0 },
+  { x: 0, y: 100, z: 2500, arr: T(100), act: 17 },
+  { x: 2, y: 0, z: 2500, arr: T(200), act: 0 },
+];
+const EG = seadPlan({
+  prot: [{ key: 'v', name: 'Viper 2', wps: back }],
+  sead: { wps: route(-20, 450, T0 - 120000, 0, 300), n: 1, harms: [2] },
+  sams: [SA6],
+  glide: false,
+  shot: shot(60),
+}).rows[0];
+ck(
+  'egress too: the second HARM covers the way back through the ring, not the rest of the way in',
+  EG.shots.length == 2 && EG.shots[1].imp > EG.task.t1 && EG.gaps.some(g => g.ing),
+  EG.shots.map(z => (z.imp - T0) / 1000)
 );
 const BIG = base({ shot: shot(25, 60), sead: { wps: route(-20, 450, T0 - 120000), n: 2, harms: [2, 2] } }).rows[0];
 ck(

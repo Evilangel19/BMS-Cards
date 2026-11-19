@@ -17,11 +17,11 @@ HARM = [[202, 203, 204, 205, 210], [402, 403, 404, 405, 410], [106, 608, 111, 61
 INI = '\r\n'.join(['[STPT]'] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,' % i for i in range(15)] +
                   ['[HARM]'] + ['THREAT %d %d=%04d' % (t, n, HARM[t][n]) for t in range(3) for n in range(5)] + ['MODE=1', 'SUBMODE=1', 'TER=0', ''])
 CTX = """()=>{const T0=10*3600000,r=(x,kt,t0,y0,y1,a=0)=>{const ym=(y0+y1)/2,t1=t0+(ym-y0)/(kt*1.852)*3600000;return [{x,y:y0,z:2500,arr:t0,dep:0,act:0},{x,y:ym,z:2500,arr:t1,dep:0,act:a},{x,y:y1,z:2500,arr:t1+(y1-ym)/(kt*1.852)*3600000,dep:0,act:0}]};
- const me={key:'1',name:'Weasel 1',ac:'F-16CM',n:4,mission:'SEAD',tot:'10:05:00',f:{wps:r(480,450,T0-60000,380,520)},pkgNo:12,sead:true};
- const fl=[{key:'2',name:'Viper 2',ac:'F-16CM',n:4,mission:'STRIKE',tot:'10:06:00',f:{wps:r(500,480,T0,380,520,17)},sead:false},
+ const me={key:'1',name:'Weasel 1',ac:'F-16CM',n:4,mission:'SEAD',tot:'10:05:00',f:{wps:[{x:480,y:380,z:2500,arr:T0-60000,dep:0,act:0},{x:480,y:520,z:2500,arr:T0-60000+140/(450*1.852)*3600000,dep:0,act:19},{x:483,y:380,z:2500,arr:T0-60000+280/(450*1.852)*3600000,dep:0,act:0}]},pkgNo:12,sead:true};
+ const fl=[{key:'2',name:'Viper 2',ac:'F-16CM',n:4,mission:'STRIKE',tot:'10:06:00',f:{wps:[{x:500,y:380,z:2500,arr:T0,dep:0,act:0},{x:500,y:520,z:2500,arr:T0+140/(480*1.852)*3600000,dep:0,act:17},{x:503,y:380,z:2500,arr:T0+280/(480*1.852)*3600000,dep:0,act:0}]},sead:false},
    {key:'3',name:'Hawg 3',ac:'A-10C',n:2,mission:'BAI',tot:'10:20:00',f:{wps:r(800,300,T0,100,200)},sead:false}];
  const sams=[{id:'s6',x:505,y:440,rng:25,name:'SA-6',code:106},{id:'s3',x:494,y:470,rng:30,name:'SA-3',code:103},{id:'s2',x:508,y:505,rng:12,name:'SA-8',code:608},{id:'f',x:700,y:700,rng:40,name:'SA-2',code:102}];
- const refs=[{n:1,x:480,y:380},{n:2,x:480,y:450},{n:3,x:480,y:520},{n:4,x:505.5,y:441}];
+ const refs=[{n:1,x:480,y:380},{n:2,x:480,y:520},{n:3,x:483,y:380},{n:4,x:505.5,y:441}];
  window.__sc={ok:true,me,flights:fl,sams,seat:0,harms:[2,2,1,1],hts:true,refs};
  const m={range:{alts:[0,50000],vels:[0,3000],tgtAlts:[0,50000],table:[[[151900,151900],[151900,151900]],[[151900,151900],[151900,151900]]],mult:1},loft:null};
  __app.seadPage._test({ctx:()=>window.__sc,harm:async()=>({m,v:{mode:'pos',sub:'EOM'}})});}"""
@@ -38,7 +38,7 @@ try:
         check('SEAD without a SEAD flight: the page says why', 'SEAD' in pg.inner_text('#wp .sdnone') and pg.locator('#wp #wpharm').count() == 0)
         re = lambda: (pg.click('#wp [data-hsub=shot]'), pg.wait_for_timeout(300), pg.click('#wp [data-hsub=sead]'), pg.wait_for_timeout(1300))
         pg.evaluate(CTX); re()
-        P = lambda: pg.evaluate("()=>{const P=__app.seadPage.plan();return {rows:P.rows.map(r=>({id:r.id,n:r.shots.length,gaps:r.gaps.length,ref:r.ref&&r.ref.n,inA:r.ref&&r.ref.inArea,t85:r.t85,tin:r.tin,tout:r.tout})),shots:P.shots.map(z=>({key:z.key,id:z.id,k:z.k,seat:z.seat,imp:z.imp,cover:z.cover,tl:z.launch.t,ok:z.launch.ok})),seats:P.seats}}")
+        P = lambda: pg.evaluate("()=>{const P=__app.seadPage.plan();return {rows:P.rows.map(r=>({id:r.id,tEnd:r.tEnd,n:r.shots.length,gaps:r.gaps.length,ref:r.ref&&r.ref.n,inA:r.ref&&r.ref.inArea,t85:r.t85,tin:r.tin,tout:r.tout})),shots:P.shots.map(z=>({key:z.key,id:z.id,k:z.k,seat:z.seat,imp:z.imp,from:z.from,cover:z.cover,tl:z.launch.t,ok:z.launch.ok})),seats:P.seats}}")
         R = P()
         first = {z['id']: z['seat'] for z in R['shots'] if z['k'] == 1}
         check('the package: you in green, the strike flight with its task steerpoint, the one with no ring crossed', 'Weasel 1' in pg.inner_text('#sdpk') and pg.locator('#sdpk .sdme').count() == 1 and 'STPT 2' in pg.inner_text('#sdpk') and 'no ring crossed' in pg.inner_text('#sdpk'))
@@ -49,9 +49,11 @@ try:
         check('all the HARMs of the flight are used (2+2+1+1 = 6) or the time inside is covered %s' % [(z['id'], z['seat']) for z in R['shots']], n == 6 or all(r['gaps'] == 0 for r in R['rows']))
         check('...the seats get no more than their HARMs', all(s['used'] <= s['harms'] for s in R['seats']))
         sh = sorted(R['shots'], key=lambda z: z['imp'])
+        tend = {r['id']: r['tEnd'] or 0 for r in R['rows']}
+        check('the way back is covered too: a HARM after the strike on a SAM crossed again', any(z['imp'] > tend[z['id']] for z in R['shots']))
         bysam = {}
         for z in sh: bysam.setdefault(z['id'], []).append(z)
-        check('...two HARMs on one SAM: the next arrives when the cover of the last one ends', all(abs(b['imp'] - a['cover']) < 1500 for L in bysam.values() for a, b in zip(L, L[1:])))
+        check('...two HARMs on one SAM: the next one launched about when the cover of the last one ends (or it covers the way back)', all(b['from'] - a['cover'] < 6000 or b['imp'] > tend[b['id']] for L in bysam.values() for a, b in zip(L, L[1:])))
         same = [[z['tl'] for z in R['shots'] if z['seat'] == s] for s in range(4)]
         check('...8 s at least between two launches of one aircraft', all(abs(a - b) >= 7999 for L in same for i, a in enumerate(L) for b in L[i + 1:]))
         check('POS: SA-6 aims at STPT 4 (0.5 nm from it, in the EOM area); SA-3 has no steerpoint close enough %s' % [(r['id'], r['ref'], r['inA']) for r in R['rows']], R['rows'][0]['ref'] == 4 and R['rows'][0]['inA'] and not R['rows'][1]['inA'])
