@@ -148,11 +148,15 @@ export function createMap(host, deps) {
     return BASES.sat;
   };
   const baseDef = k => (k == 'sat' ? satDef() : BASES[k]);
+  // the filters a Weapons page chose with its Map filters button (PLANMODE, below) are not the Map page's: what is kept is the Map page's (PLANSAVE)
+  let PLANSAVE = null,
+    PLANMODE = 0,
+    LENTMODE = 0;
   const save = () => {
     Object.assign(PREF, {
       base: st.base,
       coastLight: st.cl,
-      on: st.on,
+      on: PLANMODE && PLANSAVE ? { ...st.on, ...PLANSAVE } : st.on,
       closed: st.closed,
       dtcOpen: st.dtcOpen,
       dtcFilOpen: st.dtcFilOpen,
@@ -254,6 +258,7 @@ export function createMap(host, deps) {
       if (p) p.style.opacity = '';
     });
     home.insertBefore(c, home.firstChild);
+    planHome();
     bgOp();
     map.invalidateSize();
   }
@@ -1026,8 +1031,6 @@ export function createMap(host, deps) {
     refilter();
   }
   // Map filters on the weapon pages, four states in a ring: 0 = the filters of the Map page, 1 = no filters (only the weapon drawing), 2 = the flight plan only, 3 = the flight plan and the PPT rings (the MAT toss is checked against them)
-  let PLANSAVE = null,
-    PLANMODE = 0;
   function cyclePlan() {
     const keys = MAP_LAYERS.map(l => l[0]).concat(
       MAP_OPTS.map(o => o[0]),
@@ -1052,6 +1055,16 @@ export function createMap(host, deps) {
     masters();
     refilter();
     return PLANMODE;
+  }
+  // the map back on the Map page: its own filters again (the choice of the Weapons pages kept for when they borrow it again); borrowed: that choice again
+  function planHome() {
+    LENTMODE = PLANMODE;
+    while (PLANMODE) cyclePlan();
+  }
+  function planLent() {
+    const m = LENTMODE;
+    LENTMODE = 0;
+    while (PLANMODE != m) cyclePlan();
   }
   // everything that depends on the "only" switches is drawn again
   function refilter() {
@@ -2525,6 +2538,12 @@ export function createMap(host, deps) {
 
   const side = (ally, owner) => (ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile');
   // units and SAM rings (campaign / faction change)
+  // the ring of a SAM (km): the range of its pre-planned threat in Ppt.ini when the list has one, else the range of its unit class (the same on the
+  // Map page, SEAD and DEAD)
+  function samRng(name, rng) {
+    const k = pptForUnit(name);
+    return k >= 0 && PPT[k] && PPT[k][1] > 1000 ? Math.round((PPT[k][1] / FT_KM) * 10) / 10 : rng;
+  }
   function units(C, view) {
     const L = window.L;
     ['uf', 'ue'].forEach(k => G[k].clearLayers());
@@ -2533,10 +2552,7 @@ export function createMap(host, deps) {
     if (!C) return;
     UL = mapUnits(C, view).filter(m => m.spotted);
     UL.forEach(m => {
-      if (m.sam) {
-        const k = pptForUnit(m.name);
-        if (k >= 0 && PPT[k][1] > 1000) m.rng = Math.round((PPT[k][1] / FT_KM) * 10) / 10;
-      }
+      if (m.sam) m.rng = samRng(m.name, m.rng);
     }); // same ring as the pre-planned threat of the list
     UL.forEach(m => {
       const s = unitSymbol(m.carrier ? 'Carrier' : m.cat, side(m.ally, m.owner));
@@ -4875,6 +4891,7 @@ export function createMap(host, deps) {
     autoPptFor: list => autoPptFor(list),
     addPpt: m => addPpt(m),
     isSamPpt: n => !(PPT.length > 0) || isSamPpt(n),
+    samRng: (name, rng) => samRng(name, rng),
     // the PPT types of the threat list (Ppt.ini) that are not SAMs: [name]
     otherPpt: () => otherPptNames(),
     palette: () => pal,
@@ -4979,6 +4996,7 @@ export function createMap(host, deps) {
       MO = new MutationObserver(mirror);
       MO.observe(host, { attributes: true, attributeFilter: ['class', 'style'] });
       setEdit(view ? false : WEDIT);
+      planLent();
       map.invalidateSize();
       refresh();
       return { L: window.L, map };
@@ -5005,7 +5023,7 @@ export function createMap(host, deps) {
     // the map is taken for a heavy one (the bar shows while it is moved); the tests use it
     heavy: b => (HEAVY = !!b),
     cyclePlan,
-    planMode: () => PLANMODE,
+    planMode: () => PLANMODE || LENTMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
     // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
     // the objects of the theater (list of the game data) were read again: the map asks for them anew

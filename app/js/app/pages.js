@@ -566,7 +566,7 @@ function seadCtx() {
         id: m.u.id.n + ':' + m.u.id.c,
         x: m.u.x,
         y: m.u.y,
-        rng: m.rng,
+        rng: mapV.samRng ? mapV.samRng(m.name, m.rng) : m.rng, // the ring of the Map page (the Ppt.ini range when it has one)
         name: m.name,
         code: harmCode(m.name),
         telar: m.telar,
@@ -679,7 +679,7 @@ function deadCtx() {
         id: m.u.id.n + ':' + m.u.id.c,
         x: m.u.x,
         y: m.u.y,
-        rng: m.rng,
+        rng: mapV.samRng ? mapV.samRng(m.name, m.rng) : m.rng, // the ring of the Map page (the Ppt.ini range when it has one)
         det: m.detAir || m.det || m.rng,
         name: m.name,
         code: harmCode(m.name),

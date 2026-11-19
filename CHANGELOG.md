@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: SEAD and DEAD use the SAM rings of the Map page (the Ppt.ini range), so no SAM crossed on the map is left out; the Map page gets its own filters back after the Weapons pages. New: the uncovered parts of the protected routes in red on the SEAD map; the loading bar while the cards are prepared.
 - Changed: the maps of Weapons, SEAD and DEAD keep their view across tabs, the zoom buttons by half a level; SEAD launches kept outside the ring of their SAM, the time before the first impact shown, Azimuth by the side of the route; DEAD roles swapped within a pair, the drawing with its labels, the nav offsets reorganised (OA elevation by 500 ft).
 - Changed: SEAD and DEAD keep the zoom chosen; DEAD Fit view as the HARM page and the card with the view of the preview; the HARM footprint and seeker in DEAD; the Hunter-Killer bait inside the WEZ (ECM on); OA1 / OA2 elevation; green only for launches; the SEAD first impact slider live; the Single shot line blue.
 - Changed: DEAD: the HARM range and seeker ring on the map, fixed role colours, phase colours in the scheme, a chevron on the arcs, the ECM slider live, no flicker; the anchors as PPT types BMS knows; the attack pages open on the steerpoint nearest the SAM; Manual nav offsets outside the flight plan. HARM standoff (Single shot): AGM-88 by default, emitters only SAM PPTs and flight plan steerpoints, the seeker ring light blue.

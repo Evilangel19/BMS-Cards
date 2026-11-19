@@ -1,6 +1,7 @@
 // Weapons page: pop-up calculator (map of the attack, side profile, sliders, results, NAV OFFSETS). The maths is in popup.js.
 // deps: {root, esc, G, S, lines, route, points, changed, confirm, alert, ll(n, e) -> [lat, lon], attach(el) -> {L, map}, detach()}  (route() -> steerpoints [{n, x: north ft, y: east ft, alt, t}])
 import D0 from '../data/index.js';
+import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
 const PPTL = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini)
 import { cbuFootprint } from '../bmsdata/bombdata.js';
@@ -1266,7 +1267,7 @@ export function createWeaponsPage(deps) {
       if (!L.length) throw new Error('no attack to draw');
       const out = [];
       for (const D of L) {
-        D.px = await snapPlan(D);
+        D.px = await busyRun('Preparing the Attack cards…', () => snapPlan(D)); // the loading bar of the map
         const c = document.createElement('canvas');
         c.width = ATC_W;
         c.height = ATC_H;

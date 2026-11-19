@@ -6,6 +6,7 @@
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, sams, target, seat, harms, hts}, harm(), toLL, attach, detach, cyclePlan, planMode, layerOn,
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), openMode(mode), snap, kbAdd}
 import { deadPlan, defaultRoles, rolesOf, partnerRole, ALT_BLOCKS, at } from './dead.js';
+import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
 import { timed, seatLabels } from './sead.js';
 import { harmShot, NM } from './airmissile.js';
@@ -373,6 +374,7 @@ export function createDeadPage(deps) {
     const vm = st.view == 'map';
     root.querySelectorAll('[data-ddview]').forEach(b => b.classList.toggle('on', b.dataset.ddview == st.view));
     q('#ddmapw').hidden = !vm;
+    if (vm && M) M.map.invalidateSize(); // shown again after the scheme: its size, the view kept
     q('#ddsch').hidden = vm;
     q('[data-ddfit]').hidden = !vm;
     q('[data-ddpf]').hidden = !vm;
@@ -1325,7 +1327,7 @@ export function createDeadPage(deps) {
     try {
       D = cardData();
       const B = deadBox(D);
-      D.px = await snapPlan(B.w / B.h);
+      D.px = await busyRun('Preparing the DEAD cards…', () => snapPlan(B.w / B.h)); // the loading bar of the map while the picture is taken
     } catch (e) {
       btn.disabled = false;
       btn.textContent = bt;

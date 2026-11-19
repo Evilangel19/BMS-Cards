@@ -11,7 +11,8 @@
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, flights, sams, seat, harms, hts, refs}, harm() -> Promise<{m, v}>, toLL(x, y), attach(el),
 //   detach(), cyclePlan(), planMode(), layerOn(k), pal(), dtc: {harm(), setHarm(t, n, code)}, ppt([{x, y, rng, name}]) -> Promise<string>, snap(scale),
 //   kbAdd(blob, name)}
-import { seadPlan, timed, posAt, seatLabels, BACKUP_NM_MIN, POS_AREA, MIN_GAP_S } from './sead.js';
+import { seadPlan, timed, posAt, inside, seatLabels, BACKUP_NM_MIN, POS_AREA, MIN_GAP_S } from './sead.js';
+import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
 import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
@@ -29,7 +30,8 @@ const mmss = s => {
   return Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0');
 };
 const h3 = d => String(Math.round(((d % 360) + 360) % 360) || 360).padStart(3, '0');
-const { HARM, IMP, YOU, GAP } = SD_COL;
+const { HARM, IMP, YOU, GAP } = SD_COL,
+  PRE = '#f59e0b'; // before the first impact (orange)
 
 export function createSeadPage(deps) {
   const { esc } = deps,
@@ -273,6 +275,7 @@ export function createSeadPage(deps) {
     const vm = st.view == 'map';
     root.querySelectorAll('[data-sdview]').forEach(b => b.classList.toggle('on', b.dataset.sdview == st.view));
     q('#sdmapw').hidden = !vm;
+    if (vm && M) M.map.invalidateSize(); // shown again after the scheme: its size, the view kept
     q('#sdsch').hidden = vm;
     q('[data-sdfit]').hidden = !vm;
     q('[data-sdpf]').hidden = !vm;
@@ -283,7 +286,7 @@ export function createSeadPage(deps) {
     `<svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="${w}"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>`;
   function mapLegend() {
     const c = pal();
-    return `<span>${sw(c.plan)}your route (as on the Map page)</span><span>${sw(c.mate)}protected route</span><span>${sw(c.ring, '7 5')}SAM ring · dotted ${st.k}%</span><span>${sw(c.harm)}HARM: launch and shot · yours bright</span><span><b style="color:${IMP}">◆</b> impact</span><span><b>▲</b> task steerpoint</span>`;
+    return `<span>${sw(c.plan)}your route (as on the Map page)</span><span>${sw(c.mate)}protected route</span><span>${sw(c.ring, '7 5')}SAM ring · dotted ${st.k}%</span><span>${sw(c.harm)}HARM: launch and shot · yours bright</span><span><b style="color:${IMP}">◆</b> impact</span><span>${sw(GAP, '', 5)}not covered</span><span>${sw(PRE, '6 4', 5)}before the first impact</span><span><b>▲</b> task steerpoint</span>`;
   }
   function schemeLegend() {
     const c = pal();
@@ -752,6 +755,29 @@ export function createSeadPage(deps) {
         }).addTo(WL);
       }
     });
+    // the parts of the protected routes inside a ring with no HARM covering them (red), and before the first impact (orange, dashed)
+    const pw = X.flights.filter(f => !f.sead && st.prot[f.key] !== false).map(f => timed(f.f.wps));
+    const seg = (r, t0, t1, col, dash) =>
+      pw.forEach(w =>
+        inside(w, r.sam.x, r.sam.y, r.sam.rng).forEach(([a, b]) => {
+          const u0 = Math.max(a, t0),
+            u1 = Math.min(b, t1);
+          if (u1 - u0 < 1000) return;
+          const pts = [];
+          for (let t = u0; t < u1; t += 5000) pts.push(posAt(w, t));
+          pts.push(posAt(w, u1));
+          const q = pts.filter(Boolean);
+          if (q.length < 2) return;
+          line(q, { color: c.halo, weight: 9, opacity: 0.6 });
+          line(q, { color: col, weight: 5, dashArray: dash || '' });
+        })
+      );
+    P.rows
+      .filter(r => !st.skip[r.id])
+      .forEach(r => {
+        if (r.pre) seg(r, r.pre.t0, r.pre.t1, PRE, '8 6');
+        (r.gaps || []).forEach(g => seg(r, g.t0, g.t1, GAP));
+      });
     // the shots: yours bright, the others pale; the impact on the protected route
     const Z = P.shots.filter(z => !st.skip[z.id] && !z.launch.off),
       fw = Object.fromEntries(X.flights.map(f => [f.key, timed(f.f.wps)]));
@@ -835,7 +861,6 @@ export function createSeadPage(deps) {
       if (vw) {
         if (st.view == vw.dataset.sdview) return;
         st.view = vw.dataset.sdview;
-        fit = true;
         save();
         return draw(false);
       }
@@ -1111,7 +1136,7 @@ export function createSeadPage(deps) {
       D = cardData();
       if (!D.shots.length) throw new Error('no shot to put on the card');
       const B = cardBox(D);
-      D.px = await snapPlan(B.w / B.h);
+      D.px = await busyRun('Preparing the SEAD cards…', () => snapPlan(B.w / B.h)); // the loading bar of the map while the picture is taken
     } catch (e) {
       btn.disabled = false;
       return deps.toast('SEAD card: ' + ((e && e.message) || e), true);

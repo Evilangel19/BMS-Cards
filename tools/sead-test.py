@@ -127,6 +127,23 @@ try:
         pg.evaluate("()=>__app.seadPage.setState({k:'<b>',sort:{},seat:[],skip:'x',prot:null,sel:5,mode:'x',sub:'Q',view:7,ref:3})"); pg.wait_for_timeout(500)
         st = pg.evaluate("()=>__app.seadPage.state()")
         check('a broken state from a file is brought back to sane values', st['k'] == 85 and st['sort'] == 'prio' and st['seat'] == {} and st['mode'] is None and st['sub'] is None and st['view'] == 'map' and st['ref'] == {})
+        # the map: the parts not covered, the view kept from the scheme back to the map
+        check('the map legend: not covered and before the first impact', 'not covered' in pg.inner_text('#sdmleg') and 'before the first impact' in pg.inner_text('#sdmleg'))
+        zv = lambda: pg.evaluate("()=>{const p=document.querySelector('#sdmap .leaflet-proxy');const c=document.querySelector('#sdmap .leaflet-control-scale-line');return (p&&p.style.transform)+'|'+(c&&c.textContent)}")
+        pg.locator('#sdmap .leaflet-control-zoom-in').click(); pg.wait_for_timeout(600); z1 = zv()
+        pg.click('#wp [data-sdview=sch]'); pg.wait_for_timeout(400); pg.click('#wp [data-sdview=map]'); pg.wait_for_timeout(700)
+        check('Scheme then Map: the zoom kept %s' % [zv(), z1], zv() == z1)
+        # Map filters on the Weapons pages: the Map page gets its own back
+        mf = lambda: pg.evaluate("()=>[...document.querySelectorAll('#mpbar input[data-k]')].map(i=>i.dataset.k+':'+(i.checked?1:0)).join(',')")
+        f0 = mf()
+        pg.click('#wp [data-sdpf]'); pg.wait_for_timeout(500); lab = pg.inner_text('#wp [data-sdpf]')
+        check('Map filters on SEAD: the next choice (%s)' % lab, lab == 'No filters')
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(900)
+        check('...the Map page: its own filters again', mf() == f0 and len(f0) > 10)
+        pg.click('[data-t=wp]'); pg.wait_for_timeout(1200)
+        check('...back on Weapons: its choice again (%s)' % pg.inner_text('#wp [data-sdpf]'), pg.inner_text('#wp [data-sdpf]') == 'No filters')
+        pg.click('#wp [data-sdpf]'); pg.click('#wp [data-sdpf]'); pg.click('#wp [data-sdpf]'); pg.wait_for_timeout(500)
+        check('...round to the Map filters', pg.inner_text('#wp [data-sdpf]') == 'Map filters' and mf() == f0)
         check('no page errors', not errs)
         if errs: print(errs)
 finally:

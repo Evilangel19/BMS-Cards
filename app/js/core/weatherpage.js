@@ -6,6 +6,7 @@
 //        at(ms) -> fmap | null (the map of that hour, or the campaign map), fill() (write ATIS, TAF and runways), fillState() -> {diff},
 //        attach(el) -> Promise<{L, map} | null>, detach(), toLL(xKm, yKm) -> [lat, lon], fromLL(lat, lon) -> [xKm, yKm], bounds: [[lat, lon], [lat, lon]]}
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
+import { busyRun } from './busy.js';
 import { WX_MODES as MODES, prOf, legend, drawWx } from './wxlayer.js';
 import { drawWxCard, WXC_W, WXC_H } from './wxcard.js';
 
@@ -435,7 +436,7 @@ export function createWeatherPage(deps) {
     btn.disabled = true;
     let D;
     try {
-      D = await cardData(fl);
+      D = await busyRun('Preparing the Weather cards…', () => cardData(fl)); // the loading bar of the map
     } catch (e) {
       btn.disabled = false;
       if (deps.toast) deps.toast('The Weather card could not be made: ' + ((e && e.message) || e));
