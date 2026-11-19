@@ -42,12 +42,28 @@ export const ALT_BLOCKS = [
   ['BELOW 5 000 FT', 'VERY BAD', '#b91c1c'],
   ['50–300 FT AGL', 'OPTIMAL', '#22c55e'],
 ];
-export const ROLES = { hs: ['shooter', 'cover'], hk: ['hunter', 'killer', 'cover'], bomb: ['killer', 'cover'] };
-/** the default roles: HARM standoff all shooters; Hunter-Killer #1 killer, #2 hunter (a 4-ship: two pairs); bombs all killers */
+export const ROLES = {
+  hs: ['shooter', 'cover'],
+  hk: ['hunter', 'killer', 'cover'],
+  bomb: ['hunter', 'killer', 'cover'],
+};
+/** the roles a seat can take: HARM standoff shooter or cover; Hunter-Killer and bombs the lead pair hunter or killer, the element (#3, #4) also cover */
+export const rolesOf = (tactic, i) =>
+  tactic == 'hs' ? ROLES.hs : i < 2 ? ['hunter', 'killer'] : ROLES[tactic] || ROLES.hk;
+/** the default roles: HARM standoff all shooters; Hunter-Killer and bombs #1 killer, #2 hunter, the element cover */
 export const defaultRoles = (tactic, n) =>
-  Array.from({ length: n }, (_, i) =>
-    tactic == 'hs' ? 'shooter' : tactic == 'hk' ? (i % 2 ? 'hunter' : 'killer') : 'killer'
-  );
+  Array.from({ length: n }, (_, i) => (tactic == 'hs' ? 'shooter' : i >= 2 ? 'cover' : i % 2 ? 'hunter' : 'killer'));
+/** the role of the other aircraft of a pair (#1-#2, #3-#4) when one is chosen: shooter and cover, hunter and killer swapped; cover with cover */
+export const partnerRole = (tactic, r) =>
+  tactic == 'hs'
+    ? r == 'shooter'
+      ? 'cover'
+      : 'shooter'
+    : r == 'hunter'
+      ? 'killer'
+      : r == 'killer'
+        ? 'hunter'
+        : 'cover';
 
 /**
  * @param {object} o

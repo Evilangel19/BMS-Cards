@@ -315,6 +315,7 @@ export function createMap(host, deps) {
       minZoom: 5,
       maxZoom: 18,
       zoomSnap: 0.25,
+      zoomDelta: 0.5, // the + and - buttons by half a level (a scale of 10, 15, 20, 30 km...)
     });
     // hover tooltips: close any that is left on when the pointer is no longer over a unit (a redraw under the cursor can leave one orphaned)
     const TIPS = new Set();

@@ -264,10 +264,10 @@ function map(x, D, PX, PY, PW, PH) {
       x.setLineDash(a.dash ? [14, 12] : []);
       x.beginPath();
       a.pts.forEach((q, i) => (i ? x.lineTo(...Q(q)) : x.moveTo(...Q(q))));
-      x.lineWidth = a.w + (a.me ? 7 : 5);
-      x.strokeStyle = a.me ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.55)';
+      x.lineWidth = a.w + (a.me ? 9 : 5);
+      x.strokeStyle = 'rgba(0,0,0,.55)';
       x.stroke();
-      x.lineWidth = a.w;
+      x.lineWidth = a.me ? a.w * 1.6 : a.w;
       x.strokeStyle = a.col;
       x.stroke();
       x.setLineDash([]);

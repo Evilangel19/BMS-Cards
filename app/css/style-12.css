@@ -1105,8 +1105,8 @@
   background: rgba(255, 255, 255, 0.02);
 }
 .ddtile.me {
-  border-color: #e2e8f0;
-  box-shadow: 0 0 0 1px #e2e8f0 inset;
+  border-color: var(--ac);
+  box-shadow: 0 0 0 1px var(--ac) inset;
 }
 .ddtile .th {
   display: flex;
@@ -1123,8 +1123,8 @@
 }
 .ddtile .th .you {
   margin-left: auto;
-  background: #e2e8f0;
-  color: #0b0f14;
+  background: var(--ac);
+  color: #06140c;
   border-radius: 4px;
   padding: 0 6px;
   font-weight: 800;
@@ -1307,4 +1307,82 @@
 #wpdead svg .ddyou {
   fill: #fff;
   font-weight: 800;
+}
+/* DEAD map labels: on the side away from the SAM (ddlf: to the left of the point), a bit lower (ddlo) */
+.leaflet-marker-icon.sdtag.ddlf span {
+  left: auto;
+  right: 10px;
+}
+.leaflet-marker-icon.sdtag.ddlo span {
+  top: 8px;
+}
+.leaflet-marker-icon.sdtag .ddtx {
+  background: rgba(11, 15, 20, 0.72);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+}
+.leaflet-marker-icon.sdtag .ddtri {
+  position: absolute;
+  left: -7px;
+  top: -10px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 12px solid #ff3b3b;
+  filter: drop-shadow(0 0 1px #000);
+}
+.leaflet-marker-icon.sdtag .ddmk {
+  position: absolute;
+  left: -6px;
+  top: -12px;
+  font-size: 20px;
+  font-weight: 900;
+  text-shadow: 0 0 2px #000;
+}
+/* the nav offsets of DEAD: a block for each anchor */
+.oab {
+  border-left: 3px solid;
+  padding: 6px 0 6px 10px;
+  margin: 8px 0;
+}
+.oah {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+}
+.oah .hint {
+  margin-left: auto;
+  font-weight: 400;
+}
+.oav {
+  font-size: 12px;
+  margin: 4px 0 2px;
+  color: var(--mu, #9aa6b2);
+}
+.oav b {
+  color: var(--tx);
+}
+.oap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.oap select {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+}
+.oaf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 12.5px;
 }

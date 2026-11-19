@@ -86,7 +86,7 @@ try:
         pg.select_option('#sdso select[data-sdseat=s2]', '3'); pg.wait_for_timeout(400)
         check('SA-8 given to #4 by hand', {z['id']: z['seat'] for z in P()['shots'] if z['k'] == 1}['s2'] == 3)
         pg.click('#sdso [data-sdsort=az]'); pg.wait_for_timeout(400); fa = {z['id']: z['seat'] for z in P()['shots'] if z['k'] == 1}
-        check('Azimuth: SA-3 (left of the route) to #1 %s' % fa, fa['s3'] == 0 and fa['s2'] == 3)
+        check('Azimuth: SA-3, right of your route, to #2 or #4; SA-8 still #4 by hand %s' % fa, fa['s3'] in (1, 3) and fa['s2'] == 3)
         pg.click('#sdso [data-sdsort=prio]'); pg.wait_for_timeout(300)
         t85a = P()['rows'][0]['t85']
         pg.locator('#sdth input[data-sdk]').evaluate("e=>{e.value=100;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(500)

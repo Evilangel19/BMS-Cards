@@ -12,6 +12,7 @@
 //   detach(), cyclePlan(), planMode(), layerOn(k), pal(), dtc: {harm(), setHarm(t, n, code)}, ppt([{x, y, rng, name}]) -> Promise<string>, snap(scale),
 //   kbAdd(blob, name)}
 import { seadPlan, timed, posAt, seatLabels, BACKUP_NM_MIN, POS_AREA, MIN_GAP_S } from './sead.js';
+import { mapKeep } from './mapkeep.js';
 import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { drawSeadCard, cardBox, SDC_W, SDC_H, SD_COL } from './seadcard.js';
@@ -157,7 +158,7 @@ export function createSeadPage(deps) {
       ? w
           .map(([t, n]) => `<span class="sdht" title="HARM table ${t + 1}, slot ${n + 1}">T${t + 1}/${n + 1}</span>`)
           .join('')
-      : '<span class="sdw">not in a table</span>';
+      : '<span class="wbad">not in a table</span>';
   };
   // the colours of the map now (the basemap decides them, as on the Map page)
   const pal = () => {
@@ -250,7 +251,7 @@ export function createSeadPage(deps) {
         .map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-sdsub="${v}">${v}</button>`)
         .join(
           ''
-        )}</span><span class="hint">${md == 'pos' ? 'the SAM within ' + POS_AREA[sub()].toFixed(1) + ' nm of the steerpoint' : X.hts ? 'the SAM radiating, seen by the HTS' : '<span class="sdw">no HTS pod in the loadout</span>'}</span></div>` +
+        )}</span><span class="hint">${md == 'pos' ? 'the SAM within ' + POS_AREA[sub()].toFixed(1) + ' nm of the steerpoint' : X.hts ? 'the SAM radiating, seen by the HTS' : '<span class="wbad">no HTS pod in the loadout</span>'}</span></div>` +
       (Z.length
         ? Z.map(z => {
             const L = z.launch,
@@ -262,7 +263,7 @@ export function createSeadPage(deps) {
                 : '<span class="hint">at the SAM</span>'
             }<span class="mono${me ? ' sdme' : ''}" style="color:${me ? '' : HARM}">${L.off ? '—' : 'L ' + hms(L.t)}</span><span class="mono sdimp">◆ ${hms(z.imp)}</span>${!L.off && L.ok && !(md == 'pos' && (!z.ref || !z.ref.inArea)) ? '<span class="sdok">✓</span>' : '<span class="sdw">!</span>'}</div>`;
           }).join('') +
-          `<p class="hint wnote">${st.sort == 'az' ? 'Azimuth: the first HARM of each SAM from left to right as seen from your flight, #1 the leftmost.' : 'Priority: the first HARM of each SAM to the lead, the next to #2…, in the order the SAMs are reached.'} At least ${MIN_GAP_S} s between two launches of one aircraft. A seat${md == 'pos' ? ' or a steerpoint' : ''} chosen in the lists stays. ${P.noLoadout ? 'The loadout has no AGM-88: one shot for each aircraft.' : S.map(s => s.label.split(' ')[0] + ' ' + s.used + '/' + s.harms).join(' · ')}</p>`
+          `<p class="hint wnote">${st.sort == 'az' ? 'Azimuth: the SAMs left of your route to #1' + (X.me.n > 2 ? ' and #3' : '') + ', right of it to #2' + (X.me.n > 2 ? ' and #4' : '') + '; all the HARMs of a SAM to the same aircraft when it can.' : 'Priority: the first HARM of each SAM to the lead, the next to #2…, in the order the SAMs are reached.'} At least ${MIN_GAP_S} s between two launches of one aircraft. A seat${md == 'pos' ? ' or a steerpoint' : ''} chosen in the lists stays. ${P.noLoadout ? 'The loadout has no AGM-88: one shot for each aircraft.' : S.map(s => s.label.split(' ')[0] + ' ' + s.used + '/' + s.harms).join(' · ')}</p>`
         : '<p class="hint">No threat to shoot.</p>');
     q('#sdsh').innerHTML = details();
     q('#sdcv').innerHTML = coverCard();
@@ -553,7 +554,7 @@ export function createSeadPage(deps) {
       tb = tabTxt(z.sam.code);
     return (
       h +
-      `<div class="kv">${kv('LAUNCH', hms(L.t) + ' · ' + L.from.toFixed(1) + ' nm after STPT ' + L.leg, me ? 'sdme' : '')}${kv('TURN TO', h3(L.brg) + '° (route ' + h3(L.hdg) + '°)')}${kv(
+      `<div class="kv">${kv('LAUNCH', hms(L.t) + ' · ' + L.from.toFixed(1) + ' nm after STPT ' + L.leg + (L.moved ? ' <span class="hint">(' + L.moved + ' s earlier: outside its ring)</span>' : ''), me ? 'sdme' : '')}${kv('TURN TO', h3(L.brg) + '° (route ' + h3(L.hdg) + '°)')}${kv(
         'MODE',
         md == 'pos'
           ? 'POS ' +
@@ -565,8 +566,8 @@ export function createSeadPage(deps) {
                   ? ''
                   : ' <span class="sdw">SAM ' + z.ref.d.toFixed(1) + ' nm away: outside the ' + sub() + ' area</span>'
                 : ' <span class="sdw">no steerpoint</span>')
-          : 'HAD · at the SAM' + (X.hts ? '' : ' <span class="sdw">no HTS pod</span>')
-      )}${kv('THREAT', (z.sam.code == null ? 'no ALIC' : 'ALIC ' + z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="sdw">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring', L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
+          : 'HAD · at the SAM' + (X.hts ? '' : ' <span class="wbad">no HTS pod</span>')
+      )}${kv('THREAT', (z.sam.code == null ? 'no ALIC' : 'ALIC ' + z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="wbad">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring' + (L.margin < 0 ? ': launch inside, no earlier point outside (in range, the SAM on)' : ''), L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
     );
   }
   function coverCard() {
@@ -574,7 +575,7 @@ export function createSeadPage(deps) {
       r = z && P.rows.find(w => w.id == z.id);
     if (!r) return '<h3>Cover</h3><p class="hint">Choose a shot.</p>';
     const g = r.gaps;
-    return `<h3>${esc(r.sam.name)} · cover</h3>${r.sam.telar >= 0 ? '<div class="ddtel"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM silences one launcher (' + r.sam.telar + ' alive): the others keep shooting.</div>' : ''}<div class="kv">${kv('SAM ON', r.on.map(v => hms(v[0]) + '–' + hms(v[1])).join('<br>'))}${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.from) + '–' + hms(w.cover)).join('<br>') : ''))}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
+    return `<h3>${esc(r.sam.name)} · cover</h3>${r.sam.telar >= 0 ? '<div class="ddtel"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM silences one launcher (' + r.sam.telar + ' alive): the others keep shooting.</div>' : ''}<div class="kv">${kv('SAM ON', r.on.map(v => hms(v[0]) + '–' + hms(v[1])).join('<br>'))}${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.from) + '–' + hms(w.cover)).join('<br>') : ''))}${r.pre ? kv('BEFORE THE FIRST', hms(r.pre.t0) + '–' + hms(r.pre.t1) + ' (' + mmss((r.pre.t1 - r.pre.t0) / 1000) + ', before the first impact: the SAM taken to need until ' + st.k + '% of the ring)', 'sdw') : ''}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
   }
   function problems() {
     const md = mode(),
@@ -638,10 +639,12 @@ export function createSeadPage(deps) {
       o.map._sdR = o.L.canvas({ pane: 'sdP' });
     }
     M = { ...o, WL: o.L.layerGroup().addTo(o.map) };
-    fit = true;
+    fit = !VK.restore(o.map, fitKey); // back from another tab: the view as it was left
   }
+  const VK = mapKeep();
   function detachMap() {
     if (!M) return;
+    if (M.map.getContainer().clientWidth) VK.save(M.map, fitKey);
     try {
       M.WL.remove();
     } catch (e) {
@@ -1005,6 +1008,7 @@ export function createSeadPage(deps) {
   // the map for the card: the lent map fitted to the plan, a picture of it, the points in its pixels
   async function snapPlan(AR = 1520 / 900) {
     if (!deps.snap) return null;
+    const keep = !!M && st.view == 'map'; // the map shown: the card takes the view of the preview (its centre and zoom)
     if (!M) {
       if (st.view != 'map') return null;
       await ensureMap();
@@ -1037,12 +1041,13 @@ export function createSeadPage(deps) {
       z0 = map.getZoom();
     WL.remove();
     try {
-      map.fitBounds(L.latLngBounds(pts.map(ll)), {
-        paddingTopLeft: [ox + 20, oy + 20],
-        paddingBottomRight: [ox + 20, oy + 20],
-        animate: false,
-      });
-      await new Promise(r => setTimeout(r, 1200));
+      if (!keep)
+        map.fitBounds(L.latLngBounds(pts.map(ll)), {
+          paddingTopLeft: [ox + 20, oy + 20],
+          paddingBottomRight: [ox + 20, oy + 20],
+          animate: false,
+        });
+      await new Promise(r => setTimeout(r, keep ? 600 : 1200));
       const shotP = await deps.snap(2);
       if (!shotP) return null;
       const k = shotP.canvas.width / cw,

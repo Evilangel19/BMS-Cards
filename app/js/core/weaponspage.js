@@ -1,6 +1,7 @@
 // Weapons page: pop-up calculator (map of the attack, side profile, sliders, results, NAV OFFSETS). The maths is in popup.js.
 // deps: {root, esc, G, S, lines, route, points, changed, confirm, alert, ll(n, e) -> [lat, lon], attach(el) -> {L, map}, detach()}  (route() -> steerpoints [{n, x: north ft, y: east ft, alt, t}])
 import D0 from '../data/index.js';
+import { mapKeep } from './mapkeep.js';
 const PPTL = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini)
 import { cbuFootprint } from '../bmsdata/bombdata.js';
 import { analyse, envelope, pickBomb, isGuided, maneuvers, PULL_G, PULL_DELAY } from './lethal.js';
@@ -760,7 +761,7 @@ export function createWeaponsPage(deps) {
       o.map._wpR = o.L.canvas({ pane: 'wpP' });
     }
     M = { ...o, WL: o.L.layerGroup().addTo(o.map), box };
-    fit = true;
+    fit = !VK.restore(o.map, viewKey()); // back from another tab: the view as it was left
     const eb = deps.root.querySelector('[data-edit]');
     if (eb) {
       const on = deps.isEdit && deps.isEdit();
@@ -768,8 +769,11 @@ export function createWeaponsPage(deps) {
       eb.classList.toggle('on', !!on);
     }
   }
+  const VK = mapKeep(),
+    viewKey = () => st.mode + '|' + st.tgt;
   function detachMap() {
     if (!M) return;
+    VK.save(M.map, viewKey());
     try {
       M.WL.remove();
     } catch (e) {

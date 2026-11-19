@@ -136,8 +136,12 @@ ck(
   JSON.stringify(first(pr)) == '{"a":0,"b":1,"c":0}',
   first(pr)
 );
-const az = first(base({ sams: S2, sort: 'az', sead: { wps: route(-20, 450, T0 - 120000), n: 2, harms: [2, 2] } }));
-ck('Azimuth: from left to right (SA-3 on the left of the route first)', az.b === 0, az);
+const az = first(base({ sams: S2, sort: 'az', sead: { wps: route(0, 450, T0 - 120000), n: 2, harms: [2, 2] } }));
+ck(
+  'Azimuth: the SAMs left of your route to #1 (SA-3), right to #2 (SA-6, SA-8)',
+  az.b === 0 && az.a === 1 && az.c === 1,
+  az
+);
 const hd = base({
   sams: S2,
   seat: { c: 1 },
@@ -234,5 +238,29 @@ ck(
   'a flight not crossing the ring is not a row',
   base({ sams: [{ id: 'z', x: 80, y: 60, rng: 10, name: 'X' }] }).rows.length == 0
 );
+// your SEAD flight with the package, ahead of it: a launch for the impact at 85% would be inside the ring; it is moved back to before you enter it
+{
+  const Q = base({
+      sead: { wps: route(2, 480, T0 - 90000), n: 2, harms: [1, 1] },
+      act: [route(2, 480, T0 - 90000), viper],
+      shot: shot(40, 40),
+    }),
+    q = Q.rows[0].shots[0];
+  ck(
+    'a launch that would be inside the ring of its SAM: moved earlier, outside it, the impact earlier',
+    q && q.launch.margin >= 0.4 && q.launch.moved > 0 && q.imp < Q.rows[0].t85,
+    q && { m: q.launch.margin, moved: q.launch.moved }
+  );
+}
+// before the first impact: from the ring entry to the first cover (shown, not planned)
+{
+  const Q = base({ k: 0.5 }),
+    w = Q.rows[0];
+  ck(
+    'before the first impact: the time from the entry to the first cover',
+    w.pre && w.pre.t0 >= w.tin - 1 && w.pre.t1 == Math.min(...w.shots.map(z => z.from)),
+    w.pre
+  );
+}
 console.log(bad ? `run-sead.mjs: ${bad} of ${n} FAILED` : `run-sead.mjs: OK - ${n} checks`);
 process.exit(bad ? 1 : 0);

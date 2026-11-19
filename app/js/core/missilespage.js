@@ -1,6 +1,7 @@
 // Missiles page: HARM shot at a threat (POS / HAS) with the map, and radar missile range against aspect (BVR). The maths is in airmissile.js, the numbers come
 // from the BMS Misdata tables (missiledata.js; three missiles are built in). deps: {root, esc, points(), ll(n, e), attach(el), detach(), missiles() -> {name: data}}
 import D0 from '../data/index.js';
+import { mapKeep } from './mapkeep.js';
 import { timeline, CLASSES, STD, mslName, toKt, toMach } from './bvrtimeline.js';
 import { bvrShot, harmShot, marShot, HARM_SUB, NM } from './airmissile.js';
 import { bearing, project } from './popup.js';
@@ -714,7 +715,7 @@ export function createMissilesPage(deps) {
       o.map._wpR = o.L.canvas({ pane: 'wpP' });
     }
     M = { ...o, WL: o.L.layerGroup().addTo(o.map) };
-    fit = true;
+    fit = !VK.restore(o.map, viewKey()); // back from another tab: the view as it was left
     const eb = deps.root.querySelector('[data-edit]');
     if (eb) {
       const on = deps.isEdit && deps.isEdit();
@@ -722,8 +723,11 @@ export function createMissilesPage(deps) {
       eb.classList.toggle('on', !!on);
     }
   }
+  const VK = mapKeep(),
+    viewKey = () => st.mode + '|' + st.em;
   function detachMap() {
     if (!M) return;
+    VK.save(M.map, viewKey());
     try {
       M.WL.remove();
     } catch (e) {

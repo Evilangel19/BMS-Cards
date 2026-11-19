@@ -1,7 +1,7 @@
 // DEAD planning (core/dead.js) on a made-up flight plan: the altitude blocks of the manual, the HARM standoff (the launch outside the WEZ, the turn at
 // the arc radius, the impact on the arc, the orbit side), the Hunter-Killer (the anchors outside the arc either side of the way in, the hunter's arc, the
 // defence back to its anchor, the killer's attack, the nav offsets of the anchors), the roles.
-import { deadPlan, altRating, defaultRoles, at } from '../app/js/core/dead.js';
+import { deadPlan, altRating, defaultRoles, partnerRole, rolesOf, at } from '../app/js/core/dead.js';
 let n = 0,
   bad = 0;
 const ck = (name, ok, x) => {
@@ -26,8 +26,13 @@ ck(
   altRating(35000).ok && altRating(20000).r == 'GOOD' && altRating(10000).r == 'BAD' && altRating(200).ok
 );
 ck(
-  'the default roles: shooters; killer, hunter, killer, hunter',
-  defaultRoles('hs', 2).join() == 'shooter,shooter' && defaultRoles('hk', 4).join() == 'killer,hunter,killer,hunter'
+  'the default roles: shooters; killer, hunter, the element cover; the partner of a pair swapped',
+  defaultRoles('hs', 2).join() == 'shooter,shooter' &&
+    defaultRoles('hk', 4).join() == 'killer,hunter,cover,cover' &&
+    partnerRole('hk', 'killer') == 'hunter' &&
+    partnerRole('hs', 'cover') == 'shooter' &&
+    rolesOf('hk', 0).join() == 'hunter,killer' &&
+    rolesOf('bomb', 3).includes('cover')
 );
 const shot = () => ({ rTh: 40, vm: 0.36 });
 const H = deadPlan({ sam: SAM, wps, tactic: 'hs', roles: ['shooter', 'shooter'], shot });

@@ -255,21 +255,37 @@ export function seadPlan(o) {
   const seatOk = (q, tl) =>
     left[q] > 0 && !shots.some(z => z.seat === q && z.launch && Math.abs(z.launch.t - tl) < MIN_GAP_S * 1000);
   let ptr = 0;
-  function addShot(r, imp, first) {
+  function addShot(r, imp0, first) {
+    let imp = imp0;
     const key = r.shots.length ? r.id + '#' + (r.shots.length + 1) : r.id,
       aim = mode == 'pos' && r.ref ? r.ref : r.sam,
-      L = launchFor(W, { ...r, t85: imp, sam: { ...r.sam, x: aim.x, y: aim.y } }, o.shot, o.sams, r.sam),
       m = o.seat && o.seat[key];
+    let L = launchFor(W, { ...r, t85: imp, sam: { ...r.sam, x: aim.x, y: aim.y } }, o.shot, o.sams, r.sam);
+    // a launch inside the ring of its SAM: the last launch before your flight enters it, the impact earlier (still while the SAM is on, or the HARM
+    // finds it off); none: the launch inside, flagged
+    if (!L.off && L.margin < 0) {
+      const onAt = r.on.find(v => imp >= v[0] - 1 && imp <= v[1] + 1),
+        E = earlierOut(W, aim, r.sam, L.t, onAt ? onAt[0] : imp, o.shot, o.sams);
+      if (E) {
+        L = { ...E, moved: Math.round((L.t - E.t) / 1000) };
+        imp = E.imp;
+      }
+    }
     let s = -1;
     if (m != null && m >= 0 && m < n) s = m;
-    else
-      for (let j = 0; j < n; j++) {
-        const q = (ptr + j) % n;
+    else {
+      // Azimuth: the SAMs left of your route to #1 (and #3), right to #2 (and #4), all the HARMs of a SAM to the same aircraft when it can; Priority:
+      // the next aircraft with a HARM
+      const az = o.sort == 'az' && n > 1,
+        same = az && r.shots.length ? [r.shots[0].seat] : [],
+        side = az ? [...Array(n).keys()].filter(q => q % 2 == (r.az > 0 ? 1 : 0)) : [],
+        pool = [...same, ...side, ...[...Array(n).keys()].map(j => (ptr + j) % n)];
+      for (const q of pool)
         if (seatOk(q, L.t)) {
           s = q;
           break;
         }
-      }
+    }
     if (s < 0 || (!first && (L.off || !L.ok))) return null; // an extra shot only when it can be flown
     const hand = m != null && s === m;
     if (left[s] > 0) left[s]--;
@@ -378,6 +394,13 @@ export function seadPlan(o) {
     r.shots.forEach((z, i) => (z.k = i + 1));
   });
   // what stays uncovered of each SAM, ingress and egress
+  // before the first impact: from when the first flight enters the ring to when the first HARM covers (the SAM is taken to need until k of the
+  // radius to shoot; shown, not planned)
+  rows.forEach(r => {
+    const f = r.shots.length ? Math.min(...r.shots.map(z => z.from)) : null,
+      a = Math.max(r.tin, r.on.length ? r.on[0][0] : r.tin);
+    r.pre = f != null && f - a > 1000 ? { t0: a, t1: f } : null;
+  });
   rows.forEach(r => {
     r.gaps = r.shots.length
       ? r.need.flatMap(([a, b, ing]) => uncovered(a, b, cov(r)).map(([u0, u1]) => ({ t0: u0, t1: u1, ing })))
@@ -450,6 +473,43 @@ function launchFor(W, r, shot, sams, sam0) {
     rings: sams.filter(z => z.id !== S0.id && Math.hypot(z.x - q.p.x, z.y - q.p.y) < z.rng).map(z => z.name),
     fix: ok ? null : fixFor(W, r, at, t),
   };
+}
+// a launch inside the ring of its SAM (sam0): back along your route, the last time you are still outside it (0.5 nm) and in HARM range of the aim,
+// the HARM arriving not before t0 (the SAM on). The launch as launchFor gives it, with its impact; null when there is none in 10 minutes
+function earlierOut(W, aim, sam0, t, t0, shot, sams) {
+  for (let dt = 2000; dt <= 600000; dt += 2000) {
+    const p = posAt(W, t - dt);
+    if (!p) return null;
+    if (Math.hypot(p.x - sam0.x, p.y - sam0.y) / KM_NM < sam0.rng / KM_NM + 0.5) continue;
+    const d = Math.hypot(p.x - aim.x, p.y - aim.y) / KM_NM,
+      h = shot(p, aim, d);
+    if (d > h.rTh) return null; // farther back is farther away
+    const tl = t - dt,
+      imp = tl + (d / h.vm) * 1000;
+    if (imp < t0) return null;
+    return {
+      t: tl,
+      imp,
+      x: p.x,
+      y: p.y,
+      hdg: p.hdg,
+      brg: brg(aim.x - p.x, aim.y - p.y),
+      altFt: p.altFt,
+      gsKt: p.gsKt,
+      leg: p.leg,
+      from: p.from,
+      d,
+      tof: Math.round(d / h.vm),
+      rTh: h.rTh,
+      rMax: h.rMax,
+      vm: h.vm,
+      ok: true,
+      margin: Math.hypot(p.x - sam0.x, p.y - sam0.y) / KM_NM - sam0.rng / KM_NM,
+      rings: sams.filter(z => z.id !== sam0.id && Math.hypot(z.x - p.x, z.y - p.y) < z.rng).map(z => z.name),
+      fix: null,
+    };
+  }
+  return null;
 }
 // out of range (or not flying then): the nearest launch time from which the HARM reaches, and its impact
 function fixFor(W, r, at, t) {
