@@ -728,10 +728,13 @@ function deadDeps() {
       },
     },
     addPpt: m => mapV.addPpt(m),
-    // a Weapons page of the attack (Pop-up, HADB, TOSS): its tab
-    openMode: m => {
-      const b = document.querySelector('#wpmodes [data-mode="' + m + '"], .wtabs [data-mode="' + m + '"]');
+    pptTypes: () => mapV.otherPpt(),
+    // a Weapons page of the attack (Pop-up, HADB, TOSS), its target the steerpoint nearest to the SAM (pt): the target chosen (or null), then the tab
+    openMode: (m, pt) => {
+      const a = pt && ST.wpPage && ST.wpPage.aimAt ? ST.wpPage.aimAt(pt.x, pt.y) : null,
+        b = document.querySelector('#wp .wtabs [data-mode="' + m + '"]');
       if (b) /** @type {HTMLElement} */ (b).click();
+      return a;
     },
   };
 }
@@ -818,6 +821,8 @@ export async function init9() {
   harmPage = createMissilesPage({
     esc,
     points: () => dtcPoints(lines),
+    route: () => stpts(),
+    isSam: n => mapV.isSamPpt(n),
     ll: (n, e) => mapV.toLL(e / 3280.84, n / 3280.84),
     attach: el => mapV.attach(el),
     detach: () => mapV.detach(),

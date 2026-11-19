@@ -245,31 +245,40 @@ export function createMissilesPage(deps) {
       .catch(() => {}));
   }
 
+  // the emitters a HARM can be shot at: the pre-planned SAM threats of the DTC and the steerpoints of the flight plan (STPT 1-24), not the other PPTs
   function emitters() {
-    const P = deps.points && deps.points();
-    return P
-      ? P.ppt
-          .filter(p => !p.empty)
-          .map(p => ({
-            v: String(p.slot),
-            label: 'STPT ' + p.stpt + (p.name ? ' · ' + p.name : ''),
-            n: p.y * FT_KM,
-            e: p.x * FT_KM,
-            ringNm: p.rngNm || 0,
-            alt: p.altFt || 0,
-          }))
-      : [];
+    const P = deps.points && deps.points(),
+      sam = n => (deps.isSam ? deps.isSam(n) : true),
+      R = deps.route ? deps.route() : [];
+    return (P ? P.ppt.filter(p => !p.empty && sam(p.name)) : [])
+      .map(p => ({
+        v: String(p.slot),
+        label: 'STPT ' + p.stpt + (p.name ? ' · ' + p.name : ''),
+        n: p.y * FT_KM,
+        e: p.x * FT_KM,
+        ringNm: p.rngNm || 0,
+        alt: p.altFt || 0,
+      }))
+      .concat(
+        R.filter(w => w.n < 24).map(w => ({
+          v: 'r' + w.n,
+          label: 'STPT ' + (w.n + 1) + ' · flight plan',
+          n: +w.x,
+          e: +w.y,
+          ringNm: 0,
+          alt: +w.alt || 0,
+        }))
+      );
   }
-  const tab = list => {
-    const L = names(list),
-      c = cur();
-    if (!DB[c.msl] || !L.includes(c.msl)) c.msl = L[0];
-    return L;
-  };
+  // the missile shown: the one chosen when it is in the files, else the AGM-88 for the HARM (the first one of the list otherwise); the choice is kept, so
+  // the AGM-88 comes back when the missile files are read after the page opened
+  const pickMsl = (L, c, harm) => (L.includes(c.msl) ? c.msl : harm && L.includes('AGM-88') ? 'AGM-88' : L[0]);
+  const shown = () => pickMsl(names(st.mode), cur(), st.mode == 'harm');
+  const tab = list => names(list);
 
   function compute() {
     const c = cur(),
-      m = DB[c.msl];
+      m = DB[shown()];
     res = null;
     if (!m) return;
     if (st.mode == 'bvr') {
@@ -633,7 +642,7 @@ export function createMissilesPage(deps) {
   const HLEG = [
     ['#ff5d5d', 'SAM ring', ''],
     ['#38bdf8', 'HARM range', '6 5'],
-    ['#fbbf24', 'Seeker opens', '2 6'],
+    ['#22d3ee', 'Seeker opens', '2 6'],
     ['#ffffff', 'HTS footprint', ''],
     ['#22d3ee', 'HAS ±60°', '4 4'],
     ['#fbbf24', 'Line to the emitter', ''],
@@ -766,7 +775,7 @@ export function createMissilesPage(deps) {
         }).addTo(WL);
     if (r.ringFt) circ(r.ringFt, '#ff5d5d', '', 'SAM');
     circ(r.rMax, '#38bdf8', '6 5');
-    if (r.seekerOn) circ(r.seekerOn.ft, '#fbbf24', '2 6'); // where the seeker opens
+    if (r.seekerOn) circ(r.seekerOn.ft, '#22d3ee', '2 6'); // where the seeker opens (light blue as the HAS)
     if (r.foot && r.shot)
       L.polygon(r.foot.map(ll), {
         renderer: RN,
@@ -852,7 +861,7 @@ export function createMissilesPage(deps) {
       const tabs = deps.only
         ? ''
         : `<div class="wtabs" role="tablist">${modes.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
-      const msel = `<div class="wrow"><label>Missile</label><select data-pick="msl">${L.map(k => `<option value="${esc(k)}"${k === c.msl ? ' selected' : ''}>${esc(mslName(k))}</option>`).join('')}</select></div>`;
+      const msel = `<div class="wrow"><label>Missile</label><select data-pick="msl">${L.map(k => `<option value="${esc(k)}"${k === shown() ? ' selected' : ''}>${esc(mslName(k))}</option>`).join('')}</select></div>`;
       const left =
         st.mode == 'harm'
           ? `<div class="wcard"><h3>Shot<span class="wtip" title="POS: the HARM is shot at the known position of the emitter (a steerpoint). HAS: the HARM is the sensor and sees only emitting radars within ±60°. HAD: the HTS pod gives the position; the missile is shot as in POS. The range is the table range of the missile for the launch altitude and speed; the flight time is an estimate.">ⓘ</span></h3>
@@ -894,7 +903,7 @@ export function createMissilesPage(deps) {
             ],
             c.gi
           )}</div>
-          <div class="wrow"><label>Emitter</label><select data-pick="em">${E.map(x => `<option value="${x.v}"${(st.em ? st.em === x.v : x === E[0]) ? ' selected' : ''}>${esc(x.label)}${x.ringNm ? ' · ' + x.ringNm.toFixed(0) + ' nm' : ''}</option>`).join('') || '<option>no PPT in the DTC</option>'}</select></div>${msel}
+          <div class="wrow"><label>Emitter</label><select data-pick="em">${E.map(x => `<option value="${x.v}"${(st.em ? st.em === x.v : x === E[0]) ? ' selected' : ''}>${esc(x.label)}${x.ringNm ? ' · ' + x.ringNm.toFixed(0) + ' nm' : ''}</option>`).join('') || '<option>no SAM PPT or flight steerpoint</option>'}</select></div>${msel}
           ${['heading', 'alt', 'speed', 'tgtAlt', 'shotPct', 'offNose'].map(slider).join('')}</div>`
           : `<div class="wcard"><div class="wh"><h3>Your shot<span class="wtip" title="Your missile, launched from your altitude and speed at the target (the enemy). Maximum range from the BMS table for the launch altitude, speed and target altitude (head-on). Against another aspect it is scaled with the target speed and a mean missile speed: R = Rhead (Vm + Vt cos aspect) / (Vm + Vt). An estimate, not BMS code. Enemy MAR: the range at which that target has to turn and run. The speeds are in knots (true airspeed) or in Mach, as chosen at the top right.">ⓘ</span></h3>${hdrCtl('bvr')}</div>${msel}
           ${['alt', 'speed', 'tgtAlt', 'tgtSpeed', 'aspect', 'shotPct'].map(slider).join('')}<div class="wrow"><label>Target</label>${seg(
@@ -1316,7 +1325,7 @@ export function createMissilesPage(deps) {
         /* the built-in table */
       }
       const L = names('harm');
-      return { m: DB[st.harm.msl] || DB[L[0]] || null, v: st.harm };
+      return { m: DB[pickMsl(L, st.harm, true)] || null, v: st.harm };
     },
   };
 }

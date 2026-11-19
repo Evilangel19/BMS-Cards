@@ -6,6 +6,16 @@
 //     lanes[{seat, me, col, name, ph[{a, b, k, l}], mk[{t, s}]}], px (the map picture and the plan in its pixels) | null}
 import { SD_COL } from './seadcard.js';
 
+// the phases of the scheme (the page and the card): their colour and name
+export const DD_PH = {
+  run: ['#94a3b8', 'approach'],
+  hold: ['#f59e0b', 'anchor, mark'],
+  arc: ['#2dd4bf', 'the arc, bait'],
+  def: ['#f87171', 'defend, back to the anchor'],
+  atk: ['#3b82f6', 'attack'],
+  cover: ['#e879f9', 'cover'],
+  harm: [SD_COL.HARM, 'HARM in flight'],
+};
 export const DDC_W = 1600,
   DDC_H = 2400;
 const BG = '#f4f6f8',
@@ -154,8 +164,8 @@ export function drawDeadCard(x, D, kind = 'map') {
     ['', 'BRG', 'RNG', 'ELEV', 'ANCHOR'].forEach((h, i) => text(h, C[i], y + 24, MU));
     y += 40;
     [
-      ['OA1', D.oa.oa1, 'H · HUNTER', '#a16207'],
-      ['OA2', D.oa.oa2, 'K · KILLER', '#6d28d9'],
+      ['OA1', D.oa.oa1, 'H · HUNTER', '#15803d'],
+      ['OA2', D.oa.oa2, 'K · KILLER', '#1d4ed8'],
     ].forEach(([k, a, l, c]) => {
       font('700', 26);
       text(k, C[0], y + 26);
@@ -200,7 +210,7 @@ export function drawDeadCard(x, D, kind = 'map') {
   text('FOR SIMULATION USE ONLY · FALCON BMS', W / 2, H - 20, MU, 'center');
 }
 // the role colours of the page are for a dark screen: darker ones on the light card
-const roleInk = r => ({ SHOOTER: '#0284c7', HUNTER: '#a16207', KILLER: '#6d28d9', COVER: '#475569' })[r] || TX;
+const roleInk = r => ({ SHOOTER: '#1d4ed8', HUNTER: '#15803d', KILLER: '#1d4ed8', COVER: '#a21caf' })[r] || TX;
 
 function map(x, D, PX, PY, PW, PH) {
   x.save();
@@ -235,13 +245,15 @@ function map(x, D, PX, PY, PW, PH) {
     circ(p.sam.R, p.ring, 3, [14, 10], 'rgba(255,159,26,.08)');
     circ(p.sam.Recm, '#ff3b3b', 2.5, [6, 6]);
     circ(p.sam.Rdet, p.ring, 2, [3, 9]);
+    if (p.sam.rTh) circ(p.sam.rTh, SD_COL.HARM, 2.5, [12, 10]);
+    if (p.sam.seek) circ(p.sam.seek, '#22d3ee', 2.5, [3, 9]);
     p.paths.forEach(a => {
       if (a.pts.length < 2) return;
       x.setLineDash(a.dash ? [14, 12] : []);
       x.beginPath();
       a.pts.forEach((q, i) => (i ? x.lineTo(...Q(q)) : x.moveTo(...Q(q))));
-      x.lineWidth = a.w + 5;
-      x.strokeStyle = 'rgba(0,0,0,.55)';
+      x.lineWidth = a.w + (a.me ? 7 : 5);
+      x.strokeStyle = a.me ? 'rgba(255,255,255,.9)' : 'rgba(0,0,0,.55)';
       x.stroke();
       x.lineWidth = a.w;
       x.strokeStyle = a.col;
@@ -272,7 +284,7 @@ function map(x, D, PX, PY, PW, PH) {
       else x.arc(mx, my, 11, 0, 7);
       x.fill();
       x.stroke();
-      if (m.l) tag(x, m.l, mx + 18, my + 34, m.col);
+      if (m.l) tag(x, m.l, mx + 18, my + 34, m.tc || m.col);
     });
     x.fillStyle = p.ring;
     x.strokeStyle = '#000';
@@ -348,7 +360,7 @@ function scheme(x, D, PX, PY, PW, PH) {
     Xt = t => X0 + ((t - t0) / (t1 - t0)) * (XR - X0),
     span = t1 - t0,
     step = span > 1800000 ? 300000 : span > 900000 ? 120000 : 60000,
-    lh = Math.min(170, (PH - 90) / Math.max(1, L.length)),
+    lh = Math.min(170, (PH - 140) / Math.max(1, L.length)),
     yy = PY + 70;
   x.font = '500 22px ' + F;
   x.textAlign = 'center';
@@ -357,7 +369,7 @@ function scheme(x, D, PX, PY, PW, PH) {
     x.lineWidth = 2;
     x.beginPath();
     x.moveTo(Xt(t), PY + 50);
-    x.lineTo(Xt(t), PY + PH - 20);
+    x.lineTo(Xt(t), PY + PH - 70);
     x.stroke();
     x.fillStyle = MU;
     x.fillText(hm(t), Xt(t), PY + 38);
@@ -377,15 +389,16 @@ function scheme(x, D, PX, PY, PW, PH) {
         b = Xt(p.b),
         dash = p.k == 'def' || p.k == 'cover';
       if (p.k == 'harm') {
-        x.fillStyle = '#0284c7';
+        x.fillStyle = DD_PH.harm[0];
         x.fillRect(a, y + 58, Math.max(3, b - a), 12);
         return;
       }
+      const pc = (DD_PH[p.k] || [ink])[0];
       x.globalAlpha = dash ? 0.3 : 0.85;
-      x.fillStyle = ink;
+      x.fillStyle = pc;
       x.fillRect(a, y + 16, Math.max(3, b - a), 34);
       x.globalAlpha = 1;
-      x.strokeStyle = ink;
+      x.strokeStyle = pc;
       x.lineWidth = 2;
       x.setLineDash(dash ? [8, 6] : []);
       x.strokeRect(a, y + 16, Math.max(3, b - a), 34);
@@ -410,10 +423,24 @@ function scheme(x, D, PX, PY, PW, PH) {
       } else {
         x.font = '800 26px ' + F;
         x.textAlign = 'center';
-        x.fillStyle = l.me ? AC : ink;
+        x.fillStyle = l.me && m.s == 'L' ? AC : TX;
         x.fillText(m.s, mx, y + 10);
         x.textAlign = 'left';
       }
     });
   });
+  // the colours of the phases used
+  const used = new Set(L.flatMap(l => l.ph.map(p => p.k)));
+  let lx = PX + 24;
+  x.font = '500 21px ' + F;
+  x.textAlign = 'left';
+  Object.keys(DD_PH)
+    .filter(k => used.has(k))
+    .forEach(k => {
+      x.fillStyle = DD_PH[k][0];
+      x.fillRect(lx, PY + PH - 46, 26, 16);
+      x.fillStyle = MU;
+      x.fillText(DD_PH[k][1], lx + 34, PY + PH - 31);
+      lx += 60 + x.measureText(DD_PH[k][1]).width;
+    });
 }

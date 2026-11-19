@@ -1500,15 +1500,16 @@ export function createMap(host, deps) {
       bad: !!full,
     };
   }
-  // one point as a PPT with no threat ring (Weapons > HARM > DEAD: an anchor): {x, y (km), name}. The message of what was done.
+  // one point as a PPT with no threat ring (Weapons > HARM > DEAD: an anchor): {x, y (km), name (a type of the threat list), label}. The message of what was done.
   function addPpt(m) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return { msg: 'Open a DTC first: the point is added to it.', bad: true };
     const same = P.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
-    if (same) return { msg: m.name + ' is already PPT ' + same.stpt + ' of the DTC.' };
+    const lb = m.label || m.name;
+    if (same) return { msg: lb + ' is already PPT ' + same.stpt + ' of the DTC.' };
     const slot = freeSlot(P, 'ppt');
     if (slot < 0) return { msg: 'No free PPT slot in the DTC.', bad: true };
-    deps.dtc.set('ppt', slot, { x: m.x, y: m.y, altFt: 0, name: String(m.name).slice(0, 6), rngNm: 0 });
+    deps.dtc.set('ppt', slot, { x: m.x, y: m.y, altFt: 0, name: String(m.name), rngNm: 0 });
     if (map) {
       showLayer('dq');
       sync();
@@ -1516,7 +1517,7 @@ export function createMap(host, deps) {
     }
     const Q = deps.dtc.points(),
       q = Q && Q.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
-    return { msg: m.name + ' added to the DTC' + (q ? ' as PPT ' + q.stpt : '') + '.' };
+    return { msg: lb + ' added to the DTC' + (q ? ' as PPT ' + q.stpt : '') + ' (' + m.name + ').' };
   }
   // CLEAR opens three buttons: PPT, TGT, LINES
   async function clearPoints(g) {
@@ -3517,6 +3518,11 @@ export function createMap(host, deps) {
     const k = pptIndex(n);
     return k >= 0 && k < SAMPPT;
   };
+  const otherPptNames = () =>
+    Array.from({ length: PPT.length || 0 }, (_, i) => PPT[i])
+      .slice(SAMPPT)
+      .filter(e => e && e[0])
+      .map(e => ({ name: e[0], label: e[2] || e[0] }));
   const dtcCol = (g, it) => (g == 'ppt' && it && !isSamPpt(it.name) ? pal.dtc.pptO : pal.dtc[g]);
   const P0 = () => deps.dtc.points();
   function dtcInfo() {
@@ -4867,6 +4873,9 @@ export function createMap(host, deps) {
     },
     autoPptFor: list => autoPptFor(list),
     addPpt: m => addPpt(m),
+    isSamPpt: n => !(PPT.length > 0) || isSamPpt(n),
+    // the PPT types of the threat list (Ppt.ini) that are not SAMs: [name]
+    otherPpt: () => otherPptNames(),
     palette: () => pal,
     autoPptSlots: () => {
       const P = deps.dtc && deps.dtc.points(),

@@ -7,10 +7,10 @@
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), openMode(mode), snap, kbAdd}
 import { deadPlan, defaultRoles, ROLES, ALT_BLOCKS } from './dead.js';
 import { timed, seatLabels } from './sead.js';
-import { harmShot, NM } from './airmissile.js';
+import { harmShot, NM, HARM_SUB } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { SD_COL } from './seadcard.js';
-import { drawDeadCard, DDC_W, DDC_H, deadBox } from './deadcard.js';
+import { drawDeadCard, DDC_W, DDC_H, deadBox, DD_PH } from './deadcard.js';
 
 const FT_KM = 3280.84,
   KM_NM = 1.852;
@@ -20,15 +20,17 @@ const hms = t => {
   return q(Math.floor(s / 3600)) + ':' + q(Math.floor((s % 3600) / 60)) + ':' + q(s % 60);
 };
 const h3 = d => String(Math.round(((d % 360) + 360) % 360) || 360).padStart(3, '0');
-export const ROLE_COL = { shooter: '#38bdf8', hunter: '#ffd23f', killer: '#c4b5fd', cover: '#94a3b8' };
+// the roles in fixed colours, none of them the yellow of the flight plan: the shooters and the killer blue, the hunter green, the cover magenta
+export const ROLE_COL = { shooter: '#3b82f6', hunter: '#22c55e', killer: '#3b82f6', cover: '#e879f9' };
 const ROLE_NAME = { shooter: 'Shooter', hunter: 'Hunter', killer: 'Killer', cover: 'Cover' };
-const { HARM, IMP } = SD_COL;
+const { HARM, IMP } = SD_COL,
+  SEEK = '#22d3ee'; // where the HARM seeker opens (light blue as the HAS of the HARM page)
 
 export function createDeadPage(deps) {
   const { esc } = deps,
     root = document.createElement('div');
   root.id = 'wpdead';
-  let st = { tactic: null, side: 'R', ecm: 70, roles: {}, tgt: null, mode: null, sub: null, view: 'map' },
+  let st = { tactic: null, side: 'R', ecm: 70, roles: {}, tgt: null, mode: null, sub: null, view: 'map', ppt: {} },
     M = null,
     pend = null,
     failed = false,
@@ -52,6 +54,8 @@ export function createDeadPage(deps) {
     st.mode = st.mode == 'pos' || st.mode == 'had' ? st.mode : null;
     st.sub = ['EOM', 'PB', 'RUK'].includes(st.sub) ? st.sub : null;
     st.view = st.view == 'sch' ? 'sch' : 'map';
+    const pp = st.ppt && typeof st.ppt == 'object' && !Array.isArray(st.ppt) ? st.ppt : {};
+    st.ppt = Object.fromEntries(['oa1', 'oa2'].filter(k => typeof pp[k] == 'string').map(k => [k, pp[k]]));
   };
   norm();
   const save = () => {
@@ -122,7 +126,7 @@ export function createDeadPage(deps) {
     };
   };
 
-  // ---- the steps of the plan, for the page and the card (yours marked)
+  // ---- the steps of the plan, for the page and the card (HARM standoff: your launches marked; the other tactics: the steps of your role)
   function steps() {
     if (!P || P.error) return [];
     const t = tactic(),
@@ -141,12 +145,12 @@ export function createDeadPage(deps) {
           })
         );
       O.push({
-        me: me('shooter'),
+        me: false,
         t: P.tTurn,
         s: `${hms(P.tTurn)} at ${P.Ra.toFixed(0)} nm: turn ${st.side == 'R' ? 'left' : 'right'}, the arc round the WEZ with the SAM on your ${st.side == 'R' ? 'right' : 'left'}, inside its search radar: it switches on`,
       });
       O.push({
-        me: me('shooter'),
+        me: false,
         t: P.tImp,
         s: P.seats
           .filter(z => z.role == 'shooter')
@@ -155,11 +159,11 @@ export function createDeadPage(deps) {
       });
       if (who('cover').length)
         O.push({
-          me: me('cover'),
+          me: false,
           t: P.tTurn,
           s: `${list(who('cover'))} cover: the arc ${(P.Ra + 4).toFixed(0)} nm outside the shooters`,
         });
-      O.push({ me: me('shooter'), t: P.tEnd, s: `${hms(P.tEnd)} leave the arc, egress` });
+      O.push({ me: false, t: P.tEnd, s: `${hms(P.tEnd)} leave the arc, egress` });
     } else {
       const H_ = who('hunter'),
         K_ = who('killer'),
@@ -201,11 +205,12 @@ export function createDeadPage(deps) {
   // ---- the page
   function build() {
     const r = root;
+    seen.clear();
     if (!X || !X.ok || !sam()) {
       r.innerHTML = `<div class="wcard sdnone fx"><h3>DEAD</h3><p class="hint">${esc(X && !X.ok ? X.why : 'No enemy SAM near the task of the flight.')}</p></div>`;
       return;
     }
-    r.innerHTML = `<div class="wpg sdg dg"><div class="wpl sdl"><div class="wcard" id="ddtg"></div><div class="wcard" id="ddtc"></div><div class="wcard" id="ddro"></div><div id="ddal"></div></div>
+    r.innerHTML = `<div class="wpg sdg dg"><div class="wpl sdl"><div class="wcard" id="ddtg"><div class="wh"><h3 id="ddtgh"></h3><span style="flex:1"></span><select data-ddtgt aria-label="Target"></select></div><div id="ddtgk"></div><div class="slr"><label>ECM on WEZ</label><input type="range" min="30" max="100" step="5" value="${st.ecm}" data-ddecm><em data-ddecme>${st.ecm}%</em></div></div><div class="wcard" id="ddtc"></div><div class="wcard" id="ddro"></div><div class="wcard" id="ddal"><div class="wh"><h3>Altitude · speed</h3><button type="button" class="ddinfo" aria-label="The altitude blocks of the manual" data-ddinfo>!</button></div><div id="ddalt"></div><div class="ddpop" hidden>${ALT_BLOCKS.map(([a, b, c]) => `<div style="background:${c}">${a}</div><div style="background:${c}">${b}</div>`).join('')}<p class="hint">BMS Training Manual 28.4 (the flight plan gives MSL)</p></div></div></div>
       <div class="wpc"><div class="wcard"><div class="wh"><h3>Horizontal plan</h3><span style="flex:1"></span><span class="seg sdvw">${[
         ['map', 'Map'],
         ['sch', 'Scheme'],
@@ -220,6 +225,22 @@ export function createDeadPage(deps) {
     wire();
   }
   const kv = (a, b, c) => `<span>${a}</span><b${c ? ` class="${c}"` : ''}>${b}</b>`;
+  // a part of the page is written again only when it changed; what appears for the first time animates (data-fx: its key), what was there already does
+  // not, so a change of a parameter does not make the cards flicker
+  const seen = new Set();
+  function put(el, html) {
+    if (!el || el._h === html) return;
+    el._h = html;
+    el.innerHTML = html;
+    el.querySelectorAll('[data-fx]').forEach(e => {
+      const k = e.getAttribute('data-fx');
+      if (!seen.has(k)) {
+        seen.add(k);
+        e.classList.add('fxin');
+      }
+    });
+  }
+  const chipInk = r => (r == 'hunter' ? '#04160a' : '#fff');
   function fill() {
     if (!P || !root.querySelector('#ddtg')) return;
     const q = s => root.querySelector(s),
@@ -227,99 +248,121 @@ export function createDeadPage(deps) {
       t = tactic(),
       tb = tabTxt(s.code),
       th = threatOf(s.code);
-    q('#ddtg').innerHTML =
-      `<div class="wh"><h3>Target · ${esc(s.name)}</h3><span style="flex:1"></span><select data-ddtgt aria-label="Target">${X.sams
+    put(q('#ddtgh'), 'Target · ' + esc(s.name));
+    put(
+      q('[data-ddtgt]'),
+      X.sams
         .map(
           z =>
             `<option value="${esc(z.id)}"${z.id == s.id ? ' selected' : ''}>${esc(z.name)}${z.id == X.target ? ' (STPT ' + (P.task ? P.task.n : '') + ' target)' : ''} · ${(z.d || 0).toFixed(0)} nm</option>`
         )
-        .join(
-          ''
-        )}</select></div><div class="kv">${kv('ALIC', s.code == null ? 'none' : s.code + (th ? ' ' + esc(th[1]) : '') + (tb ? ' · ' + tb : deps.dtc.harm() ? ' · <span class="sdw">not in a table</span>' : ''))}${kv('WEZ', P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm (' + st.ecm + '%)')}${kv('SEARCH RADAR', P.Rdet.toFixed(0) + ' nm')}${kv('TRACKING RADAR', s.fcr ? 'alive (the priority)' : 'destroyed', s.fcr ? 'sdok' : 'wbad')}${kv('LOCATION', s.spotted ? 'known (spotted)' : 'unknown: not spotted', s.spotted ? '' : 'sdw')}</div>${
+        .join('')
+    );
+    q('[data-ddtgt]').value = s.id;
+    put(
+      q('#ddtgk'),
+      `<div class="kv">${kv('ALIC', s.code == null ? 'none' : s.code + (th ? ' ' + esc(th[1]) : '') + (tb ? ' · ' + tb : deps.dtc.harm() ? ' · <span class="sdw">not in a table</span>' : ''))}${kv('WEZ', P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm (' + st.ecm + '%)')}${kv('SEARCH RADAR', P.Rdet.toFixed(0) + ' nm')}${kv('TRACKING RADAR', s.fcr ? 'alive (the priority)' : 'destroyed', s.fcr ? 'sdok' : 'wbad')}${kv('LOCATION', s.spotted ? 'known (spotted)' : 'unknown: not spotted', s.spotted ? '' : 'sdw')}</div>${
         s.telar >= 0
-          ? `<div class="ddtel"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM or a weapon kills one launcher of the battalion (${s.telar} alive): the others keep shooting. Plan one for each.</div>`
+          ? `<div class="ddtel" data-fx="tel${esc(s.id)}"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM or a weapon kills one launcher of the battalion (${s.telar} alive): the others keep shooting. Plan one for each.</div>`
           : ''
-      }<div class="slr"><label>ECM on WEZ</label><input type="range" min="30" max="100" step="5" value="${st.ecm}" data-ddecm><em data-ddecme>${st.ecm}%</em></div>`;
-    q('#ddtc').innerHTML = `<h3>Tactic</h3><span class="seg">${[
-      ['hs', 'HARM standoff'],
-      ['hk', 'Hunter-Killer'],
-      ['bomb', 'Bombs / Maverick'],
-    ]
-      .map(([v, l]) => `<button type="button" class="${t == v ? 'on' : ''}" data-ddtac="${v}">${l}</button>`)
-      .join('')}</span><div class="ddorb"><span class="hint">Orbit</span><span class="seg sm">${[
-      ['L', 'Left'],
-      ['R', 'Right'],
-    ]
-      .map(
-        ([v, l]) =>
-          `<button type="button" class="${st.side == v ? 'on' : ''}" data-ddside="${v}" title="${v == 'R' ? 'The SAM on your right (clockwise round it)' : 'The SAM on your left (anticlockwise round it)'}">${l}</button>`
-      )
-      .join(
-        ''
-      )}</span>${t == 'hs' ? `<span class="seg sm">${['pos', 'had'].map(v => `<button type="button" class="${mode() == v ? 'on' : ''}" data-ddmode="${v}">${v.toUpperCase()}</button>`).join('')}</span><span class="seg sm">${['EOM', 'PB', 'RUK'].map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-ddsub="${v}">${v}</button>`).join('')}</span>` : ''}</div><p class="hint wnote">${
-      t == 'hs'
-        ? 'Location known: launch outside the WEZ, then fly the arc round it inside the search radar, so the SAM radiates and the HARM finds it (a HARM misses a radar that is off).'
-        : t == 'hk'
-          ? 'Location unknown: the hunter baits the SAM on the arc, the killer marks it, both reset at the anchors, the killer attacks while the other covers.'
-          : 'No HARM: Mavericks, CBUs or IAMs. Plan the attack on the Weapons page (pop-up, loft, high or medium altitude) from the killer anchor.'
-    }</p>`;
-    const R = roles();
-    q('#ddro').innerHTML = `<h3>Roles · ${X.me.n}-ship</h3><div class="ddrl">${R.map((r, i) => {
-      const z = P.seats.find(w => w.i == i),
-        info =
-          t == 'hs'
-            ? z && z.role == 'shooter'
-              ? 'L ' + hms(z.tl) + ' · ◆ ' + hms(z.imp)
-              : 'the arc ' + (P.Ra + 4).toFixed(0) + ' nm'
-            : r == 'hunter'
-              ? 'anchor H · the arc ' + P.Ra.toFixed(0) + ' nm'
-              : r == 'killer'
-                ? 'anchor K · attack ' + h3(P.attackHdg) + '°'
-                : 'top cover';
-      return `<div class="ddtile${mine(i) ? ' me' : ''}"><div class="th"><span class="no">#${i + 1}</span><span>${i == 0 ? 'LEAD' : i == 2 ? 'ELEMENT' : 'WINGMAN'}</span>${mine(i) ? '<span class="you">YOU</span>' : ''}</div><div class="chips">${ROLES[
-        t
+      }`
+    );
+    const ec = q('[data-ddecm]');
+    if (ec && document.activeElement !== ec) ec.value = st.ecm;
+    put(q('[data-ddecme]'), st.ecm + '%');
+    put(
+      q('#ddtc'),
+      `<h3>Tactic</h3><span class="seg">${[
+        ['hs', 'HARM standoff'],
+        ['hk', 'Hunter-Killer'],
+        ['bomb', 'Bombs / Maverick'],
+      ]
+        .map(([v, l]) => `<button type="button" class="${t == v ? 'on' : ''}" data-ddtac="${v}">${l}</button>`)
+        .join('')}</span><div class="ddorb"><span class="hint">Orbit</span><span class="seg sm">${[
+        ['L', 'Left'],
+        ['R', 'Right'],
       ]
         .map(
-          q2 =>
-            `<button type="button" class="${q2 == r ? 'on' : ''}" style="${q2 == r ? 'background:' + ROLE_COL[q2] + ';color:#0b0f14;border-color:' + ROLE_COL[q2] : ''}" data-ddrole="${i}:${q2}">${ROLE_NAME[q2]}</button>`
+          ([v, l]) =>
+            `<button type="button" class="${st.side == v ? 'on' : ''}" data-ddside="${v}" title="${v == 'R' ? 'The SAM on your right (clockwise round it)' : 'The SAM on your left (anticlockwise round it)'}">${l}</button>`
         )
-        .join('')}</div><div class="hint">${esc(info)}</div></div>`;
-    }).join('')}</div>`;
-    q('#ddal').innerHTML =
-      `<div class="wcard"><div class="wh"><h3>Altitude · speed</h3><button type="button" class="ddinfo" aria-label="The altitude blocks of the manual" data-ddinfo>!</button></div>${
-        P.rating.ok && !P.slow
-          ? `<p class="hint">${Math.round(P.alt).toLocaleString('en-US')} ft · ${P.gs} kt: optimal.</p>`
-          : `<div class="ddnote"><b>${Math.round(P.alt).toLocaleString('en-US')} ft: ${P.rating.r}${P.rating.ok ? '' : ', not optimal'}.</b> Optimal: above 30 000 ft, or 50–300 ft AGL. ${P.gs} kt ${P.slow ? '<b>slow: 350 kt or more</b>' : '✓ (350 kt or more)'}</div>`
-      }<div class="ddpop" hidden>${ALT_BLOCKS.map(([a, b, c]) => `<div style="background:${c}">${a}</div><div style="background:${c}">${b}</div>`).join('')}<p class="hint">BMS Training Manual 28.4 (the flight plan gives MSL)</p></div></div>`;
-    q('#ddst').innerHTML = `<h3>Steps</h3><ol class="ddsteps">${steps()
-      .map(o => `<li class="${o.me ? 'sdme' : ''}">${esc(o.s)}</li>`)
-      .join('')}</ol>`;
-    q('#dddt').innerHTML = detail();
-    q('#ddoa').innerHTML = t == 'hs' ? '' : oaCard();
-    q('#ddwn').innerHTML = P.warn
-      .map(w => `<div class="wcard sdpb"><h3>Check</h3><p class="sdw">${esc(w)}</p></div>`)
-      .join('');
-    const n = q('#ddnote');
-    if (n)
-      n.innerHTML =
-        X.seat != null
-          ? 'Your seat: <b class="sdme">' + esc(seatName(X.seat)) + ' · ' + esc(ROLE_NAME[R[X.seat]] || '') + '</b>'
-          : '';
+        .join(
+          ''
+        )}</span>${t == 'hs' ? `<span class="seg sm" data-fx="md">${['pos', 'had'].map(v => `<button type="button" class="${mode() == v ? 'on' : ''}" data-ddmode="${v}">${v.toUpperCase()}</button>`).join('')}</span><span class="seg sm" data-fx="sb">${['EOM', 'PB', 'RUK'].map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-ddsub="${v}">${v}</button>`).join('')}</span>` : ''}</div><p class="hint wnote">${
+        t == 'hs'
+          ? 'Location known: launch outside the WEZ, then fly the arc round it inside the search radar, so the SAM radiates and the HARM finds it (a HARM misses a radar that is off).'
+          : t == 'hk'
+            ? 'Location unknown: the hunter baits the SAM on the arc, the killer marks it, both reset at the anchors, the killer attacks while the other covers.'
+            : 'No HARM: Mavericks, CBUs or IAMs. Plan the attack on the Weapons page (pop-up, loft, high or medium altitude) from the killer anchor.'
+      }</p>`
+    );
+    const R = roles();
+    put(
+      q('#ddro'),
+      `<h3>Roles · ${X.me.n}-ship</h3><div class="ddrl">${R.map((r, i) => {
+        const z = P.seats.find(w => w.i == i),
+          info =
+            t == 'hs'
+              ? z && z.role == 'shooter'
+                ? 'L ' + hms(z.tl) + ' · ◆ ' + hms(z.imp)
+                : 'the arc ' + (P.Ra + 4).toFixed(0) + ' nm'
+              : r == 'hunter'
+                ? 'anchor H · the arc ' + P.Ra.toFixed(0) + ' nm'
+                : r == 'killer'
+                  ? 'anchor K · attack ' + h3(P.attackHdg) + '°'
+                  : 'top cover';
+        return `<div class="ddtile${mine(i) ? ' me' : ''}" data-fx="tile${i}"><div class="th"><span class="no">#${i + 1}</span><span>${i == 0 ? 'LEAD' : i == 2 ? 'ELEMENT' : 'WINGMAN'}</span>${mine(i) ? '<span class="you">YOU</span>' : ''}</div><div class="chips">${ROLES[
+          t
+        ]
+          .map(
+            q2 =>
+              `<button type="button" class="${q2 == r ? 'on' : ''}" style="${q2 == r ? 'background:' + ROLE_COL[q2] + ';color:' + chipInk(q2) + ';border-color:' + ROLE_COL[q2] : ''}" data-ddrole="${i}:${q2}">${ROLE_NAME[q2]}</button>`
+          )
+          .join('')}</div><div class="hint">${esc(info)}</div></div>`;
+      }).join('')}</div>`
+    );
+    put(
+      q('#ddalt'),
+      P.rating.ok && !P.slow
+        ? `<p class="hint">${Math.round(P.alt).toLocaleString('en-US')} ft · ${P.gs} kt: optimal.</p>`
+        : `<div class="ddnote" data-fx="alt"><b>${Math.round(P.alt).toLocaleString('en-US')} ft: ${P.rating.r}${P.rating.ok ? '' : ', not optimal'}.</b> Optimal: above 30 000 ft, or 50–300 ft AGL. ${P.gs} kt ${P.slow ? '<b>slow: 350 kt or more</b>' : '✓ (350 kt or more)'}</div>`
+    );
+    put(
+      q('#ddst'),
+      `<h3>Steps</h3><ol class="ddsteps">${steps()
+        .map(o => `<li class="${o.me ? 'sdme' : ''}">${esc(o.s)}</li>`)
+        .join('')}</ol>`
+    );
+    put(q('#dddt'), detail());
+    put(q('#ddoa'), t == 'hs' ? '' : oaCard());
+    put(
+      q('#ddwn'),
+      P.warn
+        .map(w => `<div class="wcard sdpb" data-fx="w${esc(w)}"><h3>Check</h3><p class="sdw">${esc(w)}</p></div>`)
+        .join('')
+    );
+    put(
+      q('#ddnote'),
+      X.seat != null
+        ? 'Your seat: <b class="sdme">' + esc(seatName(X.seat)) + ' · ' + esc(ROLE_NAME[R[X.seat]] || '') + '</b>'
+        : ''
+    );
     const vm = st.view == 'map';
     root.querySelectorAll('[data-ddview]').forEach(b => b.classList.toggle('on', b.dataset.ddview == st.view));
     q('#ddmapw').hidden = !vm;
     q('#ddsch').hidden = vm;
     q('[data-ddfit]').hidden = !vm;
     q('[data-ddpf]').hidden = !vm;
-    if (vm) q('#ddleg').innerHTML = legend();
-    else q('#ddsch').innerHTML = schemeSvg();
+    if (vm) put(q('#ddleg'), legend());
+    else put(q('#ddsch'), schemeSvg());
   }
   function detail() {
     const t = tactic();
     if (t == 'hs') {
       const z = P.seats.find(w => w.role == 'shooter' && mine(w.i)) || P.seats.find(w => w.role == 'shooter');
       if (!z) return '<h3>Shot</h3><p class="hint">No shooter.</p>';
-      return `<h3>Shot · ${esc(seatName(z.i))}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(z.tl) + ' · ' + P.dL.toFixed(1) + ' nm · ' + Math.round(P.alt).toLocaleString('en-US') + ' ft · ' + P.gs + ' kt', mine(z.i) ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rTh.toFixed(1) + ' nm', P.dL <= P.rTh ? 'sdok' : 'wbad')}${kv('FLIGHT TIME', z.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.imp > P.tTurn ? ' · you on the arc (the SAM on)' : ' · <span class="sdw">before the arc</span>'))}${kv('YOUR MARGIN', '+' + (P.dL - P.R).toFixed(1) + ' nm outside the WEZ · +' + (P.dL - P.Recm).toFixed(1) + ' nm (ECM on)', 'sdok')}</div><p class="hint wnote">The missile of the HARM page; aimed at the SAM, from the altitude and ground speed of your flight plan on the way in.</p>`;
+      const mg = P.dL - P.R;
+      return `<h3>Shot · ${esc(seatName(z.i))}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(z.tl) + ' · ' + P.dL.toFixed(1) + ' nm · ' + Math.round(P.alt).toLocaleString('en-US') + ' ft · ' + P.gs + ' kt', mine(z.i) ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rTh.toFixed(1) + ' nm', P.dL <= P.rTh ? '' : 'wbad')}${kv('FLIGHT TIME', z.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.imp > P.tTurn ? ' · you on the arc (the SAM on)' : ' · <span class="sdw">before the arc</span>'))}${kv('YOUR MARGIN', (mg >= 0 ? '+' : '−') + Math.abs(mg).toFixed(1) + ' nm ' + (mg >= 0 ? 'outside' : 'INSIDE') + ' the WEZ · +' + (P.dL - P.Recm).toFixed(1) + ' nm (ECM on)', mg < 0 ? 'wbad' : '')}</div><p class="hint wnote">The missile of the HARM page; aimed at the SAM, from the altitude and ground speed of your flight plan on the way in.</p>`;
     }
     const k = P.seats.find(w => w.role == 'killer');
     return `<h3>${t == 'bomb' ? 'Attack' : 'Killer'}${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('FROM', 'anchor K · ' + (P.Ra + 8).toFixed(0) + ' nm · ' + hms(P.tAtk))}${kv('RUN-IN', h3(P.attackHdg) + '°', k && mine(k.i) ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'the arc ' + P.Ra.toFixed(0) + ' nm · ' + hms(P.tArc0) + '–' + hms(P.tArc1) : '—')}</div><div class="ddbtns"><span class="hint">Plan the attack:</span>${[
@@ -327,15 +370,28 @@ export function createDeadPage(deps) {
       ['hadb', 'HADB'],
       ['toss', 'TOSS (loft)'],
     ]
-      .map(([m, l]) => `<button type="button" class="btn g" data-ddopen="${m}">${l}</button>`)
+      .map(
+        ([m, l]) =>
+          `<button type="button" class="btn g" data-ddopen="${m}" title="Opens the ${l} page with the target steerpoint nearest to ${esc(sam().name)}">${l}</button>`
+      )
       .join('')}</div>`;
   }
+  // the PPT types BMS knows (Ppt.ini) that are not SAMs: an anchor added as one of them
+  const pptTypes = () => (deps.pptTypes ? deps.pptTypes() : []);
   function oaCard() {
     if (!P.oa) return '';
     const o = P.oa,
-      row = (k, a, nmS, col) =>
-        `<tr><td><b>${k.toUpperCase()}</b></td><td>STPT ${o.n}</td><td>${String(a.brg).padStart(3, '0')}°</td><td>${a.nm.toFixed(1)} NM</td><td>0</td><td><button type="button" class="btn g ddadd" style="color:${col}" data-ddadd="${k}" title="Add the anchor as a pre-planned point of the DTC (no threat ring)">+ ${nmS}</button></td></tr>`;
-    return `<div class="wcard"><h3>Nav offsets · the anchors</h3><table class="oat"><tr><th></th><th>FROM</th><th>BRG</th><th>RNG</th><th>ELEV</th><th></th></tr>${row('oa1', o.oa1, 'Anchor H', ROLE_COL.hunter)}${row('oa2', o.oa2, 'Anchor K', ROLE_COL.killer)}</table><div class="ddbtns"><button type="button" class="btn g" data-ddoaw${o.n >= 1 && o.n <= 24 ? '' : ' disabled'}>Write OA1 · OA2 to the DTC</button><span class="hint">${o.n >= 1 && o.n <= 24 ? 'STPT ' + o.n + ' is in the flight plan: BMS takes them from the DTC.' : 'STPT ' + o.n + ' is not in the flight plan (1-24).'}</span></div><p class="hint wnote">Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED). + Anchor adds it as a PPT with no ring.</p></div>`;
+      route = o.n >= 1 && o.n <= 24,
+      T = pptTypes(),
+      row = (k, a, nmS, col) => {
+        const v = st.ppt[k] && T.some(e => e.name == st.ppt[k]) ? st.ppt[k] : T[0] ? T[0].name : '';
+        return `<tr><td><b>${k.toUpperCase()}</b></td><td>${String(a.brg).padStart(3, '0')}°</td><td>${a.nm.toFixed(1)} NM</td><td>0</td><td style="color:${col};font-weight:700">${nmS}</td></tr><tr class="oapt"><td></td><td colspan="4"><select data-ddpptt="${k}" aria-label="The PPT type of ${nmS}"${T.length ? '' : ' disabled'}>${T.length ? T.map(e => `<option value="${esc(e.name)}"${e.name == v ? ' selected' : ''}>${esc(e.label)}</option>`).join('') : '<option>Ppt.ini not read: open the BMS folder</option>'}</select><button type="button" class="btn g ddadd" data-ddadd="${k}"${T.length ? '' : ' disabled'} title="Add ${nmS} to the DTC as a pre-planned point of this type (not a SAM)">+ PPT</button></td></tr>`;
+      };
+    return `<div class="wcard"><h3>Nav offsets · from STPT ${o.n}</h3><table class="oat"><tr><th></th><th>BRG</th><th>RNG</th><th>ELEV</th><th>ANCHOR</th></tr>${row('oa1', o.oa1, 'Anchor H', ROLE_COL.hunter)}${row('oa2', o.oa2, 'Anchor K', ROLE_COL.killer)}</table><div class="ddbtns">${
+      route
+        ? `<button type="button" class="btn g" data-ddoaw>Write OA1 · OA2 to the DTC</button><span class="hint">STPT ${o.n} is in the flight plan: BMS takes them from the DTC.</span>`
+        : `<button type="button" class="btn g ddman" disabled title="STPT ${o.n} is not in the flight plan (1-24): BMS does not take its offsets from the DTC">Manual</button><span class="hint">STPT ${o.n} is not in the flight plan (1-24): type OA1 and OA2 in the DED.</span>`
+    }</div><p class="hint wnote">Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED).</p></div>`;
   }
   const sw = (c, d, w = 3) =>
     `<svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="${w}"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>`;
@@ -344,11 +400,12 @@ export function createDeadPage(deps) {
       t = tactic();
     return `<span>${sw(c.ring, '7 5')}WEZ (ECM off) · dotted: search radar</span><span>${sw('#ff3b3b', '4 4')}WEZ (ECM on)</span>${
       t == 'hs'
-        ? `<span>${sw(ROLE_COL.shooter)}the shooters</span><span>${sw(HARM)}HARM</span>`
-        : `<span>${sw(ROLE_COL.hunter)}hunter</span><span>${sw(ROLE_COL.killer)}killer</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span><span>${sw('#cbd5e1', '6 5')}defence, back to the anchor</span>`
-    }<span><b style="color:${IMP}">◆</b> impact</span><span>your role in green</span>`;
+        ? `<span>${sw(ROLE_COL.shooter)}the shooters</span><span>${sw(HARM, '6 5')}HARM range</span><span>${sw(SEEK, '2 6')}seeker opens</span><span>${sw(HARM, '', 2)}HARM</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span>`
+        : `<span>${sw(ROLE_COL.hunter)}hunter</span><span>${sw(ROLE_COL.killer)}killer</span><span>${sw(ROLE_COL.cover, '6 5')}cover</span><span>${sw(ROLE_COL.hunter, '6 5')}defence, back to the anchor</span>`
+    }<span><b style="color:${IMP}">◆</b> impact</span><span>yours: thicker, white edge</span>`;
   }
-  // ---- the scheme: a lane for each seat, the phases in time
+  // ---- the scheme: a lane for each seat, the phases in time, a colour for each kind of phase
+  const PH = DD_PH;
   function phases() {
     const t = tactic(),
       L = [];
@@ -394,6 +451,7 @@ export function createDeadPage(deps) {
       Xt = t => X0 + ((t - t0) / (t1 - t0)) * (XR - X0),
       span = t1 - t0,
       step = span > 1800000 ? 300000 : span > 900000 ? 120000 : 60000,
+      used = new Set(),
       o = [];
     let y = 28;
     L.forEach(l => {
@@ -405,19 +463,21 @@ export function createDeadPage(deps) {
       l.ph.forEach(p => {
         const x0 = Xt(p.a),
           x1 = Xt(p.b),
+          pc = PH[p.k][0],
           dash = p.k == 'def' || p.k == 'cover';
+        used.add(p.k);
         if (p.k == 'harm')
-          o.push(`<rect x="${x0}" y="${y + 16}" width="${Math.max(2, x1 - x0)}" height="6" rx="2" fill="${HARM}"/>`);
+          o.push(`<rect x="${x0}" y="${y + 16}" width="${Math.max(2, x1 - x0)}" height="6" rx="2" fill="${pc}"/>`);
         else
           o.push(
-            `<rect x="${x0}" y="${y + 5}" width="${Math.max(2, x1 - x0)}" height="10" rx="2" fill="${c}" fill-opacity="${dash ? 0.25 : 0.7}" stroke="${c}"${dash ? ' stroke-dasharray="4 3"' : ''}/>${p.l ? `<text x="${x0 + 3}" y="${y + 34}" class="sdss">${esc(p.l)} ${hms(p.a).slice(3)}</text>` : ''}`
+            `<rect x="${x0}" y="${y + 5}" width="${Math.max(2, x1 - x0)}" height="10" rx="2" fill="${pc}" fill-opacity="${dash ? 0.3 : 0.75}" stroke="${pc}"${dash ? ' stroke-dasharray="4 3"' : ''}/>${p.l ? `<text x="${x0 + 3}" y="${y + 34}" class="sdss">${esc(p.l)} ${hms(p.a).slice(3)}</text>` : ''}`
           );
       });
       l.mk.forEach(m =>
         o.push(
           m.s == '◆'
             ? `<path d="M${Xt(m.t)} ${y + 10}l8 8-8 8-8-8z" fill="${IMP}" stroke="#fff" stroke-width="1.1"/>`
-            : `<text x="${Xt(m.t)}" y="${y + 3}" text-anchor="middle" class="sdsm" fill="${me ? '#4cc38a' : c}">${m.s}</text>`
+            : `<text x="${Xt(m.t)}" y="${y + 3}" text-anchor="middle" class="sdsm" fill="${me && m.s == 'L' ? SD_COL.YOU : '#e2e8f0'}">${m.s}</text>`
         )
       );
       y += 48;
@@ -426,7 +486,17 @@ export function createDeadPage(deps) {
       o.unshift(
         `<path d="M${Xt(t)} 18V${y - 6}" stroke="#202a36"/><text x="${Xt(t)}" y="12" class="sdss" text-anchor="middle">${hms(t).slice(0, 5)}</text>`
       );
-    return `<svg viewBox="0 0 ${W} ${y}" class="sdscv" role="img" aria-label="DEAD scheme"><rect width="${W}" height="${y}" rx="6" fill="#121820"/>${o.join('')}</svg>`;
+    let lx = 8;
+    const lg = Object.keys(PH)
+      .filter(k => used.has(k))
+      .map(k => {
+        const s = `<rect x="${lx}" y="${y + 2}" width="14" height="8" rx="2" fill="${PH[k][0]}"/><text x="${lx + 18}" y="${y + 10}" class="sdss">${PH[k][1]}</text>`;
+        lx += 30 + PH[k][1].length * 5.6;
+        return s;
+      })
+      .join('');
+    y += 20;
+    return `<svg viewBox="0 0 ${W} ${y}" class="sdscv" role="img" aria-label="DEAD scheme"><rect width="${W}" height="${y}" rx="6" fill="#121820"/>${o.join('')}${lg}</svg>`;
   }
 
   // ---- the map
@@ -456,8 +526,26 @@ export function createDeadPage(deps) {
       /* none */
     }
   }
-  function paint() {
-    if (!P || st.view != 'map') return;
+  // a chevron at the middle of an arc, pointing the way it is flown (the points of the arc are in the order they are flown)
+  function chev(pts) {
+    if (!pts || pts.length < 3) return null;
+    const m = Math.floor(pts.length / 2),
+      a = pts[m - 1],
+      b = pts[m + 1],
+      tip = pts[m],
+      d = Math.hypot(b.x - a.x, b.y - a.y) || 1,
+      u = { x: (b.x - a.x) / d, y: (b.y - a.y) / d },
+      sz = Math.max(1.2, P.Ra * 0.12) * KM_NM,
+      bk = { x: tip.x - u.x * sz, y: tip.y - u.y * sz };
+    return [
+      { x: bk.x - u.y * sz * 0.65, y: bk.y + u.x * sz * 0.65 },
+      tip,
+      { x: bk.x + u.y * sz * 0.65, y: bk.y - u.x * sz * 0.65 },
+    ];
+  }
+  const seekNm = () => (mode() == 'pos' ? (HARM_SUB[sub()] || HARM_SUB.EOM).on : 0);
+  function paint(force) {
+    if (!P || (st.view != 'map' && !force)) return;
     if (!M) {
       if (!failed && !pend)
         pend = ensureMap().then(() => {
@@ -477,9 +565,20 @@ export function createDeadPage(deps) {
       R = roles();
     WL.clearLayers();
     const line = (pts, o) => L.polyline(pts.map(ll), { renderer: RN, interactive: false, ...o }).addTo(WL);
-    const path = (pts, col, me, dash) => {
-      line(pts, { color: c.halo, weight: me ? 7 : 5, opacity: 0.6 });
-      line(pts, { color: me ? '#4cc38a' : col, weight: me ? 3.6 : 2.6, dashArray: dash ? '8 7' : '' });
+    // a route of a role: its colour; yours thicker with a white edge
+    const path = (pts, col, me, dash, arrow) => {
+      line(pts, {
+        color: me ? '#fff' : c.halo,
+        weight: me ? 7.5 : 5,
+        opacity: me ? 0.9 : 0.6,
+        dashArray: dash ? '8 7' : '',
+      });
+      line(pts, { color: col, weight: me ? 4 : 2.6, dashArray: dash ? '8 7' : '' });
+      const v = arrow && chev(pts.length > 6 ? arrow : pts);
+      if (v) {
+        line(v, { color: me ? '#fff' : c.halo, weight: me ? 7 : 5, opacity: 0.8 });
+        line(v, { color: col, weight: me ? 3.6 : 2.6 });
+      }
       all.push(...pts);
     };
     const tag = (p, html, cls = '') =>
@@ -515,13 +614,16 @@ export function createDeadPage(deps) {
     }
     const meRole = X.seat != null ? R[X.seat] : null;
     if (t == 'hs') {
-      path(P.path, ROLE_COL.shooter, meRole == 'shooter');
-      P.seats.filter(z => z.role == 'cover').forEach(z => path(z.arc, ROLE_COL.cover, mine(z.i), true));
+      // the HARM: its range round the SAM and, in POS, where its seeker opens
+      if (P.rTh > 0) ring(P.rTh, HARM, '6 5', 1.8);
+      if (seekNm()) ring(seekNm(), SEEK, '2 6', 1.8);
+      path(P.path, ROLE_COL.shooter, meRole == 'shooter', false, P.arc);
+      P.seats.filter(z => z.role == 'cover').forEach(z => path(z.arc, ROLE_COL.cover, mine(z.i), true, z.arc));
       P.seats
         .filter(z => z.role == 'shooter')
         .forEach((z, k) => {
           const me = mine(z.i);
-          line([P.L, s], { color: HARM, weight: me ? 3 : 2, opacity: me ? 1 : 0.6 });
+          line([P.L, s], { color: HARM, weight: me ? 2.6 : 1.8, opacity: me ? 1 : 0.6 });
           L.circleMarker(ll(P.L), {
             renderer: RN,
             radius: me ? 7 : 5,
@@ -546,11 +648,11 @@ export function createDeadPage(deps) {
         cv = R.map((r, i) => (r == 'cover' ? i : -1)).filter(i => i >= 0);
       if (hn.length) {
         const me = hn.includes(X.seat);
-        path([P.A, P.arc[0]].concat(P.arc), ROLE_COL.hunter, me);
+        path([P.A, P.arc[0]].concat(P.arc), ROLE_COL.hunter, me, false, P.arc);
         path(P.def, ROLE_COL.hunter, me, true);
         tag(
           P.arc[Math.floor(P.arc.length / 2)],
-          `<span style="color:${me ? '#4cc38a' : ROLE_COL.hunter}">HUNTER ${hn.map(i => '#' + (i + 1)).join(' ')} · ARC ${P.Ra.toFixed(0)} NM · BAIT</span>`
+          `<span style="color:${ROLE_COL.hunter}">HUNTER ${hn.map(i => '#' + (i + 1)).join(' ')} · ARC ${P.Ra.toFixed(0)} NM · BAIT</span>`
         );
       }
       if (kl.length) {
@@ -558,10 +660,10 @@ export function createDeadPage(deps) {
         path(P.atk, ROLE_COL.killer, me);
         tag(
           P.atk[1],
-          `<span style="color:${me ? '#4cc38a' : ROLE_COL.killer}">KILLER ${kl.map(i => '#' + (i + 1)).join(' ')} · ${hms(P.tAtk).slice(3)} · ${h3(P.attackHdg)}°</span>`
+          `<span style="color:${ROLE_COL.killer}">KILLER ${kl.map(i => '#' + (i + 1)).join(' ')} · ${hms(P.tAtk).slice(3)} · ${h3(P.attackHdg)}°</span>`
         );
       }
-      if (cv.length || hn.length) path(P.cover, ROLE_COL.cover, cv.includes(X.seat), true);
+      if (cv.length || hn.length) path(P.cover, ROLE_COL.cover, cv.includes(X.seat), true, P.cover);
       [
         [P.A, 'ANCHOR H · OA1', ROLE_COL.hunter],
         [P.B, 'ANCHOR K · OA2', ROLE_COL.killer],
@@ -602,9 +704,10 @@ export function createDeadPage(deps) {
     root.onclick = async e => {
       const c = s => e.target.closest && e.target.closest(s);
       if (c('select, input')) return;
+      // a new target or tactic fits the map again; the other parameters keep the zoom
       const set = (k, v) => {
         st[k] = v;
-        fit = true;
+        if (k == 'tactic') fit = true;
         save();
         return draw(false);
       };
@@ -630,11 +733,24 @@ export function createDeadPage(deps) {
       }
       if (c('[data-ddinfo]')) {
         const p = root.querySelector('.ddpop');
-        if (p) p.hidden = !p.hidden;
+        if (p) {
+          p.hidden = !p.hidden;
+          if (!p.hidden) {
+            p.classList.remove('fxin');
+            void p.offsetWidth;
+            p.classList.add('fxin');
+          }
+        }
         return;
       }
       const op = c('[data-ddopen]');
-      if (op && deps.openMode) return deps.openMode(op.dataset.ddopen);
+      if (op && deps.openMode) {
+        const s = sam(),
+          a = deps.openMode(op.dataset.ddopen, { x: s.x, y: s.y });
+        if (a) deps.toast('Target: ' + a.label + ' (' + a.nm.toFixed(1) + ' nm from ' + s.name + ').');
+        else deps.toast('No target steerpoint within 10 nm of ' + s.name + ': choose it on the page.', true);
+        return;
+      }
       const ad = c('[data-ddadd]');
       if (ad) return addAnchor(ad.dataset.ddadd);
       if (c('[data-ddoaw]')) return writeOA();
@@ -648,18 +764,21 @@ export function createDeadPage(deps) {
     };
     root.onchange = e => {
       const d = e.target.dataset || {};
-      if (d.ddtgt != null) st.tgt = e.target.value;
-      else if (d.ddecm != null) st.ecm = +e.target.value;
+      if (d.ddtgt != null) {
+        st.tgt = e.target.value;
+        fit = true;
+      } else if (d.ddecm != null) st.ecm = +e.target.value;
+      else if (d.ddpptt != null) st.ppt = { ...st.ppt, [d.ddpptt]: e.target.value };
       else return;
-      fit = true;
       save();
       draw(false);
     };
+    // the ECM slider: the rings and the plan follow it while it moves
     root.oninput = e => {
       const d = e.target.dataset || {};
       if (d.ddecm == null) return;
-      const em = root.querySelector('[data-ddecme]');
-      if (em) em.textContent = e.target.value + '%';
+      st.ecm = +e.target.value;
+      draw(false);
     };
     const po = root.querySelector('[data-ddpf]');
     if (po) {
@@ -673,18 +792,18 @@ export function createDeadPage(deps) {
   }
   async function addAnchor(k) {
     const p = k == 'oa1' ? P.A : P.B,
-      name = k == 'oa1' ? 'ANCH H' : 'ANCH K';
+      T = pptTypes(),
+      sel = root.querySelector('[data-ddpptt="' + k + '"]'),
+      e = T.find(x => x.name == (sel ? sel.value : st.ppt[k])) || T[0],
+      an = k == 'oa1' ? 'anchor H' : 'anchor K';
+    if (!e) return deps.toast('The PPT types are read from Ppt.ini: open the BMS folder first.', true);
     if (
       !(await deps.confirm(
-        'Add ' +
-          (k == 'oa1' ? 'anchor H' : 'anchor K') +
-          ' to the DTC as a pre-planned point (' +
-          name +
-          ', no threat ring)?'
+        'Add ' + an + ' to the DTC as a pre-planned point of type ' + e.label + ' (' + e.name + ')?'
       ))
     )
       return;
-    const r = deps.addPpt({ x: p.x, y: p.y, name });
+    const r = deps.addPpt({ x: p.x, y: p.y, name: e.name, label: an });
     deps.toast(r.msg, r.bad);
   }
   async function writeOA() {
@@ -843,45 +962,70 @@ export function createDeadPage(deps) {
       me = X.seat != null ? R[X.seat] : null,
       paths = [],
       marks = [],
-      col = (r, m) => (m ? SD_COL.YOU : ROLE_COL[r]);
+      add = (pts, r, m, w, dash, arrow) => {
+        paths.push({ pts, col: ROLE_COL[r], w, dash, me: m });
+        const v = arrow && chev(arrow);
+        if (v) paths.push({ pts: v, col: ROLE_COL[r], w, me: m });
+      };
     const mw = timed(X.me.f.wps);
     if (mw.length > 1) paths.push({ pts: mw, col: pal().plan, w: 3 });
     if (t == 'hs') {
-      paths.push({ pts: P.path, col: col('shooter', me == 'shooter'), w: 5 });
-      P.seats
-        .filter(z => z.role == 'cover')
-        .forEach(z => paths.push({ pts: z.arc, col: col('cover', mine(z.i)), w: 4, dash: true }));
-      paths.push({ pts: [P.L, sam()], col: HARM, w: 4 });
-      const z = P.seats.find(w => w.role == 'shooter');
+      add(P.path, 'shooter', me == 'shooter', 5, false, P.arc);
+      P.seats.filter(z => z.role == 'cover').forEach(z => add(z.arc, 'cover', mine(z.i), 4, true, z.arc));
+      paths.push({ pts: [P.L, sam()], col: HARM, w: 3 });
+      const z = P.seats.find(w => w.role == 'shooter' && mine(w.i)) || P.seats.find(w => w.role == 'shooter');
       marks.push({
         p: P.L,
         k: 'pt',
         col: HARM,
-        l: z ? 'L ' + hms(z.tl).slice(3) + ' · ' + P.dL.toFixed(0) + ' NM' : 'L',
+        tc: z && mine(z.i) ? SD_COL.YOU : HARM,
+        l: z ? '#' + (z.i + 1) + ' L ' + hms(z.tl).slice(3) + ' · ' + P.dL.toFixed(0) + ' NM' : 'L',
       });
       marks.push({ p: P.turn, k: 'pt', col: '#fff', l: 'TURN ' + hms(P.tTurn).slice(3) });
       marks.push({ p: sam(), k: 'imp' });
     } else {
       const has = r => R.includes(r);
       if (has('hunter')) {
-        paths.push({ pts: [P.A, P.arc[0]].concat(P.arc), col: col('hunter', me == 'hunter'), w: 5 });
-        paths.push({ pts: P.def, col: col('hunter', me == 'hunter'), w: 4, dash: true });
+        add([P.A, P.arc[0]].concat(P.arc), 'hunter', me == 'hunter', 5, false, P.arc);
+        add(P.def, 'hunter', me == 'hunter', 4, true);
       }
-      if (has('killer')) paths.push({ pts: P.atk, col: col('killer', me == 'killer'), w: 5 });
-      if (has('cover') || has('hunter'))
-        paths.push({ pts: P.cover, col: col('cover', me == 'cover'), w: 4, dash: true });
+      if (has('killer')) add(P.atk, 'killer', me == 'killer', 5);
+      if (has('cover') || has('hunter')) add(P.cover, 'cover', me == 'cover', 4, true, P.cover);
       if (has('hunter')) marks.push({ p: P.A, k: 'anc', col: ROLE_COL.hunter, l: 'ANCHOR H · OA1' });
       marks.push({ p: P.B, k: 'anc', col: ROLE_COL.killer, l: 'ANCHOR K · OA2' });
     }
     return { paths, marks };
   }
+  // the map for the card: the lent map fitted to the search radar, a picture of it (without the plan), the plan in its pixels. With the scheme shown, the
+  // map is opened out of sight for the picture and closed again
   async function snapPlan(AR) {
     if (!deps.snap) return null;
-    if (!M) {
-      if (st.view != 'map') return null;
-      await ensureMap();
-      if (!M) return null;
+    const off = st.view != 'map',
+      w = root.querySelector('#ddmapw');
+    if (off && w) {
+      w.hidden = false;
+      w.classList.add('ddoff');
     }
+    try {
+      if (!M) {
+        failed = false;
+        await ensureMap();
+        if (!M) return null;
+      }
+      M.map.invalidateSize();
+      paint(true);
+      return await snapNow(AR);
+    } finally {
+      if (off && w) {
+        w.classList.remove('ddoff');
+        w.hidden = true;
+        detachMap();
+        failed = false;
+        pend = null;
+      }
+    }
+  }
+  async function snapNow(AR) {
     const { map, L, WL } = M,
       ll = p => deps.toLL(p.x, p.y),
       s = sam(),
@@ -916,7 +1060,8 @@ export function createDeadPage(deps) {
         },
         nmPx = Math.hypot(...[0, 1].map(i => px({ x: s.x + KM_NM, y: s.y })[i] - px(s)[i])),
         crop = document.createElement('canvas'),
-        c = pal();
+        c = pal(),
+        hs = tactic() == 'hs';
       crop.width = Math.round(bw * k);
       crop.height = Math.round(bh * k);
       crop.getContext('2d').drawImage(sh.canvas, -ox * k, -oy * k);
@@ -924,7 +1069,15 @@ export function createDeadPage(deps) {
         img: crop,
         coast: sh.coast,
         ring: c.ring,
-        sam: { c: px(s), R: P.R * nmPx, Recm: P.Recm * nmPx, Rdet: P.Rdet * nmPx, name: s.name },
+        sam: {
+          c: px(s),
+          R: P.R * nmPx,
+          Recm: P.Recm * nmPx,
+          Rdet: P.Rdet * nmPx,
+          rTh: hs && P.rTh > 0 ? P.rTh * nmPx : 0,
+          seek: hs ? seekNm() * nmPx : 0,
+          name: s.name,
+        },
         paths: G.paths.map(a => ({ ...a, pts: a.pts.map(px) })),
         marks: G.marks.map(m => ({ ...m, p: px(m.p) })),
         nm: nmPx,
@@ -947,6 +1100,8 @@ export function createDeadPage(deps) {
   async function addCard(btn) {
     if (!deps.kbAdd || !P) return;
     btn.disabled = true;
+    const bt = btn.textContent;
+    btn.textContent = 'Preparing the map…';
     let D;
     try {
       D = cardData();
@@ -954,9 +1109,11 @@ export function createDeadPage(deps) {
       D.px = await snapPlan(B.w / B.h);
     } catch (e) {
       btn.disabled = false;
+      btn.textContent = bt;
       return deps.toast('DEAD card: ' + ((e && e.message) || e), true);
     }
     btn.disabled = false;
+    btn.textContent = bt;
     const KINDS = [
         ['map', 'With the map'],
         ['sch', 'With the scheme'],
@@ -1051,7 +1208,9 @@ export function createDeadPage(deps) {
       const D = cardData(),
         B = deadBox(D);
       if (kind != 'sch') D.px = await snapPlan(B.w / B.h);
-      return drawCard(D, kind || 'map');
+      const c = drawCard(D, kind || 'map');
+      c.dataset.px = D.px ? '1' : '';
+      return c;
     },
     _test: o => {
       if (o.ctx) deps.ctx = o.ctx;

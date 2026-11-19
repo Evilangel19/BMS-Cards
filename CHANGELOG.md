@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: DEAD: the HARM range and seeker ring on the map, fixed role colours, phase colours in the scheme, a chevron on the arcs, the ECM slider live, no flicker; the anchors as PPT types BMS knows; the attack pages open on the steerpoint nearest the SAM; Manual nav offsets outside the flight plan. HARM standoff (Single shot): AGM-88 by default, emitters only SAM PPTs and flight plan steerpoints, the seeker ring light blue.
 - New: DEAD planning on Weapons > HARM (SEAD | DEAD): the target SAM of a DEAD flight with its rings and radars, HARM standoff, Hunter-Killer or Bombs / Maverick, the orbit side, roles for each seat, the altitude check, the anchors as nav offsets (OA1 / OA2 to the DTC, or as PPTs), a DEAD card for the Kneeboard; the Single shot page lives on inside DEAD. A red warning for SAMs with a fire control radar on each launcher (TELAR), in SEAD too.
 - Changed: SEAD cover: a HARM covers while it flies; a SAM is on while any flight of the package is inside its ring; the way back gets HARMs too; one row for each launch in the scheme.
 - Changed: SEAD uses all the HARMs of the flight, spread over the time the protected flights are inside the rings (ingress first, each HARM covering until its max range); POS (to a flight plan steerpoint or a PPT) or HAD; a scheme view with the events; the tasks of the protected flights; two SEAD cards to choose from.

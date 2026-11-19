@@ -3313,6 +3313,17 @@ export function createWeaponsPage(deps) {
       draw(true);
     },
     state: () => st,
+    // the target steerpoint nearest to a point (x, y km; Weapons > HARM > DEAD: its SAM), chosen for the attack pages; null when none is within 10 nm
+    aimAt: (x, y) => {
+      const T = gather().T,
+        d = q => Math.hypot(q.e / FT_KM - x, q.n / FT_KM - y) / 1.852,
+        b = T.slice().sort((a, c) => d(a) - d(c))[0];
+      if (!b || d(b) > 10) return null;
+      st.tgt = b.v;
+      st.applied = st.cleared = null;
+      save();
+      return { label: b.label, nm: d(b) };
+    },
     btn,
     clearAll,
     setState: o => {

@@ -15,7 +15,9 @@ ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
 HARM = [[202, 203, 204, 205, 210], [402, 403, 404, 405, 410], [106, 608, 111, 615, 117]]
-INI = '\r\n'.join(['[STPT]'] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,' % i for i in range(15)] +
+KMF = 3280.84
+RT = [(300, 500), (380, 500), (470, 500), (465, 510)]  # (north, east) km: STPT 1-4, STPT 4 on the SA-8
+INI = '\r\n'.join(['[STPT]'] + ['target_%d=%.6f, %.6f, -20000.000000, 0' % (i, n * KMF, e * KMF) for i, (n, e) in enumerate(RT)] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,' % i for i in range(15)] +
                   ['[HARM]'] + ['THREAT %d %d=%04d' % (t, n, HARM[t][n]) for t in range(3) for n in range(5)] + ['MODE=1', 'SUBMODE=1', 'TER=0'] +
                   ['[NAV OFFSETS]'] + ['OA%d-%d=0,0,0' % (a, n) for n in range(1, 25) for a in (1, 2)] + [''])
 CTX = """()=>{const T0=10*3600000,K=1.852,leg=(a,b,kt)=>Math.hypot(a.x-b.x,a.y-b.y)/K/kt*3600000;
@@ -33,6 +35,8 @@ try:
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(900)
+        # the threat list of Ppt.ini: 26 weapon systems, then the other types
+        pg.evaluate("async()=>{const D=(await import('/app/js/data/index.js')).default;D.ppt=[...Array.from({length:26},(_,i)=>['SAM'+i,60000,'SAM '+i]),['REF',0.1,'Reference'],['IP',0.1,'Initial point']]}")
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500); pg.click('#wp [data-mode=harm]'); pg.wait_for_timeout(700)
         check('HARM: SEAD / DEAD; with no DEAD flight, DEAD shows the HARM standoff shot of the HARM page', pg.locator('#wp .hsub [data-hsub]').all_inner_texts() == ['SEAD', 'DEAD'] and pg.locator('#wp #wpharm').count() == 1)
@@ -52,18 +56,24 @@ try:
         pg.click('#ddal [data-ddinfo]'); pg.wait_for_timeout(200)
         check('...the "!" shows the blocks of the manual', pg.locator('#ddal .ddpop').is_visible() and 'ABOVE 30 000 FT' in pg.inner_text('#ddal .ddpop'))
         st = pg.inner_text('#ddst')
-        check('the steps: the launches, the turn, the impacts, the egress; yours green', 'launch' in st and 'turn left' in st and '◆' in st and 'egress' in st and pg.locator('#ddst li.sdme').count() >= 2)
-        check('the shot: the missile, the range, the margin outside the WEZ', 'AGM-88' in pg.inner_text('#dddt') and 'YOUR MARGIN' in pg.inner_text('#dddt').upper())
+        check('the steps: the launches, the turn, the impacts, the egress; only your launch green', 'launch' in st and 'turn left' in st and '◆' in st and 'egress' in st and pg.locator('#ddst li.sdme').count() == 1 and 'launch' in pg.inner_text('#ddst li.sdme'))
+        check('the shot: the missile, the range, the margin outside the WEZ; only the launch green', 'AGM-88' in pg.inner_text('#dddt') and 'YOUR MARGIN' in pg.inner_text('#dddt').upper() and pg.locator('#dddt .sdme').count() == 1 and pg.locator('#dddt .sdok').count() == 0)
+        check('the map legend: the HARM range and where its seeker opens', 'HARM range' in pg.inner_text('#ddleg') and 'seeker opens' in pg.inner_text('#ddleg'))
+        check('the target list in the colours of the program', pg.evaluate("()=>getComputedStyle(document.querySelector('#ddtg select')).backgroundColor") == 'rgb(11, 15, 20)')
         check('the map: the rings and the plan drawn', pg.locator('#ddmap .sdsamm').count() == 1 and pg.locator('#ddmap .sdimp').count() == 1)
         check('the roles: a tile for each seat, #1 LEAD with the YOU badge', pg.locator('#ddro .ddtile').count() == 2 and pg.locator('#ddro .ddtile.me .you').count() == 1 and 'LEAD' in pg.inner_text('#ddro .ddtile.me'))
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hs.png')
         # the orbit
+        pg.evaluate("()=>document.querySelectorAll('#ddro .ddtile, #ddal .ddnote').forEach(e=>e.dataset.old=1)")
         pg.click('#ddtc [data-ddside=L]'); pg.wait_for_timeout(500); B = P()
         check('orbit Left: the other way round the SAM, the turn the other way', B['dir'] == -1 and 'turn right' in pg.inner_text('#ddst'))
+        check('...the roles and the altitude note are not animated again (no flicker)', pg.evaluate("()=>[...document.querySelectorAll('#ddro .ddtile, #ddal .ddnote')].every(e=>e.dataset.old||!e.classList.contains('fxin'))") and pg.locator('#ddro .ddtile').count() == 2)
         pg.click('#ddtc [data-ddside=R]'); pg.wait_for_timeout(300)
         # the ECM slider
-        pg.locator('#ddtg input[data-ddecm]').evaluate("e=>{e.value=50;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(500)
-        check('the ECM slider: 50% -> the WEZ with ECM on smaller', abs(P()['Recm'] - A['R'] * 0.5) < 0.01)
+        z0 = pg.evaluate("()=>{const m=document.querySelector('#ddmap');return m&&m.querySelector('.leaflet-map-pane').style.transform}")
+        pg.locator('#ddtg input[data-ddecm]').evaluate("e=>{e.value=50;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(400)
+        check('the ECM slider while it moves: 50% -> the WEZ with ECM on smaller at once, the slider kept', abs(P()['Recm'] - A['R'] * 0.5) < 0.01 and '50%' in pg.inner_text('#ddtg') and pg.locator('#ddtg input[data-ddecm]').input_value() == '50')
+        check('...the zoom of the map kept', pg.evaluate("()=>document.querySelector('#ddmap .leaflet-map-pane').style.transform") == z0)
         pg.locator('#ddtg input[data-ddecm]').evaluate("e=>{e.value=70;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
         # a role by hand
         pg.click('#ddro [data-ddrole="1:cover"]'); pg.wait_for_timeout(500)
@@ -76,14 +86,16 @@ try:
         C = P()
         check('Hunter-Killer: #1 killer, #2 hunter; the anchors as OA1 / OA2 of STPT 3', [s['role'] for s in C['seats']] == ['killer', 'hunter'] and C['oa'] and C['oa']['n'] == 3)
         oa = pg.inner_text('#ddoa')
-        check('...the nav offsets in the right column, Add buttons for the anchors, Write OA1 · OA2', pg.locator('.wpr #ddoa .oat').count() == 1 and pg.locator('#ddoa [data-ddadd]').count() == 2 and 'Write OA1' in oa and 'type them on board' in oa)
+        check('...the nav offsets in the right column, from STPT 3, Add buttons for the anchors, Write OA1 · OA2', pg.locator('.wpr #ddoa .oat').count() == 1 and pg.locator('#ddoa [data-ddadd]').count() == 2 and 'Write OA1' in oa and 'type them on board' in oa and 'FROM STPT 3' in oa.upper())
         check('...the map: the anchors, the defence dashed', pg.locator('#ddmap .ddanc').count() == 2)
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hk.png')
         msgs = []
         pg.on('dialog', lambda d: (msgs.append(d.message), d.accept()))
         cnt = lambda: pg.evaluate("()=>__app.lines.filter(l=>/^ppt_/.test(l.k)&&!/^0\\.000000, 0\\.000000/.test(l.v)).length")
+        check('...the PPT types for the anchors: only the ones that are not SAMs', pg.evaluate("()=>[...document.querySelectorAll('#ddoa select[data-ddpptt=oa1] option')].map(o=>o.value)") == ['REF', 'IP'])
+        pg.select_option('#ddoa select[data-ddpptt=oa1]', 'IP'); pg.wait_for_timeout(300)
         n0 = cnt(); pg.click('#ddoa [data-ddadd=oa1]'); pg.wait_for_timeout(800)
-        check('+ Anchor H: asked, then a PPT with no ring (%d -> %d)' % (n0, cnt()), msgs and 'anchor H' in msgs[-1] and cnt() == n0 + 1 and pg.evaluate("()=>/ANCH H/.test(__app.lines.find(l=>/^ppt_/.test(l.k)&&/ANCH/.test(l.v)).v)"))
+        check('+ PPT of anchor H: asked, then a PPT of the type chosen, no ring (%d -> %d)' % (n0, cnt()), msgs and 'anchor H' in msgs[-1] and 'Initial point' in msgs[-1] and cnt() == n0 + 1 and pg.evaluate("()=>__app.lines.some(l=>/^ppt_/.test(l.k)&&/, IP$/.test(l.v.trim()))"))
         pg.click('#ddoa [data-ddadd=oa1]'); pg.wait_for_timeout(800)
         check('...twice: not added again', cnt() == n0 + 1)
         msgs.clear(); pg.click('#ddoa [data-ddoaw]'); pg.wait_for_timeout(800)
@@ -110,6 +122,10 @@ try:
         if shots:
             for k in ('map', 'sch'):
                 d = pg.evaluate("async k=>(await __app.deadPage.cardCanvas(k)).toDataURL()", k); open(shots + '/dead-card-%s.png' % k, 'wb').write(base64.b64decode(d.split(',')[1]))
+        pg.click('#wp [data-ddview=sch]'); pg.wait_for_timeout(400)
+        px = pg.evaluate("async()=>(await __app.deadPage.cardCanvas('map')).dataset.px")
+        check('the scheme shown: the card with the map still gets the map picture, the scheme stays', px == '1' and pg.locator('#ddsch svg').is_visible() and not pg.locator('#ddmap').is_visible())
+        pg.click('#wp [data-ddview=map]'); pg.wait_for_timeout(600)
         k0 = pg.evaluate('()=>__app.KBLIB.length')
         pg.click('#wp [data-ddcard]')
         pg.wait_for_selector('dialog.tgdlg[open]', timeout=15000)
@@ -119,8 +135,9 @@ try:
             if pg.evaluate('()=>__app.KBLIB.length') >= k0 + 2: break
             pg.wait_for_timeout(250)
         check('...both added to the Kneeboard', pg.evaluate('()=>__app.KBLIB.length') == k0 + 2)
-        pg.click('#dddt [data-ddopen=hadb]'); pg.wait_for_timeout(700)
-        check('HADB: opens the HADB page of Weapons', pg.locator('#wp .wtabs [data-mode=hadb].on').count() == 1)
+        pg.click('#dddt [data-ddopen=hadb]'); pg.wait_for_timeout(900)
+        check('HADB: opens the HADB page of Weapons with the steerpoint on the SA-8 as its target (%s)' % pg.evaluate("()=>__app.wpPage&&__app.wpPage.state().tgt"), pg.locator('#wp .wtabs [data-mode=hadb].on').count() == 1 and pg.evaluate("()=>__app.wpPage.state().tgt") == 'r:4')
+        pg.click('#wp .wtabs [data-mode=harm]'); pg.wait_for_timeout(1200)
         st = pg.evaluate("()=>__app.deadPage.state()")
         check('the page state for the mission file', st['tactic'] == 'bomb' and st['tgt'] == 's8' and st['side'] == 'R' and st['ecm'] == 70)
         pg.evaluate("()=>__app.deadPage.setState({tactic:'x',side:5,ecm:'<b>',roles:[],tgt:{},mode:'q',sub:'Z',view:3})")
