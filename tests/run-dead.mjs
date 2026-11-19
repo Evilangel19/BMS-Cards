@@ -26,8 +26,8 @@ ck(
   altRating(35000).ok && altRating(20000).r == 'GOOD' && altRating(10000).r == 'BAD' && altRating(200).ok
 );
 ck(
-  'the default roles: shooters; killer, hunter, the element cover; the partner of a pair swapped',
-  defaultRoles('hs', 2).join() == 'shooter,shooter' &&
+  'the default roles: shooter and cover; killer, hunter, the element cover; the partner of a pair swapped',
+  defaultRoles('hs', 2).join() == 'shooter,cover' &&
     defaultRoles('hk', 4).join() == 'killer,hunter,cover,cover' &&
     partnerRole('hk', 'killer') == 'hunter' &&
     partnerRole('hs', 'cover') == 'shooter' &&

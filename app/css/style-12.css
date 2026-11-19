@@ -1386,3 +1386,25 @@
   margin-top: 10px;
   font-size: 12.5px;
 }
+/* SEAD: the switch Launch outside the rings, the total covered */
+.sdout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sdtot {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+#sdmapw.ddoff {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 1000px;
+}
+.wh .sdvw {
+  margin-left: 12px;
+}

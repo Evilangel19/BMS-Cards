@@ -72,6 +72,7 @@ export function createSeadPage(deps) {
     st.ref = ob(st.ref);
     st.k = Math.min(100, Math.max(50, Math.round((+st.k || 85) / 5) * 5));
     st.sort = st.sort == 'az' ? 'az' : 'prio';
+    st.out = st.out === true;
     st.mode = st.mode == 'pos' || st.mode == 'had' ? st.mode : null;
     st.sub = POS_AREA[st.sub] ? st.sub : null;
     st.view = st.view == 'sch' ? 'sch' : 'map';
@@ -119,6 +120,7 @@ export function createSeadPage(deps) {
       sams: X.sams,
       k: st.k / 100,
       sort: st.sort,
+      outside: st.out, // Launch outside the rings: safety first; off: the launch that covers most
       mode: mode(),
       sub: sub(),
       refs: X.refs || [],
@@ -182,14 +184,14 @@ export function createSeadPage(deps) {
       return;
     }
     r.innerHTML = `<div class="wpg sdg"><div class="wpl sdl"><div class="wcard" id="sdpk"></div><div class="wcard" id="sdth"></div><div class="wcard" id="sdso"></div></div>
-      <div class="wpc"><div class="wcard"><div class="wh"><h3>Horizontal plan</h3><span style="flex:1"></span><span class="seg sdvw">${[
+      <div class="wpc"><div class="wcard"><div class="wh"><h3>Horizontal plan</h3><span class="seg sdvw">${[
         ['map', 'Map'],
         ['sch', 'Scheme'],
       ]
         .map(([v, l]) => `<button type="button" class="${st.view == v ? 'on' : ''}" data-sdview="${v}">${l}</button>`)
         .join(
           ''
-        )}</span><button class="btn g" type="button" data-sdfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-sdpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
+        )}</span><span style="flex:1"></span><button class="btn g" type="button" data-sdfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-sdpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
       <div id="sdmapw"><div id="sdmap" class="wmapbox"></div><div class="wleg" id="sdmleg"></div></div><div id="sdsch" hidden></div></div></div>
       <div class="wpr"><div class="wcard" id="sdsh"></div><div class="wcard" id="sdcv"></div><div id="sdpr"></div></div></div>
       <div class="sdbar"><span class="hint" id="sdnote"></span><span style="flex:1"></span><button type="button" class="btn g" data-sdtab title="Checks the HARM tables of the DTC against the threats of your seat: adds a missing one only after asking">HARM tables…</button><button type="button" class="btn g" data-sdppt title="The threats of your seat as pre-planned threats of the DTC (the AUTO PPT of the Map page): an exact steerpoint for POS. Adds the missing ones after asking.">PPT…</button><button type="button" class="btn" data-sdcard title="A SEAD card for the Kneeboard: with the map or with the scheme">Add card…</button></div>`;
@@ -225,7 +227,16 @@ export function createSeadPage(deps) {
     if (!q('#sdthb'))
       q('#sdth').innerHTML =
         `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p>`;
-    q('#sdthb').innerHTML = thb;
+    // how much of the time the protected flights spend inside the rings the HARMs cover
+    const act = P.rows.filter(r => !st.skip[r.id]),
+      needT = act.reduce((a, r) => a + r.need.reduce((x, [t0, t1]) => x + t1 - t0, 0), 0),
+      gapT = act.reduce((a, r) => a + (r.gaps || []).reduce((x, g) => x + g.t1 - g.t0, 0), 0),
+      nH = P.seats.reduce((a, z) => a + (z.harms != null ? z.harms : 1), 0);
+    q('#sdthb').innerHTML =
+      thb +
+      (needT > 0
+        ? `<p class="sdtot">Covered <b class="${gapT > 1000 ? 'wbad' : 'sdok'}">${mmss((needT - gapT) / 1000)}</b> of ${mmss(needT / 1000)} inside the rings · ${nH} HARM${nH == 1 ? '' : 's'} for ${act.length} SAM${act.length == 1 ? '' : 's'}</p>`
+        : '');
     const sk = q('[data-sdk]');
     if (sk && document.activeElement !== sk) sk.value = st.k;
     q('[data-sdke]').textContent = st.k + '% R';
@@ -253,7 +264,8 @@ export function createSeadPage(deps) {
         .map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-sdsub="${v}">${v}</button>`)
         .join(
           ''
-        )}</span><span class="hint">${md == 'pos' ? 'the SAM within ' + POS_AREA[sub()].toFixed(1) + ' nm of the steerpoint' : X.hts ? 'the SAM radiating, seen by the HTS' : '<span class="wbad">no HTS pod in the loadout</span>'}</span></div>` +
+        )}</span><span class="hint">${md == 'pos' ? 'the SAM within ' + POS_AREA[sub()].toFixed(1) + ' nm of the steerpoint' : X.hts ? 'the SAM radiating, seen by the HTS' : '<span class="wbad">no HTS pod in the loadout</span>'}</span></div>
+      <label class="sdout" title="On: a launch that would be inside the ring of its SAM is moved back to before you enter it, even when it then covers less. Off: the launch that covers the protected flights most (inside a ring: red)"><input type="checkbox" data-sdout${st.out ? ' checked' : ''}> Launch outside the rings</label>` +
       (Z.length
         ? Z.map(z => {
             const L = z.launch,
@@ -277,8 +289,8 @@ export function createSeadPage(deps) {
     q('#sdmapw').hidden = !vm;
     if (vm && M) M.map.invalidateSize(); // shown again after the scheme: its size, the view kept
     q('#sdsch').hidden = vm;
-    q('[data-sdfit]').hidden = !vm;
-    q('[data-sdpf]').hidden = !vm;
+    q('[data-sdfit]').style.visibility = vm ? '' : 'hidden'; // hidden but in place: the header keeps its height
+    q('[data-sdpf]').style.visibility = vm ? '' : 'hidden'; // hidden but in place: the header keeps its height
     if (vm) q('#sdmleg').innerHTML = mapLegend();
     else q('#sdsch').innerHTML = schemeSvg(schemeModel()) + schemeLegend() + eventsHtml();
   }
@@ -570,7 +582,7 @@ export function createSeadPage(deps) {
                   : ' <span class="sdw">SAM ' + z.ref.d.toFixed(1) + ' nm away: outside the ' + sub() + ' area</span>'
                 : ' <span class="sdw">no steerpoint</span>')
           : 'HAD · at the SAM' + (X.hts ? '' : ' <span class="wbad">no HTS pod</span>')
-      )}${kv('THREAT', (z.sam.code == null ? 'no ALIC' : 'ALIC ' + z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="wbad">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring' + (L.margin < 0 ? ': launch inside, no earlier point outside (in range, the SAM on)' : ''), L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
+      )}${kv('THREAT', (z.sam.code == null ? 'no ALIC' : 'ALIC ' + z.sam.code + (th ? ' ' + esc(th[1]) : '')) + (tb ? ' · ' + tb : z.sam.code != null && deps.dtc.harm() ? ' <span class="wbad">not in a table</span>' : ''))}${kv('RANGE', L.d.toFixed(1) + ' nm · HARM ' + L.rTh.toFixed(1) + ' nm (' + Math.round(L.altFt).toLocaleString('en-US') + ' ft, ' + L.gsKt + ' kt)', L.ok ? '' : 'wbad')}${kv('FLIGHT TIME', L.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.k == 1 ? ' · ' + esc(r.flight) + (r.deep ? ' at its closest point' : ' at ' + st.k + '% of the ring') : ' · when the last one stops covering'))}${kv('COVERS', hms(z.from) + ' – ' + hms(z.cover) + (z.cover > z.imp && glide() ? ' (in the air, then its glide to the max range, ' + L.rMax.toFixed(1) + ' nm)' : ' (in the air)') + (next ? ', then ' + seatNo(next.seat) : ''))}${kv('YOUR MARGIN', (L.margin >= 0 ? '+' : '−') + Math.abs(L.margin).toFixed(1) + ' nm ' + (L.margin >= 0 ? 'outside' : 'INSIDE') + ' its ring' + (L.margin < 0 ? (L.inside ? ': it covers the protected flights more than a launch outside (switch Launch outside the rings to change)' : ': launch inside, no earlier point outside (in range, the SAM on)') : L.useless ? ' · <span class="wbad">it covers none of the time the protected flights need</span>' : ''), L.margin < 0 ? 'wbad' : 'sdok')}${kv('OTHER RINGS', L.rings.length ? 'inside ' + L.rings.map(esc).join(', ') : 'clear', L.rings.length ? 'wbad' : 'sdok')}</div>`
     );
   }
   function coverCard() {
@@ -645,9 +657,9 @@ export function createSeadPage(deps) {
     fit = !VK.restore(o.map, fitKey); // back from another tab: the view as it was left
   }
   const VK = mapKeep();
-  function detachMap() {
+  function detachMap(nosave) {
     if (!M) return;
-    if (M.map.getContainer().clientWidth) VK.save(M.map, fitKey);
+    if (!nosave && M.map.getContainer().clientWidth) VK.save(M.map, fitKey);
     try {
       M.WL.remove();
     } catch (e) {
@@ -660,8 +672,8 @@ export function createSeadPage(deps) {
       /* none */
     }
   }
-  function paint() {
-    if (!X || !X.ok || st.view != 'map') return;
+  function paint(force) {
+    if (!X || !X.ok || (st.view != 'map' && !force)) return;
     if (!M) {
       if (!failed && !pend)
         pend = ensureMap().then(() => {
@@ -885,11 +897,11 @@ export function createSeadPage(deps) {
         d = t.dataset || {};
       if (d.sdprot) {
         st.prot[d.sdprot] = t.checked;
-        fit = true;
       } else if (d.sdskip) {
         if (t.checked) delete st.skip[d.sdskip];
         else st.skip[d.sdskip] = true;
-      } else if (d.sdseat) st.seat[d.sdseat] = +t.value;
+      } else if (d.sdout != null) st.out = t.checked;
+      else if (d.sdseat) st.seat[d.sdseat] = +t.value;
       else if (d.sdref) st.ref[d.sdref] = +t.value;
       else if (d.sdk != null) st.k = +t.value;
       else return;
@@ -1031,15 +1043,37 @@ export function createSeadPage(deps) {
     };
   }
   // the map for the card: the lent map fitted to the plan, a picture of it, the points in its pixels
+  // the map for the card. With the scheme shown, the map is opened out of sight for the picture (with the view it was left in) and closed again
   async function snapPlan(AR = 1520 / 900) {
     if (!deps.snap) return null;
-    const keep = !!M && st.view == 'map'; // the map shown: the card takes the view of the preview (its centre and zoom)
-    if (!M) {
-      if (st.view != 'map') return null;
-      await ensureMap();
-      if (!M) return null;
-      paint();
+    const off = st.view != 'map',
+      w = root.querySelector('#sdmapw');
+    if (off && w) {
+      w.hidden = false;
+      w.classList.add('ddoff');
     }
+    try {
+      let keep = !!M; // the map open: the card takes the view of the preview (its centre and zoom)
+      if (!M) {
+        failed = false;
+        await ensureMap();
+        if (!M) return null;
+        keep = !fit; // opened again with the view it was left in
+      }
+      M.map.invalidateSize();
+      paint(true);
+      return await snapNow(AR, keep);
+    } finally {
+      if (off && w) {
+        w.classList.remove('ddoff');
+        w.hidden = true;
+        detachMap(true);
+        failed = false;
+        pend = null;
+      }
+    }
+  }
+  async function snapNow(AR, keep) {
     const { L, map, WL } = M,
       ll = p => deps.toLL(p.x, p.y),
       prot = X.flights.filter(f => !f.sead && st.prot[f.key] !== false && P.rows.some(r => r.by.includes(f.name))),
@@ -1250,7 +1284,9 @@ export function createSeadPage(deps) {
       const D = cardData(),
         B = cardBox(D);
       if (kind != 'sch') D.px = await snapPlan(B.w / B.h);
-      return drawCard(D, kind || 'map');
+      const c = drawCard(D, kind || 'map');
+      c.dataset.px = D.px ? '1' : '';
+      return c;
     },
     reloadHarm: () => {
       H = null;

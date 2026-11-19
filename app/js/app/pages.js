@@ -733,6 +733,8 @@ function deadDeps() {
       const t = await terrain();
       return t ? heightsOf(t, pts) : null;
     },
+    // the lines of a Weapons attack page (popup, hadb, toss) on the target steerpoint nearest to the SAM (pt), drawn on the DEAD map
+    planLines: (m, pt) => (ST.wpPage && ST.wpPage.planLines ? ST.wpPage.planLines(m, pt.x, pt.y) : null),
     // a Weapons page of the attack (Pop-up, HADB, TOSS), its target the steerpoint nearest to the SAM (pt): the target chosen (or null), then the tab
     openMode: (m, pt) => {
       const a = pt && ST.wpPage && ST.wpPage.aimAt ? ST.wpPage.aimAt(pt.x, pt.y) : null,

@@ -238,18 +238,29 @@ ck(
   'a flight not crossing the ring is not a row',
   base({ sams: [{ id: 'z', x: 80, y: 60, rng: 10, name: 'X' }] }).rows.length == 0
 );
-// your SEAD flight with the package, ahead of it: a launch for the impact at 85% would be inside the ring; it is moved back to before you enter it
+// your SEAD flight with the package, ahead of it: a launch for the impact at 85% would be inside the ring
 {
-  const Q = base({
+  const o2 = {
       sead: { wps: route(2, 480, T0 - 90000), n: 2, harms: [1, 1] },
       act: [route(2, 480, T0 - 90000), viper],
       shot: shot(40, 40),
-    }),
+    },
+    Q = base({ ...o2, outside: true }),
     q = Q.rows[0].shots[0];
   ck(
-    'a launch that would be inside the ring of its SAM: moved earlier, outside it, the impact earlier',
+    'Launch outside the rings: moved earlier, outside it, the impact earlier',
     q && q.launch.margin >= 0.4 && q.launch.moved > 0 && q.imp < Q.rows[0].t85,
     q && { m: q.launch.margin, moved: q.launch.moved }
+  );
+  // without the switch: the launch that covers more of the time the protected flight needs
+  const Q2 = base(o2),
+    q2 = Q2.rows[0].shots[0],
+    cv = X =>
+      X.rows[0].need.reduce((a, [t0, t1]) => a + t1 - t0, 0) - X.rows[0].gaps.reduce((a, g) => a + g.t1 - g.t0, 0);
+  ck(
+    '...without it: the launch that covers the protected flight more (inside, flagged)',
+    q2 && q2.launch.inside && cv(Q2) > cv(Q),
+    q2 && { inside: q2.launch.inside, a: cv(Q2), b: cv(Q) }
   );
 }
 // before the first impact: from the ring entry to the first cover (shown, not planned)

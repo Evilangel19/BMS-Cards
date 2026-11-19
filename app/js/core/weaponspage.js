@@ -3318,6 +3318,44 @@ export function createWeaponsPage(deps) {
       draw(true);
     },
     state: () => st,
+    // the horizontal drawing of an attack page (popup, hadb, toss) on the target steerpoint nearest to a point (x, y km: Weapons > HARM > DEAD, its SAM),
+    // with the settings of that page, in km: {label, segs [{k, name, col, dash, pts}], marks [{x, y, l, col}]} | {error} | null (no steerpoint within
+    // 10 nm). The page is left as it was (its mode, its target, its result)
+    planLines: (mode, x, y) => {
+      if (!ATK.includes(mode)) return null;
+      const keep = { mode: st.mode, tgt: st.tgt },
+        r0 = res,
+        c0 = ctx;
+      try {
+        const T = gather().T,
+          d = q => Math.hypot(q.e / FT_KM - x, q.n / FT_KM - y) / 1.852,
+          b = T.slice().sort((a, c) => d(a) - d(c))[0];
+        if (!b || d(b) > 10) return null;
+        st.mode = mode;
+        st.tgt = b.v;
+        compute(true);
+        const r = res;
+        if (!r || r.error)
+          return { label: b.label, error: (r && r.error) || 'no solution with the settings of the page' };
+        const D = vrpMark(oa1Plan(r.draw || popupDraw(r, null), r), r),
+          km = p => ({ x: p.e / FT_KM, y: p.n / FT_KM });
+        return {
+          label: b.label,
+          segs: D.segs
+            .filter(z => z[0] != 'ref' && PH[z[0]])
+            .map(([k, pts]) => ({ k, name: PH[k][0], col: PH[k][1], dash: PH[k][2], pts: pts.map(km) })),
+          marks: D.marks.map(m => ({ ...km(m[0]), l: m[1], col: m[2] || '#fff' })),
+        };
+      } catch (e) {
+        return { error: (e && e.message) || String(e) };
+      } finally {
+        st.mode = keep.mode;
+        st.tgt = keep.tgt;
+        sync();
+        res = r0;
+        ctx = c0;
+      }
+    },
     // the target steerpoint nearest to a point (x, y km; Weapons > HARM > DEAD: its SAM), chosen for the attack pages; null when none is within 10 nm
     aimAt: (x, y) => {
       const T = gather().T,

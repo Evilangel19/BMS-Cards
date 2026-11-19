@@ -255,6 +255,24 @@ export function seadPlan(o) {
   const seatOk = (q, tl) =>
     left[q] > 0 && !shots.some(z => z.seat === q && z.launch && Math.abs(z.launch.t - tl) < MIN_GAP_S * 1000);
   let ptr = 0;
+  // the time a HARM covers [from, to]: from its launch (a HARM in the air keeps the SAM quiet), or earlier, the impact less the time of flight of a SAM
+  // missile (one already flying loses its guidance when the HARM hits the radar), never before the SAM is on; to the end of its glide (its max range,
+  // at most its 300 s of flight; none with no glide: its impact)
+  function win(r, L, imp) {
+    if (L.off) return [imp, imp];
+    const end = o.glide === false ? imp : Math.max(imp, L.t + Math.min(MAX_FLIGHT_S, L.rMax / L.vm) * 1000),
+      onAt = r.on.find(v => imp >= v[0] - 1 && imp <= v[1] + 1),
+      dS = samDist(r, imp);
+    return [Math.max(onAt ? onAt[0] : imp, Math.min(L.t, imp - (dS / SAM_NM_S) * 1000)), end];
+  }
+  // the time (ms) a window adds to the cover of what the protected flights need of a SAM
+  function gain(r, [a, b]) {
+    return r.need.reduce((g, [t0, t1]) => {
+      const u0 = Math.max(a, t0),
+        u1 = Math.min(b, t1);
+      return u1 <= u0 ? g : g + uncovered(u0, u1, cov(r)).reduce((x, [p, q]) => x + q - p, 0);
+    }, 0);
+  }
   function addShot(r, imp0, first) {
     let imp = imp0;
     const key = r.shots.length ? r.id + '#' + (r.shots.length + 1) : r.id,
@@ -262,13 +280,18 @@ export function seadPlan(o) {
       m = o.seat && o.seat[key];
     let L = launchFor(W, { ...r, t85: imp, sam: { ...r.sam, x: aim.x, y: aim.y } }, o.shot, o.sams, r.sam);
     // a launch inside the ring of its SAM: the last launch before your flight enters it, the impact earlier (still while the SAM is on, or the HARM
-    // finds it off); none: the launch inside, flagged
+    // finds it off). o.outside (Launch outside the rings): taken whenever there is one; else the one of the two that covers more of the time the
+    // protected flights still need, the one outside when they cover the same (an earlier launch that covers none of it is never taken)
     if (!L.off && L.margin < 0) {
       const onAt = r.on.find(v => imp >= v[0] - 1 && imp <= v[1] + 1),
         E = earlierOut(W, aim, r.sam, L.t, onAt ? onAt[0] : imp, o.shot, o.sams);
       if (E) {
-        L = { ...E, moved: Math.round((L.t - E.t) / 1000) };
-        imp = E.imp;
+        const gE = gain(r, win(r, E, E.imp)),
+          gL = gain(r, win(r, L, imp));
+        if (o.outside ? true : gE > 0 && gE >= gL) {
+          L = { ...E, moved: Math.round((L.t - E.t) / 1000), useless: gE <= 0 };
+          imp = E.imp;
+        } else L = { ...L, inside: true };
       }
     }
     let s = -1;
@@ -293,14 +316,7 @@ export function seadPlan(o) {
     // its cover: from its launch (a HARM in the air keeps the SAM quiet), or earlier, the impact less the time of flight of a SAM missile (one
     // already flying loses its guidance when the HARM hits the radar), never before the SAM is on; to the end of its glide (its max range, at most its
     // 300 s of flight; none with no glide: its impact)
-    const end = L.off
-        ? imp
-        : o.glide === false
-          ? imp
-          : Math.max(imp, L.t + Math.min(MAX_FLIGHT_S, L.rMax / L.vm) * 1000),
-      onAt = r.on.find(v => imp >= v[0] - 1 && imp <= v[1] + 1),
-      dS = samDist(r, imp),
-      start = L.off ? imp : Math.max(onAt ? onAt[0] : imp, Math.min(L.t, imp - (dS / SAM_NM_S) * 1000)),
+    const [start, end] = win(r, L, imp),
       z = {
         key,
         id: r.id,

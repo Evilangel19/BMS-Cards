@@ -50,9 +50,11 @@ export const ROLES = {
 /** the roles a seat can take: HARM standoff shooter or cover; Hunter-Killer and bombs the lead pair hunter or killer, the element (#3, #4) also cover */
 export const rolesOf = (tactic, i) =>
   tactic == 'hs' ? ROLES.hs : i < 2 ? ['hunter', 'killer'] : ROLES[tactic] || ROLES.hk;
-/** the default roles: HARM standoff all shooters; Hunter-Killer and bombs #1 killer, #2 hunter, the element cover */
+/** the default roles: HARM standoff #1 (and #3) shooter, #2 (and #4) cover; Hunter-Killer and bombs #1 killer, #2 hunter, the element cover */
 export const defaultRoles = (tactic, n) =>
-  Array.from({ length: n }, (_, i) => (tactic == 'hs' ? 'shooter' : i >= 2 ? 'cover' : i % 2 ? 'hunter' : 'killer'));
+  Array.from({ length: n }, (_, i) =>
+    tactic == 'hs' ? (i % 2 ? 'cover' : 'shooter') : i >= 2 ? 'cover' : i % 2 ? 'hunter' : 'killer'
+  );
 /** the role of the other aircraft of a pair (#1-#2, #3-#4) when one is chosen: shooter and cover, hunter and killer swapped; cover with cover */
 export const partnerRole = (tactic, r) =>
   tactic == 'hs'
@@ -123,10 +125,25 @@ export function deadPlan(o) {
       tL = tT - sec(dL),
       tTurn = tL + sec(dL - Ra),
       tImp = tL + tof * 1000,
-      span = Math.min(200, (((((tImp + 60000 - tTurn) / 3600000) * gs) / Ra) * 180) / Math.PI),
-      arc = arcPts(s, Ra, th, dir * Math.max(30, span)),
-      bEnd = th + dir * Math.max(30, span),
-      egr = at(s, bEnd, R + 15);
+      // the orbit: at least 120 degrees round the WEZ, and 90 s past the impact (at most 220)
+      span = Math.min(220, Math.max(120, (((((tImp + 90000 - tTurn) / 3600000) * gs) / Ra) * 180) / Math.PI)),
+      arc = arcPts(s, Ra, th, dir * span),
+      bEnd = th + dir * span,
+      egr = at(s, bEnd + dir * 25, R + 18),
+      // the egress: a smooth curve out of the arc (it goes on along the arc, then away from the SAM)
+      e0 = at(s, bEnd, Ra),
+      tg = bEnd + dir * 90,
+      e1 = {
+        x: e0.x + Math.sin((tg * Math.PI) / 180) * 8 * KM_NM,
+        y: e0.y + Math.cos((tg * Math.PI) / 180) * 8 * KM_NM,
+      },
+      egrPath = Array.from({ length: 13 }, (_, i) => {
+        const u = i / 12,
+          a = (1 - u) * (1 - u),
+          b = 2 * u * (1 - u),
+          c = u * u;
+        return { x: a * e0.x + b * e1.x + c * egr.x, y: a * e0.y + b * e1.y + c * egr.y };
+      });
     if (dL > h.rTh)
       out.warn.push(
         'Out of range: the HARM reaches ' +
@@ -149,9 +166,7 @@ export function deadPlan(o) {
         brgL: (th + 180) % 360,
       })
     );
-    idx('cover').forEach(i =>
-      out.seats.push({ i, role: 'cover', arc: arcPts(s, Ra + 4, th, dir * Math.max(30, span)) })
-    );
+    idx('cover').forEach(i => out.seats.push({ i, role: 'cover', arc: arcPts(s, Ra + 4, th, dir * span) }));
     Object.assign(out, {
       L,
       dL,
@@ -162,10 +177,12 @@ export function deadPlan(o) {
       turn: at(s, th, Ra),
       arc,
       egr,
-      tEnd: tTurn + sec((Ra * Math.max(30, span) * Math.PI) / 180),
+      egrPath,
+      span,
+      tEnd: tTurn + sec((Ra * span * Math.PI) / 180),
       rTh: h.rTh,
     });
-    out.path = [prev, L, at(s, th, Ra), ...arc, egr];
+    out.path = [prev, L, at(s, th, Ra), ...arc];
     return out;
   }
   // Hunter-Killer (and the bombs: the killer's run from its anchor): the anchors 8 nm outside the arc, either side of the way in
@@ -185,9 +202,15 @@ export function deadPlan(o) {
     tBack = tArc1 + sec(Rb * 0.9 + 14),
     atk = [B, at(s, bK, R * 0.9), at(s, bK, 4)],
     tAtk = tBack + 60000,
-    cover = arcPts(s, Ra + 4, bK + dir * 20, -dir * 70);
+    // the killer orbits the same way as the hunter while it baits, at the distance of the anchors (outside the WEZ), then back to its anchor
+    kArc = arcPts(s, Da, bK, dir * 75),
+    kBack = [kArc[kArc.length - 1], at(s, bK + dir * 40, Da + 3), B],
+    cover = arcPts(s, Ra + 4, bK - dir * 50, dir * 70);
   Object.assign(out, {
     Rb,
+    Da,
+    kArc,
+    kBack,
     A,
     B,
     tA,

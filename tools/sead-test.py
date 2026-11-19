@@ -133,6 +133,17 @@ try:
         pg.locator('#sdmap .leaflet-control-zoom-in').click(); pg.wait_for_timeout(600); z1 = zv()
         pg.click('#wp [data-sdview=sch]'); pg.wait_for_timeout(400); pg.click('#wp [data-sdview=map]'); pg.wait_for_timeout(700)
         check('Scheme then Map: the zoom kept %s' % [zv(), z1], zv() == z1)
+        pg.click('#wp [data-sdview=sch]'); pg.wait_for_timeout(400)
+        hy = pg.evaluate("()=>document.querySelector('#sdmapw').closest('.wcard').querySelector('h3').getBoundingClientRect().top")
+        px = pg.evaluate("async()=>(await __app.seadPage.cardCanvas('map')).dataset.px")
+        check('Scheme shown: the card with the map still gets the map picture; the title does not move', px == '1' and abs(hy - pg.evaluate("()=>document.querySelector('#sdmapw').closest('.wcard').querySelector('h3').getBoundingClientRect().top")) < 0.5)
+        pg.click('#wp [data-sdview=map]'); pg.wait_for_timeout(700)
+        check('...the Map / Scheme buttons next to the title, the title in the same place', abs(hy - pg.evaluate("()=>document.querySelector('#sdmapw').closest('.wcard').querySelector('h3').getBoundingClientRect().top")) < 0.5)
+        # the switch Launch outside the rings, the total covered
+        check('the total covered of the time inside the rings', 'Covered' in pg.inner_text('#sdth .sdtot'))
+        pg.click('#wp [data-sdout]'); pg.wait_for_timeout(500)
+        check('Launch outside the rings: on, kept in the state', pg.evaluate("()=>__app.seadPage.state().out") is True)
+        pg.click('#wp [data-sdout]'); pg.wait_for_timeout(500)
         # Map filters on the Weapons pages: the Map page gets its own back
         mf = lambda: pg.evaluate("()=>[...document.querySelectorAll('#mpbar input[data-k]')].map(i=>i.dataset.k+':'+(i.checked?1:0)).join(',')")
         f0 = mf()
