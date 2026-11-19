@@ -98,10 +98,11 @@ export function drawSeadCard(x, D, kind = 'map') {
     text(r.sam, 76, y + 50);
     font('500', 24);
     text((r.code != null ? 'ALIC ' + r.code : 'NO ALIC') + (r.tab ? ' · ' + r.tab : ''), 76, y + 86, MU);
+
     text(r.ref, 76, y + 118, MU);
-    if (r.why) {
+    if (r.why || r.telar) {
       font('700', 22);
-      text(r.why, 76, y + 142, BAD);
+      text(r.why || '⚠ ONE FCR ON EACH TELAR: THE OTHERS KEEP SHOOTING', 76, y + 142, BAD);
     }
     font('500', 22);
     text('LAUNCH', 640, y + 36, MU);

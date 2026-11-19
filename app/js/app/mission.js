@@ -20,7 +20,7 @@ import { $, IO, appToast, enc8, esc, jclone } from './base.js';
 import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
-import { harmPage, seadPage, mapV, pfPage, sqPage } from './pages.js';
+import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage } from './pages.js';
 import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
@@ -94,6 +94,7 @@ export function msfWeapons() {
       wp: jclone(ST.wpPage.state()),
       harm: jclone(harmPage.state()),
       sead: jclone(seadPage.state()),
+      dead: jclone(deadPage.state()),
       bvr: jclone(ST.msPage.state()),
     };
   } catch (e) {
@@ -680,6 +681,7 @@ export async function msfLoad(text, file) {
         w.wp && ST.wpPage.setState(w.wp);
         w.harm && harmPage.setState(w.harm);
         w.sead && seadPage.setState(w.sead);
+        w.dead && deadPage.setState(w.dead);
         w.bvr && ST.msPage.setState(w.bvr);
       } catch (e) {}
     }
@@ -780,6 +782,7 @@ export function msfRestore(s) {
     s.weapons && s.weapons.wp && ST.wpPage.setState(s.weapons.wp);
     s.weapons && s.weapons.harm && harmPage.setState(s.weapons.harm);
     s.weapons && s.weapons.sead && seadPage.setState(s.weapons.sead);
+    s.weapons && s.weapons.dead && deadPage.setState(s.weapons.dead);
     s.weapons && s.weapons.bvr && ST.msPage.setState(s.weapons.bvr);
   } catch (e) {}
   try {

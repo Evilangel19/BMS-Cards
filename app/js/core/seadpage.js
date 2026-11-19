@@ -213,7 +213,7 @@ export function createSeadPage(deps) {
         ? `<table class="sdt"><tr><th></th><th>SAM</th><th>ALIC</th><th>Flight</th><th>WEZ in</th><th>Inside</th><th>HARMs</th><th>Table</th></tr>${R.map(
             r => {
               const s = shotOf(st.sel);
-              return `<tr data-sdsam="${esc(r.id)}" class="${s && s.id == r.id ? 'on' : ''}${st.skip[r.id] ? ' off' : ''}"><td><input type="checkbox" data-sdskip="${esc(r.id)}"${st.skip[r.id] ? '' : ' checked'} title="Shoot at this SAM"></td><td><b>${esc(r.sam.name)}</b></td><td>${r.sam.code == null ? '—' : r.sam.code}</td><td>${esc(r.flight)}${r.by.length > 1 ? ' +' + (r.by.length - 1) : ''}</td><td>${hms(r.tin)}</td><td>${mmss(r.ms / 1000)}</td><td><b>${st.skip[r.id] ? '—' : r.shots.length}</b>${r.gaps.length && !st.skip[r.id] ? ' <span class="sdgap" title="Not covered: ' + r.gaps.map(g => hms(g.t0) + '–' + hms(g.t1)).join(', ') + '">●</span>' : ''}</td><td>${tabTag(r)}</td></tr>`;
+              return `<tr data-sdsam="${esc(r.id)}" class="${s && s.id == r.id ? 'on' : ''}${st.skip[r.id] ? ' off' : ''}"><td><input type="checkbox" data-sdskip="${esc(r.id)}"${st.skip[r.id] ? '' : ' checked'} title="Shoot at this SAM"></td><td><b>${esc(r.sam.name)}</b>${r.sam.telar >= 0 ? ' <span class="sdtel" title="One fire control radar on each launcher (TELAR): a HARM kills one launcher, the others keep shooting">⚠ TELAR</span>' : ''}</td><td>${r.sam.code == null ? '—' : r.sam.code}</td><td>${esc(r.flight)}${r.by.length > 1 ? ' +' + (r.by.length - 1) : ''}</td><td>${hms(r.tin)}</td><td>${mmss(r.ms / 1000)}</td><td><b>${st.skip[r.id] ? '—' : r.shots.length}</b>${r.gaps.length && !st.skip[r.id] ? ' <span class="sdgap" title="Not covered: ' + r.gaps.map(g => hms(g.t0) + '–' + hms(g.t1)).join(', ') + '">●</span>' : ''}</td><td>${tabTag(r)}</td></tr>`;
             }
           ).join('')}</table>`
         : '<p class="hint">No enemy SAM ring (spotted, radar alive) on the routes of the protected flights.</p>') +
@@ -564,7 +564,7 @@ export function createSeadPage(deps) {
       r = z && P.rows.find(w => w.id == z.id);
     if (!r) return '<h3>Cover</h3><p class="hint">Choose a shot.</p>';
     const g = r.gaps;
-    return `<h3>${esc(r.sam.name)} · cover</h3><div class="kv">${kv('SAM ON', r.on.map(v => hms(v[0]) + '–' + hms(v[1])).join('<br>'))}${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.from) + '–' + hms(w.cover)).join('<br>') : ''))}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
+    return `<h3>${esc(r.sam.name)} · cover</h3>${r.sam.telar >= 0 ? '<div class="ddtel"><b>⚠ ONE FCR ON EACH TELAR</b> · a HARM silences one launcher (' + r.sam.telar + ' alive): the others keep shooting.</div>' : ''}<div class="kv">${kv('SAM ON', r.on.map(v => hms(v[0]) + '–' + hms(v[1])).join('<br>'))}${kv(esc(r.flight).toUpperCase() + ' INSIDE', hms(r.tin) + ' – ' + hms(r.tout) + ' (' + mmss((r.tout - r.tin) / 1000) + ')')}${r.task ? kv('TASK', 'STPT ' + r.task.n + ' ' + (r.task.loiter ? hms(r.task.t0) + '–' + hms(r.task.t1) : hms(r.task.t0))) : ''}${kv('HARMS', r.shots.length + (r.shots.length ? ': ' + r.shots.map(w => seatNo(w.seat) + ' ' + hms(w.from) + '–' + hms(w.cover)).join('<br>') : ''))}${kv('NOT COVERED', g.length ? g.map(q => hms(q.t0) + '–' + hms(q.t1) + ' (' + mmss((q.t1 - q.t0) / 1000) + (q.ing ? ', ingress' : ', egress') + ')').join('<br>') : 'none', g.length ? 'sdgapt' : 'sdok')}</div>`;
   }
   function problems() {
     const md = mode(),
@@ -961,6 +961,7 @@ export function createSeadPage(deps) {
         sam: z.sam.name + nth(z),
         code: z.sam.code,
         tab: tabTxt(z.sam.code),
+        telar: z.sam.telar >= 0,
         ref: md == 'pos' ? refName(z.ref) : 'AT THE SAM',
         tl: z.launch.off ? '—' : hms(z.launch.t),
         imp: hms(z.imp),

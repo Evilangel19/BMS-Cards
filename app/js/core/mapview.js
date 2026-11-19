@@ -1500,6 +1500,24 @@ export function createMap(host, deps) {
       bad: !!full,
     };
   }
+  // one point as a PPT with no threat ring (Weapons > HARM > DEAD: an anchor): {x, y (km), name}. The message of what was done.
+  function addPpt(m) {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the point is added to it.', bad: true };
+    const same = P.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
+    if (same) return { msg: m.name + ' is already PPT ' + same.stpt + ' of the DTC.' };
+    const slot = freeSlot(P, 'ppt');
+    if (slot < 0) return { msg: 'No free PPT slot in the DTC.', bad: true };
+    deps.dtc.set('ppt', slot, { x: m.x, y: m.y, altFt: 0, name: String(m.name).slice(0, 6), rngNm: 0 });
+    if (map) {
+      showLayer('dq');
+      sync();
+      dtc();
+    }
+    const Q = deps.dtc.points(),
+      q = Q && Q.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
+    return { msg: m.name + ' added to the DTC' + (q ? ' as PPT ' + q.stpt : '') + '.' };
+  }
   // CLEAR opens three buttons: PPT, TGT, LINES
   async function clearPoints(g) {
     const P = deps.dtc && deps.dtc.points();
@@ -4848,6 +4866,7 @@ export function createMap(host, deps) {
       if (map) dtcInfo();
     },
     autoPptFor: list => autoPptFor(list),
+    addPpt: m => addPpt(m),
     palette: () => pal,
     autoPptSlots: () => {
       const P = deps.dtc && deps.dtc.points(),

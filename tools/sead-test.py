@@ -1,5 +1,5 @@
 """Weapons > HARM > SEAD with a made-up package (a SEAD flight, a strike flight to protect, one that crosses no ring), three SAMs and a made-up missile:
-the switch SEAD / Single shot, the package, the threats with their HARM codes and tables, the sort (Priority, Azimuth, a seat by hand), a threat left
+the switch SEAD / DEAD, the package, the threats with their HARM codes and tables, the sort (Priority, Azimuth, a seat by hand), a threat left
 out, the impact slider, the map, the timeline, the shot, an out of range shot and its fix, HARM tables (asks, writes the missing one), PPT (asks, adds the
 threats with the AUTO PPT), the SEAD card of the Kneeboard, the mission keeps the page. No BMS files. Usage: CSP=1 python3 tools/sead-test.py [screenshot_dir]"""
 import base64, json, subprocess, sys, time, os
@@ -34,10 +34,10 @@ try:
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(900)
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500); pg.click('#wp [data-mode=harm]'); pg.wait_for_timeout(700)
-        check('HARM: the switch SEAD / Single shot; with no SEAD flight the Single shot page', pg.locator('#wp .hsub [data-hsub]').all_inner_texts() == ['SEAD', 'Single shot'] and pg.locator('#wp .hsub .on').inner_text() == 'Single shot' and pg.locator('#wp #wpharm').count() == 1)
+        check('HARM: the switch SEAD / DEAD; with no SEAD or DEAD flight DEAD with the HARM standoff shot of the HARM page', pg.locator('#wp .hsub [data-hsub]').all_inner_texts() == ['SEAD', 'DEAD'] and pg.locator('#wp .hsub .on').inner_text() == 'DEAD' and pg.locator('#wp #wpharm').count() == 1 and 'No DEAD flight' in pg.inner_text('#wp .hsub'))
         pg.click('#wp [data-hsub=sead]'); pg.wait_for_timeout(500)
         check('SEAD without a SEAD flight: the page says why', 'SEAD' in pg.inner_text('#wp .sdnone') and pg.locator('#wp #wpharm').count() == 0)
-        re = lambda: (pg.click('#wp [data-hsub=shot]'), pg.wait_for_timeout(300), pg.click('#wp [data-hsub=sead]'), pg.wait_for_timeout(1300))
+        re = lambda: (pg.click('#wp [data-hsub=dead]'), pg.wait_for_timeout(300), pg.click('#wp [data-hsub=sead]'), pg.wait_for_timeout(1300))
         pg.evaluate(CTX); re()
         P = lambda: pg.evaluate("()=>{const P=__app.seadPage.plan();return {rows:P.rows.map(r=>({id:r.id,tEnd:r.tEnd,n:r.shots.length,gaps:r.gaps.length,ref:r.ref&&r.ref.n,inA:r.ref&&r.ref.inArea,t85:r.t85,tin:r.tin,tout:r.tout})),shots:P.shots.map(z=>({key:z.key,id:z.id,k:z.k,seat:z.seat,imp:z.imp,from:z.from,cover:z.cover,tl:z.launch.t,ok:z.launch.ok})),seats:P.seats}}")
         R = P()

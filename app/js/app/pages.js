@@ -4,6 +4,8 @@ import { busyWrap } from '../core/busy.js';
 import { CAM } from '../core/cam-core.js';
 import { createMissilesPage } from '../core/missilespage.js';
 import { createSeadPage } from '../core/seadpage.js';
+import { createDeadPage } from '../core/deadpage.js';
+import { taskOf } from '../core/sead.js';
 import { harmCode } from '../core/harmcodes.js';
 import { createWeaponsPage } from '../core/weaponspage.js';
 import { createTargetPage } from '../core/tgtpage.js';
@@ -95,6 +97,7 @@ const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoin
 export let harmRoot;
 export let harmPage;
 export let seadPage; // Weapons > HARM > SEAD
+export let deadPage; // Weapons > HARM > DEAD
 export let harmTab; // the HARM tab of the Weapons page: SEAD or Single shot
 // Squadron page: the pilot is read from the logbook (User\Config\*.lbk), the mission of the leader goes to the pilots peer to peer
 export let sqPage;
@@ -566,6 +569,7 @@ function seadCtx() {
         rng: m.rng,
         name: m.name,
         code: harmCode(m.name),
+        telar: m.telar,
       }));
   } catch (er) {
     /* no unit table */
@@ -645,8 +649,94 @@ function seadDeps() {
     kbAdd: (blob, name) => kbAddPic(blob, name),
   };
 }
-// the HARM tab: SEAD (a SEAD flight protecting its package) or Single shot (one HARM at a PPT of the DTC); SEAD first when the flight chosen is a SEAD
-// flight of a package with flights to protect, until the pilot chooses
+// ---- Weapons > HARM > DEAD: the SAM of the task of a DEAD flight (its target, else the enemy SAMs near the task steerpoint), the HARMs of the loadout
+const isDeadM = m => /^DEAD/.test(String(m || ''));
+function deadCtx() {
+  if (!ST.C)
+    return { ok: false, why: 'Open a campaign: DEAD plans the attack of a DEAD flight of its ATO on its SAM.' };
+  const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+    e = x && ATOL.find(z => z.f === x.f);
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  if (!isDeadM(e.mission))
+    return { ok: false, why: e.callsign + ' flies ' + e.mission + ': DEAD is planned for a DEAD flight.' };
+  const tk = taskOf(e.f.wps);
+  if (!tk) return { ok: false, why: e.callsign + ' has no task steerpoint.' };
+  const D = ST.C.D,
+    n = Math.max(1, Math.min(4, CAM.nAcf(e.f))),
+    G = CAM.loadGroups(e.f),
+    harms = Array.from({ length: n }, (_, i) => {
+      const g = G.find(z => z.ac.includes(i + 1));
+      return g ? g.ids.reduce((a, id, k) => a + (/AGM-88|\bHARM\b/i.test(D.wn[id] || '') ? g.cn[k] || 0 : 0), 0) : 0;
+    }),
+    tw = e.f.wps[tk.n - 1],
+    tid = tw && tw.tid,
+    KM = 1.852;
+  let sams = [];
+  try {
+    sams = mapUnits(ST.C, e.team)
+      .filter(m => m.sam && m.hostile)
+      .map(m => ({
+        id: m.u.id.n + ':' + m.u.id.c,
+        x: m.u.x,
+        y: m.u.y,
+        rng: m.rng,
+        det: m.detAir || m.det || m.rng,
+        name: m.name,
+        code: harmCode(m.name),
+        telar: m.telar,
+        fcr: !m.noFcr,
+        spotted: !!m.spotted,
+        tgt: !!(tid && m.u.id && m.u.id.n == tid.n && m.u.id.c == tid.c),
+        d: Math.hypot(m.u.x - tk.x, m.u.y - tk.y) / KM,
+      }))
+      .filter(m => m.tgt || m.d < 25)
+      .sort((a, b) => b.tgt - a.tgt || a.d - b.d)
+      .slice(0, 12);
+  } catch (er) {
+    /* no unit table */
+  }
+  const t = sams.find(m => m.tgt) || sams.find(m => m.fcr) || sams[0];
+  return {
+    ok: true,
+    me: {
+      key: String(e.f.id.n),
+      name: e.callsign,
+      ac: e.ac,
+      n,
+      mission: e.mission,
+      tot: e.tot,
+      f: e.f,
+      pkgNo: e.pkgNo,
+    },
+    sams,
+    target: t ? t.id : null,
+    seat: ST.SEAT && ST.SEAT.set && seatExists(seatIdx()) ? seatIdx() : 0,
+    harms,
+  };
+}
+function deadDeps() {
+  const d = seadDeps();
+  return {
+    ...d,
+    ctx: deadCtx,
+    dtc: {
+      ...d.dtc,
+      has: sec => lines.some(l => l.s == sec),
+      setOA: (key, v) => {
+        S('NAV OFFSETS', key, v);
+        dtcChanged('NAV OFFSETS', key);
+      },
+    },
+    addPpt: m => mapV.addPpt(m),
+    // a Weapons page of the attack (Pop-up, HADB, TOSS): its tab
+    openMode: m => {
+      const b = document.querySelector('#wpmodes [data-mode="' + m + '"], .wtabs [data-mode="' + m + '"]');
+      if (b) /** @type {HTMLElement} */ (b).click();
+    },
+  };
+}
+// the HARM tab: SEAD (a SEAD flight protecting its package) or DEAD (a DEAD flight on its SAM; without a DEAD flight the HARM standoff shot at a PPT of the
+// DTC); SEAD first when the flight chosen is a SEAD flight of a package with flights to protect, until the pilot chooses
 function makeHarmTab() {
   const root = document.createElement('div'),
     bar = document.createElement('div'),
@@ -655,25 +745,32 @@ function makeHarmTab() {
   bar.className = 'hsub';
   root.append(bar, body);
   let sub = null,
-    on = false;
+    on = false,
+    pg = null;
   try {
     sub = sessionStorage.getItem('harmsub');
   } catch (e) {
     /* none */
   }
-  const cur = () => (sub == 'sead' || sub == 'shot' ? sub : seadPage.usable() ? 'sead' : 'shot');
+  const cur = () => (sub == 'sead' || sub == 'dead' ? sub : seadPage.usable() ? 'sead' : 'dead'),
+    page = s => (s == 'sead' ? seadPage : deadPage.usable() ? deadPage : harmPage);
+  const all = () => [seadPage, deadPage, harmPage];
   function show() {
     on = true;
     const s = cur(),
-      pg = s == 'sead' ? seadPage : harmPage;
+      p = page(s);
     bar.innerHTML = `<span class="seg">${[
       ['sead', 'SEAD'],
-      ['shot', 'Single shot'],
+      ['dead', 'DEAD'],
     ]
       .map(([v, l]) => `<button type="button" class="${s == v ? 'on' : ''}" data-hsub="${v}">${l}</button>`)
-      .join(
-        ''
-      )}</span><span class="hint">${s == 'sead' ? 'The HARM shots of your SEAD flight that protect the flights of its package.' : 'One HARM shot at a pre-planned threat of the DTC.'}</span>`;
+      .join('')}</span><span class="hint">${
+      s == 'sead'
+        ? 'The HARM shots of your SEAD flight that protect the flights of its package.'
+        : p == deadPage
+          ? 'Your DEAD flight against its SAM: HARM standoff, Hunter-Killer or bombs.'
+          : 'No DEAD flight chosen: HARM standoff, one HARM shot at a pre-planned threat of the DTC.'
+    }</span>`;
     bar.querySelectorAll('[data-hsub]').forEach(
       b =>
         (b.onclick = () => {
@@ -684,30 +781,31 @@ function makeHarmTab() {
           } catch (e) {
             /* none */
           }
-          seadPage.leave();
-          harmPage.leave();
+          all().forEach(q => q.leave());
           show();
         })
     );
-    (s == 'sead' ? harmPage : seadPage).leave();
-    if (body.firstChild !== pg.root || body.children.length != 1) {
+    all()
+      .filter(q => q != p)
+      .forEach(q => q.leave());
+    if (body.firstChild !== p.root || body.children.length != 1) {
       body.innerHTML = '';
-      body.appendChild(pg.root);
+      body.appendChild(p.root);
     }
-    pg.render();
+    pg = p;
+    p.render();
   }
   return {
     root,
     render: show,
     leave: () => {
       on = false;
-      seadPage.leave();
-      harmPage.leave();
+      all().forEach(q => q.leave());
     },
     refresh: () => {
       if (!on) return;
-      if (cur() == 'sead') seadPage.refresh();
-      else harmPage.refresh();
+      if (page(cur()) != pg) return show();
+      pg.refresh();
     },
     sub: () => cur(),
   };
@@ -735,6 +833,7 @@ export async function init9() {
     isEdit: () => mapV.isEdit(),
   });
   seadPage = createSeadPage(seadDeps());
+  deadPage = createDeadPage(deadDeps());
   harmTab = makeHarmTab();
   ST.tgPage = createTargetPage(tgtDeps());
   // the desktop program takes the files dropped on its window: a picture dropped on Weapons > Target is its screenshot
