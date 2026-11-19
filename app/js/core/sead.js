@@ -98,31 +98,80 @@ export const seatLabels = n =>
         ? ['#1 LEAD', '#2']
         : ['#1'];
 
+// POS: the HARM flies to a steerpoint (of the flight plan or a PPT) and opens its seeker before it (EOM 8 nm, PB 13, RUK 30: airmissile HARM_SUB), narrow
+// (EOM) or wide (PB, RUK). The SAM must be in what the seeker sees there: taken as a circle round the steerpoint, the seeker-on distance x the tangent of
+// half the field of view (narrow 10 deg, wide 30 deg): EOM 1.4 nm, PB 7.5, RUK 17.3 (an estimate)
+export const POS_AREA = {
+  EOM: 8 * Math.tan((10 * Math.PI) / 180),
+  PB: 13 * Math.tan((30 * Math.PI) / 180),
+  RUK: 30 * Math.tan((30 * Math.PI) / 180),
+};
+export const MIN_GAP_S = 8; // the least time between two launches of one aircraft
+const MAX_FLIGHT_S = 300; // the HARM data file: Final Time 300 s
+const NON_ACT = new Set([0, 1, 2, 3, 4, 7, 8]); // nav, takeoff, push, split, refuel, land, holding: not the task of the flight
+/** the task of a flight: the first steerpoint with an action (strike, CAS, CAP, ...) and how long it stays (the steerpoints with an action that follow
+ * it, the time on station): {n, x, y, t0, t1, loiter} or null */
+export function taskOf(wps) {
+  const w = timed(wps),
+    i = w.findIndex((p, k) => k > 0 && !NON_ACT.has(p.act));
+  if (i < 0) return null;
+  let j = i;
+  while (j + 1 < w.length && !NON_ACT.has(w[j + 1].act)) j++;
+  const t0 = w[i].arr,
+    t1 = Math.max(dep(w[j]), w[j].arr);
+  return { n: w[i].n, n1: w[j].n, x: w[i].x, y: w[i].y, x1: w[j].x, y1: w[j].y, t0, t1, loiter: t1 - t0 > 60000 };
+}
+// the parts of [t0, t1] not covered by the intervals iv
+function uncovered(t0, t1, iv) {
+  const o = [];
+  let t = t0;
+  iv.slice()
+    .sort((a, b) => a[0] - b[0])
+    .forEach(([a, b]) => {
+      if (a > t) o.push([t, Math.min(a, t1)]);
+      t = Math.max(t, b);
+    });
+  if (t < t1) o.push([t, t1]);
+  return o.filter(z => z[1] - z[0] > 1000);
+}
+
 /**
  * @param {object} o
  * @param {{key:string,name:string,wps:any[]}[]} o.prot the protected flights
  * @param {{wps:any[],n:number,harms:number[]}} o.sead the SEAD flight: its waypoints, its aircraft, the HARMs of each
  * @param {{id:string,x:number,y:number,rng:number,name:string,code:number|null}[]} o.sams the SAMs that count (enemy, spotted, radar alive)
- * @param {number} [o.k] where the HARM must arrive, a share of the ring radius from the SAM (0.85)
+ * @param {number} [o.k] where the first HARM must arrive, a share of the ring radius from the SAM (0.85)
  * @param {'prio'|'az'} [o.sort]
- * @param {Object<string,number>} [o.seat] seats chosen by hand (SAM id -> 0..3)
+ * @param {'pos'|'had'} [o.mode] POS: to a steerpoint (flight plan or PPT); HAD: at the SAM (it must be radiating)
+ * @param {'EOM'|'PB'|'RUK'} [o.sub]
+ * @param {{n:number,x:number,y:number,ppt?:boolean}[]} [o.refs] the steerpoints for POS: the flight plan and the PPTs of the DTC
+ * @param {Object<string,number>} [o.ref] a steerpoint chosen by hand for a SAM (POS)
+ * @param {boolean} [o.glide] the HARM glides on to its max range (no: Target Isolate and Glide Inhibit both on)
+ * @param {Object<string,number>} [o.seat] seats chosen by hand (shot key -> 0..3; a SAM's first shot: its id, the next ones id#2, id#3...)
  * @param {Object<string,boolean>} [o.skip] the SAMs not to shoot
- * @param {(p:{x:number,y:number,altFt:number,gsKt:number}, s:any, d:number) => {rTh:number, rMax:number, vm:number}} o.shot the HARM range (nm) and mean speed (nm/s) from there
+ * @param {(p:{x:number,y:number,altFt:number,gsKt:number}, aim:{x:number,y:number}, d:number) => {rTh:number, rMax:number, vm:number}} o.shot the HARM range
+ *   at that aim (nm), its max range (nm) and mean speed (nm/s) from there
  */
 export function seadPlan(o) {
   const k = o.k || 0.85,
     W = timed(o.sead.wps),
+    mode = o.mode == 'had' ? 'had' : 'pos',
+    sub = POS_AREA[o.sub] ? o.sub : 'EOM',
+    area = POS_AREA[sub],
     est = W.some(p => p.est) || o.prot.some(f => timed(f.wps).some(p => p.est)),
+    task = Object.fromEntries(o.prot.map(f => [f.key, taskOf(f.wps)])),
     rows = [];
   o.sams.forEach(s => {
     if (!(s.rng > 0)) return;
     let best = null;
-    const by = [];
+    const by = [],
+      all = [];
     o.prot.forEach(f => {
       const w = timed(f.wps),
         iv = inside(w, s.x, s.y, s.rng).filter(v => v[1] - v[0] >= 1000);
       if (!iv.length) return;
       by.push(f.name);
+      all.push(...iv.map(v => [...v, f.key]));
       const v = iv[0],
         e = inside(w, s.x, s.y, s.rng * k).find(z => z[0] >= v[0] - 1 && z[0] <= v[1]),
         t85 = e ? e[0] : closest(w, s.x, s.y, v[0], v[1]);
@@ -137,14 +186,21 @@ export function seadPlan(o) {
           ms: iv.reduce((a, z) => a + z[1] - z[0], 0),
           t85,
           p85: p ? { x: p.x, y: p.y } : { x: s.x, y: s.y },
-          deep: !e, // the route never comes to k of the radius: the closest point
+          deep: !e,
         };
       }
     });
-    if (best) rows.push({ id: s.id, sam: s, by, ...best });
+    if (!best) return;
+    // the time to cover: inside the ring, from the first impact on; ingress until the task of the flight is done, egress after
+    const tk = task[best.key],
+      tEnd = tk ? tk.t1 : null,
+      need = all
+        .filter(v => v[1] > best.t85)
+        .map(v => [Math.max(v[0], best.t85), v[1]])
+        .sort((a, b) => a[0] - b[0]);
+    rows.push({ id: s.id, sam: s, by, ...best, iv: all, need, task: tk, tEnd, shots: [] });
   });
   rows.sort((a, b) => a.t85 - b.t85);
-  // the order of the shots: Priority (the first reached first) or Azimuth (left to right from the SEAD flight, a minute before the impact)
   const act = rows.filter(r => !(o.skip && o.skip[r.id]));
   if (o.sort == 'az')
     act.forEach(r => {
@@ -154,51 +210,116 @@ export function seadPlan(o) {
   const ord = o.sort == 'az' ? act.slice().sort((a, b) => a.az - b.az) : act,
     n = Math.max(1, Math.min(4, o.sead.n || 1)),
     H = o.sead.harms && o.sead.harms.some(h => h > 0) ? o.sead.harms.slice(0, n) : null,
-    left = Array.from({ length: n }, (_, i) => (H ? H[i] || 0 : Infinity));
+    left = Array.from({ length: n }, (_, i) => (H ? H[i] || 0 : 1)), // no AGM-88 in the loadout: one shot each
+    shots = [];
+  // the steerpoint of a SAM for POS: chosen by hand, else the PPT on it, else the nearest steerpoint of the flight plan that has it in the seeker's area
+  const refs = o.refs || [],
+    dNm = (a, b) => Math.hypot(a.x - b.x, a.y - b.y) / KM_NM,
+    refFor = r => {
+      if (mode != 'pos') return null;
+      const h = o.ref && o.ref[r.id] != null ? refs.find(z => z.n == o.ref[r.id]) : null;
+      if (h) return { ...h, hand: true, d: dNm(h, r.sam), inArea: dNm(h, r.sam) <= area };
+      const p = refs.filter(z => z.ppt && dNm(z, r.sam) < 0.3)[0];
+      if (p) return { ...p, d: dNm(p, r.sam), inArea: true };
+      const f = refs
+        .filter(z => !z.ppt)
+        .map(z => ({ ...z, d: dNm(z, r.sam) }))
+        .sort((a, b) => a.d - b.d)[0];
+      return f ? { ...f, inArea: f.d <= area } : null;
+    };
+  ord.forEach(r => (r.ref = refFor(r)));
+  // a shot of a SAM for an impact time: the seat (by hand, else the next one with a HARM and 8 s from its other launches), the launch, its cover
+  const seatOk = (q, tl) =>
+    left[q] > 0 && !shots.some(z => z.seat === q && z.launch && Math.abs(z.launch.t - tl) < MIN_GAP_S * 1000);
   let ptr = 0;
-  ord.forEach(r => {
-    const m = o.seat && o.seat[r.id];
-    if (m != null && m >= 0 && m < n) {
-      r.seat = m;
-      r.hand = true;
-      if (left[m] > 0) left[m]--;
-      else r.noHarm = true;
-      return;
-    }
+  function addShot(r, imp, first) {
+    const key = r.shots.length ? r.id + '#' + (r.shots.length + 1) : r.id,
+      aim = mode == 'pos' && r.ref ? r.ref : r.sam,
+      L = launchFor(W, { ...r, t85: imp, sam: { ...r.sam, x: aim.x, y: aim.y } }, o.shot, o.sams, r.sam),
+      m = o.seat && o.seat[key];
     let s = -1;
-    for (let j = 0; j < n; j++) {
-      const q = (ptr + j) % n;
-      if (left[q] > 0) {
-        s = q;
-        break;
+    if (m != null && m >= 0 && m < n) s = m;
+    else
+      for (let j = 0; j < n; j++) {
+        const q = (ptr + j) % n;
+        if (seatOk(q, L.t)) {
+          s = q;
+          break;
+        }
       }
-    }
-    if (s < 0) {
-      r.seat = null;
-      r.noHarm = true;
-      return;
-    }
-    r.seat = s;
-    left[s]--;
-    ptr = s + 1;
+    if (s < 0 || (!first && (L.off || !L.ok))) return null; // an extra shot only when it can be flown
+    const hand = m != null && s === m;
+    if (left[s] > 0) left[s]--;
+    if (!hand) ptr = s + 1;
+    const cover = L.off
+        ? imp
+        : o.glide === false
+          ? imp + 1000
+          : Math.max(imp, L.t + Math.min(MAX_FLIGHT_S, L.rMax / L.vm) * 1000),
+      z = { key, id: r.id, sam: r.sam, k: r.shots.length + 1, seat: s, hand, imp, cover, launch: L, ref: r.ref, mode };
+    r.shots.push(z);
+    shots.push(z);
+    return z;
+  }
+  // 1) one HARM for each SAM, in the order of the sort, at k of its radius
+  ord.forEach(r => {
+    const z = addShot(r, r.t85, true);
+    if (!z) r.noHarm = true;
   });
-  // the launch of each shot: from where the SEAD flight is then
-  act.forEach(r => (r.launch = launchFor(W, r, o.shot, o.sams)));
+  // 2) the HARMs left: on the parts not covered, ingress first (the task of the flight), the next HARM arriving when the cover of the last one ends
+  const blocked = new Set();
+  for (let g = 0; g < 60 && left.some(v => v > 0); g++) {
+    let pick = null;
+    ord.forEach(r => {
+      if (!r.shots.length) return;
+      const cv = r.shots.map(z => [z.imp, z.cover]);
+      r.need.forEach(([a, b]) =>
+        uncovered(a, b, cv).forEach(([u0, u1]) => {
+          // with the glide the next HARM arrives when the cover of the last one ends; without it the HARMs left are spread (the middle of the
+          // longest part not covered)
+          const t = o.glide === false ? (u0 + u1) / 2 : u0,
+            ing = r.tEnd == null || u0 <= r.tEnd,
+            key = r.id + '@' + Math.round(t / 1000);
+          if (blocked.has(key) || (o.glide === false && u1 - u0 < 2 * MIN_GAP_S * 1000)) return;
+          const better = pick && (o.glide === false ? u1 - u0 > pick.len : t < pick.t);
+          if (!pick || (ing && !pick.ing) || (ing == pick.ing && better)) pick = { r, t, ing, key, len: u1 - u0 };
+        })
+      );
+    });
+    if (!pick) break;
+    if (!addShot(pick.r, pick.t, false)) blocked.add(pick.key);
+  }
+  // what stays uncovered of each SAM, ingress and egress
+  rows.forEach(r => {
+    const cv = r.shots.map(z => [z.imp, z.cover]);
+    r.gaps = r.shots.length
+      ? r.need
+          .flatMap(([a, b]) => uncovered(a, b, cv))
+          .map(([a, b]) => ({ t0: a, t1: b, ing: r.tEnd == null || a <= r.tEnd }))
+      : [];
+  });
+  shots.sort((a, b) => a.launch.t - b.launch.t);
   const L = seatLabels(n);
   return {
     rows,
+    shots,
     est,
+    mode,
+    sub,
+    area,
+    task,
     seats: L.slice(0, n).map((l, i) => ({
       i,
       label: l,
       harms: H ? H[i] || 0 : null,
-      used: act.filter(r => r.seat === i).length,
+      used: shots.filter(z => z.seat === i).length,
     })),
     noLoadout: !H,
   };
 }
-// the launch for the impact at r.t85: the time of flight comes from the range from where the SEAD flight is then (a few rounds until it settles)
-function launchFor(W, r, shot, sams) {
+// the launch for the impact at r.t85 at the aim point (r.sam: the SAM or, in POS, its steerpoint): the time of flight comes from the range from where
+// the SEAD flight is then (a few rounds until it settles). sam0: the SAM itself (its ring, the margin)
+function launchFor(W, r, shot, sams, sam0) {
   const s = r.sam,
     at = t => {
       const p = posAt(W, t);
@@ -221,8 +342,9 @@ function launchFor(W, r, shot, sams) {
   }
   const t = r.t85 - tof * 1000;
   q = at(t);
-  if (!q) return { t, off: true, fix: fixFor(W, r, at, t) };
-  const ok = q.d <= q.h.rTh;
+  if (!q) return { t, off: true, rMax: 0, vm: 1, fix: fixFor(W, r, at, t) };
+  const ok = q.d <= q.h.rTh,
+    S0 = sam0 || s;
   return {
     t,
     x: q.p.x,
@@ -237,9 +359,10 @@ function launchFor(W, r, shot, sams) {
     tof: Math.round(tof),
     rTh: q.h.rTh,
     rMax: q.h.rMax,
+    vm: q.h.vm,
     ok,
-    margin: (q.d - s.rng / KM_NM) * 1, // nm outside this SAM's ring (negative: inside)
-    rings: sams.filter(z => z !== s && Math.hypot(z.x - q.p.x, z.y - q.p.y) < z.rng).map(z => z.name),
+    margin: Math.hypot(q.p.x - S0.x, q.p.y - S0.y) / KM_NM - S0.rng / KM_NM, // nm outside the SAM's ring (negative: inside)
+    rings: sams.filter(z => z.id !== S0.id && Math.hypot(z.x - q.p.x, z.y - q.p.y) < z.rng).map(z => z.name),
     fix: ok ? null : fixFor(W, r, at, t),
   };
 }

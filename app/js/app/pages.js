@@ -570,6 +570,13 @@ function seadCtx() {
   } catch (er) {
     /* no unit table */
   }
+  // the HTS pod in the loadout (HAD), the steerpoints for POS: the flight plan and the pre-planned threats of the DTC
+  const hts = G.some(g => g.ids.some(id => /\bHTS\b|ASQ-213/i.test(D.wn[id] || ''))),
+    P = lines.length ? dtcPoints(lines) : null,
+    refs = e.f.wps
+      .map((w, i) => ({ n: i + 1, x: w.x, y: w.y }))
+      .filter(w => w.x || w.y)
+      .concat(P ? P.ppt.filter(p => !p.empty).map(p => ({ n: p.stpt, x: p.x, y: p.y, ppt: true, name: p.name })) : []);
   const fl = z => ({
     key: String(z.f.id.n),
     name: z.callsign,
@@ -587,6 +594,8 @@ function seadCtx() {
     sams,
     seat: ST.SEAT && ST.SEAT.set && seatExists(seatIdx()) ? seatIdx() : 0,
     harms,
+    hts,
+    refs,
   };
 }
 const HARM_K = (t, n) => `THREAT ${t} ${n}`;
@@ -602,6 +611,8 @@ function seadDeps() {
     detach: () => mapV.detach(),
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),
+    layerOn: k => !!mapV.state().on[k],
+    pal: () => mapV.palette(),
     dtc: {
       harm: () =>
         lines.some(l => l.s == 'HARM')

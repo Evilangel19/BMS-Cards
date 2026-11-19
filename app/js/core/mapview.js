@@ -4848,6 +4848,7 @@ export function createMap(host, deps) {
       if (map) dtcInfo();
     },
     autoPptFor: list => autoPptFor(list),
+    palette: () => pal,
     autoPptSlots: () => {
       const P = deps.dtc && deps.dtc.points(),
         o = new Set();
