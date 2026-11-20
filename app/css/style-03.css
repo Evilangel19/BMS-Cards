@@ -1935,6 +1935,12 @@ main.wide #sqtabs {
   font-size: 11px;
   margin: 0;
 }
+/* on: the green of the tools (the line buttons), not the green of the DTC buttons */
+#mpdsnap:not(.g) {
+  background: #1f7a46;
+  color: #fff;
+  border-color: #2fa862;
+}
 .dtp .sitcols input[type='color'] {
   width: 24px;
   height: 20px;
@@ -1943,4 +1949,82 @@ main.wide #sqtabs {
   border-radius: 4px;
   background: #0f1419;
   cursor: pointer;
+}
+/* the colour picker of the program (SIT lines) */
+.dtp .sitpkb {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+.dtp .sitpkb::after {
+  content: '▾';
+  position: absolute;
+  right: -11px;
+  top: 0;
+  font-size: 10px;
+  color: var(--mu);
+}
+.dtp .sitpkb.on {
+  outline: 2px solid #2fa862;
+  outline-offset: 1px;
+}
+.cpk {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  background: #0f1419;
+  border: 1px solid #263140;
+  border-radius: 6px;
+}
+.cpsv {
+  position: relative;
+  height: 96px;
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.cphue {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+.cpk1,
+.cpk2 {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #000a;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cpk2 {
+  top: 50%;
+  background: transparent;
+}
+.cprgb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.dtp .cprgb label {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.dtp .cprgb input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11.5px;
 }

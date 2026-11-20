@@ -2,6 +2,8 @@
 import { wezOf, wezText, wezSams } from './wez.js';
 import { radarUnits, neededCells, coverage, CELL_KM } from './radarcov.js';
 import basemap from '../data/basemap.js';
+import { koreaCoasts, KOREA_COAST } from './coastsit.js';
+import { colorPicker } from './colorpick.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import { objState, featState } from '../parsers/cam.js';
@@ -1137,7 +1139,8 @@ export function createMap(host, deps) {
         <div class="fly" id="pauto" style="display:none"><div class="fh">Automatic lines</div><div class="tg">
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
-          <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button></div>
+          <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
+          <button class="btn g bb tl sitrow" id="mpdcoast" title="F-15, Korea: the coast of the peninsula as the SIT lines ECOAST (6: the east coast and half of the south coast) and WCOAST (7: the other half and the west coast), 30 points each; lines 6 and 7 are replaced"><span>COAST</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
       `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (the original is kept once in the program folder, backup\\dtc)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
@@ -1213,6 +1216,7 @@ export function createMap(host, deps) {
     $('mpdppt').onclick = autoPpt;
     $('mpdbull').onclick = autoBull;
     $('mpdfront').onclick = autoFront;
+    $('mpdcoast').onclick = autoCoast;
     // hamburgers: a button is replaced by its sub-buttons (150 ms fade); opening one closes the others; a leaf button, or a click on an empty spot of the map, closes them all
     // keep a panel clear of the DTC function buttons at the bottom and of the top of the map: shift it up, or let it scroll
     const tankPlace = p => {
@@ -1476,6 +1480,7 @@ export function createMap(host, deps) {
       ['mpdppt', 'ppt'],
       ['mpdbull', 'bull'],
       ['mpdfront', 'front'],
+      ['mpdcoast', 'coast'],
     ].forEach(([id, k]) => {
       const b = $(id);
       if (b) {
@@ -1830,6 +1835,50 @@ export function createMap(host, deps) {
         lnRange(line, slot, 6) +
         ') on the friendly units closest to the enemy.'
     );
+  }
+  // COAST (F-15, Korea): the coast of the peninsula as ECOAST (SIT line 6) and WCOAST (SIT line 7), 30 points each, always in those two lines so that
+  // their names keep their meaning (what they hold is replaced, after asking)
+  async function autoCoast() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (!sitOn()) return toast('The SIT lines are for the F-15.', true);
+    if (Object.values(KOREA_COAST).some(([lo, la]) => fromLL(la, lo).some(v => v < 0 || v > 1024)))
+      return toast('COAST is for the Korea theater only.', true);
+    const c = koreaCoasts(basemap.land, SIT_LEN);
+    if (!c) return toast('The coast of Korea was not found in the map data.', true);
+    const used = [6, 7].filter(n => lnUsed(P, n));
+    if (
+      used.length &&
+      !(await confirm(
+        used.map(n => lnName(n) + ' (SIT line ' + n + ')').join(' and ') +
+          ' already ' +
+          (used.length > 1 ? 'have' : 'has') +
+          ' points: replace them with the coast?'
+      ))
+    )
+      return;
+    addStop();
+    [
+      [6, 'ECOAST', c.east],
+      [7, 'WCOAST', c.west],
+    ].forEach(([n, name, pts]) => {
+      const { a } = lineSpec(n),
+        have = new Set(lnPts(P, n).map(q => q.slot));
+      for (let i = 0; i < SIT_LEN; i++) {
+        const p = pts[i];
+        if (p) {
+          const [x, y] = fromLL(p[1], p[0]);
+          deps.dtc.set('sit', a + i, { x, y });
+        } else if (have.has(a + i)) deps.dtc.clear('sit', a + i);
+      }
+      if (deps.dtc.setMeta) deps.dtc.setMeta(n, { name });
+    });
+    const [x0, y0] = fromLL(c.east[0][1], c.east[0][0]);
+    AU.coast = { line: 6, x: x0, y: y0 };
+    showLayer('ds');
+    sync();
+    dtc();
+    toast('ECOAST (6) and WCOAST (7): the coast of Korea, ' + SIT_LEN + ' points each, added to the DTC.');
   }
   // BULLSEYE LINE: a 3-point line shaped like an L, the bullseye in the corner: 30 NM due east, the bullseye, 60 NM due north
   function autoBull() {
@@ -4023,7 +4072,7 @@ export function createMap(host, deps) {
     // an F-15: the looks of the SIT line (name, shown on the SIT, colour, dash), written into [F15_SIT_LINES]
     const m = SM && SM[ln],
       look = m
-        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"><input type="color" data-f="spick" value="#${m.hex.toLowerCase()}" title="Any colour" aria-label="Pick any colour"></span></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
+        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"><button type="button" class="sitpkb" data-a="pick" style="background:#${m.hex}" title="Any colour" aria-label="Pick any colour"></button></span></div><div class="sitpk" hidden></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
         : '';
     w.innerHTML =
       head +
@@ -4188,7 +4237,9 @@ export function createMap(host, deps) {
       w.querySelectorAll('[data-shex]').forEach(b => b.classList.toggle('on', b.dataset.shex == m2.hex));
       w.querySelectorAll('[data-sdash]').forEach(b => b.classList.toggle('on', +b.dataset.sdash == m2.dash));
       if (f('shex')) f('shex').value = m2.hex;
-      if (f('spick')) f('spick').value = '#' + m2.hex.toLowerCase();
+      const pb = w.querySelector('[data-a=pick]');
+      if (pb) pb.style.background = '#' + m2.hex;
+      if (PK && !fromPk) PK.set(m2.hex);
       autoRefresh();
       dtcInfo(); // the buttons of the lines: the initial of a new name
     };
@@ -4196,7 +4247,31 @@ export function createMap(host, deps) {
     w.querySelectorAll('[data-son]').forEach(b => (b.onclick = () => look1({ on: b.dataset.son == '1' })));
     w.querySelectorAll('[data-shex]').forEach(b => (b.onclick = () => look1({ hex: b.dataset.shex })));
     w.querySelectorAll('[data-sdash]').forEach(b => (b.onclick = () => look1({ dash: +b.dataset.sdash })));
-    if (f('spick')) f('spick').onchange = () => look1({ hex: f('spick').value.replace('#', '') });
+    // any colour: the picker of the program opens under the colours; the line follows while a knob moves, the colour is written when it is let go
+    let PK = null,
+      fromPk = false;
+    const pkb = w.querySelector('[data-a=pick]'),
+      pkw = w.querySelector('.sitpk');
+    if (pkb && pkw)
+      pkb.onclick = () => {
+        pkw.hidden = !pkw.hidden;
+        pkb.classList.toggle('on', !pkw.hidden);
+        if (!PK && !pkw.hidden)
+          PK = colorPicker(pkw, sitM()[ln].hex, {
+            live: h => {
+              pkb.style.background = '#' + h;
+              if (f('shex')) f('shex').value = h;
+              LNP.filter(
+                l => l.getLatLngs && l.getTooltip() && String(l.getTooltip().getContent()) == deps.esc(lnName(ln))
+              ).forEach(l => l.setStyle({ color: '#' + h }));
+            },
+            pick: h => {
+              fromPk = true;
+              look1({ hex: h });
+              fromPk = false;
+            },
+          });
+      };
     if (f('shex'))
       f('shex').onchange = () => {
         const v = f('shex').value.replace(/^#/, '').trim();

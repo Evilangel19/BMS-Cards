@@ -88,8 +88,14 @@ try:
         pg.fill('.mpop [data-f=sname]', 'COAST E'); pg.press('.mpop [data-f=sname]', 'Enter'); pg.wait_for_timeout(300)
         check('the name: SITLINE_6_NAME, the label follows', ln('SITLINE_6_NAME') == 'COAST E' and 'COAST E' in looks())
         check('...and its button: 6C', txt('[data-add=line6]') == '6C')
-        pg.locator('.mpop [data-f=spick]').evaluate("e=>{e.value='#12ab34';e.dispatchEvent(new Event('change'))}"); pg.wait_for_timeout(200)
-        check('the colour picker: any colour, written as COLORHEX', ln('SITLINE_6_COLORHEX') == '12AB34' and pg.input_value('.mpop [data-f=shex]') == '12AB34')
+        pg.click('.mpop [data-a=pick]'); pg.wait_for_timeout(200)
+        check('the colour picker of the program: a square, the hue bar, R G B', pg.is_visible('.mpop .cpsv') and pg.is_visible('.mpop .cphue') and pg.locator('.mpop .cprgb input').count() == 3)
+        for c, v in (('R', '18'), ('G', '171'), ('B', '52')):
+            pg.fill('.mpop .cprgb input[data-c=%s]' % c, v); pg.press('.mpop .cprgb input[data-c=%s]' % c, 'Tab'); pg.wait_for_timeout(150)
+        check('R G B typed: COLORHEX 12AB34, the hex follows', ln('SITLINE_6_COLORHEX') == '12AB34' and pg.input_value('.mpop [data-f=shex]') == '12AB34')
+        bx = pg.locator('.mpop .cpsv').bounding_box(); pg.mouse.move(bx['x'] + 2, bx['y'] + bx['height'] / 2); pg.mouse.down(); pg.mouse.move(bx['x'] + 3, bx['y'] + bx['height'] / 2); pg.mouse.up(); pg.wait_for_timeout(200)
+        check('dragging in the square: a grey (no saturation), written when let go', ln('SITLINE_6_COLORHEX') not in ('12AB34', None) and len(set(ln('SITLINE_6_COLORHEX')[i:i + 2] for i in (0, 2, 4))) <= 2)
+        if shots: pg.locator('.mpop').screenshot(path=shots + '/sit-picker.png')
         pg.click('.mpop [data-a=ins]'); pg.wait_for_timeout(400)
         mid = ((S6[1][0] + S6[2][0]) / 2, (S6[1][1] + S6[2][1]) / 2)
         check('Insert after: a point half way, the next ones move down (5 points)', abs(float(ln('SITLINE_6_2').split(',')[1]) / FT - mid[0]) < 0.01 and not ln('SITLINE_6_4').startswith('0.000000'))
@@ -120,6 +126,20 @@ try:
             pg.evaluate("()=>{const M=__app.mapV;M.leaflet.setView(M.toLL(470,450),10,{animate:false})}"); pg.wait_for_timeout(500); pg.screenshot(path=shots + '/sit-rect.png')
             pg.evaluate("()=>{const M=__app.mapV;M.leaflet.setView(M.toLL(500,430),8,{animate:false})}"); pg.wait_for_timeout(500)
         check('their filter: Rectangle sides (NM)', pg.locator('#mpdtc input[data-k=dn]').count() == 1)
+        # AUTO COAST (F-15, Korea): ECOAST and WCOAST, 30 points each, after asking when the lines have points
+        msgs = []
+        pg.once('dialog', lambda d: (msgs.append(d.message), d.accept()))
+        pg.click('#mpdauto'); pg.wait_for_timeout(300)
+        check('AUTO: COAST is there with an F-15', pg.is_visible('#mpdcoast'))
+        pg.click('#mpdcoast'); pg.wait_for_timeout(800)
+        check('COAST asks before replacing the lines 6 and 7 %s' % msgs, msgs and 'replace' in msgs[0])
+        check('COAST: ECOAST and WCOAST with 30 points each, their names', all(ln('SITLINE_%d_%d' % (n, i)) and not ln('SITLINE_%d_%d' % (n, i)).startswith('0.000000') for n in (6, 7) for i in (0, 29)) and ln('SITLINE_6_NAME') == 'ECOAST' and ln('SITLINE_7_NAME') == 'WCOAST')
+        check('...ECOAST ends where WCOAST begins (half of the south coast)', ln('SITLINE_6_29') == ln('SITLINE_7_0'))
+        check('...ECOAST starts in the north-east (the Tumen), WCOAST ends in the north-west (the Yalu)', float(ln('SITLINE_6_0').split(',')[1]) > float(ln('SITLINE_7_29').split(',')[1]) + 500000)
+        pg.click('#mpdauto') if not pg.is_visible('#mpdcoast') else None; pg.wait_for_timeout(300)
+        check('COAST is dimmed while the coast is in the DTC', pg.is_disabled('#mpdcoast'))
+        if shots:
+            pg.evaluate("()=>{const M=__app.mapV;M.leaflet.setView(M.toLL(512,500),7,{animate:false})}"); pg.wait_for_timeout(600); pg.screenshot(path=shots + '/sit-coast.png')
         if shots: pg.screenshot(path=shots + '/sit-map.png')
         # an F-16: the map has no SIT lines 6-12 and draws the lines 1-4 in the DTC colour
         pg.evaluate("()=>{window.__sitOn=false;__app.mapV.refreshDtc()}"); pg.wait_for_timeout(400)

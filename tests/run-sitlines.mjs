@@ -18,6 +18,9 @@ import {
   STPT_RANGE,
 } from '../app/js/core/mapdtc.js';
 import { dtcShare, applyShare, shareDiff } from '../app/js/core/mission.js';
+import { koreaCoasts, simplifyTo } from '../app/js/core/coastsit.js';
+import { hexRgb, rgbHex, rgbHsv, hsvRgb } from '../app/js/core/colorpick.js';
+import basemap from '../app/js/data/basemap.js';
 let bad = 0,
   n = 0;
 const ok = (m, c) => {
@@ -176,5 +179,56 @@ ok(
 );
 ok('...and the section is not listed as missing', !shareDiff(recv, blk[0]).missing.includes('F15_SIT_LINES'));
 
+// AUTO COAST: the coast of Korea from the map data
+const K = koreaCoasts(basemap.land, 30);
+ok('the coast of Korea: two lines of 30 points', K && K.east.length == 30 && K.west.length == 30);
+ok(
+  'ECOAST from the Tumen (north-east), WCOAST to the Yalu (north-west), joined on the south coast',
+  K &&
+    K.east[0][1] > 42 &&
+    K.east[0][0] > 130 &&
+    K.west[29][0] < 125 &&
+    K.west[29][1] > 39.5 &&
+    K.east[29] === K.west[0] &&
+    K.west[0][1] < 35.2
+);
+ok(
+  'a line with fewer points than asked is kept as it is; the ends always stay',
+  simplifyTo(
+    [
+      [0, 0],
+      [1, 1],
+    ],
+    30
+  ).length == 2 &&
+    JSON.stringify(
+      simplifyTo(
+        [
+          [0, 0],
+          [1, 5],
+          [2, 0],
+          [3, 1],
+          [4, 0],
+        ],
+        3
+      )
+    ) == '[[0,0],[1,5],[4,0]]'
+);
+ok(
+  'no peninsula in other land: null',
+  koreaCoasts([
+    [
+      [10, 40],
+      [11, 40],
+      [11, 41],
+      [10, 40],
+    ],
+  ]) === null
+);
+// the colour picker: the conversions go round
+ok(
+  'hex - RGB - HSV - RGB - hex comes back',
+  ['12AB34', 'FF0000', '000000', 'FFFFFF', '44E6EE'].every(h => rgbHex(...hsvRgb(...rgbHsv(...hexRgb(h)))) == h)
+);
 console.log(bad ? `${bad} FAILED of ${n}` : `OK - ${n} SIT line checks`);
 process.exit(bad ? 1 : 0);
