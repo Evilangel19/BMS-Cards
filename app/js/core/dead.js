@@ -298,13 +298,20 @@ export function deadPlan(o) {
       h = o.shot ? o.shot({ ...Lk, altFt: alt, gsKt: gs }, s) : { rTh: dL + 10, vm: 0.36 },
       tof = Math.round(dL / h.vm),
       bLk = brg(Lk.x - s.x, Lk.y - s.y),
-      kBack = spline([
-        Lk,
-        at(s, bLk + dir * 18, dL + 6),
-        at(s, bLk - dir * 15, Da + 9),
-        at(s, th + dir * 40, Da + 9),
-        A,
-      ]),
+      // after the launch: back out to its orbit and on round it (dashed), then back to the anchor as with the bombs
+      kE = b0 + dir * 90,
+      dRest = (((dir * (kE - bLk)) % 360) + 360) % 360,
+      rest = dRest > 180 ? 10 : Math.max(10, dRest),
+      kBack = spline([Lk, at(s, bLk + dir * 6, Rk)]).concat(
+        arcPts(s, Rk, bLk + dir * 6, dir * rest).slice(1),
+        spline([
+          at(s, bLk + dir * (6 + rest), Rk),
+          at(s, bLk + dir * (18 + rest), Rk + 5),
+          at(s, kE - dir * 10, Da + 9),
+          at(s, th + dir * 40, Da + 9),
+          A,
+        ]).slice(1)
+      ),
       impP = alongP(kBack, (tof / 3600) * gs);
     if (dL > h.rTh)
       out.warn.push(

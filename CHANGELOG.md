@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: DEAD 4-ship: #3 and #4 fly the tactic as a second pair round the other way; the killer goes on round its orbit after its HARM.
 - Changed: DEAD Hunter-Killer with one anchor and the killer's HARM when the SAM shoots at the hunter; Bombs / Maverick with the mark, the attack from the anchor and the hunter's cover point; top cover only for a cover role.
 - Changed: SEAD / DEAD buttons at the top (HARM tables, Auto PPT, Add card); DEAD Hunter-Killer and Bombs / Maverick drawn as the Training Manual; OA elevation 0 by default (no terrain).
 - Changed: SEAD HARMs launched for the most cover (a switch to keep launches outside the rings), the total covered shown; DEAD drawing cleaner (texts apart, longer orbit, smooth dashed egress, thin arrows), the killer orbiting with the hunter, Bombs / Maverick drawing the Weapons attack lines on the map; Map / Scheme next to the title.
