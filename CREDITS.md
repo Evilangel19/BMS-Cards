@@ -14,6 +14,7 @@ Inspiration and reference:
   - AFMAN 11-2F-16 Volume 3, F-16 Operations Procedures (U.S. Air Force, public).
 - bms_html_briefing - reference for BMS briefing data.
 - BMSRadio plugin (Tanrr.VAPlugin.BMSRadio) - reference for radio data.
+- BMS F-15 SIT Lines Editor (Benchmark Sims, github.com/BenchmarkSims/bms-f15-sit-lines) - reference for the format of the F-15 SIT lines of BMS 4.38.2 ([F15_SIT_LINES]: keys, 30 points per line, colour index, dash styles). Only the file format is used; no code is copied. The colours of the index (COLORIDX) are the provisional ones of that editor, to be checked on files written by BMS.
 - "Beyond Visual Range Chronicles - Minimum Abort Range", v. 3, by Adrian Chițan - the MAR model (cases I and II: uniform and variable missile deceleration, vMax and measured deceleration of the missiles) used on the BVR Timeline page and the datacard BVR timeline. Only the published method and numbers are used; no code.
 - TO 1F-16CMAM-34-1-1 BMS (the Falcon BMS manual), sections 4.2.15 and 4.2.16 and the lethality graphs of the general-purpose bombs - the three minimum release altitudes, the safe escape manoeuvres and the fragmentation area (radius, height, duration, read from the graphs) used on the Weapons page; the figures are estimates read from the graphs, not BMS code.
 
