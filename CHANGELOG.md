@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: writing the campaign / TE .ini no longer drops the F-15 SIT lines ([F15_SIT_LINES]) of the BMS F-15 SIT Lines Editor.
 - Added: SEAD Package time slider (ROLEX late / LEEROY early, ±5 min in 15 s steps) that moves the times of the package but the SEAD flights, shown on the map, the scheme and the cards.
 - Fixed: DEAD Bombs / Maverick map card without the attack profile; "HARM impact" in the SEAD / DEAD legends.
 - Changed: DEAD HARM standoff bait arc at the ECM-on range (the ECM slider), "ECM as needed" in the bait texts; the DEAD scheme with the ways, clearer colours, the events and a legend.

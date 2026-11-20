@@ -168,6 +168,14 @@ export async function dtcRevert() {
   dtcReloaded();
   if ($('fn')) $('fn').textContent = ST.name;
 }
+// a file read back as text (UTF-8, else Latin-1, as a DTC is read)
+const oldText = b => {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(b);
+  } catch (e) {
+    return new TextDecoder('latin1').decode(b);
+  }
+};
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.
 // BMS reads the DTC of a campaign from <campaign name>.ini (Autosave.ini is written only when the campaign itself is the Autosave one, never otherwise): those files are written the way BMS writes them (campaignIni: [MISSION] title and the [STPT] data only, like the files BMS writes for a campaign and for a Tactical Engagement)
 export async function dtcCampaignFiles() {
@@ -310,7 +318,8 @@ export async function dtcOverwrite() {
                 .split(/[\\/]/)
                 .pop()
                 .replace(/\.ini$/i, ''),
-              lines
+              lines,
+              old ? oldText(old) : ''
             )
           )
         );

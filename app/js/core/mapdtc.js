@@ -75,7 +75,23 @@ export function routeRows(C, f) {
   ]);
   return rows;
 }
-export function campaignIni(title, lines) {
+// the sections of a campaign / TE file that BMS Cards does not write ([F15_SIT_LINES] of the F-15 SIT Lines Editor, ...): kept as they are, after [STPT]
+export function extraSections(text) {
+  const o = [];
+  let keep = false;
+  String(text || '')
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .forEach(l => {
+      const h = /^\s*\[(.+?)\]/.exec(l);
+      if (h) keep = !/^(MISSION|STPT)$/i.test(h[1].trim());
+      if (keep) o.push(l);
+    });
+  while (o.length && !o[o.length - 1].trim()) o.pop();
+  return o;
+}
+/** @param {string} title @param {any[]} lines @param {string} [old] the file as it is now: its other sections stay */
+export function campaignIni(title, lines, old) {
   const by = new Map();
   (lines || []).forEach(l => {
     if (l.s == 'STPT' && l.k !== undefined) by.set(l.k, l.dirty || l.v !== undefined ? String(l.v) : '');
@@ -91,6 +107,7 @@ export function campaignIni(title, lines) {
         if (k == 'target_23' && by.has('target_24')) o.push('target_24=' + by.get('target_24'));
         return o;
       }),
+      ...extraSections(old),
     ].join('\r\n') + '\r\n'
   );
 }

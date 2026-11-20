@@ -157,5 +157,24 @@ ok('with 14 used the free PPT slot is the 15th (STPT 70)', freeSlot(part, 'ppt')
       .some(l => l.startsWith('target_24='))
   );
 }
+{
+  // the F-15 SIT lines of the SIT Lines Editor (BMS 4.38.2) in the campaign file: kept when BMS Cards writes it
+  const old =
+      '[MISSION]\r\ntitle=Camp\r\n[STPT]\r\nlineSTPT_0=1.000000, 2.000000, 0.000000\r\n[F15_SIT_LINES]\r\nSITLINE_6_NAME=FLOT\r\nSITLINE_6_COLORHEX=FF0000\r\nSITLINE_6_0=100.000000, 200.000000\r\n',
+    out = campaignIni('Camp', parseDtc('[STPT]\r\nlineSTPT_0=5.000000, 6.000000, 0.000000\r\n'), old);
+  ok(
+    'campaign ini: [F15_SIT_LINES] of the file kept, after [STPT], the DTC lines written',
+    out.endsWith(
+      '[F15_SIT_LINES]\r\nSITLINE_6_NAME=FLOT\r\nSITLINE_6_COLORHEX=FF0000\r\nSITLINE_6_0=100.000000, 200.000000\r\n'
+    ) &&
+      out.includes('lineSTPT_0=5.000000, 6.000000, 0.000000') &&
+      out.split('[MISSION]').length == 2 &&
+      out.split('[STPT]').length == 2
+  );
+  ok(
+    'campaign ini: no other section, the file as before',
+    campaignIni('Camp', parseDtc(''), '[MISSION]\r\ntitle=x\r\n[STPT]\r\n') === campaignIni('Camp', parseDtc(''))
+  );
+}
 console.log(bad ? `${bad} FAILED of ${n}` : `OK - ${n} campaign ini checks`);
 process.exit(bad ? 1 : 0);
