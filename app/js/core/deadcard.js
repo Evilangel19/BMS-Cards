@@ -8,11 +8,13 @@ import { SD_COL } from './seadcard.js';
 
 // the phases of the scheme (the page and the card): their colour and name
 export const DD_PH = {
-  run: ['#94a3b8', 'approach'],
-  hold: ['#f59e0b', 'anchor, mark'],
-  arc: ['#2dd4bf', 'the arc, bait'],
+  run: ['#cbd5e1', 'approach, turn in'],
+  arc: ['#f59e0b', 'bait (inside the WEZ)'],
+  orb: ['#2dd4bf', 'the killer round outside the WEZ'],
   def: ['#f87171', 'defend, back to the anchor'],
-  atk: ['#3b82f6', 'attack'],
+  back: ['#94a3b8', 'on round, back, egress'],
+  atk: ['#3b82f6', 'attack, turn in to shoot'],
+  hold: ['#64748b', 'at the anchor'],
   cover: ['#e879f9', 'cover'],
   harm: [SD_COL.HARM, 'HARM in flight'],
 };
@@ -374,8 +376,22 @@ function scheme(x, D, PX, PY, PW, PH) {
     Xt = t => X0 + ((t - t0) / (t1 - t0)) * (XR - X0),
     span = t1 - t0,
     step = span > 1800000 ? 300000 : span > 900000 ? 120000 : 60000,
-    lh = Math.min(170, (PH - 140) / Math.max(1, L.length)),
-    yy = PY + 70;
+    lh = Math.min(170, (PH - 170) / Math.max(1, L.length)),
+    yy = PY + 76,
+    used = new Set(),
+    um = new Set(),
+    dark = {
+      run: '#64748b',
+      arc: '#d97706',
+      orb: '#0d9488',
+      def: '#dc2626',
+      back: '#64748b',
+      atk: '#1d4ed8',
+      hold: '#475569',
+      cover: '#a21caf',
+      harm: '#0284c7',
+    },
+    way = (p, dir) => (p.d == 'in' ? '→' : p.d == 'out' ? '←' : dir > 0 ? '↻' : '↺');
   x.font = '500 22px ' + F;
   x.textAlign = 'center';
   for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
@@ -383,11 +399,22 @@ function scheme(x, D, PX, PY, PW, PH) {
     x.lineWidth = 2;
     x.beginPath();
     x.moveTo(Xt(t), PY + 50);
-    x.lineTo(Xt(t), PY + PH - 70);
+    x.lineTo(Xt(t), yy + L.length * lh - 10);
     x.stroke();
     x.fillStyle = MU;
     x.fillText(hm(t), Xt(t), PY + 38);
   }
+  // the SAM shoots: a red line across the lanes
+  (D.samAt || []).forEach(t => {
+    x.strokeStyle = '#dc2626';
+    x.lineWidth = 2.5;
+    x.setLineDash([8, 6]);
+    x.beginPath();
+    x.moveTo(Xt(t), PY + 50);
+    x.lineTo(Xt(t), yy + L.length * lh - 10);
+    x.stroke();
+    x.setLineDash([]);
+  });
   L.forEach((l, i) => {
     const y = yy + i * lh,
       ink = roleInk(l.name);
@@ -398,33 +425,49 @@ function scheme(x, D, PX, PY, PW, PH) {
     x.font = '700 22px ' + F;
     x.fillStyle = ink;
     x.fillText(l.name, PX + 24, y + 68);
+    const rows = [-1e9, -1e9]; // the labels: a second row when they would overlap
     l.ph.forEach(p => {
       const a = Xt(p.a),
         b = Xt(p.b),
-        dash = p.k == 'def' || p.k == 'cover';
+        w = Math.max(3, b - a),
+        dash = p.k == 'def' || p.k == 'cover' || p.k == 'back',
+        pc = dark[p.k] || ink;
+      used.add(p.k);
       if (p.k == 'harm') {
-        x.fillStyle = DD_PH.harm[0];
-        x.fillRect(a, y + 58, Math.max(3, b - a), 12);
+        x.fillStyle = pc;
+        x.fillRect(a, y + 60, w, 10);
         return;
       }
-      const pc = (DD_PH[p.k] || [ink])[0];
-      x.globalAlpha = dash ? 0.3 : 0.85;
+      x.globalAlpha = p.k == 'def' ? 0.06 : dash ? 0.25 : 0.85;
       x.fillStyle = pc;
-      x.fillRect(a, y + 16, Math.max(3, b - a), 34);
+      x.fillRect(a, y + 14, w, 38);
       x.globalAlpha = 1;
       x.strokeStyle = pc;
-      x.lineWidth = 2;
-      x.setLineDash(dash ? [8, 6] : []);
-      x.strokeRect(a, y + 16, Math.max(3, b - a), 34);
+      x.lineWidth = p.k == 'def' ? 3 : 2;
+      x.setLineDash(dash ? [10, 7] : []);
+      x.strokeRect(a, y + 14, w, 38);
       x.setLineDash([]);
+      // the way, along the bar
+      const n = Math.max(1, Math.floor(w / 140));
+      x.font = '800 26px ' + F;
+      x.textAlign = 'center';
+      x.fillStyle = dash ? pc : '#fff';
+      if (w > 30) for (let k = 0; k < n; k++) x.fillText(way(p, l.dir), a + ((k + 0.5) * w) / n, y + 42);
+      x.textAlign = 'left';
       if (p.l) {
         x.font = '500 20px ' + F;
         x.fillStyle = MU;
-        x.fillText(p.l + ' ' + hm(p.a), a + 4, y + 94);
+        const s = p.l + ' ' + hm(p.a),
+          r = rows.findIndex(e => a + 4 >= e + 12);
+        if (r >= 0 && (r == 0 || lh >= 125)) {
+          x.fillText(s, a + 4, y + 92 + r * 24);
+          rows[r] = a + 4 + x.measureText(s).width;
+        }
       }
     });
     l.mk.forEach(m => {
       const mx = Xt(m.t);
+      um.add(m.s);
       if (m.s == '◆') {
         x.fillStyle = SD_COL.IMP;
         x.beginPath();
@@ -434,27 +477,100 @@ function scheme(x, D, PX, PY, PW, PH) {
         x.lineTo(mx - 13, y + 64);
         x.closePath();
         x.fill();
-      } else {
-        x.font = '800 26px ' + F;
+      } else if (m.s == 'L') {
+        x.fillStyle = '#0284c7';
+        x.beginPath();
+        x.arc(mx, y + 64, 9, 0, 7);
+        x.fill();
+        x.font = '800 22px ' + F;
         x.textAlign = 'center';
-        x.fillStyle = l.me && m.s == 'L' ? AC : TX;
-        x.fillText(m.s, mx, y + 10);
-        x.textAlign = 'left';
+        x.fillStyle = l.me ? AC : '#0284c7';
+        x.fillText('L ' + hm(m.t), mx, y + 8);
+      } else if (m.s == 'SAM') {
+        x.fillStyle = '#dc2626';
+        x.beginPath();
+        x.moveTo(mx, y - 6);
+        x.lineTo(mx + 11, y + 12);
+        x.lineTo(mx - 11, y + 12);
+        x.closePath();
+        x.fill();
+      } else if (m.s == 'A') {
+        x.strokeStyle = '#475569';
+        x.lineWidth = 3;
+        x.beginPath();
+        x.moveTo(mx, y + 20);
+        x.lineTo(mx + 12, y + 33);
+        x.lineTo(mx, y + 46);
+        x.lineTo(mx - 12, y + 33);
+        x.closePath();
+        x.stroke();
+      } else if (m.s == 'T') {
+        x.fillStyle = TX;
+        x.beginPath();
+        x.moveTo(mx - 7, y - 4);
+        x.lineTo(mx + 9, y + 5);
+        x.lineTo(mx - 7, y + 14);
+        x.closePath();
+        x.fill();
+      } else {
+        x.font = '900 26px ' + F;
+        x.textAlign = 'center';
+        x.fillStyle = m.s == '+' ? '#1d4ed8' : '#dc2626';
+        x.fillText(m.s == '+' ? '✚' : m.s, mx, y + 10);
       }
+      x.textAlign = 'left';
     });
   });
-  // the colours of the phases used
-  const used = new Set(L.flatMap(l => l.ph.map(p => p.k)));
-  let lx = PX + 24;
-  x.font = '500 21px ' + F;
+  // the legend: the phases, the ways and the events used
+  let lx = PX + 24,
+    ly = PY + PH - 70;
+  x.font = '500 20px ' + F;
   x.textAlign = 'left';
+  const item = (draw, label, sw = 32) => {
+    const w = sw + 8 + x.measureText(label).width;
+    if (lx + w > PX + PW - 20) {
+      lx = PX + 24;
+      ly += 30;
+    }
+    draw(lx, ly);
+    x.font = '500 20px ' + F;
+    x.fillStyle = MU;
+    x.fillText(label, lx + sw, ly + 16);
+    lx += w + 18;
+  };
   Object.keys(DD_PH)
     .filter(k => used.has(k))
-    .forEach(k => {
-      x.fillStyle = DD_PH[k][0];
-      x.fillRect(lx, PY + PH - 46, 26, 16);
-      x.fillStyle = MU;
-      x.fillText(DD_PH[k][1], lx + 34, PY + PH - 31);
-      lx += 60 + x.measureText(DD_PH[k][1]).width;
-    });
+    .forEach(k =>
+      item((X, Y) => {
+        x.fillStyle = dark[k];
+        x.globalAlpha = k == 'def' ? 0.15 : 0.85;
+        x.fillRect(X, Y + 2, 24, 16);
+        x.globalAlpha = 1;
+      }, DD_PH[k][1])
+    );
+  item(
+    (X, Y) => {
+      x.font = '800 18px ' + F;
+      x.fillStyle = TX;
+      x.fillText('→ ← ↻', X, Y + 17);
+    },
+    'to, away from, round the SAM',
+    80
+  );
+  [
+    ['L', '#0284c7', 'HARM launch'],
+    ['◆', SD_COL.IMP, 'impact'],
+    ['SAM', '#dc2626', 'the SAM shoots'],
+    ['N', '#dc2626', 'notch, chaff'],
+    ['+', '#1d4ed8', 'mark'],
+    ['A', '#475569', 'at the anchor'],
+  ]
+    .filter(([k]) => um.has(k))
+    .forEach(([k, col, lab]) =>
+      item((X, Y) => {
+        x.font = '900 20px ' + F;
+        x.fillStyle = col;
+        x.fillText(k == '+' ? '✚' : k == 'SAM' ? '▲' : k == 'A' ? '◇' : k == 'L' ? '●' : k, X + 2, Y + 17);
+      }, lab)
+    );
 }

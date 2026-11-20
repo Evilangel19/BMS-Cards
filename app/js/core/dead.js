@@ -158,27 +158,29 @@ export function deadPlan(o) {
   const roles = o.roles,
     idx = r => roles.map((q, i) => (q == r ? i : -1)).filter(i => i >= 0);
   if (o.tactic == 'hs') {
-    // the launch: as far as the HARM reaches, but not more than 12 nm before the turn
-    const pL0 = { ...at(s, th, Ra + 12), altFt: alt, gsKt: gs },
+    // the launch: outside the WEZ, as far as the HARM reaches, but not more than 12 nm before the WEZ; then the shooter turns in to the bait arc
+    // inside the WEZ (on the WEZ with ECM on: the ECM slider), so the SAM radiates and the HARM finds it
+    const Rb = R * ecm,
+      pL0 = { ...at(s, th, Ra + 12), altFt: alt, gsKt: gs },
       h0 = o.shot ? o.shot(pL0, s) : { rTh: Ra + 12, vm: 0.36 },
       vg = gs / 3600, // nm/s
       vm0 = h0.vm || 0.36,
-      // the HARM must arrive 10 s at least after the turn onto the arc (the SAM radiates when you are on it): dL / vm >= (dL - Ra) / vg + 10
-      dOn = vm0 > vg ? (Ra / vg - 10) / (1 / vg - 1 / vm0) : Infinity,
+      // the HARM must arrive 10 s at least after the shooter enters the WEZ (the SAM radiates to shoot at it): dL / vm >= (dL - R) / vg + 10
+      dOn = vm0 > vg ? (R / vg - 10) / (1 / vg - 1 / vm0) : Infinity,
       dL = Math.max(Ra + 1, Math.min(Ra + 12, h0.rTh * 0.95, dOn)),
       L = at(s, th, dL),
       h = o.shot ? o.shot({ ...L, altFt: alt, gsKt: gs }, s) : h0,
       tof = dL / (h.vm || 0.36),
       tL = tT - sec(dL),
-      tTurn = tL + sec(dL - Ra),
+      tTurn = tL + sec(dL - Rb),
       tImp = tL + tof * 1000,
-      // the orbit: at least 120 degrees round the WEZ, and 90 s past the impact (at most 220)
-      span = Math.min(220, Math.max(120, (((((tImp + 90000 - tTurn) / 3600000) * gs) / Ra) * 180) / Math.PI)),
-      arc = arcPts(s, Ra, th, dir * span),
+      // the orbit: at least 120 degrees round the SAM inside the WEZ, and 90 s past the impact (at most 220)
+      span = Math.min(220, Math.max(120, (((((tImp + 90000 - tTurn) / 3600000) * gs) / Rb) * 180) / Math.PI)),
+      arc = arcPts(s, Rb, th, dir * span),
       bEnd = th + dir * span,
       egr = at(s, bEnd + dir * 25, R + 18),
       // the egress: a smooth curve out of the arc (it goes on along the arc, then away from the SAM)
-      e0 = at(s, bEnd, Ra),
+      e0 = at(s, bEnd, Rb),
       tg = bEnd + dir * 90,
       e1 = {
         x: e0.x + Math.sin((tg * Math.PI) / 180) * 8 * KM_NM,
@@ -199,8 +201,9 @@ export function deadPlan(o) {
           dL.toFixed(1) +
           ' nm from the SAM.'
       );
-    if (tImp < tTurn)
-      out.warn.push('The HARM arrives before you are on the arc: the SAM may still be quiet. Launch farther out.');
+    const tIn = tL + sec(dL - R); // the shooter inside the WEZ
+    if (tImp < tIn)
+      out.warn.push('The HARM arrives before you are inside the WEZ: the SAM may still be quiet. Launch farther out.');
     const sh = idx('shooter');
     sh.forEach((i, k) =>
       out.seats.push({
@@ -221,15 +224,17 @@ export function deadPlan(o) {
       tTurn,
       tImp,
       tof,
-      turn: at(s, th, Ra),
+      turn: at(s, th, Rb),
+      Rb,
+      tIn,
       arc,
       egr,
       egrPath,
       span,
-      tEnd: tTurn + sec((Ra * span * Math.PI) / 180),
+      tEnd: tTurn + sec((Rb * span * Math.PI) / 180),
       rTh: h.rTh,
     });
-    out.path = [prev, L, at(s, th, Ra), ...arc];
+    out.path = [prev, L, at(s, th, Rb), ...arc];
     return out;
   }
   // Hunter-Killer and bombs, from the Training Manual: the 2-ship in fighting wing to one anchor beside the way in, outside the WEZ (OA1); from it

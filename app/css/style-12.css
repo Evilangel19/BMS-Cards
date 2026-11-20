@@ -1418,3 +1418,14 @@
   color: #fff;
   font-weight: 700;
 }
+/* DEAD scheme: the way glyphs, the mark */
+.sdscv .ddway {
+  font:
+    700 11px system-ui,
+    sans-serif;
+}
+.sdscv .ddmkt {
+  font:
+    900 12px system-ui,
+    sans-serif;
+}

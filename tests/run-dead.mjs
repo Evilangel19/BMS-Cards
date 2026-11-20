@@ -44,15 +44,18 @@ ck(
   '...the launch outside the WEZ, up to 12 nm before the turn, in range',
   H.dL > H.Ra && H.dL <= H.Ra + 12 && H.dL <= 40 && Math.abs(nm(H.L, SAM) - H.dL) < 0.01
 );
-ck('...the turn at the WEZ + 2 nm', Math.abs(H.Ra - 26) < 0.01 && Math.abs(nm(H.turn, SAM) - 26) < 0.01);
 ck(
-  '...the impact on the arc (after the turn), the time of flight from the range',
-  H.tImp > H.tTurn && Math.abs(H.tof - H.dL / 0.36) < 0.5 && !H.warn.length,
+  '...after the launch the shooter turns in to the bait arc inside the WEZ, on the WEZ with ECM on',
+  Math.abs(H.Rb - H.Recm) < 0.01 && Math.abs(nm(H.turn, SAM) - H.Recm) < 0.01 && H.Rb < H.R
+);
+ck(
+  '...the impact after the shooter is inside the WEZ (the SAM on), the time of flight from the range',
+  H.tImp > H.tL + ((H.dL - H.R) / H.gs) * 3600000 && Math.abs(H.tof - H.dL / 0.36) < 0.5 && !H.warn.length,
   H.warn
 );
 ck(
-  '...the arc round the SAM at its radius',
-  H.arc.every(p => Math.abs(nm(p, SAM) - 26) < 0.01)
+  '...the arc round the SAM at its radius (the bait)',
+  H.arc.every(p => Math.abs(nm(p, SAM) - H.Recm) < 0.01)
 );
 ck('...SAM on the right: clockwise from the west goes north', H.arc[H.arc.length - 1].y > 10);
 const HL = deadPlan({ sam: SAM, wps, tactic: 'hs', side: 'L', roles: ['shooter'], shot });
