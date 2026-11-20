@@ -11,6 +11,7 @@
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, flights, sams, seat, harms, hts, refs}, harm() -> Promise<{m, v}>, toLL(x, y), attach(el),
 //   detach(), cyclePlan(), planMode(), layerOn(k), pal(), dtc: {harm(), setHarm(t, n, code)}, ppt([{x, y, rng, name}]) -> Promise<string>, snap(scale),
 //   kbAdd(blob, name)}
+import { otherLook, cardDark } from './cardink.js';
 import { seadPlan, timed, posAt, inside, seatLabels, BACKUP_NM_MIN, POS_AREA, MIN_GAP_S } from './sead.js';
 import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
@@ -1291,7 +1292,9 @@ export function createSeadPage(deps) {
       for (const [k] of L) {
         const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
         if (!blob) continue;
-        const at = await deps.kbAdd(blob, 'SEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''));
+        // the card in the other look too (light / dark), so that the kneeboard can switch it later
+        const alt = await new Promise(r => otherLook(() => drawCard(D, k)).toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, 'SEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''), alt, cardDark());
         out.push(at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards');
       }
       deps.toast('SEAD card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard: ' + out.join('; ') + '.');

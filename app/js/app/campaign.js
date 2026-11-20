@@ -522,7 +522,7 @@ export async function init14() {
     // the Weather card: terrain heights, coasts in km, the Kneeboard
     heights: pts => tgtHeights(pts),
     coast: () => coastKm(),
-    kbAdd: (blob, name) => kbAddPic(blob, name),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
     toast: m => appToast(m),
   });
   $('csel').onchange = () => selectCampaign($('csel').value);

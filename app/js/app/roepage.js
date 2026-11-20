@@ -4,6 +4,7 @@
 // mission it is the default of). A flight just chosen gets its default by itself (the list of the button chosen wins). The datacard gets the short form:
 // 5 lines a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's by the commander) join the SOP.
 // "Add card" puts the whole text on Kneeboard cards. A click on the ROE or SOP box of the datacard opens this page.
+import { otherLook, cardDark } from '../core/cardink.js';
 import {
   ROE,
   ROE_CATS,
@@ -536,7 +537,10 @@ async function addCards() {
       for (const p of plan) {
         roeCardDraw(p, x, sub);
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-        await kbAddPic(blob, p.title + (sub ? ' · ' + sub : ''));
+        // the other look too (light / dark): the kneeboard switches it later
+        otherLook(() => roeCardDraw(p, x, sub));
+        const alt = await new Promise(r => c.toBlob(r, 'image/png'));
+        await kbAddPic(blob, p.title + (sub ? ' · ' + sub : ''), alt, cardDark());
       }
       appToast(
         plan.length == 1 ? 'ROE / SOP card added to the Kneeboard.' : 'Two ROE / SOP cards added to the Kneeboard.'

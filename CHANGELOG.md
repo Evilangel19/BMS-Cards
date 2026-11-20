@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: card text plain weight again, at least 22 px; the cards keep a light and a dark look and the Light / Dark cards button switches those already on the kneeboard.
 - Changed: card text blacker and heavier (also Target and ROE / SOP cards); one Light / Dark cards button; a loading bar while the kneeboard is written.
 - Added: dark cards (Kneeboard > Light cards / Dark cards) for SEAD, DEAD, Attack and Weather; heavier letters on the cards for the cockpit.
 - Changed: sharper kneeboard pages in the cockpit: a better DXT encoder, mipmaps that keep text dark, and cards drawn with larger small text, darker greys and thicker lines.

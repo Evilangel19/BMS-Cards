@@ -5,6 +5,7 @@
 // (OA1 from the target steerpoint, written to the DTC; the anchor as a PPT). Buttons that ask before they write: HARM tables, Auto PPT, Add card.
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, sams, target, seat, harms, hts}, harm(), toLL, attach, detach, cyclePlan, planMode, layerOn,
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), planLines(mode, {x, y}), pptTypes(), snap, kbAdd}
+import { otherLook, cardDark } from './cardink.js';
 import { deadPlan, defaultRoles, rolesOf, partnerRole, ALT_BLOCKS, at } from './dead.js';
 import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
@@ -1749,7 +1750,9 @@ export function createDeadPage(deps) {
       for (const [k] of L) {
         const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
         if (!blob) continue;
-        const at = await deps.kbAdd(blob, 'DEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''));
+        // the card in the other look too (light / dark), so that the kneeboard can switch it later
+        const alt = await new Promise(r => otherLook(() => drawCard(D, k)).toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, 'DEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''), alt, cardDark());
         out.push(at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards');
       }
       deps.toast('DEAD card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard: ' + out.join('; ') + '.');

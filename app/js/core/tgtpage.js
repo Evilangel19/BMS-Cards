@@ -6,7 +6,7 @@
 // deps: {esc, anim(), toast(msg), points() -> Promise<{points, objs}>, features(objId) -> Promise<{feats, pct}|null>, threats() -> {sams, units},
 //   attack() -> {segs, t, hdg, egr, spd, rel, fz, wpn}|null, route() -> [{n, x, y}], info() -> {cs, mis, tot, wpn}, geoLL(x, y), pick() -> Promise<{x, y, name}|null>,
 //   mapFrame(el, [x, y], nm) -> Promise<bool>, mapDetach(), fromLL(lat, lon), kbAdd(blob, name) -> Promise<{side, row}|null>, putShot(canvas), shotDim(), prefs: {load, save}}
-import { inkCard } from './cardink.js';
+import { inkCard, otherLook, cardDark } from './cardink.js';
 import {
   PAL,
   COL,
@@ -2791,7 +2791,9 @@ export function createTargetPage(deps) {
       for (const [k, l] of L) {
         const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
         if (!blob) continue;
-        const at = await deps.kbAdd(blob, 'Target · ' + t.name + ' · ' + l);
+        // the other look too (light / dark): the kneeboard switches it later
+        const alt = await new Promise(r => otherLook(() => card(k)).toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, 'Target · ' + t.name + ' · ' + l, alt, cardDark());
         out.push(l + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
       }
       deps.toast &&

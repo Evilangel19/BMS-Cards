@@ -529,7 +529,7 @@ function tgtDeps() {
         : null;
     },
     fromLL: (lat, lon) => mFromLL(lat, lon),
-    kbAdd: (blob, name) => kbAddPic(blob, name),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
     putShot: c => {
       ST.MAPSHOT = c;
       draw();
@@ -649,7 +649,7 @@ function seadDeps() {
       return mapV.autoPptFor(miss).msg;
     },
     snap: scale => mapV.snap(scale),
-    kbAdd: (blob, name) => kbAddPic(blob, name),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
   };
 }
 // ---- Weapons > HARM > DEAD: the SAM of the task of a DEAD flight (its target, else the enemy SAMs near the task steerpoint), the HARMs of the loadout
@@ -941,7 +941,7 @@ export async function init9() {
     detach: () => mapV.detach(),
     // the Attack cards of the Kneeboard: a picture of the lent map, the cards, the messages
     snap: scale => mapV.snap(scale),
-    kbAdd: (blob, name) => kbAddPic(blob, name),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
     toast: appToast,
   });
 }

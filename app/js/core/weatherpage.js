@@ -5,6 +5,7 @@
 // deps: {root, esc, flight() -> {title, wps, labels, alt, dep, tot, land, hours: [ms of each hourly map], bases: [{role, name, x, y, ms, elev, rwy, ils, atis}], taf} | null,
 //        at(ms) -> fmap | null (the map of that hour, or the campaign map), fill() (write ATIS, TAF and runways), fillState() -> {diff},
 //        attach(el) -> Promise<{L, map} | null>, detach(), toLL(xKm, yKm) -> [lat, lon], fromLL(lat, lon) -> [xKm, yKm], bounds: [[lat, lon], [lat, lon]]}
+import { otherLook, cardDark } from './cardink.js';
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
 import { busyRun } from './busy.js';
 import { WX_MODES as MODES, prOf, legend, drawWx } from './wxlayer.js';
@@ -506,7 +507,13 @@ export function createWeatherPage(deps) {
       for (const [k, l, pre] of L) {
         const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
         if (!blob) continue;
-        const at = await deps.kbAdd(blob, pre + (fl.title || '') + ' · ' + l);
+        // the other look too (light / dark): the kneeboard switches it later
+        const c2 = document.createElement('canvas');
+        c2.width = WXC_W;
+        c2.height = WXC_H;
+        otherLook(() => drawWxCard(/** @type {CanvasRenderingContext2D} */ (c2.getContext('2d')), D, k));
+        const alt = await new Promise(r => c2.toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, pre + (fl.title || '') + ' · ' + l, alt, cardDark());
         out.push(l + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
       }
       if (deps.toast)

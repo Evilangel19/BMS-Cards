@@ -1,5 +1,6 @@
 // Weapons page: pop-up calculator (map of the attack, side profile, sliders, results, NAV OFFSETS). The maths is in popup.js.
 // deps: {root, esc, G, S, lines, route, points, changed, confirm, alert, ll(n, e) -> [lat, lon], attach(el) -> {L, map}, detach()}  (route() -> steerpoints [{n, x: north ft, y: east ft, alt, t}])
+import { otherLook, cardDark } from './cardink.js';
 import D0 from '../data/index.js';
 import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
@@ -1274,7 +1275,13 @@ export function createWeaponsPage(deps) {
         drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D);
         const blob = await new Promise(r => c.toBlob(r, 'image/png'));
         if (!blob) continue;
-        const at = await deps.kbAdd(blob, 'Attack · ' + D.role + (D.target ? ' · ' + D.target : ''));
+        // the other look too (light / dark): the kneeboard switches it later
+        const c2 = document.createElement('canvas');
+        c2.width = ATC_W;
+        c2.height = ATC_H;
+        otherLook(() => drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c2.getContext('2d')), D));
+        const alt = await new Promise(r => c2.toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, 'Attack · ' + D.role + (D.target ? ' · ' + D.target : ''), alt, cardDark());
         out.push(D.role + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
       }
       if (deps.toast)

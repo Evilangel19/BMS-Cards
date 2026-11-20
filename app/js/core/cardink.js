@@ -1,14 +1,16 @@
 // @ts-check
 // The cards of the kneeboard are drawn at 1600 x 2400 and go into a page of 1024 x 2048 of the BMS texture (0.64 of their width), which in the cockpit is
 // often seen through a mipmap of half or a quarter of that. So:
-// - their small text is raised (kbPx: up to 24 px it comes halfway up to 24) and their greys and thin lines are darker and thicker than on a screen;
-// - inkCard(x): every text is one weight heavier and drawn with an edge of its own colour, INK of its size (thicker in proportion to its size);
+// - their small text is raised (kbPx: below 26 px halfway up to 26, at least 22: smaller does not read in the cockpit) and their greys and thin lines are darker and thicker than on a screen;
+// - inkCard(x): the text can be made heavier (WUP) and drawn with an edge of its own colour (INK of its size): both off now;
 // - the light look: its greys darker (inkRGB); the dark look (setCardDark): the colours are turned for a dark page as they are set (fillStyle, strokeStyle, gradients): the greys turned over
 //   (white -> near black, black -> near white), the dark colours made lighter, the pale tints made dark tints; see-through colours are left as they are.
 //   Pictures (the maps, already dark) are not touched, nor what is drawn while x.__raw is set (the labels on a map picture).
-export const kbPx = s => (s >= 24 ? s : Math.round(24 - (24 - s) * 0.5));
+export const kbPx = s => (s >= 26 ? s : Math.max(22, Math.round(26 - (26 - s) * 0.5)));
 export const kbLw = w => Math.max(2, w);
-export const INK = 0.065;
+// the weight added to the text and its edge (a share of its size): kept off, heavy letters fill in at the size of the cockpit (1.3.0-beta.48)
+export const INK = 0,
+  WUP = 0;
 let DARK = false;
 const MEMO = new Map(); // the colours already turned (cleared when the look changes)
 export const setCardDark = v => {
@@ -113,7 +115,7 @@ const sizeOf = f => {
 const heavier = f =>
   f.replace(/^((?:italic|oblique)\s+)?(bold|normal|[1-9]00)?(\s*)/, (_, it, w, sp) => {
     const n = w == 'bold' ? 700 : w == 'normal' || !w ? 400 : +w;
-    return (it || '') + Math.min(900, n + 200) + ' ' + (w ? '' : sp);
+    return (it || '') + Math.min(900, n + WUP) + ' ' + (w ? '' : sp);
   });
 /** @param {CanvasRenderingContext2D} x the context of a card: from here on its text is heavier and, with the dark look, its colours turned */
 export function inkCard(x) {
@@ -139,13 +141,12 @@ export function inkCard(x) {
     this.lineWidth = Math.max(0.6, sizeOf(f) * INK);
     this.strokeStyle = this.fillStyle;
     this.lineJoin = 'round';
-    if (mw === undefined) {
-      this.strokeText(t, a, b);
-      fill.call(this, t, a, b);
-    } else {
-      this.strokeText(t, a, b, mw);
-      fill.call(this, t, a, b, mw);
+    if (INK > 0) {
+      if (mw === undefined) this.strokeText(t, a, b);
+      else this.strokeText(t, a, b, mw);
     }
+    if (mw === undefined) fill.call(this, t, a, b);
+    else fill.call(this, t, a, b, mw);
     this.lineWidth = lw;
     this.strokeStyle = ss;
     this.lineJoin = lj;
@@ -187,5 +188,16 @@ function darkColours(x, proto) {
       g.addColorStop = (o, c) => add(o, raw ? c : themeColor(c));
       return g;
     };
+  }
+}
+
+/** draws with the other look (light <-> dark) and comes back: the second picture of a card, so that the look can be switched on the kneeboard later */
+export function otherLook(fn) {
+  const was = DARK;
+  setCardDark(!was);
+  try {
+    return fn();
+  } finally {
+    setCardDark(was);
   }
 }

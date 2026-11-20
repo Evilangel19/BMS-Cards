@@ -44,13 +44,20 @@ import { F, FD } from './datacard.js';
 export async function msfCards(dir) {
   const cd = joinPath(dir, 'cards');
   await IO.makeDir(cd);
-  const files = new Map();
+  const files = new Map(),
+    alts = {};
   let n = 0;
   for (const it of KBLIB) {
     const ext = (it.blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg'),
       fn = String(++n).padStart(2, '0') + '_' + PJ.safeName(it.name) + '.' + ext;
     files.set(it, fn);
     await IO.writeBytes(joinPath(cd, fn), new Uint8Array(await it.blob.arrayBuffer()));
+    // a card made by the program: its other look (light / dark) beside it
+    if (it.other) {
+      const af = fn.replace(/\.[^.]+$/, '') + '.other.png';
+      await IO.writeBytes(joinPath(cd, af), new Uint8Array(await it.other.arrayBuffer()));
+      alts[fn] = { file: af, dark: !!it.dark };
+    }
   }
   const slot = sl =>
     sl.kind == 'pic' && files.has(sl.item)
@@ -74,6 +81,7 @@ export async function msfCards(dir) {
               .map(([n, a]) => [n, cj(a)])
           ),
           library: [...files.values()],
+          looks: alts,
         },
         null,
         1
@@ -99,7 +107,13 @@ export async function msfCardsLoad(dir, merge) {
           lib.set(fn, old);
           continue;
         }
-        const it = await kbMakeItem(new Blob([b], { type: ext == 'jpg' ? 'image/jpeg' : 'image/' + ext }), nm);
+        const it = await kbMakeItem(new Blob([b], { type: ext == 'jpg' ? 'image/jpeg' : 'image/' + ext }), nm),
+          lk = cj.looks && cj.looks[fn];
+        if (lk)
+          try {
+            it.other = new Blob([await readBytes(joinPath(joinPath(dir, 'cards'), lk.file))], { type: 'image/png' });
+            it.dark = !!lk.dark;
+          } catch (e) {}
         lib.set(fn, it);
         KBLIB.push(it);
       } catch (e) {}
@@ -362,8 +376,14 @@ export async function kbMakeItem(blob, name) {
   return { name, w, h, blob, mid, src: null };
 }
 // A map screenshot (a canvas of one card, 1024 x 2048) becomes a new card and goes by itself into the first free slot (left column first)
-export async function kbAddPic(blob, name) {
+// alt: the same card in the other look (light / dark), dark: the look of blob; the kneeboard shows the look chosen (kbLook)
+export async function kbAddPic(blob, name, alt, dark) {
   const it = await kbMakeItem(blob, name);
+  if (alt) {
+    it.other = alt;
+    it.dark = !!dark;
+  }
+  if (it.other && it.dark != cardDark()) await kbSwapLook(it);
   KBLIB.push(it);
   let side = null,
     row = -1;
@@ -377,6 +397,32 @@ export async function kbAddPic(blob, name) {
   if (side) Object.assign(KBS[row][side], { kind: 'pic', item: it, mode: 'fill' });
   kbRender();
   return side ? { side, row } : null;
+}
+// a card with two looks takes the other one (its picture, its small copy)
+async function kbSwapLook(it) {
+  const o = it.other;
+  it.other = it.blob;
+  it.blob = o;
+  it.dark = !it.dark;
+  const m = await kbMakeItem(o, it.name);
+  it.mid = m.mid;
+  it.w = m.w;
+  it.h = m.h;
+  if (it.src)
+    try {
+      it.src.close();
+    } catch (e) {}
+  it.src = null;
+}
+// every card made by the program in the look chosen (Light / Dark cards): the others (imported pages, maps) stay as they are
+export async function kbLook(dark) {
+  let n = 0;
+  for (const it of KBLIB)
+    if (it.other && !!it.dark != !!dark) {
+      await kbSwapLook(it);
+      n++;
+    }
+  return n;
 }
 // A card received from a pilot goes among the unused cards (never into a slot, never over another card)
 export async function kbAddTray(blob, name) {
@@ -764,16 +810,20 @@ export function kbRender(keepMenu) {
     $('kbf5').classList.remove('g');
     $('kbf1').classList.add('g');
   };
-  const look = d => {
+  const look = async d => {
     setCardDark(d);
     try {
       localStorage.setItem('bmscarddark', d ? '1' : '0');
     } catch (e) {}
-    $('kbcd').classList.toggle('g', !d);
-    $('kbcd').textContent = d ? '☾ Dark cards' : '☀ Light cards';
+    // the cards made by the program switch at once (they keep both looks); the kneeboard is then not saved until it is written again
+    const n = await kbLook(d);
+    kbMemLater();
+    kbRender();
     $('kbst').textContent =
       (d ? 'Dark' : 'Light') +
-      ' cards: the cards added from now on are drawn so (the ones on the kneeboard keep their look).';
+      ' cards: ' +
+      (n ? n + ' card' + (n > 1 ? 's' : '') + ' switched; ' : '') +
+      'the cards made from now on are drawn so. Cards made before 1.3.0-beta.48 have one look only: add them again.';
   };
   $('kbcd').onclick = () => look(!cardDark());
   $('kbfit').onchange = () => {
@@ -1248,7 +1298,9 @@ function dcSig() {
 }
 const slotSig = sl => [
   sl.kind,
-  sl.item ? sl.item.name + ':' + (sl.item.blob ? sl.item.blob.size : '') : '',
+  sl.item
+    ? sl.item.name + ':' + (sl.item.blob ? sl.item.blob.size : '') + (sl.item.other ? (sl.item.dark ? ':d' : ':l') : '')
+    : '',
   sl.mode || '',
 ];
 export function kbNowSig() {
