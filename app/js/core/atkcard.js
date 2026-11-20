@@ -5,11 +5,12 @@
 // D: {role, roleCol, title, kind, target, bomb, segs: [[phase, [{n, e}...]]...], marks: [[{n, e}, label]...], target0 {n, e}, other: [[{n, e}...]...],
 //     prof: {segs: [[phase, [[x, alt]...]]...], marks: [[[x, alt], label]...], domes: [[[x, z]...]...], odomes: [[[x, z]...]...], mra, hot: [[[x, alt]...]...]},
 //     rows: [[label, value]...], spacing: {head, value, by, text, col} | null, safety: [[text, col]...], offsets: [[label, brg, rng, elev]...], notes: [...]}
+import { kbPx } from './cardink.js';
 export const ATC_W = 1600,
   ATC_H = 2400;
 const FONT = 'Segoe UI, system-ui, sans-serif',
   INK = '#1c2530',
-  MUTE = '#4a5568',
+  MUTE = '#3a4454',
   // the phases in colours that read on white
   PHC = {
     ingress: ['#0f9d6e', []],
@@ -38,11 +39,11 @@ function poly(x, pts) {
   pts.forEach((p, i) => (i ? x.lineTo(p[0], p[1]) : x.moveTo(p[0], p[1])));
 }
 function tag(x, t, u, v, fs = 22, bg = '#fff', fg = INK) {
-  x.font = `bold ${fs}px ${FONT}`;
+  x.font = `bold ${kbPx(fs)}px ${FONT}`;
   const w = x.measureText(t).width + 14;
   x.fillStyle = bg;
   x.strokeStyle = fg;
-  x.lineWidth = 1.5;
+  x.lineWidth = 2;
   x.beginPath();
   x.rect(u, v - fs * 0.75, w, fs * 1.3);
   x.fill();
@@ -72,7 +73,7 @@ function planLight(x, D, PX, PY, PW, PH) {
   if (D.target0) {
     const [tu, tv] = P(D.target0);
     x.strokeStyle = '#d5dde5';
-    x.lineWidth = 1.2;
+    x.lineWidth = 2;
     x.setLineDash([6, 8]);
     for (let r = 1; r <= 12; r++) {
       x.beginPath();
@@ -96,7 +97,7 @@ function planLight(x, D, PX, PY, PW, PH) {
       x.setLineDash([]);
     });
   // the other role first, thin and grey
-  x.strokeStyle = '#9aa5b1';
+  x.strokeStyle = '#6b7480';
   x.lineWidth = 3;
   x.setLineDash([12, 8]);
   D.other.forEach(pts => {
@@ -158,12 +159,12 @@ function planLight(x, D, PX, PY, PW, PH) {
   x.lineTo(PX + 50, PY + 58);
   x.closePath();
   x.fill();
-  x.font = `bold 24px ${FONT}`;
+  x.font = `bold ${kbPx(24)}px ${FONT}`;
   x.textAlign = 'center';
   x.fillText('N', PX + 40, PY + 84);
   const nm = 6076 * k;
   x.fillRect(PX + PW - 30 - nm, PY + PH - 40, nm, 4);
-  x.font = `18px ${FONT}`;
+  x.font = `${kbPx(18)}px ${FONT}`;
   x.textAlign = 'right';
   x.fillText('1 NM', PX + PW - 30, PY + PH - 50);
   if (D.other.length) {
@@ -254,7 +255,7 @@ function planOnMap(x, D, PX, PY, PW, PH) {
   x.lineTo(PX + 51, PY + 54);
   x.closePath();
   x.fill();
-  x.font = `bold 24px ${FONT}`;
+  x.font = `bold ${kbPx(24)}px ${FONT}`;
   x.textAlign = 'center';
   x.textBaseline = 'alphabetic';
   x.fillText('N', PX + 41, PY + 86);
@@ -264,7 +265,7 @@ function planOnMap(x, D, PX, PY, PW, PH) {
     x.fillRect(PX + PW - 46 - nm, PY + PH - 70, nm + 32, 54);
     x.fillStyle = '#fff';
     x.fillRect(PX + PW - 30 - nm, PY + PH - 30, nm, 4);
-    x.font = `18px ${FONT}`;
+    x.font = `${kbPx(18)}px ${FONT}`;
     x.textAlign = 'right';
     x.fillText('1 NM', PX + PW - 30, PY + PH - 40);
   }
@@ -275,7 +276,7 @@ function planOnMap(x, D, PX, PY, PW, PH) {
     .filter(Boolean)
     .join(' · ');
   if (note) {
-    x.font = `18px ${FONT}`;
+    x.font = `${kbPx(18)}px ${FONT}`;
     const w = x.measureText(note).width + 20;
     x.fillStyle = 'rgba(0,0,0,.55)';
     x.fillRect(PX + 10, PY + PH - 38, w, 28);
@@ -294,12 +295,12 @@ export function drawAtkCard(x, D) {
   x.fillStyle = INK;
   x.textBaseline = 'alphabetic';
   x.textAlign = 'left';
-  x.font = `bold 56px ${FONT}`;
+  x.font = `bold ${kbPx(56)}px ${FONT}`;
   x.fillText('ATTACK', 40, 84);
   const tw = x.measureText('ATTACK').width;
-  x.font = `28px ${FONT}`;
+  x.font = `${kbPx(28)}px ${FONT}`;
   x.fillText(String(D.title || '').slice(0, 52), 70 + tw, 80);
-  x.font = `bold 30px ${FONT}`;
+  x.font = `bold ${kbPx(30)}px ${FONT}`;
   const rw = x.measureText(D.role).width + 28;
   x.fillStyle = D.roleCol || '#1d4ed8';
   x.fillRect(1560 - rw, 44, rw, 46);
@@ -307,11 +308,11 @@ export function drawAtkCard(x, D) {
   x.textAlign = 'center';
   x.fillText(D.role, 1560 - rw / 2, 79);
   x.textAlign = 'left';
-  x.font = `bold 26px ${FONT}`;
+  x.font = `bold ${kbPx(26)}px ${FONT}`;
   x.fillStyle = INK;
   x.fillText(D.kind, 40, 128);
   const kw = x.measureText(D.kind).width;
-  x.font = `24px ${FONT}`;
+  x.font = `${kbPx(24)}px ${FONT}`;
   x.fillStyle = MUTE;
   x.fillText([D.target, D.bomb].filter(Boolean).join('   ·   '), 60 + kw, 128);
   x.fillStyle = INK;
@@ -342,11 +343,11 @@ export function drawAtkCard(x, D) {
     qy = a => QY + QH - (Math.max(0, a) / qtop) * QH,
     QP = p => [qx(p[0]), qy(p[1])];
   x.fillStyle = INK;
-  x.font = `bold 23px ${FONT}`;
+  x.font = `bold ${kbPx(23)}px ${FONT}`;
   x.textAlign = 'left';
   x.textBaseline = 'alphabetic';
   x.fillText('SIDE PROFILE', 40, QY - 14);
-  x.font = `19px ${FONT}`;
+  x.font = `${kbPx(19)}px ${FONT}`;
   x.fillStyle = MUTE;
   x.fillText('altitudes above the target · fragments of your bombs red, of the other role yellow', 230, QY - 14);
   x.fillStyle = '#0f1419';
@@ -357,7 +358,7 @@ export function drawAtkCard(x, D) {
   x.clip();
   const step = qtop > 12000 ? 4000 : qtop > 6000 ? 2000 : 1000;
   x.strokeStyle = '#2a3441';
-  x.lineWidth = 1;
+  x.lineWidth = 2;
   x.setLineDash([3, 6]);
   for (let a = step; a < qtop; a += step) {
     x.beginPath();
@@ -394,7 +395,7 @@ export function drawAtkCard(x, D) {
     x.stroke();
     x.setLineDash([]);
     x.fillStyle = '#ff8a8a';
-    x.font = `bold 19px ${FONT}`;
+    x.font = `bold ${kbPx(19)}px ${FONT}`;
     x.textAlign = 'left';
     x.fillText('MRA ' + Q.mraT, QX + 10, qy(Q.mra) - 8);
   }
@@ -425,7 +426,7 @@ export function drawAtkCard(x, D) {
     x.fill();
     x.stroke();
     x.fillStyle = '#c9d4df';
-    x.font = `bold 18px ${FONT}`;
+    x.font = `bold ${kbPx(18)}px ${FONT}`;
     x.textAlign = 'left';
     x.fillText(label, u + 10, v - 10);
   });
@@ -443,7 +444,7 @@ export function drawAtkCard(x, D) {
   x.stroke();
   x.restore();
   x.fillStyle = '#8b98a8';
-  x.font = `18px ${FONT}`;
+  x.font = `${kbPx(18)}px ${FONT}`;
   x.textAlign = 'right';
   x.textBaseline = 'middle';
   for (let a = 0; a < qtop; a += step) x.fillText(a ? (a / 1000).toFixed(0) + 'k' : 'TGT', QX - 10, qy(a));
@@ -456,7 +457,7 @@ export function drawAtkCard(x, D) {
   x.textBaseline = 'alphabetic';
   x.textAlign = 'left';
   x.fillStyle = INK;
-  x.font = `bold 23px ${FONT}`;
+  x.font = `bold ${kbPx(23)}px ${FONT}`;
   x.fillText('PARAMETERS', 40, y);
   y += 16;
   const half = Math.ceil(D.rows.length / 2),
@@ -471,10 +472,10 @@ export function drawAtkCard(x, D) {
       x.fillRect(u, vv - 28, 740, rowH);
     }
     x.fillStyle = MUTE;
-    x.font = `22px ${FONT}`;
+    x.font = `${kbPx(22)}px ${FONT}`;
     x.fillText(l, u + 12, vv);
     x.fillStyle = INK;
-    x.font = `bold 26px ${FONT}`;
+    x.font = `bold ${kbPx(26)}px ${FONT}`;
     x.textAlign = 'right';
     x.fillText(v, u + 728, vv);
     x.textAlign = 'left';
@@ -490,23 +491,23 @@ export function drawAtkCard(x, D) {
     x.fillRect(40, y, 1520, 150);
     x.strokeRect(40, y, 1520, 150);
     x.fillStyle = MUTE;
-    x.font = `bold 20px ${FONT}`;
+    x.font = `bold ${kbPx(20)}px ${FONT}`;
     x.fillText(S.head.toUpperCase(), 60, y + 36);
     x.fillStyle = INK;
-    x.font = `bold 46px ${FONT}`;
+    x.font = `bold ${kbPx(46)}px ${FONT}`;
     x.fillText(S.value, 60, y + 92);
     const vw = x.measureText(S.value).width;
-    x.font = `21px ${FONT}`;
+    x.font = `${kbPx(21)}px ${FONT}`;
     x.fillStyle = MUTE;
     if (S.by) x.fillText(S.by, 90 + vw, y + 90);
     x.fillStyle = S.col;
-    x.font = `bold 22px ${FONT}`;
+    x.font = `bold ${kbPx(22)}px ${FONT}`;
     x.fillText(S.text, 60, y + 132);
     y += 180;
   }
   D.safety.forEach(([t, c]) => {
     x.fillStyle = c || INK;
-    x.font = `bold 24px ${FONT}`;
+    x.font = `bold ${kbPx(24)}px ${FONT}`;
     x.fillText(t, 40, y + 10);
     y += 38;
   });
@@ -515,11 +516,11 @@ export function drawAtkCard(x, D) {
   // ---- NAV OFFSETS
   if (D.offsets.length && y < ATC_H - 120) {
     x.fillStyle = INK;
-    x.font = `bold 23px ${FONT}`;
+    x.font = `bold ${kbPx(23)}px ${FONT}`;
     x.fillText('NAV OFFSETS (DTC)', 40, y);
     y += 14;
     const C = [40, 820, 1080, 1340];
-    x.font = `bold 20px ${FONT}`;
+    x.font = `bold ${kbPx(20)}px ${FONT}`;
     x.fillStyle = MUTE;
     ['', 'Bearing', 'Range ft', 'Elev. ft'].forEach((h, i) => {
       x.textAlign = i ? 'right' : 'left';
@@ -533,7 +534,7 @@ export function drawAtkCard(x, D) {
         x.fillRect(40, y, 1520, 40);
       }
       x.fillStyle = INK;
-      x.font = `24px ${FONT}`;
+      x.font = `${kbPx(24)}px ${FONT}`;
       o.forEach((v, i) => {
         x.textAlign = i ? 'right' : 'left';
         x.fillText(String(v), i ? C[i] + 200 : C[0] + 12, y + 29);
@@ -544,7 +545,7 @@ export function drawAtkCard(x, D) {
   }
   (D.notes || []).forEach((t, i) => {
     x.fillStyle = MUTE;
-    x.font = `18px ${FONT}`;
+    x.font = `${kbPx(18)}px ${FONT}`;
     x.fillText(t, 40, ATC_H - 24 - ((D.notes || []).length - 1 - i) * 26);
   });
   x.restore();

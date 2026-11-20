@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: sharper kneeboard pages in the cockpit: a better DXT encoder, mipmaps that keep text dark, and cards drawn with larger small text, darker greys and thicker lines.
 - Added: F-15 AUTO COAST (Korea): ECOAST and WCOAST along the coast of the peninsula; a colour picker in the look of the program for the SIT lines.
 - Fixed: the banner of a line being drawn moved to the right at every point.
 - Added: Map lines: snapping to nearby points (switch in ADD), the side lengths of rectangles in NM (also as labels), any colour for the F-15 SIT lines, SIT line buttons with the initial of the name (6E, 11H...).

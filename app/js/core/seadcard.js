@@ -5,6 +5,7 @@
 // The colours of the page: the HARM light blue, the impact red, what is not covered red, you green.
 // D: {title, pkg, seat, seatName, k, mode, prot[], shots[{seat, mine, seatNo, sam, code, tab, ref, tl, imp, at, brg, d, tof, ok, why}], gaps[],
 //     sm (the scheme model of seadpage.js), ev[{t, c, s}], px (the map picture and its points) | null}
+import { kbPx } from './cardink.js';
 export const SDC_W = 1600,
   SDC_H = 2400;
 export const SD_COL = {
@@ -16,8 +17,8 @@ export const SD_COL = {
 };
 const BG = '#f4f6f8',
   TX = '#111827',
-  MU = '#5b6573',
-  LN = '#c9d1db',
+  MU = '#3f4856',
+  LN = '#a4aebb',
   AC = '#1f8a4c',
   BAD = '#c2410c',
   HB = '#0284c7', // the HARM on the light card
@@ -48,7 +49,7 @@ export function cardBox(D) {
 export function drawSeadCard(x, D, kind = 'map') {
   const W = SDC_W,
     H = SDC_H,
-    font = (w, s) => (x.font = w + ' ' + s + 'px ' + F),
+    font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
     text = (t, X, Y, c = TX, a = 'left') => {
       x.fillStyle = c;
       x.textAlign = /** @type {CanvasTextAlign} */ (a);
@@ -163,7 +164,7 @@ export function drawSeadCard(x, D, kind = 'map') {
     text(r.brg ? r.brg + '°' : '—', C[5], y + 27);
     text(r.why || r.at, C[6], y + 27, r.why ? BAD : TX);
     x.strokeStyle = LN;
-    x.lineWidth = 1;
+    x.lineWidth = 2;
     x.beginPath();
     x.moveTo(30, y + 38);
     x.lineTo(W - 30, y + 38);
@@ -305,19 +306,19 @@ function map(x, D, PX, PY, PW, PH) {
       x.moveTo(PX + 40, PY + PH - 32);
       x.lineTo(PX + 40 + L, PY + PH - 32);
       x.stroke();
-      x.font = '600 22px ' + F;
+      x.font = '600 ' + kbPx(22) + 'px ' + F;
       x.fillStyle = '#fff';
       x.textAlign = 'left';
       x.fillText('10 NM', PX + 40, PY + PH - 42);
     }
     if (p.coast) {
-      x.font = '500 20px ' + F;
+      x.font = '500 ' + kbPx(20) + 'px ' + F;
       x.fillStyle = '#cbd5e1';
       x.textAlign = 'right';
       x.fillText('Offline coastlines (the map tiles could not be read)', PX + PW - 20, PY + PH - 20);
     }
   } else {
-    x.font = '500 28px ' + F;
+    x.font = '500 ' + kbPx(28) + 'px ' + F;
     x.fillStyle = '#cbd5e1';
     x.textAlign = 'center';
     x.fillText('No map picture: show the map on the SEAD page first.', PX + PW / 2, PY + PH / 2);
@@ -332,7 +333,7 @@ function map(x, D, PX, PY, PW, PH) {
 // the scheme and the events (the same layout as the page, on the light card)
 function scheme(x, D, PX, PY, PW, PH) {
   const m = D.sm,
-    font = (w, s) => (x.font = w + ' ' + s + 'px ' + F),
+    font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
     text = (t, X, Y, c = TX, a = 'left') => {
       x.fillStyle = c;
       x.textAlign = /** @type {CanvasTextAlign} */ (a);

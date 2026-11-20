@@ -4,6 +4,7 @@
 // scheme (kind 'sch': a lane for each seat), the steps (yours green), the nav offsets of the anchors and the roles of the flight.
 // D: {title, sub, tgt, rings, seatName, box[[label, big, small] x4], telar, alt, steps[{me, s}], oa, seats[{me, seat, role, times}],
 //     lanes[{seat, me, col, name, ph[{a, b, k, l}], mk[{t, s}]}], px (the map picture and the plan in its pixels) | null}
+import { kbPx } from './cardink.js';
 import { SD_COL } from './seadcard.js';
 
 // the phases of the scheme (the page and the card): their colour and name
@@ -12,7 +13,7 @@ export const DD_PH = {
   arc: ['#f59e0b', 'bait (inside the WEZ)'],
   orb: ['#2dd4bf', 'the killer round outside the WEZ'],
   def: ['#f87171', 'defend, back to the anchor'],
-  back: ['#94a3b8', 'on round, back, egress'],
+  back: ['#64748b', 'on round, back, egress'],
   atk: ['#3b82f6', 'attack, turn in to shoot'],
   hold: ['#64748b', 'at the anchor'],
   cover: ['#e879f9', 'cover'],
@@ -22,8 +23,8 @@ export const DDC_W = 1600,
   DDC_H = 2400;
 const BG = '#f4f6f8',
   TX = '#111827',
-  MU = '#5b6573',
-  LN = '#c9d1db',
+  MU = '#3f4856',
+  LN = '#a4aebb',
   AC = '#1f8a4c',
   BAD = '#b91c1c',
   HD = '#374151', // the section titles
@@ -47,7 +48,7 @@ export function deadBox(D) {
 export function drawDeadCard(x, D, kind = 'map') {
   const W = DDC_W,
     H = DDC_H,
-    font = (w, s) => (x.font = w + ' ' + s + 'px ' + F),
+    font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
     text = (t, X, Y, c = TX, a = 'left') => {
       x.fillStyle = c;
       x.textAlign = /** @type {CanvasTextAlign} */ (a);
@@ -203,7 +204,7 @@ export function drawDeadCard(x, D, kind = 'map') {
     font(r.me ? '700' : '500', 23);
     text(r.times, C[2], y + 27, r.me && r.go ? AC : TX);
     x.strokeStyle = LN;
-    x.lineWidth = 1;
+    x.lineWidth = 2;
     x.beginPath();
     x.moveTo(30, y + 38);
     x.lineTo(W - 30, y + 38);
@@ -303,7 +304,7 @@ function map(x, D, PX, PY, PW, PH) {
       x.stroke();
       if (m.l) {
         // apart from the labels already placed: down one line while it would cover one
-        x.font = '700 24px ' + F;
+        x.font = '700 ' + kbPx(24) + 'px ' + F;
         const w = x.measureText(m.l).width + 16;
         let ty = my + 34;
         for (
@@ -338,19 +339,19 @@ function map(x, D, PX, PY, PW, PH) {
       x.moveTo(PX + 40, PY + PH - 32);
       x.lineTo(PX + 40 + L, PY + PH - 32);
       x.stroke();
-      x.font = '600 22px ' + F;
+      x.font = '600 ' + kbPx(22) + 'px ' + F;
       x.fillStyle = '#fff';
       x.textAlign = 'left';
       x.fillText('10 NM', PX + 40, PY + PH - 42);
     }
     if (p.coast) {
-      x.font = '500 20px ' + F;
+      x.font = '500 ' + kbPx(20) + 'px ' + F;
       x.fillStyle = '#cbd5e1';
       x.textAlign = 'right';
       x.fillText('Offline coastlines (the map tiles could not be read)', PX + PW - 20, PY + PH - 20);
     }
   } else {
-    x.font = '500 28px ' + F;
+    x.font = '500 ' + kbPx(28) + 'px ' + F;
     x.fillStyle = '#cbd5e1';
     x.textAlign = 'center';
     x.fillText('No map picture: show the map on the DEAD page first.', PX + PW / 2, PY + PH / 2);
@@ -363,7 +364,7 @@ function map(x, D, PX, PY, PW, PH) {
   x.stroke();
 }
 function tag(x, t, X, Y, col) {
-  x.font = '700 24px ' + F;
+  x.font = '700 ' + kbPx(24) + 'px ' + F;
   x.textAlign = 'left';
   const w = x.measureText(t).width;
   x.fillStyle = 'rgba(0,0,0,.7)';
@@ -407,7 +408,7 @@ function scheme(x, D, PX, PY, PW, PH) {
       harm: '#0284c7',
     },
     way = (p, dir) => (p.d == 'in' ? '→' : p.d == 'out' ? '←' : dir > 0 ? '↻' : '↺');
-  x.font = '500 22px ' + F;
+  x.font = '500 ' + kbPx(22) + 'px ' + F;
   x.textAlign = 'center';
   for (let t = Math.ceil(t0 / step) * step; t <= t1; t += step) {
     x.strokeStyle = '#e5e9ee';
@@ -434,10 +435,10 @@ function scheme(x, D, PX, PY, PW, PH) {
     const y = yy + i * lh,
       ink = roleInk(l.name);
     x.textAlign = 'left';
-    x.font = '700 28px ' + F;
+    x.font = '700 ' + kbPx(28) + 'px ' + F;
     x.fillStyle = TX;
     x.fillText(l.seat + (l.me ? ' · YOU' : ''), PX + 24, y + 36);
-    x.font = '700 22px ' + F;
+    x.font = '700 ' + kbPx(22) + 'px ' + F;
     x.fillStyle = ink;
     x.fillText(l.name, PX + 24, y + 68);
     const rows = [-1e9, -1e9]; // the labels: a second row when they would overlap
@@ -464,13 +465,13 @@ function scheme(x, D, PX, PY, PW, PH) {
       x.setLineDash([]);
       // the way, along the bar
       const n = Math.max(1, Math.floor(w / 140));
-      x.font = '800 26px ' + F;
+      x.font = '800 ' + kbPx(26) + 'px ' + F;
       x.textAlign = 'center';
       x.fillStyle = dash ? pc : '#fff';
       if (w > 30) for (let k = 0; k < n; k++) x.fillText(way(p, l.dir), a + ((k + 0.5) * w) / n, y + 42);
       x.textAlign = 'left';
       if (p.l) {
-        x.font = '500 20px ' + F;
+        x.font = '500 ' + kbPx(20) + 'px ' + F;
         x.fillStyle = MU;
         const s = p.l + ' ' + hm(p.a),
           r = rows.findIndex(e => a + 4 >= e + 12);
@@ -497,7 +498,7 @@ function scheme(x, D, PX, PY, PW, PH) {
         x.beginPath();
         x.arc(mx, y + 64, 9, 0, 7);
         x.fill();
-        x.font = '800 22px ' + F;
+        x.font = '800 ' + kbPx(22) + 'px ' + F;
         x.textAlign = 'center';
         x.fillStyle = l.me ? AC : '#0284c7';
         x.fillText('L ' + hm(m.t), mx, y + 8);
@@ -528,7 +529,7 @@ function scheme(x, D, PX, PY, PW, PH) {
         x.closePath();
         x.fill();
       } else {
-        x.font = '900 26px ' + F;
+        x.font = '900 ' + kbPx(26) + 'px ' + F;
         x.textAlign = 'center';
         x.fillStyle = m.s == '+' ? '#1d4ed8' : '#dc2626';
         x.fillText(m.s == '+' ? '✚' : m.s, mx, y + 10);
@@ -538,54 +539,70 @@ function scheme(x, D, PX, PY, PW, PH) {
   });
   // the legend: the phases, the ways and the events used
   let lx = PX + 24,
-    ly = PY + PH - 70;
-  x.font = '500 20px ' + F;
+    ly = PY + PH - 70,
+    dry = true,
+    rows = 1;
+  x.font = '500 ' + kbPx(20) + 'px ' + F;
   x.textAlign = 'left';
+  // laid out twice: first only counted (its rows), then drawn from as high as they need
   const item = (draw, label, sw = 32) => {
+    x.font = '500 ' + kbPx(20) + 'px ' + F;
     const w = sw + 8 + x.measureText(label).width;
     if (lx + w > PX + PW - 20) {
       lx = PX + 24;
       ly += 30;
+      rows++;
+    }
+    if (dry) {
+      lx += w + 18;
+      return;
     }
     draw(lx, ly);
-    x.font = '500 20px ' + F;
+    x.font = '500 ' + kbPx(20) + 'px ' + F;
     x.fillStyle = MU;
     x.fillText(label, lx + sw, ly + 16);
     lx += w + 18;
   };
-  Object.keys(DD_PH)
-    .filter(k => used.has(k))
-    .forEach(k =>
-      item((X, Y) => {
-        x.fillStyle = dark[k];
-        x.globalAlpha = k == 'def' ? 0.15 : 0.85;
-        x.fillRect(X, Y + 2, 24, 16);
-        x.globalAlpha = 1;
-      }, DD_PH[k][1])
+  const legend = () => {
+    Object.keys(DD_PH)
+      .filter(k => used.has(k))
+      .forEach(k =>
+        item((X, Y) => {
+          x.fillStyle = dark[k];
+          x.globalAlpha = k == 'def' ? 0.15 : 0.85;
+          x.fillRect(X, Y + 2, 24, 16);
+          x.globalAlpha = 1;
+        }, DD_PH[k][1])
+      );
+    item(
+      (X, Y) => {
+        x.font = '800 ' + kbPx(18) + 'px ' + F;
+        x.fillStyle = TX;
+        x.fillText('→ ← ↻', X, Y + 17);
+      },
+      'to, away from, round the SAM',
+      80
     );
-  item(
-    (X, Y) => {
-      x.font = '800 18px ' + F;
-      x.fillStyle = TX;
-      x.fillText('→ ← ↻', X, Y + 17);
-    },
-    'to, away from, round the SAM',
-    80
-  );
-  [
-    ['L', '#0284c7', 'HARM launch'],
-    ['◆', SD_COL.IMP, 'HARM impact'],
-    ['SAM', '#dc2626', 'the SAM shoots'],
-    ['N', '#dc2626', 'notch, chaff'],
-    ['+', '#1d4ed8', 'mark'],
-    ['A', '#475569', 'at the anchor'],
-  ]
-    .filter(([k]) => um.has(k))
-    .forEach(([k, col, lab]) =>
-      item((X, Y) => {
-        x.font = '900 20px ' + F;
-        x.fillStyle = col;
-        x.fillText(k == '+' ? '✚' : k == 'SAM' ? '▲' : k == 'A' ? '◇' : k == 'L' ? '●' : k, X + 2, Y + 17);
-      }, lab)
-    );
+    [
+      ['L', '#0284c7', 'HARM launch'],
+      ['◆', SD_COL.IMP, 'HARM impact'],
+      ['SAM', '#dc2626', 'the SAM shoots'],
+      ['N', '#dc2626', 'notch, chaff'],
+      ['+', '#1d4ed8', 'mark'],
+      ['A', '#475569', 'at the anchor'],
+    ]
+      .filter(([k]) => um.has(k))
+      .forEach(([k, col, lab]) =>
+        item((X, Y) => {
+          x.font = '900 ' + kbPx(20) + 'px ' + F;
+          x.fillStyle = col;
+          x.fillText(k == '+' ? '✚' : k == 'SAM' ? '▲' : k == 'A' ? '◇' : k == 'L' ? '●' : k, X + 2, Y + 17);
+        }, lab)
+      );
+  };
+  legend();
+  dry = false;
+  lx = PX + 24;
+  ly = PY + PH - 10 - rows * 30;
+  legend();
 }

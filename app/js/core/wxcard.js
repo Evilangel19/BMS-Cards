@@ -7,6 +7,7 @@
 // The weather maps of BMS are cells of about 17 km: here they are read between the centres of the cells (bilinear), so the areas and the lines are smooth.
 // D: {title, sub, dep, tot, land, route: [{x, y, alt, t, n}] (km, ft, ms; to the landing), tgt (index), altn: {x, y, id} | null, at(ms) -> map,
 //     prof: [{d, x, y, t, alt, elev, cond, cu, dens, size, tcu, fogEnd, tt, contrail}], coast: [[[x, y]...]] (km), reports: [{lab, text, col}], contrail: [4]}
+import { kbPx } from './cardink.js';
 import { barbPath } from './wxlayer.js';
 
 export const WXC_W = 1600,
@@ -208,7 +209,7 @@ function barb(x, cx, cy, hdg, spd, L = 26) {
   x.stroke(new Path2D(barbPath(cx, cy, hdg, spd, L, L * 0.42)));
 }
 function tagBox(x, t, cx, cy, fs = 17) {
-  x.font = `bold ${fs}px ${FONT}`;
+  x.font = `bold ${kbPx(fs)}px ${FONT}`;
   const w = x.measureText(t).width + 14;
   x.fillStyle = INK;
   x.beginPath();
@@ -357,7 +358,7 @@ function pressure(x, W, V, GW, GH, lineCol, labCol) {
   gP.forEach(v => ((lo = Math.min(lo, v)), (hi = Math.max(hi, v))));
   for (let lev = Math.ceil(lo / 2) * 2; lev <= hi; lev += 2) {
     x.strokeStyle = lineCol;
-    x.lineWidth = 1.3;
+    x.lineWidth = 2;
     isolines(gP, GW, GH, lev, V).forEach(l => {
       if (lenOf(l) < 90) return;
       poly(x, l);
@@ -370,12 +371,12 @@ function pressure(x, W, V, GW, GH, lineCol, labCol) {
       x.fillStyle = '#fff';
       x.fillRect(m.x - 27, m.y - 13, 54, 26);
       x.fillStyle = labCol;
-      x.font = `18px ${FONT}`;
+      x.font = `${kbPx(18)}px ${FONT}`;
       x.textAlign = 'center';
       x.textBaseline = 'middle';
       x.fillText(String(lev), m.x, m.y);
       // a serif letter: a sans-serif l looks like a bar
-      x.font = `bold italic 22px Georgia, 'Times New Roman', serif`;
+      x.font = `bold italic ${kbPx(22)}px Georgia, 'Times New Roman', serif`;
       const s = up ? 1 : -1;
       x.fillStyle = '#1f4fbf';
       x.fillText('h', m.x + nx * 26 * s, m.y + ny * 26 * s);
@@ -412,11 +413,11 @@ function pressure(x, W, V, GW, GH, lineCol, labCol) {
       const [u, vv] = V.px((i + 0.5) * W.cs, (j + 0.5) * W.cs);
       if (u < 50 || vv < 50 || u > V.w - 50 || vv > V.h - 70) continue;
       x.fillStyle = mx ? '#1f4fbf' : '#d0312d';
-      x.font = `bold 62px ${FONT}`;
+      x.font = `bold ${kbPx(62)}px ${FONT}`;
       x.textAlign = 'center';
       x.textBaseline = 'middle';
       x.fillText(mx ? 'H' : 'L', u, vv);
-      x.font = `bold 21px ${FONT}`;
+      x.font = `bold ${kbPx(21)}px ${FONT}`;
       x.fillText(String(Math.round(pr.a[j * W.X + i])), u, vv + 44);
     }
 }
@@ -448,7 +449,7 @@ function chart(x, D, B, W, mode, alt = 0) {
   x.fillRect(0, 0, PW, PH);
   x.fillStyle = L.land;
   x.strokeStyle = L.coast;
-  x.lineWidth = 1.2;
+  x.lineWidth = 2;
   for (const r of D.coast || []) {
     x.beginPath();
     r.forEach((q, i) => {
@@ -461,7 +462,7 @@ function chart(x, D, B, W, mode, alt = 0) {
   }
   const coasts = col => {
     x.strokeStyle = col;
-    x.lineWidth = 1.2;
+    x.lineWidth = 2;
     for (const r of D.coast || []) {
       x.beginPath();
       r.forEach((q, i) => {
@@ -487,7 +488,7 @@ function chart(x, D, B, W, mode, alt = 0) {
       return c > 0.08 ? [150, 150, 150, 0.12 + c * 0.38] : null;
     });
     x.strokeStyle = '#5a6472';
-    x.lineWidth = 1.6;
+    x.lineWidth = 2;
     isolines(gC, GW, GH, 7.5, V).forEach(l => lenOf(l) > 60 && scallops(x, l, 7));
     x.strokeStyle = '#2e9b55';
     x.lineWidth = 2.4;
@@ -501,16 +502,16 @@ function chart(x, D, B, W, mode, alt = 0) {
         if (bil(rain, e, n) > 0.5) {
           const snow = bil(tF, e, n) <= 0;
           x.fillStyle = '#1f7a3d';
-          x.font = `bold ${snow ? 27 : 19}px ${FONT}`;
+          x.font = `bold ${kbPx(snow ? 27 : 19)}px ${FONT}`;
           x.fillText(snow ? '*' : '•', u, v);
         } else if (bil(fogF, e, n) > 0.5) {
           x.fillStyle = '#c9971a';
-          x.font = `bold 25px ${FONT}`;
+          x.font = `bold ${kbPx(25)}px ${FONT}`;
           x.fillText('≡', u, v);
         }
       }
     x.fillStyle = '#c0392b';
-    x.font = `bold 21px ${FONT}`;
+    x.font = `bold ${kbPx(21)}px ${FONT}`;
     for (let j = 0; j < W.Y; j++)
       for (let i = 0; i < W.X; i++) {
         const c = W.cell(i, j);
@@ -600,8 +601,8 @@ function chart(x, D, B, W, mode, alt = 0) {
     paint(x, GW, GH, PW, PH, k => ramp(ISOT, gS[k]));
     coasts('rgba(70,80,92,.8)');
     x.strokeStyle = '#5b6b8c';
-    x.lineWidth = 1.4;
-    x.font = `bold 17px ${FONT}`;
+    x.lineWidth = 2;
+    x.font = `bold ${kbPx(17)}px ${FONT}`;
     x.textAlign = 'center';
     x.textBaseline = 'middle';
     for (let lev = 20; lev <= 140; lev += 20)
@@ -651,7 +652,7 @@ function chart(x, D, B, W, mode, alt = 0) {
           x.arc(u, v, 7, 0, 7);
           x.stroke();
         } else barb(x, u, v, h, s, 34);
-        x.font = `bold 18px ${FONT}`;
+        x.font = `bold ${kbPx(18)}px ${FONT}`;
         x.textAlign = 'left';
         x.textBaseline = 'top';
         const t = Math.round(bil(tF, e, n));
@@ -687,7 +688,7 @@ function chart(x, D, B, W, mode, alt = 0) {
     x.fill();
     x.stroke();
     x.fillStyle = '#7a0d57';
-    x.font = `bold ${thin ? 18 : 21}px ${FONT}`;
+    x.font = `bold ${kbPx(thin ? 18 : 21)}px ${FONT}`;
     x.textAlign = 'left';
     x.textBaseline = 'bottom';
     x.fillText(String(D.route[i].n), u + 11, v - 6);
@@ -720,7 +721,7 @@ function chart(x, D, B, W, mode, alt = 0) {
     }
   }
   // legend, scale, north
-  x.font = `17px ${FONT}`;
+  x.font = `${kbPx(17)}px ${FONT}`;
   const lw = x.measureText(legend).width;
   if (legend) {
     x.fillStyle = 'rgba(255,255,255,.9)';
@@ -740,7 +741,7 @@ function chart(x, D, B, W, mode, alt = 0) {
       x.fillRect(x0 + k * w, y0, w, 18);
     });
     x.fillStyle = INK;
-    x.font = `15px ${FONT}`;
+    x.font = `${kbPx(15)}px ${FONT}`;
     x.textAlign = 'center';
     x.textBaseline = 'top';
     labs.forEach((l, k) => x.fillText(l[1], x0 + k * w + w / 2, y0 + 21));
@@ -778,7 +779,7 @@ function chart(x, D, B, W, mode, alt = 0) {
   const nm50 = 92.6 * kmPx;
   x.fillStyle = INK;
   x.fillRect(sx - nm50, PH - 42, nm50, 4);
-  x.font = `17px ${FONT}`;
+  x.font = `${kbPx(17)}px ${FONT}`;
   x.textAlign = 'right';
   x.textBaseline = 'middle';
   x.fillText('50 NM', sx, PH - 22);
@@ -788,7 +789,7 @@ function chart(x, D, B, W, mode, alt = 0) {
   x.lineTo(49, 80);
   x.closePath();
   x.fill();
-  x.font = `bold 24px ${FONT}`;
+  x.font = `bold ${kbPx(24)}px ${FONT}`;
   x.textAlign = 'center';
   x.fillText('N', 40, 100);
   x.restore();
@@ -804,18 +805,18 @@ function header(x, D, mode, sub) {
   x.fillStyle = INK;
   x.textBaseline = 'alphabetic';
   x.textAlign = 'left';
-  x.font = `bold 56px ${FONT}`;
+  x.font = `bold ${kbPx(56)}px ${FONT}`;
   x.fillText('WEATHER', 40, 84);
   const tw = x.measureText('WEATHER').width;
-  x.font = `28px ${FONT}`;
+  x.font = `${kbPx(28)}px ${FONT}`;
   x.fillText(String(D.title || '').slice(0, 60), 70 + tw, 80);
   x.textAlign = 'right';
-  x.font = `bold 32px ${FONT}`;
+  x.font = `bold ${kbPx(32)}px ${FONT}`;
   x.fillStyle = L.tag;
   x.fillText(L.name, 1560, 80);
   x.textAlign = 'left';
-  x.font = `24px ${FONT}`;
-  x.fillStyle = '#4a5568';
+  x.font = `${kbPx(24)}px ${FONT}`;
+  x.fillStyle = '#3a4454';
   x.fillText(
     [
       D.dep != null ? 'DEP ' + hm(D.dep) : '',
@@ -833,7 +834,7 @@ function header(x, D, mode, sub) {
 function contrails(x, D, y) {
   if (!D.contrail) return;
   x.fillStyle = INK;
-  x.font = `bold 24px ${FONT}`;
+  x.font = `bold ${kbPx(24)}px ${FONT}`;
   x.textAlign = 'left';
   x.textBaseline = 'alphabetic';
   const c = D.contrail.map(v => Math.round(v / 100) * 100);
@@ -864,12 +865,12 @@ export function drawWxCard(x, D, style = 'sigwx') {
         z0 = p ? g + (Math.max(0, W.at(p.x, p.y).t) / 1.98) * 1000 : null;
       }
       x.fillStyle = INK;
-      x.font = `bold 30px ${FONT}`;
+      x.font = `bold ${kbPx(30)}px ${FONT}`;
       x.textAlign = 'left';
       x.textBaseline = 'alphabetic';
       x.fillText('FL' + String(a / 100).padStart(3, '0'), 40, y0 + 36);
-      x.font = `22px ${FONT}`;
-      x.fillStyle = '#4a5568';
+      x.font = `${kbPx(22)}px ${FONT}`;
+      x.fillStyle = '#3a4454';
       x.fillText(
         a.toLocaleString('en-US').replace(/,/g, ' ') +
           ' ft · wind and temperature' +
@@ -880,8 +881,8 @@ export function drawWxCard(x, D, style = 'sigwx') {
       chart(x, D, { X: 40, Y: y0 + 52, W: 1520, H }, W, 'wind', a);
     });
     contrails(x, D, WXC_H - 52);
-    x.font = `18px ${FONT}`;
-    x.fillStyle = '#4a5568';
+    x.font = `${kbPx(18)}px ${FONT}`;
+    x.fillStyle = '#3a4454';
     x.fillText('Temperatures aloft from the surface with the standard lapse rate (2 °C per 1 000 ft).', 40, WXC_H - 20);
     x.restore();
     return;
@@ -900,20 +901,20 @@ export function drawWxCard(x, D, style = 'sigwx') {
     qx = d => QX + (d / dTot) * QW,
     qy = a => QY + QH - (Math.max(0, a) / TOP) * QH;
   x.fillStyle = INK;
-  x.font = `bold 23px ${FONT}`;
+  x.font = `bold ${kbPx(23)}px ${FONT}`;
   x.textAlign = 'left';
   x.textBaseline = 'alphabetic';
   x.fillText('PROFILE ALONG THE ROUTE', 40, QY - 14);
   const pw = x.measureText('PROFILE ALONG THE ROUTE').width;
-  x.font = `19px ${FONT}`;
-  x.fillStyle = '#4a5568';
+  x.font = `${kbPx(19)}px ${FONT}`;
+  x.fillStyle = '#3a4454';
   x.fillText('clouds · rain · fog · 0 °C · contrails · winds 3, 9, 18, 30 thousand ft', 70 + pw, QY - 14);
   x.fillStyle = mode == 'sigwx' ? '#eef6fb' : '#f1f4f7';
   x.fillRect(QX, QY, QW, QH);
   x.strokeStyle = '#d5dde5';
-  x.lineWidth = 1;
+  x.lineWidth = 2;
   x.fillStyle = INK;
-  x.font = `18px ${FONT}`;
+  x.font = `${kbPx(18)}px ${FONT}`;
   x.textAlign = 'right';
   x.textBaseline = 'middle';
   for (let a = 0; a <= TOP; a += 5000) {
@@ -952,7 +953,7 @@ export function drawWxCard(x, D, style = 'sigwx') {
       }
       if (p.cond >= 2 && p.dens > 7 && k % 2 == 0) {
         x.strokeStyle = 'rgba(46,155,85,.8)';
-        x.lineWidth = 1.2;
+        x.lineWidth = 2;
         x.beginPath();
         x.moveTo(qx(p.d), qy(p.cu));
         x.lineTo(qx(p.d) - 4, qy(p.elev));
@@ -980,9 +981,9 @@ export function drawWxCard(x, D, style = 'sigwx') {
       x.setLineDash([]);
     };
     line(p => p.elev + (Math.max(0, p.tt) / 2) * 1000, '#1f6fd1', [12, 6], 2.4);
-    line(p => p.contrail, '#6b7280', [5, 5], 2.4);
+    line(p => p.contrail, '#4b5563', [5, 5], 2.4);
     const last = S[S.length - 1];
-    x.font = `bold 18px ${FONT}`;
+    x.font = `bold ${kbPx(18)}px ${FONT}`;
     x.textAlign = 'right';
     x.textBaseline = 'bottom';
     x.fillStyle = '#1f6fd1';
@@ -1019,16 +1020,16 @@ export function drawWxCard(x, D, style = 'sigwx') {
       if (u - lastX < 56) return;
       lastX = u;
       x.fillStyle = INK;
-      x.font = `bold 18px ${FONT}`;
+      x.font = `bold ${kbPx(18)}px ${FONT}`;
       x.textAlign = 'center';
       x.textBaseline = 'top';
       x.fillText(String(p.n), u, QY + QH + 6);
-      x.font = `17px ${FONT}`;
+      x.font = `${kbPx(17)}px ${FONT}`;
       x.fillText(hm(p.t), u, QY + QH + 28);
     });
     const step = Math.max(1, Math.floor(D.route.length / 4));
     x.strokeStyle = '#374151';
-    x.lineWidth = 1.6;
+    x.lineWidth = 2;
     for (let i = 1; i < D.route.length - 1; i += step) {
       const p = D.route[i],
         Wi = D.at(p.t);
@@ -1046,7 +1047,7 @@ export function drawWxCard(x, D, style = 'sigwx') {
   // ---- the reports: raw, then decoded where it fits
   let y = QY + QH + 100;
   const BOT = WXC_H - 40,
-    COL = { BLU: '#1f6fd1', WHT: '#8a94a3', GRN: '#2e9b55', YLO: '#d4a017', AMB: '#e67e22', RED: '#c0392b' };
+    COL = { BLU: '#1f6fd1', WHT: '#5b6573', GRN: '#2e9b55', YLO: '#d4a017', AMB: '#e67e22', RED: '#c0392b' };
   const wrap = (t, w, font) => {
     x.font = font;
     const out = [];
@@ -1062,7 +1063,7 @@ export function drawWxCard(x, D, style = 'sigwx') {
     return out;
   };
   const RAW = `24px ${MONO}`,
-    DEC = `italic 20px ${FONT}`,
+    DEC = `italic ${kbPx(20)}px ${FONT}`,
     LH = 34,
     RH = 30,
     DH = 26,
@@ -1075,12 +1076,12 @@ export function drawWxCard(x, D, style = 'sigwx') {
     dec = rawH + decH <= room;
   R.forEach(r => {
     x.fillStyle = INK;
-    x.font = `bold 24px ${FONT}`;
+    x.font = `bold ${kbPx(24)}px ${FONT}`;
     x.textAlign = 'left';
     x.textBaseline = 'alphabetic';
     x.fillText(r.lab, 40, y);
     if (r.col && COL[r.col]) {
-      x.font = `bold 21px ${FONT}`;
+      x.font = `bold ${kbPx(21)}px ${FONT}`;
       const w = x.measureText(r.col).width + 18;
       x.fillStyle = COL[r.col];
       x.fillRect(1560 - w, y - 23, w, 30);
@@ -1097,7 +1098,7 @@ export function drawWxCard(x, D, style = 'sigwx') {
       y += RH;
     });
     if (dec) {
-      x.fillStyle = '#4a5568';
+      x.fillStyle = '#3a4454';
       x.font = DEC;
       const parts = /^TAF/.test(r.text) ? tafParts(r.text) : [['', r.text]];
       parts.forEach(([h, t]) => {

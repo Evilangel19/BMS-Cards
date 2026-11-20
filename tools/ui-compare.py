@@ -46,7 +46,8 @@ try:
                 f = strip(out[n][0])
                 if 'free' in f: f['free'] = f['free'].replace('\n\n', '\n')
                 out[n][0]['F'] = json.dumps(f, sort_keys=True)
-            keys = ('F', 'd1') if sep else ('F', 'd1', 'dds1', 'dds5')
+            # the DDS bytes are no longer compared: since 1.3.0-beta.45 the encoder (block colours, mipmaps) is better than the legacy one
+            keys = ('F', 'd1')
             same = all(out['legacy'][0][k] == out['app'][0][k] for k in keys)
             ok &= same and not out['legacy'][1] and not out['app'][1]
             if not same: print({k:(out['legacy'][0][k]==out['app'][0][k]) for k in ('F','d1','dds1','dds5')})
