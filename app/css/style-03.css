@@ -1919,3 +1919,12 @@ main.wide #sqtabs {
   color: var(--mu);
   cursor: pointer;
 }
+.dtp .sitcols input[type='color'] {
+  width: 24px;
+  height: 20px;
+  padding: 0 1px;
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  background: #0f1419;
+  cursor: pointer;
+}
