@@ -35,6 +35,7 @@ try:
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(900)
+        if os.environ.get('DARK'): pg.evaluate("()=>import('./js/core/cardink.js').then(m=>m.setCardDark(true))")  # DARK=1: the cards in the dark look
         # the threat list of Ppt.ini: 26 weapon systems, then the other types
         pg.evaluate("async()=>{const D=(await import('/app/js/data/index.js')).default;D.ppt=[...Array.from({length:26},(_,i)=>['SAM'+i,60000,'SAM '+i]),['REF',0.1,'Reference'],['IP',0.1,'Initial point']]}")
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)

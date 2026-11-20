@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: dark cards (Kneeboard > Light cards / Dark cards) for SEAD, DEAD, Attack and Weather; heavier letters on the cards for the cockpit.
 - Changed: sharper kneeboard pages in the cockpit: a better DXT encoder, mipmaps that keep text dark, and cards drawn with larger small text, darker greys and thicker lines.
 - Added: F-15 AUTO COAST (Korea): ECOAST and WCOAST along the coast of the peninsula; a colour picker in the look of the program for the SIT lines.
 - Fixed: the banner of a line being drawn moved to the right at every point.

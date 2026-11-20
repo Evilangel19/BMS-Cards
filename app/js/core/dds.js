@@ -185,14 +185,18 @@ export function toDDS(W, d) {
 }
 // the mipmaps keep the weight of dark text: averaged as a power mean (v^(1/G), G > 1), which leans to the dark side, where a plain average of a black
 // stroke on white fades it to grey at every level (and an average in linear light even more)
-const G = 1.8,
-  PW = new Float64Array(256).map((_, i) => (i / 255) ** (1 / G)),
-  back = v => 255 * v ** G;
+// (a dark page, light text on it, leans the other way: G below 1)
+const powTab = g => new Float64Array(256).map((_, i) => (i / 255) ** (1 / g)),
+  PWD = powTab(1.8),
+  PWL = powTab(1 / 1.8);
 // the next mipmap: half the side, averaged as a power mean (above), then a light unsharp mask (amount SH) so that text stays crisp
 const SH = 0.35;
-export function mipDown(cur, P) {
+export function mipDown(cur, P, dark = false) {
   const Z = P >> 1,
-    lin = new Float64Array(Z * Z * 3);
+    lin = new Float64Array(Z * Z * 3),
+    G = dark ? 1 / 1.8 : 1.8,
+    PW = dark ? PWL : PWD,
+    back = v => 255 * v ** G;
   for (let y = 0; y < Z; y++)
     for (let x = 0; x < Z; x++)
       for (let c = 0; c < 3; c++)
@@ -246,10 +250,18 @@ export function toDDS5(W, d) {
   dv.setUint32(80, 4, true);
   dv.setUint32(84, 0x35545844, true);
   dv.setUint32(108, 0x401008, true);
+  // a dark page (the dark cards): its mipmaps lean to the light side, so that its light text keeps its weight
+  let lum = 0,
+    n = 0;
+  for (let i = 0; i < d.length; i += 4 * 97) {
+    lum += d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11;
+    n++;
+  }
+  const dark = n > 0 && lum / n < 110;
   let o = 128,
     cur = d;
   sizes.forEach((Z, li) => {
-    if (li > 0) cur = mipDown(cur, sizes[li - 1]);
+    if (li > 0) cur = mipDown(cur, sizes[li - 1], dark);
     o = blocks(cur, Z, dv, out, o, true);
   });
   return out;

@@ -5,7 +5,7 @@
 // The colours of the page: the HARM light blue, the impact red, what is not covered red, you green.
 // D: {title, pkg, seat, seatName, k, mode, prot[], shots[{seat, mine, seatNo, sam, code, tab, ref, tl, imp, at, brg, d, tof, ok, why}], gaps[],
 //     sm (the scheme model of seadpage.js), ev[{t, c, s}], px (the map picture and its points) | null}
-import { kbPx } from './cardink.js';
+import { kbPx, inkCard } from './cardink.js';
 export const SDC_W = 1600,
   SDC_H = 2400;
 export const SD_COL = {
@@ -47,6 +47,7 @@ export function cardBox(D) {
 }
 /** @param {CanvasRenderingContext2D} x @param {string} kind 'map' | 'sch' */
 export function drawSeadCard(x, D, kind = 'map') {
+  inkCard(x);
   const W = SDC_W,
     H = SDC_H,
     font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
@@ -140,7 +141,12 @@ export function drawSeadCard(x, D, kind = 'map') {
     tableH = B.tableH,
     footer = 56;
   if (kind == 'sch') scheme(x, D, B.x, B.y, B.w, B.h);
-  else map(x, D, B.x, B.y, B.w, B.h);
+  else {
+    // the map picture is dark already: its colours (and its labels) are left as they are in the dark look
+    /** @type {any} */ (x).__raw = true;
+    map(x, D, B.x, B.y, B.w, B.h);
+    /** @type {any} */ (x).__raw = false;
+  }
   // the flight
   y = H - footer - 20 - tableH;
   font('700', 26);

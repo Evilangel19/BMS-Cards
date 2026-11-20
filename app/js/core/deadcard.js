@@ -4,7 +4,7 @@
 // scheme (kind 'sch': a lane for each seat), the steps (yours green), the nav offsets of the anchors and the roles of the flight.
 // D: {title, sub, tgt, rings, seatName, box[[label, big, small] x4], telar, alt, steps[{me, s}], oa, seats[{me, seat, role, times}],
 //     lanes[{seat, me, col, name, ph[{a, b, k, l}], mk[{t, s}]}], px (the map picture and the plan in its pixels) | null}
-import { kbPx } from './cardink.js';
+import { kbPx, inkCard } from './cardink.js';
 import { SD_COL } from './seadcard.js';
 
 // the phases of the scheme (the page and the card): their colour and name
@@ -46,6 +46,7 @@ export function deadBox(D) {
 }
 /** @param {CanvasRenderingContext2D} x @param {string} kind 'map' | 'sch' */
 export function drawDeadCard(x, D, kind = 'map') {
+  inkCard(x);
   const W = DDC_W,
     H = DDC_H,
     font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
@@ -137,7 +138,12 @@ export function drawDeadCard(x, D, kind = 'map') {
   // the map or the scheme
   const B = deadBox(D);
   if (kind == 'sch') scheme(x, D, B.x, B.y, B.w, B.h);
-  else map(x, D, B.x, B.y, B.w, B.h);
+  else {
+    // the map picture is dark already: its colours (and its labels) are left as they are in the dark look
+    /** @type {any} */ (x).__raw = true;
+    map(x, D, B.x, B.y, B.w, B.h);
+    /** @type {any} */ (x).__raw = false;
+  }
   // the steps
   y = B.y + B.h + 20;
   font('700', 26);

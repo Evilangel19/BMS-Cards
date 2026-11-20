@@ -7,7 +7,7 @@
 // The weather maps of BMS are cells of about 17 km: here they are read between the centres of the cells (bilinear), so the areas and the lines are smooth.
 // D: {title, sub, dep, tot, land, route: [{x, y, alt, t, n}] (km, ft, ms; to the landing), tgt (index), altn: {x, y, id} | null, at(ms) -> map,
 //     prof: [{d, x, y, t, alt, elev, cond, cu, dens, size, tcu, fogEnd, tt, contrail}], coast: [[[x, y]...]] (km), reports: [{lab, text, col}], contrail: [4]}
-import { kbPx } from './cardink.js';
+import { kbPx, inkCard, cardDark, darkRGB } from './cardink.js';
 import { barbPath } from './wxlayer.js';
 
 export const WXC_W = 1600,
@@ -331,9 +331,12 @@ function paint(x, gw, gh, PW, PH, col) {
   img.width = gw;
   img.height = gh;
   const ix = /** @type {CanvasRenderingContext2D} */ (img.getContext('2d')),
-    id = ix.createImageData(gw, gh);
+    id = ix.createImageData(gw, gh),
+    dk = cardDark();
   for (let k = 0; k < gw * gh; k++) {
-    const c = col(k);
+    let c = col(k);
+    // the dark look: the opaque colours of the panel turned (see-through ones, the clouds and the rain over the map, stay)
+    if (c && dk && c[3] >= 0.9) c = [...darkRGB(c[0], c[1], c[2]), c[3]];
     if (c) id.data.set([c[0], c[1], c[2], Math.round(c[3] * 255)], k * 4);
   }
   ix.putImageData(id, 0, 0);
@@ -721,7 +724,11 @@ function chart(x, D, B, W, mode, alt = 0) {
     }
   }
   // legend, scale, north
-  x.font = `${kbPx(17)}px ${FONT}`;
+  // the legend in one line, left of the scale: smaller when it would reach it
+  const room = PW - 150;
+  let fs = kbPx(17);
+  x.font = `${fs}px ${FONT}`;
+  while (fs > 13 && x.measureText(legend).width > room) x.font = `${--fs}px ${FONT}`;
   const lw = x.measureText(legend).width;
   if (legend) {
     x.fillStyle = 'rgba(255,255,255,.9)';
@@ -846,6 +853,7 @@ export const WIND_LEVELS = [6000, 18000, 30000];
 
 /** draws the card on a 1600 x 2400 context; style 'sigwx', 'radar' or 'wind' */
 export function drawWxCard(x, D, style = 'sigwx') {
+  inkCard(x);
   const mode = LOOK[style] ? style : 'sigwx',
     tot = D.tot != null ? D.tot : D.dep,
     W = D.at(tot);

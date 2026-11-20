@@ -32,6 +32,7 @@ try:
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(900)
+        if os.environ.get('DARK'): pg.evaluate("()=>import('./js/core/cardink.js').then(m=>m.setCardDark(true))")  # DARK=1: the cards in the dark look
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500); pg.click('#wp [data-mode=harm]'); pg.wait_for_timeout(700)
         check('HARM: the switch SEAD / DEAD; with no SEAD or DEAD flight DEAD with the HARM standoff shot of the HARM page', pg.locator('#wp .hsub [data-hsub]').all_inner_texts() == ['SEAD', 'DEAD'] and pg.locator('#wp .hsub .on').inner_text() == 'DEAD' and pg.locator('#wp #wpharm').count() == 1 and 'No DEAD flight' in pg.inner_text('#wp .hsub'))

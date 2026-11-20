@@ -5,7 +5,7 @@
 // D: {role, roleCol, title, kind, target, bomb, segs: [[phase, [{n, e}...]]...], marks: [[{n, e}, label]...], target0 {n, e}, other: [[{n, e}...]...],
 //     prof: {segs: [[phase, [[x, alt]...]]...], marks: [[[x, alt], label]...], domes: [[[x, z]...]...], odomes: [[[x, z]...]...], mra, hot: [[[x, alt]...]...]},
 //     rows: [[label, value]...], spacing: {head, value, by, text, col} | null, safety: [[text, col]...], offsets: [[label, brg, rng, elev]...], notes: [...]}
-import { kbPx } from './cardink.js';
+import { kbPx, inkCard } from './cardink.js';
 export const ATC_W = 1600,
   ATC_H = 2400;
 const FONT = 'Segoe UI, system-ui, sans-serif',
@@ -288,6 +288,7 @@ function planOnMap(x, D, PX, PY, PW, PH) {
 }
 /** draws the card for one role on a 1600 x 2400 context */
 export function drawAtkCard(x, D) {
+  inkCard(x);
   x.save();
   x.fillStyle = '#fff';
   x.fillRect(0, 0, ATC_W, ATC_H);
@@ -323,8 +324,12 @@ export function drawAtkCard(x, D) {
     PY = 164,
     PW = 1520,
     PH = 820;
-  if (D.px) planOnMap(x, D, PX, PY, PW, PH);
-  else planLight(x, D, PX, PY, PW, PH);
+  if (D.px) {
+    // the map picture is dark already: its colours (and its labels) are left as they are in the dark look
+    /** @type {any} */ (x).__raw = true;
+    planOnMap(x, D, PX, PY, PW, PH);
+    /** @type {any} */ (x).__raw = false;
+  } else planLight(x, D, PX, PY, PW, PH);
   x.strokeStyle = INK;
   x.lineWidth = 2;
   x.strokeRect(PX, PY, PW, PH);
