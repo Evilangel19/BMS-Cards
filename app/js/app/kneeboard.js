@@ -30,6 +30,7 @@ import { pdfOpen, pdfRender, pdfRenderTo, pdfPageText } from '../platform/pdf.js
 import * as PJ from '../core/mission.js';
 import { toDDS5, toDDS } from '../core/dds.js';
 import { setCardDark, cardDark } from '../core/cardink.js';
+import { busyStart, busySet, busyEnd } from '../core/busy.js';
 // the look of the cards drawn from now on (SEAD, DEAD, Attack, Weather): light or dark, kept in this browser / program
 try {
   setCardDark(localStorage.getItem('bmscarddark') === '1');
@@ -672,7 +673,7 @@ export function kbRender(keepMenu) {
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
- <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><span class="dlg" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather): the cards already on the kneeboard keep theirs until they are added again"><button class="btn${cardDark() ? ' g' : ''}" id="kbcl">Light cards</button><button class="btn${cardDark() ? '' : ' g'}" id="kbcd">Dark cards</button></span></div>
+ <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP): light or dark. The cards already on the kneeboard keep theirs until they are added again.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
  <div class="kbx"><button class="btn g gn nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button>${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
@@ -768,14 +769,13 @@ export function kbRender(keepMenu) {
     try {
       localStorage.setItem('bmscarddark', d ? '1' : '0');
     } catch (e) {}
-    $('kbcl').classList.toggle('g', d);
     $('kbcd').classList.toggle('g', !d);
+    $('kbcd').textContent = d ? '☾ Dark cards' : '☀ Light cards';
     $('kbst').textContent =
       (d ? 'Dark' : 'Light') +
       ' cards: the cards added from now on are drawn so (the ones on the kneeboard keep their look).';
   };
-  $('kbcl').onclick = () => look(false);
-  $('kbcd').onclick = () => look(true);
+  $('kbcd').onclick = () => look(!cardDark());
   $('kbfit').onchange = () => {
     KBFIT = $('kbfit').checked;
     kbThumbs();
@@ -1149,11 +1149,18 @@ export async function kbSave() {
   $('kbsave').disabled = true;
   draw();
   let done = 0;
+  // the loading bar of the program while the pages are made and written (a page takes about a second in DXT5)
+  const bid = busyStart('Writing the kneeboard…', true);
   await kbDecodeUsed();
   try {
     for (const i of rows) {
       st.textContent = 'Writing ' + rowFile(i, set) + ' (' + (done + 1) + ' of ' + rows.length + ')…';
       $('kbprog').firstChild.style.width = (done / rows.length) * 100 + '%';
+      busySet(
+        bid,
+        (done / rows.length) * 100,
+        'Writing ' + rowFile(i, set) + ' (' + (done + 1) + ' of ' + rows.length + ')…'
+      );
       await new Promise(r => setTimeout(r, 20));
       const dd = kbRow(i).getContext('2d').getImageData(0, 0, 2048, 2048).data,
         bytes = KBFMT == 'dxt5' ? toDDS5(2048, dd) : toDDS(2048, dd);
@@ -1192,6 +1199,8 @@ export async function kbSave() {
         done +
         ' file(s) were written before the error.'
     );
+  } finally {
+    busyEnd(bid);
   }
   $('kbsave').disabled = false;
 }

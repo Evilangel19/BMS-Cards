@@ -575,8 +575,9 @@ function scheme(x, D, PX, PY, PW, PH) {
         cy = ey + 28 + (i % evRows) * 32;
       font('500', 21);
       text(e.t, cx, cy, MU);
+      const tw = x.measureText(e.t).width; // the time as wide as it is drawn (heavier for the cockpit)
       font(e.c == 'me' || e.c == 'task' ? '800' : '600', 21);
-      text(e.s, cx + 104, cy, colE(e.c));
+      text(e.s, cx + Math.max(104, tw + 14), cy, colE(e.c));
     });
   }
 }

@@ -3,14 +3,18 @@
 // often seen through a mipmap of half or a quarter of that. So:
 // - their small text is raised (kbPx: up to 24 px it comes halfway up to 24) and their greys and thin lines are darker and thicker than on a screen;
 // - inkCard(x): every text is one weight heavier and drawn with an edge of its own colour, INK of its size (thicker in proportion to its size);
-// - the dark look (setCardDark): the colours are turned for a dark page as they are set (fillStyle, strokeStyle, gradients): the greys turned over
+// - the light look: its greys darker (inkRGB); the dark look (setCardDark): the colours are turned for a dark page as they are set (fillStyle, strokeStyle, gradients): the greys turned over
 //   (white -> near black, black -> near white), the dark colours made lighter, the pale tints made dark tints; see-through colours are left as they are.
 //   Pictures (the maps, already dark) are not touched, nor what is drawn while x.__raw is set (the labels on a map picture).
 export const kbPx = s => (s >= 24 ? s : Math.round(24 - (24 - s) * 0.5));
 export const kbLw = w => Math.max(2, w);
-export const INK = 0.045;
+export const INK = 0.065;
 let DARK = false;
-export const setCardDark = v => (DARK = !!v);
+const MEMO = new Map(); // the colours already turned (cleared when the look changes)
+export const setCardDark = v => {
+  DARK = !!v;
+  MEMO.clear();
+};
 export const cardDark = () => DARK;
 
 // --- colours
@@ -80,15 +84,21 @@ export function darkRGB(r, g, b) {
   } else if (l < 0.55) l2 = Math.min(0.78, 1.1 - l); // dark colours (text, lines): lighter
   return rgb(h, clamp(s2), clamp(l2));
 }
-const MEMO = new Map();
-/** a CSS colour of the light look turned for the dark look (as it is when not dark, see-through or not understood) */
+/** a colour [r, g, b] of the light look made for the cockpit: its greys darker (the text and the lines read black, not grey) */
+export function inkRGB(r, g, b) {
+  const [h, s, l] = hsl(r, g, b);
+  if (s < 0.18 && l < 0.72) return rgb(h, s, l * 0.5);
+  if (s >= 0.18 && l < 0.5) return rgb(h, s, l * 0.8);
+  return [r, g, b];
+}
+/** a CSS colour as drawn on a card: turned for the dark look, or with the greys darker in the light look (see-through or not understood: as it is) */
 export function themeColor(c) {
-  if (!DARK || typeof c != 'string') return c;
+  if (typeof c != 'string') return c;
   if (MEMO.has(c)) return MEMO.get(c);
   const p = parse(c);
   let o = c;
   if (p && p[3] >= 0.9) {
-    const [r, g, b] = darkRGB(p[0], p[1], p[2]);
+    const [r, g, b] = (DARK ? darkRGB : inkRGB)(p[0], p[1], p[2]);
     o = `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
   }
   MEMO.set(c, o);
@@ -103,7 +113,7 @@ const sizeOf = f => {
 const heavier = f =>
   f.replace(/^((?:italic|oblique)\s+)?(bold|normal|[1-9]00)?(\s*)/, (_, it, w, sp) => {
     const n = w == 'bold' ? 700 : w == 'normal' || !w ? 400 : +w;
-    return (it || '') + Math.min(900, n + 100) + ' ' + (w ? '' : sp);
+    return (it || '') + Math.min(900, n + 200) + ' ' + (w ? '' : sp);
   });
 /** @param {CanvasRenderingContext2D} x the context of a card: from here on its text is heavier and, with the dark look, its colours turned */
 export function inkCard(x) {
@@ -115,7 +125,7 @@ export function inkCard(x) {
   ['fillStyle', 'strokeStyle', 'shadowColor'].forEach(k => delete X[k]);
   ['createLinearGradient', 'createRadialGradient'].forEach(k => delete X[k]);
   X.__raw = false;
-  if (DARK) darkColours(x, proto);
+  darkColours(x, proto);
   if (X.__inked) return x;
   X.__inked = true;
   X.fillText = function (t, a, b, mw) {
@@ -151,7 +161,7 @@ export function inkCard(x) {
   };
   return x;
 }
-// the colours of the dark look, turned as they are set on the context
+// the colours of the look, turned as they are set on the context
 function darkColours(x, proto) {
   const X = /** @type {any} */ (x);
   // the colours of the dark look, as they are set

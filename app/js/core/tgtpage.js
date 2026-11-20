@@ -6,6 +6,7 @@
 // deps: {esc, anim(), toast(msg), points() -> Promise<{points, objs}>, features(objId) -> Promise<{feats, pct}|null>, threats() -> {sams, units},
 //   attack() -> {segs, t, hdg, egr, spd, rel, fz, wpn}|null, route() -> [{n, x, y}], info() -> {cs, mis, tot, wpn}, geoLL(x, y), pick() -> Promise<{x, y, name}|null>,
 //   mapFrame(el, [x, y], nm) -> Promise<bool>, mapDetach(), fromLL(lat, lon), kbAdd(blob, name) -> Promise<{side, row}|null>, putShot(canvas), shotDim(), prefs: {load, save}}
+import { inkCard } from './cardink.js';
 import {
   PAL,
   COL,
@@ -1902,12 +1903,15 @@ export function createTargetPage(deps) {
   }
   function card(kind) {
     return into(1600, 2400, 1600 / CW, () => {
+      inkCard(x); // heavier text, the look of the cards (the picture of the target is left as it is)
       const p = P();
       if (kind == 'g') {
         cardHdr('BASIC TARGET GRAPHIC');
         IMG = { x: 0, y: 160, w: CW, h: 560 };
         CARDM = true;
+        /** @type {any} */ (x).__raw = true;
         picture();
+        /** @type {any} */ (x).__raw = false;
         CARDM = false;
         x.strokeStyle = p.line;
         x.lineWidth = PF.pst == 'prog' ? 1 : 2;
