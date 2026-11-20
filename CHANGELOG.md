@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: SEAD Package time slider (ROLEX late / LEEROY early, ±5 min in 15 s steps) that moves the times of the package but the SEAD flights, shown on the map, the scheme and the cards.
+- Fixed: DEAD Bombs / Maverick map card without the attack profile; "HARM impact" in the SEAD / DEAD legends.
 - Changed: DEAD HARM standoff bait arc at the ECM-on range (the ECM slider), "ECM as needed" in the bait texts; the DEAD scheme with the ways, clearer colours, the events and a legend.
 - Changed: DEAD 4-ship: #3 and #4 fly the tactic as a second pair round the other way; the killer goes on round its orbit after its HARM.
 - Changed: DEAD Hunter-Killer with one anchor and the killer's HARM when the SAM shoots at the hunter; Bombs / Maverick with the mark, the attack from the anchor and the hunter's cover point; top cover only for a cover role.

@@ -92,6 +92,21 @@ try:
         pg.locator('#sdth input[data-sdk]').evaluate("e=>{e.value=100;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(500)
         check('first impact at 100%: at the entry into the ring', abs(P()['rows'][0]['t85'] - P()['rows'][0]['tin']) < 2000 and P()['rows'][0]['t85'] < t85a)
         pg.locator('#sdth input[data-sdk]').evaluate("e=>{e.value=85;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
+        # the package time: ROLEX +5 (late), LEEROY -5 (early), live as it moves
+        r0 = P()['rows'][0]
+        dt = lambda v: pg.locator('#sdth input[data-sddt]').evaluate("(e,v)=>{e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}", v) or pg.wait_for_timeout(400)
+        dt(300); r1 = P()['rows'][0]
+        check('ROLEX +5: the times of the package 5 min later, live', abs(r1['tin'] - r0['tin'] - 300000) < 1500 and abs(r1['t85'] - r0['t85'] - 300000) < 1500)
+        check('ROLEX +5: on the slider, the map and the scheme', 'ROLEX +5:00' in pg.inner_text('#sdth') and pg.inner_text('#sddtm') == 'ROLEX +5:00' and 'ROLEX +5:00' in pg.evaluate("()=>__app.seadPage.card().pkg"))
+        if shots: pg.locator('#wp').screenshot(path=shots + '/sead-rolex.png')
+        dt(-285); r2 = P()['rows'][0]
+        check('LEEROY -4:45: 4 min 45 s earlier (15 s steps)', abs(r0['tin'] - r2['tin'] - 285000) < 1500 and 'LEEROY −4:45' in pg.inner_text('#sdth'))
+        pg.click('#wp [data-sdview=sch]'); pg.wait_for_timeout(400)
+        check('LEEROY on the scheme', 'LEEROY −4:45' in pg.inner_text('#sdsch'))
+        if shots: pg.locator('#sdsch').screenshot(path=shots + '/sead-leeroy-sch.png')
+        pg.click('#wp [data-sdview=map]'); pg.wait_for_timeout(500)
+        pg.locator('#sdth input[data-sddt]').evaluate("e=>{e.value=0;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
+        check('on time: back to the plan, no label', abs(P()['rows'][0]['tin'] - r0['tin']) < 1000 and pg.locator('#sddtm').is_hidden())
         # out of range
         pg.evaluate("()=>{__sc.me.f.wps.forEach(p=>p.x=400);}"); re()
         check('far from the SAMs: out of range, a problem card with its fix', any(not z['ok'] for z in P()['shots']) and 'FIX' in pg.inner_text('#sdpr').upper())
@@ -123,10 +138,10 @@ try:
             pg.wait_for_timeout(250)
         check('...both added to the Kneeboard', pg.evaluate('()=>__app.KBLIB.length') == k0 + 2)
         st = pg.evaluate("()=>__app.seadPage.state()")
-        check('the page state for the mission file', st['seat'].get('s2') == 3 and st['ref'].get('s3') == 2 and st['mode'] == 'pos' and st['k'] == 85)
-        pg.evaluate("()=>__app.seadPage.setState({k:'<b>',sort:{},seat:[],skip:'x',prot:null,sel:5,mode:'x',sub:'Q',view:7,ref:3})"); pg.wait_for_timeout(500)
+        check('the page state for the mission file', st['seat'].get('s2') == 3 and st['ref'].get('s3') == 2 and st['mode'] == 'pos' and st['k'] == 85 and st['dt'] == 0)
+        pg.evaluate("()=>__app.seadPage.setState({k:'<b>',dt:'x',sort:{},seat:[],skip:'x',prot:null,sel:5,mode:'x',sub:'Q',view:7,ref:3})"); pg.wait_for_timeout(500)
         st = pg.evaluate("()=>__app.seadPage.state()")
-        check('a broken state from a file is brought back to sane values', st['k'] == 85 and st['sort'] == 'prio' and st['seat'] == {} and st['mode'] is None and st['sub'] is None and st['view'] == 'map' and st['ref'] == {})
+        check('a broken state from a file is brought back to sane values', st['k'] == 85 and st['dt'] == 0 and st['sort'] == 'prio' and st['seat'] == {} and st['mode'] is None and st['sub'] is None and st['view'] == 'map' and st['ref'] == {})
         # the map: the parts not covered, the view kept from the scheme back to the map
         check('the map legend: not covered and before the first impact', 'not covered' in pg.inner_text('#sdmleg') and 'before the first impact' in pg.inner_text('#sdmleg'))
         zv = lambda: pg.evaluate("()=>{const p=document.querySelector('#sdmap .leaflet-proxy');const c=document.querySelector('#sdmap .leaflet-control-scale-line');return (p&&p.style.transform)+'|'+(c&&c.textContent)}")

@@ -169,6 +169,10 @@ try:
         mt = pg.inner_text('#ddmap')
         check('...bombs on the map: the mark of the killer, the cover point of the hunter, the top cover of #3 #4, no HARM', 'KILLER MARKS' in mt and 'COVER POINT' in mt and 'TOP COVER' in mt and pg.locator('#ddmap .sdimp').count() == 0)
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-bomb.png')
+        g = pg.evaluate("()=>__app.deadPage._geo()")
+        check('...the card map draws the HADB profile too (%d paths)' % g['n'], g['atk'] >= 2)
+        if shots:
+            d = pg.evaluate("async()=>(await __app.deadPage.cardCanvas('map')).toDataURL()"); open(shots + '/dead-card-bomb.png', 'wb').write(base64.b64decode(d.split(',')[1]))
         st = pg.evaluate("()=>__app.deadPage.state()")
         check('the page state for the mission file', st['atk'] == 'hadb' and st['tactic'] == 'bomb' and st['tgt'] == 's8' and st['side'] == 'R' and st['ecm'] == 70)
         pg.evaluate("()=>__app.deadPage.setState({tactic:'x',side:5,ecm:'<b>',roles:[],tgt:{},mode:'q',sub:'Z',view:3})")

@@ -43,6 +43,7 @@ export function createSeadPage(deps) {
       prot: {},
       skip: {},
       k: 85,
+      dt: 0, // the package late (+, ROLEX) or early (−, LEEROY), s: the times of every flight but the SEAD ones moved
       sort: 'prio',
       seat: {},
       ref: {},
@@ -73,6 +74,7 @@ export function createSeadPage(deps) {
     st.seat = ob(st.seat);
     st.ref = ob(st.ref);
     st.k = Math.min(100, Math.max(50, Math.round((+st.k || 85) / 5) * 5));
+    st.dt = Math.min(300, Math.max(-300, Math.round((+st.dt || 0) / 15) * 15));
     st.sort = st.sort == 'az' ? 'az' : 'prio';
     st.out = st.out === true;
     st.mode = st.mode == 'pos' || st.mode == 'had' ? st.mode : null;
@@ -114,6 +116,13 @@ export function createSeadPage(deps) {
     X = deps.ctx();
     P = null;
     if (!X || !X.ok) return;
+    // ROLEX / LEEROY: the times of the package moved, the SEAD flights on their own plan
+    if (st.dt) {
+      const d = st.dt * 1000,
+        mv = w =>
+          (w || []).map(p => ({ ...p, arr: p.arr > 0 ? p.arr + d : p.arr, dep: p.dep > 0 ? p.dep + d : p.dep }));
+      X = { ...X, flights: X.flights.map(f => (f.sead ? f : { ...f, f: { ...f.f, wps: mv(f.f.wps) } })) };
+    }
     const prot = X.flights.filter(f => st.prot[f.key] !== false && !f.sead);
     P = seadPlan({
       prot: prot.map(f => ({ key: f.key, name: f.name, wps: f.f.wps })),
@@ -138,6 +147,12 @@ export function createSeadPage(deps) {
       st.sel = z ? z.key : null;
     }
   }
+  // the package time: ROLEX +m:ss (late), LEEROY −m:ss (early), '' on time
+  const dtTxt = () => {
+    const a = Math.abs(st.dt),
+      t = Math.floor(a / 60) + ':' + String(a % 60).padStart(2, '0');
+    return st.dt > 0 ? 'ROLEX +' + t : st.dt < 0 ? 'LEEROY −' + t : '';
+  };
   const seatName = i => (i == null ? '—' : seatLabels(X.me.n)[i] || '#' + (i + 1)),
     seatNo = i => (i == null ? '—' : '#' + (i + 1)),
     mine = z => X.seat != null && z.seat === X.seat,
@@ -195,7 +210,7 @@ export function createSeadPage(deps) {
         .join(
           ''
         )}</span><span style="flex:1"></span><button class="btn g" type="button" data-sdfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-sdpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
-      <div id="sdmapw"><div id="sdmap" class="wmapbox"></div><div class="wleg" id="sdmleg"></div></div><div id="sdsch" hidden></div></div></div>
+      <div id="sdmapw"><div id="sdmap" class="wmapbox"></div><div class="sddt" id="sddtm" hidden></div><div class="wleg" id="sdmleg"></div></div><div id="sdsch" hidden></div></div></div>
       <div class="wpr"><div class="wcard" id="sdsh"></div><div class="wcard" id="sdcv"></div><div id="sdpr"></div></div></div>
       <div class="sdbar"><span class="hint" id="sdnote"></span></div>`;
     // the buttons of the page at the top, in the bar of the HARM tab (harmTab puts them there)
@@ -231,7 +246,7 @@ export function createSeadPage(deps) {
     // the slider stays while it moves (the plan follows it): the table and the note are written again, not the slider
     if (!q('#sdthb'))
       q('#sdth').innerHTML =
-        `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p>`;
+        `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p><div class="slr"><label>Package time</label><input type="range" min="-300" max="300" step="15" value="${st.dt}" data-sddt aria-label="The package late (ROLEX) or early (LEEROY)"><em data-sddte></em></div><p class="hint wnote" id="sddtn"></p>`;
     // how much of the time the protected flights spend inside the rings the HARMs cover
     const act = P.rows.filter(r => !st.skip[r.id]),
       needT = act.reduce((a, r) => a + r.need.reduce((x, [t0, t1]) => x + t1 - t0, 0), 0),
@@ -245,6 +260,24 @@ export function createSeadPage(deps) {
     const sk = q('[data-sdk]');
     if (sk && document.activeElement !== sk) sk.value = st.k;
     q('[data-sdke]').textContent = st.k + '% R';
+    const sd = q('[data-sddt]');
+    if (sd && document.activeElement !== sd) sd.value = st.dt;
+    const de = q('[data-sddte]');
+    de.textContent = dtTxt() || 'on time';
+    de.style.color = st.dt > 0 ? '#f59e0b' : st.dt < 0 ? '#38bdf8' : '';
+    const dm = q('#sddtm');
+    if (dm) {
+      dm.hidden = !st.dt;
+      dm.textContent = dtTxt();
+      dm.style.color = de.style.color;
+    }
+    {
+      const f0 = X.flights.find(f => !f.sead && st.prot[f.key] !== false && P.task[f.key]),
+        tk = f0 && P.task[f0.key];
+      q('#sddtn').textContent = tk
+        ? `TOT ${f0.name} STPT ${tk.n} ${st.dt ? hms(tk.t0 - st.dt * 1000) + ' → ' + hms(tk.t0) + ' (' + dtTxt() + (st.dt > 0 ? ': the package late)' : ': the package early)') : hms(tk.t0) + ' (as planned)'}. Every flight of the package but the SEAD ones moves; your flight plan stays.`
+        : 'Every flight of the package but the SEAD ones moves by this time; your flight plan stays.';
+    }
     q('#sdkn').textContent =
       `One HARM per SAM first, arriving when the protected flight is at ${st.k}% of the ring; then the gaps, ingress first, and the way back. A HARM covers while it flies${glide() ? ' and glides (max 300 s)' : ' (TI and GI on: no glide)'}, from when the SAM is on (any package flight inside its ring). Flight plan times${P.est ? '; ' + BACKUP_NM_MIN + ' nm/min where a steerpoint has no time' : ''}.`;
     const S = P.seats,
@@ -303,7 +336,7 @@ export function createSeadPage(deps) {
     `<svg width="26" height="8" aria-hidden="true"><path d="M0 4H26" stroke="${c}" stroke-width="${w}"${d ? ` stroke-dasharray="${d}"` : ''}/></svg>`;
   function mapLegend() {
     const c = pal();
-    return `<span>${sw(c.plan)}your route (as on the Map page)</span><span>${sw(c.mate)}protected route</span><span>${sw(c.ring, '7 5')}SAM ring · dotted ${st.k}%</span><span>${sw(c.harm)}HARM: launch and shot · yours bright</span><span><b style="color:${IMP}">◆</b> impact</span><span>${sw(GAP, '', 5)}not covered</span><span>${sw(PRE, '6 4', 5)}before the first impact</span><span><b>▲</b> task steerpoint</span>`;
+    return `<span>${sw(c.plan)}your route (as on the Map page)</span><span>${sw(c.mate)}protected route</span><span>${sw(c.ring, '7 5')}SAM ring · dotted ${st.k}%</span><span>${sw(c.harm)}HARM: launch and shot · yours bright</span><span><b style="color:${IMP}">◆</b> HARM impact</span><span>${sw(GAP, '', 5)}not covered</span><span>${sw(PRE, '6 4', 5)}before the first impact</span><span><b>▲</b> task steerpoint</span>`;
   }
   function schemeLegend() {
     const c = pal();
@@ -314,7 +347,7 @@ export function createSeadPage(deps) {
       .map(q => sw(q, '', 2))
       .join(
         ''
-      )}the other protected flights: → ingress above, ← egress below</span><span><b>▲</b> the task of the first flight in</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${c.ring}" opacity=".45"/></svg>inside a ring · tick ${st.k}% · line: the SAM on</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${GAP}"/></svg>not covered</span><span>${sw(HARM, '', 6)}HARM in the air · L launch</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${HARM}" opacity=".3"/></svg>glide</span><span><b style="color:${IMP}">◆</b> impact</span></div>`;
+      )}the other protected flights: → ingress above, ← egress below</span><span><b>▲</b> the task of the first flight in</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${c.ring}" opacity=".45"/></svg>inside a ring · tick ${st.k}% · line: the SAM on</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${GAP}"/></svg>not covered</span><span>${sw(HARM, '', 6)}HARM in the air · L launch</span><span><svg width="18" height="8" aria-hidden="true"><rect width="18" height="8" fill="${HARM}" opacity=".3"/></svg>glide</span><span><b style="color:${IMP}">◆</b> HARM impact</span></div>`;
   }
   // the package (one lane): the protected flights that cross a ring, the first one in first (the priority: never a SEAD flight, never yours), each
   // with its role, its route start, its task and its end; a row for each SAM (the time any of them is inside, the SAM on, the first k, not covered,
@@ -369,7 +402,18 @@ export function createSeadPage(deps) {
     const t0 = ts.length ? Math.min(...ts) - 60000 : 0,
       t1 = ts.length ? Math.max(...ts) + 60000 : 1;
     seats.forEach(s => s.shots.forEach(z => (z.cover = Math.min(z.cover, t1))));
-    return { t0, t1, pkg: X.me.pkgNo, prot, rows, seats, ring: pal().ring, mates: SD_COL.MATES };
+    return {
+      t0,
+      t1,
+      pkg: X.me.pkgNo,
+      prot,
+      rows,
+      seats,
+      ring: pal().ring,
+      mates: SD_COL.MATES,
+      dt: dtTxt(),
+      dtc: st.dt > 0 ? '#f59e0b' : '#38bdf8',
+    };
   }
   // the scheme in SVG: the arrows are kept in the time area with their labels (shortened when a label needs the room)
   function schemeSvg(m) {
@@ -389,7 +433,7 @@ export function createSeadPage(deps) {
     let y = 26;
     // the header, the task of the first flight in (a triangle, a dashed line down to its way back)
     o.push(
-      `<text x="8" y="${y}" class="sdsl">PACKAGE ${esc(String(m.pkg))}</text><text x="8" y="${y + 15}" class="sdss">${n} protected${P0 ? ' · first in: ' + esc(P0.name) : ''}</text>`
+      `<text x="8" y="${y}" class="sdsl">PACKAGE ${esc(String(m.pkg))}</text><text x="8" y="${y + 15}" class="sdss">${n} protected${P0 ? ' · first in: ' + esc(P0.name) : ''}</text>${m.dt ? `<text x="${14 + cw('PACKAGE ' + m.pkg, 13)}" y="${y}" class="sdsl" fill="${m.dtc}">${m.dt}</text>` : ''}`
     );
     const tkx = P0 && P0.task ? Xt(P0.task.t0) : null;
     y += 30;
@@ -910,6 +954,7 @@ export function createSeadPage(deps) {
       else if (d.sdseat) st.seat[d.sdseat] = +t.value;
       else if (d.sdref) st.ref[d.sdref] = +t.value;
       else if (d.sdk != null) st.k = +t.value;
+      else if (d.sddt != null) st.dt = +t.value;
       else return;
       save();
       draw(false);
@@ -917,8 +962,9 @@ export function createSeadPage(deps) {
     // the first impact: the plan follows the slider while it moves
     root.oninput = e => {
       const d = e.target.dataset || {};
-      if (d.sdk == null) return;
-      st.k = +e.target.value;
+      if (d.sdk != null) st.k = +e.target.value;
+      else if (d.sddt != null) st.dt = +e.target.value;
+      else return;
       draw(false);
     };
     const po = q('[data-sdpf]');
@@ -1008,7 +1054,7 @@ export function createSeadPage(deps) {
       md = mode();
     return {
       title: X.me.name + ' · ' + X.me.n + '× ' + X.me.ac,
-      pkg: 'PACKAGE ' + X.me.pkgNo + (X.me.tot ? ' · TOT ' + X.me.tot : ''),
+      pkg: 'PACKAGE ' + X.me.pkgNo + (X.me.tot ? ' · TOT ' + X.me.tot : '') + (st.dt ? ' · ' + dtTxt() : ''),
       seat: X.seat,
       seatName: X.seat != null ? seatName(X.seat) : '',
       k: st.k,

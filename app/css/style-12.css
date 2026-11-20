@@ -1429,3 +1429,25 @@
     900 12px system-ui,
     sans-serif;
 }
+/* SEAD: ROLEX / LEEROY on the map */
+#sdmapw {
+  position: relative;
+}
+#sdmapw .sddt {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(11, 15, 20, 0.85);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.slr em[data-sddte] {
+  white-space: nowrap;
+  min-width: 92px;
+  text-align: right;
+}

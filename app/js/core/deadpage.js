@@ -600,7 +600,7 @@ export function createDeadPage(deps) {
                   .join('')
               : '';
           })()}`
-    }<span><b style="color:${IMP}">◆</b> impact</span><span>yours: thicker</span>`;
+    }<span><b style="color:${IMP}">◆</b> HARM impact</span><span>yours: thicker</span>`;
   }
   // ---- the scheme: a lane for each seat, the phases in time, a colour for each kind of phase
   const PH = DD_PH;
@@ -787,7 +787,7 @@ export function createDeadPage(deps) {
       item(`<text x="0" y="9" class="ddway" fill="#cbd5e1">→ ← ↻</text>`, 'to, away from, round the SAM', 44),
       ...[
         ['L', `<circle cx="8" cy="5" r="4.5" fill="${HARM}" stroke="#fff"/>`, 'HARM launch'],
-        ['◆', `<path d="M8 0l5 5-5 5-5-5z" fill="${IMP}" stroke="#fff"/>`, 'impact'],
+        ['◆', `<path d="M8 0l5 5-5 5-5-5z" fill="${IMP}" stroke="#fff"/>`, 'HARM impact'],
         ['SAM', `<path d="M8 0l5 9h-10z" fill="#ff3b3b"/>`, 'the SAM shoots'],
         ['N', `<text x="8" y="9" text-anchor="middle" class="sdsm" fill="#ff5a5a">N</text>`, 'notch, chaff'],
         ['+', `<text x="8" y="10" text-anchor="middle" class="ddmkt" fill="${ROLE_COL.killer}">✚</text>`, 'mark'],
@@ -1559,7 +1559,17 @@ export function createDeadPage(deps) {
             l: 'L ' + hms(P.tHL).slice(3),
           });
           marks.push({ p: P.impK, k: 'imp' }, { p: sam(), k: 'imp' });
-        } else marks.push({ p: P.markK, k: 'pt', col: ROLE_COL.killer, l: 'KILLER MARKS' });
+        } else {
+          marks.push({ p: P.markK, k: 'pt', col: ROLE_COL.killer, l: 'KILLER MARKS' });
+          // the attack from the anchor to the profile chosen (Pop-up / HADB / TOSS), as on the map
+          const al = atkLines(),
+            p0 = al && al.segs && al.segs[0] && al.segs[0].pts[0];
+          if (p0) add([P.A, p0], 'killer', me == 'killer', 4);
+          if (al && al.segs) {
+            al.segs.forEach(z => paths.push({ pts: z.pts, col: z.col, w: 3, dash: !!z.dash }));
+            al.marks.forEach(m => marks.push({ p: m, k: 'pt', col: m.col, l: m.l ? String(m.l).toUpperCase() : '' }));
+          }
+        }
       }
       if (has('cover')) add(P.cover, 'cover', me == 'cover', 4, true, P.cover);
       marks.push({ p: P.A, k: 'anc', col: '#e2e8f0', l: 'ANCHOR · OA1' });
@@ -1789,6 +1799,12 @@ export function createDeadPage(deps) {
       const c = drawCard(D, kind || 'map');
       c.dataset.px = D.px ? '1' : '';
       return c;
+    },
+    _geo: () => {
+      const g = geo(),
+        al = atkLines(),
+        cs = new Set(((al && al.segs) || []).map(z => z.col));
+      return { n: g.paths.length, atk: g.paths.filter(z => cs.has(z.col) && z.col != ROLE_COL.killer).length };
     },
     _test: o => {
       if (o.ctx) deps.ctx = o.ctx;

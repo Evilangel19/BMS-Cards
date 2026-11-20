@@ -276,6 +276,7 @@ function map(x, D, PX, PY, PW, PH) {
       x.stroke();
       x.setLineDash([]);
     });
+    const placed = [];
     p.marks.forEach(m => {
       const [mx, my] = Q(m.p);
       if (m.k == 'imp') {
@@ -300,7 +301,21 @@ function map(x, D, PX, PY, PW, PH) {
       else x.arc(mx, my, 11, 0, 7);
       x.fill();
       x.stroke();
-      if (m.l) tag(x, m.l, mx + 18, my + 34, m.tc || m.col);
+      if (m.l) {
+        // apart from the labels already placed: down one line while it would cover one
+        x.font = '700 24px ' + F;
+        const w = x.measureText(m.l).width + 16;
+        let ty = my + 34;
+        for (
+          let k = 0;
+          k < 8 &&
+          placed.some(r => mx + 10 < r[0] + r[2] && r[0] < mx + 10 + w && ty - 26 < r[1] + 34 && r[1] < ty + 8);
+          k++
+        )
+          ty += 36;
+        placed.push([mx + 10, ty - 26, w]);
+        tag(x, m.l, mx + 18, ty, m.tc || m.col);
+      }
     });
     x.fillStyle = p.ring;
     x.strokeStyle = '#000';
@@ -559,7 +574,7 @@ function scheme(x, D, PX, PY, PW, PH) {
   );
   [
     ['L', '#0284c7', 'HARM launch'],
-    ['◆', SD_COL.IMP, 'impact'],
+    ['◆', SD_COL.IMP, 'HARM impact'],
     ['SAM', '#dc2626', 'the SAM shoots'],
     ['N', '#dc2626', 'notch, chaff'],
     ['+', '#1d4ed8', 'mark'],
