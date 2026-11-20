@@ -56,6 +56,11 @@ export function S(s, k, v) {
   let l = L(s, k);
   if (!l) {
     let i = lines.map(x => x.s).lastIndexOf(s);
+    // the F-15 SIT lines (BMS 4.38.2): their section is made at the end of the file when the DTC has none yet
+    if (i < 0 && s == 'F15_SIT_LINES' && lines.length) {
+      lines.push({ s, raw: '[' + s + ']', dirty: 0 });
+      i = lines.length - 1;
+    }
     if (i < 0) return;
     l = { k, s, raw: '' };
     lines.splice(i + 1, 0, l);

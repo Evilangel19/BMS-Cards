@@ -31,7 +31,7 @@ import {
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
 import { msaOfFlight, msaOfBase } from './msafill.js';
-import { dtcPoints, WT_N, FT_KM } from '../core/mapdtc.js';
+import { dtcPoints, WT_N, FT_KM, sitMeta } from '../core/mapdtc.js';
 import { targetLine, readTarget } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
 import {
@@ -62,7 +62,7 @@ import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
 import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
-import { applyDTC, dtcClear, dtcSet } from './dtcapply.js';
+import { applyDTC, dtcClear, dtcSet, sitOn, sitSetMeta } from './dtcapply.js';
 import { kbAddShot, kbAddTray, kbAddPic, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { SHOT } from '../core/cardlayout.js';
@@ -191,6 +191,9 @@ export async function init6() {
       canOverwrite: () => !!(ST.DTCF && ST.DTCF.path),
       set: (g, slot, patch) => dtcSet(g, slot, patch, false),
       clear: (g, slot) => dtcClear(g, slot, false),
+      sitOn: () => sitOn(),
+      sitMeta: () => sitMeta(lines),
+      setMeta: (n, patch) => sitSetMeta(n, patch, false),
     },
     saveMission: () => msfSave(),
     missionDirty: () => missionToSave(),

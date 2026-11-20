@@ -1,7 +1,7 @@
 // Data Cartridge page: vertical list of sections, each one a page of cards. A card is read-only until its "Edit" button is pressed.
 // Everything here edits the lines of the open DTC (deps.S) and tells the rest of the program (deps.changed) so the map and the datacard follow.
 import { freqKhz, ilsVal, iffCode } from './dtcvalid.js';
-import { STPT_RANGE, WT_N } from './mapdtc.js';
+import { STPT_RANGE, WT_N, SIT_DASH, SIT_LEN, SIT_FIRST, lineName } from './mapdtc.js';
 import { normStn } from './l16plan.js';
 export const SECTIONS = [
   ['stpt', 'Steerpoints'],
@@ -83,6 +83,7 @@ export function createDtcPage(deps) {
     G = deps.G;
   let cur = 'stpt',
     OPEN = new Set(),
+    PTS = new Set(), // the SIT lines whose points are shown
     SYNC = { ews: true, icp: true, wpn: true, lsr: true, iff: true, l16: true, radio: true }, // same as DCS0 (app/datacard.js)
     IFFPOS = 0,
     IFFTIM = 0,
@@ -162,6 +163,9 @@ export function createDtcPage(deps) {
     return `<span class="mfdbtn"><button type="button" class="btn g bl sm${d.same(g) ? ' nil' : ''}" data-def="${g}:save" title="Keep these values as your default">${ICO.save} Save as default</button><button type="button" class="btn g bl sm${!d.has(g) || d.same(g) ? ' nil' : ''}" data-def="${g}:load" title="Put your default values into this file">Load default</button></span>`;
   };
   const DEFN = { mfd: 'MFD pages', ews: 'EWS programs', harm: 'HARM threat tables' };
+  // the colour and dash of an F-15 SIT line, as a short stroke
+  const swatch = m =>
+    `<i class="sitsw" style="border-top:3px ${m.dash == 4 ? 'dotted' : m.dash ? 'dashed' : 'solid'} #${m.hex}" title="#${m.hex} · ${SIT_DASH[m.dash]}"></i>`;
 
   // ---- pages -----------------------------------------------------------------------------------
   const ownTag = o => (o ? `<span class="dtag" title="From the campaign / Datacard">${esc(o)}</span>` : '');
@@ -271,16 +275,62 @@ export function createDtcPage(deps) {
             return `<div class="lnp nil"><b>${st}</b><span>—</span></div>`;
           })
           .join('');
-        return card('ln' + n, 'Line ' + n + (nt[n] ? ` <span class="dtag">${esc(nt[n])}</span>` : ''), rows, {
-          right: `<span class="cnt" title="Points on this line">${cnt}/6</span>`,
-        });
+        return card(
+          'ln' + n,
+          (SM ? esc(lineName(n, SM)) + swatch(SM[n]) : 'Line ' + n) +
+            (nt[n] ? ` <span class="dtag">${esc(nt[n])}</span>` : ''),
+          rows,
+          {
+            right: `<span class="cnt" title="Points on this line">${cnt}/6</span>`,
+            cls: SM && !SM[n].on ? 'sitoff' : '',
+          }
+        );
       };
+      // the F-15 (its kneeboard chosen by the aircraft of the flight): the SIT lines, 1-4 the STPT lines with their looks, 6-12 the lines of [F15_SIT_LINES]
+      const SM = deps.sitOn && deps.sitOn() ? deps.sitMeta() : null;
       h +=
-        '<h3 class="dsubh">Geo lines · STPT ' +
+        '<h3 class="dsubh">' +
+        (SM ? 'SIT lines' : 'Geo lines') +
+        ' · STPT ' +
         STPT_RANGE.line +
+        (SM ? ' · F-15' : '') +
         '</h3><div class="dgrid four">' +
         [1, 2, 3, 4].map(lcard).join('') +
         '</div>';
+      if (SM) {
+        const sp = P ? P.sit || [] : [];
+        const scard = n => {
+          const m = SM[n],
+            a = (n - SIT_FIRST) * SIT_LEN,
+            pts = n == 5 ? [] : sp.filter(q => q.slot >= a && q.slot < a + SIT_LEN),
+            last = pts.reduce((x, q) => (q.empty ? x : Math.max(x, q.slot - a)), -1),
+            cnt = pts.filter(q => !q.empty).length,
+            look =
+              `<div class="sitlk">${swatch(m)}<span>${m.hex} · ${SIT_DASH[m.dash]}${m.on ? '' : ' · hidden on the SIT'}</span></div>` +
+              (n == 5 ? '<div class="hint" style="min-height:0">The rings of the pre-planned threats.</div>' : '');
+          let body = look;
+          if (n != 5) {
+            const rows = [];
+            for (let i = 0; i <= last; i++) {
+              const q = pts.find(z => z.slot == a + i);
+              rows.push(
+                q && !q.empty
+                  ? `<div class="lnp sitp"><b>${i + 1}</b>${pos('sit', q)}<button type="button" class="btn g rd sm" data-pdel="sit:${q.slot}" title="Delete this point">${ICO.trash}</button></div>`
+                  : `<div class="lnp sitp nil"><b>${i + 1}</b><span>break</span></div>`
+              );
+            }
+            body += cnt
+              ? `<details class="sitpts"${OPEN.has('sl' + n) || PTS.has(n) ? ' open' : ''}><summary>Points</summary>${rows.join('')}</details>`
+              : '<div class="hint" style="min-height:0">Empty. Draw it on the Map (DTC menu, ADD).</div>';
+          }
+          return card('sl' + n, `<span class="sitn">${n < 10 ? '0' + n : n}</span>${esc(lineName(n, SM))}`, body, {
+            right: n == 5 ? '' : `<span class="cnt" title="Points on this line">${cnt}/${SIT_LEN}</span>`,
+            cls: 'sitc' + (cnt || n == 5 ? '' : ' sitnil') + (m.on ? '' : ' sitoff'),
+            noedit: !cnt,
+          });
+        };
+        h += '<div class="dgrid four sitg">' + [6, 7, 8, 9, 10, 11, 12, 5].map(scard).join('') + '</div>';
+      }
       return h;
     },
     tgt() {
@@ -1314,6 +1364,13 @@ export function createDtcPage(deps) {
           deps.pointSet(g, slot, patch);
         })
     );
+    root.querySelectorAll('details.sitpts').forEach(d => {
+      d.ontoggle = () => {
+        const n = +String((d.closest('[data-card]') || { dataset: {} }).dataset.card || '').slice(2);
+        if (d.open) PTS.add(n);
+        else PTS.delete(n);
+      };
+    });
     root.querySelectorAll('[data-pdel]').forEach(
       b =>
         (b.onclick = () => {

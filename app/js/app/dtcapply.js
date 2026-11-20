@@ -2,12 +2,13 @@ import { navRow } from '../core/weaponspage.js';
 import { iffModes, seatIffCode } from '../core/iffseat.js';
 import { mdcAuto } from './mdcfill.js';
 import { CAM } from '../core/cam-core.js';
-import { dtcKey, dtcValue, dtcEmpty } from '../core/mapdtc.js';
+import { dtcKey, dtcValue, dtcEmpty, secOf, sitMetaRows, SIT_SEC } from '../core/mapdtc.js';
 import { ST } from './state.js';
 import { G, S, lines, view, routeDiffers, MERGED } from './dtcfile.js';
 import { F, mirrorAll } from './datacard.js';
 import { $ } from './base.js';
 import { mapV } from './pages.js';
+import { kbSet } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { seatIdx, seatCodes } from './seat.js';
 import { PERFP } from './perf.js';
@@ -266,14 +267,23 @@ function applyDTC0(fl) {
 /* ATO column: mission categories > packages > flights, for one faction at a time. The player's faction (from the campaign's player squadron) is selectable; other factions can be read but are locked (red). Only F-16 flights fill the datacard. */
 // a DTC steerpoint was changed on the map: keep the DTC page and the datacard (STPT 98 / 99 -> secondary / primary) in step
 export function dtcSet(g, slot, patch, fromPage) {
-  const k = dtcKey(g, slot);
-  S('STPT', k, dtcValue(g, G('STPT', k, ''), patch));
+  const k = dtcKey(g, slot),
+    s = secOf(g);
+  S(s, k, dtcValue(g, G(s, k, ''), patch));
   afterDtc(k, fromPage);
 }
 export function dtcClear(g, slot, fromPage) {
   const k = dtcKey(g, slot);
-  S('STPT', k, dtcEmpty(g));
+  S(secOf(g), k, dtcEmpty(g));
   afterDtc(k, fromPage);
+}
+// the F-15 SIT lines are shown and edited when the kneeboard of the flight is the F-15 one (the aircraft of the Datacard package); window.__sitOn forces it (tests)
+export const sitOn = () =>
+  typeof window != 'undefined' && window.__sitOn != null ? !!window.__sitOn : kbSet().id == 'f15';
+// the looks of an F-15 SIT line (name, shown, colour, dash): [F15_SIT_LINES] SITLINE_<n>_...
+export function sitSetMeta(n, patch, fromPage) {
+  sitMetaRows(n, patch).forEach(([k, v]) => S(SIT_SEC, k, v));
+  afterDtc('SITLINE_' + n, fromPage);
 }
 // the open DTC holds something that is not in its file yet (a change, the route of the flight, copies of a line to merge)
 export const dtcToWrite = () => lines.length > 0 && (lines.some(l => l.dirty) || routeDiffers() || MERGED.length > 0);

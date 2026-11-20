@@ -83,6 +83,7 @@ export const MAP_LAYERS = [
   ['dp', 'Precision targets (STPT ' + STPT_RANGE.prec + ')', true, 'DTC steerpoints'],
   ['dq', 'Pre-planned (STPT ' + STPT_RANGE.ppt + ')', true, 'DTC steerpoints'],
   ['dl', 'Geo lines (LINE1-4, STPT ' + STPT_RANGE.line + ')', true, 'DTC steerpoints'],
+  ['ds', 'SIT lines 6-12 (F-15)', true, 'DTC steerpoints'],
   ['fe', 'Enemy flights', true, 'In flight'],
   ['ff', 'Friendly flights', true, 'In flight'],
   ['rc', 'Enemy radar coverage', false, 'Display'],

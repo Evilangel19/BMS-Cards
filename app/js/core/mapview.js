@@ -20,6 +20,14 @@ import {
   freeSlot,
   removePoint,
   parseLL,
+  lineSpec,
+  lineNo,
+  lineName,
+  sitShift,
+  SIT_DASH,
+  SIT_DASH_PX,
+  SIT_QUICK,
+  SIT_LEN,
 } from './mapdtc.js';
 import {
   toLL,
@@ -1095,15 +1103,16 @@ export function createMap(host, deps) {
   function dtcMenu() {
     const m = $('mpdtc'),
       rows = MAP_LAYERS.filter(l => l[3] == 'DTC steerpoints');
-    const ln4 = (attr, cls, tit) =>
-      '<span class="mpg">' +
-      [1, 2, 3, 4]
+    const ln4 = (attr, cls, tit, ns = [1, 2, 3, 4], xc = '') =>
+      `<span class="mpg${xc}">` +
+      ns
         .map(
           n =>
             `<button class="btn g ${cls}" ${attr}="${attr == 'data-add' ? 'line' + n : n}"${attr == 'data-add' ? ' disabled' : ''} title="${tit(n)}">${n}</button>`
         )
         .join('') +
       '</span>';
+    const S7 = [6, 7, 8, 9, 10, 11, 12];
     m.innerHTML = `<div id="mpdedit" style="display:none"><div id="mpdfil"><div class="dtf"><button class="btn" id="mpdfb" title="Show or hide the DTC filters (hidden = the DTC points are off)">Filters <i>▾</i></button></div><div class="mpp mpbox" id="mpdfrows">${rows.map(l => layerRow([l[0], l[1]])).join('')}</div></div>
       <div id="mpdham"><div class="rail">
         <button class="btn g gn" id="mpdadd" data-fly="padd" title="Add: points, lines, rectangle">＋<small>ADD</small></button>
@@ -1114,6 +1123,7 @@ export function createMap(host, deps) {
           <button class="btn g gb tl" data-add="prec" disabled title="Click on the map to place a precision target (STPT ${STPT_RANGE.prec}). Click a point to edit it, drag it to move it.">${ICON.prec}<span>TGT Stpt</span></button>
           <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT ${STPT_RANGE.ppt}); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
+          <div class="fh sitrow">SIT lines 6-12 · F-15</div>${ln4('data-add', 'gb', n => `SIT line ${n}: each click on the map adds the next point (up to ${SIT_LEN}); Break leaves a gap, Esc or Done stops. Red = full, green = partly used, white = empty.`, S7, ' sitrow')}
           <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
           <button class="btn g rd tl" data-clr="prec" title="Remove every precision target">${ICON.trash}<span>TGT Stpt</span></button>
@@ -1121,6 +1131,7 @@ export function createMap(host, deps) {
           <button class="btn g rd tl" data-clr="oth" title="Remove the pre-planned threats that are not SAMs">${ICON.trash}<span>OTHER</span></button>
           <button class="btn g rd tl" data-clr="ppt" title="Remove every pre-planned threat">${ICON.trash}<span>ALL PPT</span></button></div>
           <div class="fh">Lines</div><span class="mrow">${ln4('data-del', 'rb', n => `Remove the 6 steerpoints of LINE${n}. Red = full, green = partly used, white = empty.`)}${sqAll('line', 'Remove every steerpoint of the 4 lines')}</span>
+          <div class="fh sitrow">SIT lines 6-12 · F-15</div><span class="mrow sitrow">${ln4('data-del', 'rb', n => `Remove the points of SIT line ${n}. Red = full, green = partly used, white = empty.`, S7)}${sqAll('sit', 'Remove every point of the SIT lines 6-12')}</span>
           <button class="btn g rd tl wide" data-clr="all" title="Remove every pre-planned threat, precision target and line steerpoint">${ICON.trash}<span>CLEAR DTC</span></button></div>
         <div class="fly" id="pauto" style="display:none"><div class="fh">Automatic lines</div><div class="tg">
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
@@ -1314,6 +1325,31 @@ export function createMap(host, deps) {
     };
     dtcInfo();
   }
+  // the lines that can be drawn: LINE1-4, with an F-15 also the SIT lines 6-12
+  const LNS = () => (sitOn() ? [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12] : [1, 2, 3, 4]);
+  const lnPts = (P, n) => {
+    const { g, a, len } = lineSpec(n);
+    return ((P && P[g]) || []).filter(q => q.slot >= a && q.slot < a + len);
+  };
+  const lnUsed = (P, n) => lnPts(P, n).filter(q => !q.empty).length;
+  const lnName = n => {
+    const m = n <= 4 ? sitM() : sitM() || {};
+    return m ? lineName(n, m) : 'LINE' + n;
+  };
+  // the steerpoints of a part of a line, for the messages: "STPT 31-35" (LINE1-4) or "points 1-5" (SIT lines)
+  const lnRange = (n, slot, k) =>
+    n <= 4
+      ? 'STPT ' + (GROUPS.line.first + slot) + '-' + (GROUPS.line.first + slot + k - 1)
+      : 'points ' + (slot - lineSpec(n).a + 1) + '-' + (slot - lineSpec(n).a + k);
+  // the first line (in LNS order) with room: need = 'whole' (an empty line) or a number of free points after its last one: {n, g, slot}
+  const lineFor = (P, need) => {
+    for (const n of LNS()) {
+      const { g, a, len } = lineSpec(n),
+        k = freeSlot(P, g, n);
+      if (need == 'whole' ? k == a : k >= 0 && a + len - k >= need) return { n, g, slot: k };
+    }
+    return null;
+  };
   const showLayer = k => {
     if (!st.on[k]) {
       st.on[k] = true;
@@ -1325,17 +1361,11 @@ export function createMap(host, deps) {
     }
   };
   // each AUTO works once: it is dimmed while the line (or the threats) it generated is still in the DTC and comes back when that is deleted
-  const lineRoom = (P, whole) => {
-    for (let n = 1; n <= 4; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (whole ? k == (n - 1) * LINE_LEN : k >= 0 && LINE_LEN - (k % LINE_LEN) >= 5) return true;
-    }
-    return false;
-  }; // a LINE for a rectangle (5 free points) / a whole free LINE for a tanker track
+  const lineRoom = (P, whole) => !!lineFor(P, whole ? 'whole' : 5); // a LINE for a rectangle (5 free points) / a whole free LINE for a tanker track
   const AU = {};
   const auLine = (P, r) => {
     if (!r) return false;
-    const q = P.line[(r.line - 1) * LINE_LEN];
+    const q = lnPts(P, r.line).find(z => z.slot == lineSpec(r.line).a);
     return !!q && !q.empty && Math.hypot(q.x - r.x, q.y - r.y) < 3;
   };
   const auUsed = key => {
@@ -1363,8 +1393,14 @@ export function createMap(host, deps) {
         oth: ne('ppt').length - sm,
         ppt: ne('ppt').length,
         line: ne('line').length,
+        sit: P0 && P0.sit ? ne('sit').length : 0,
       };
-    n.all = n.prec + n.ppt + n.line + (deps.dtc && deps.dtc.wtargets ? deps.dtc.wtargets().length : 0);
+    n.all =
+      n.prec +
+      n.ppt +
+      n.line +
+      (sitOn() ? n.sit : 0) +
+      (deps.dtc && deps.dtc.wtargets ? deps.dtc.wtargets().length : 0);
     document.querySelectorAll('#pdel [data-clr]').forEach(b => b.classList.toggle('nil', !n[b.dataset.clr]));
     [
       ['mpdppt', 'ppt'],
@@ -1544,13 +1580,20 @@ export function createMap(host, deps) {
             ['ppt', 'pre-planned threats', sel.ppt],
             ['prec', 'precision targets', () => true],
             ['line', 'line steerpoints', () => true],
+            ...(sitOn() ? [['sit', 'SIT line points', () => true]] : []),
           ]
         : g == 'sam'
           ? [['ppt', 'SAM pre-planned threats', sel.sam]]
           : g == 'oth'
             ? [['ppt', 'other pre-planned threats', sel.oth]]
-            : [[g, g == 'prec' ? 'precision targets' : 'line steerpoints', () => true]];
-    const list = kinds.map(([gr, nm, f]) => [gr, nm, P[gr].filter(p => !p.empty && f(p))]),
+            : [
+                [
+                  g,
+                  g == 'prec' ? 'precision targets' : g == 'sit' ? 'SIT line points' : 'line steerpoints',
+                  () => true,
+                ],
+              ];
+    const list = kinds.map(([gr, nm, f]) => [gr, nm, (P[gr] || []).filter(p => !p.empty && f(p))]),
       WT = g == 'all' && deps.dtc.wtargets ? deps.dtc.wtargets() : [];
     if (WT.length) list.push(['wt', 'weapon targets', WT]);
     const tot = list.reduce((n, l) => n + l[2].length, 0);
@@ -1642,15 +1685,10 @@ export function createMap(host, deps) {
   function tankAdd(f) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first: the track is added to it.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line) return toast('No empty LINE left: a tanker track needs a whole LINE for itself.', true);
     if (auUsed('tk:' + deps.flightInfo(f).cs))
       return toast('The track of ' + deps.flightInfo(f).cs + ' is already in the DTC.', true);
@@ -1678,7 +1716,7 @@ export function createMap(host, deps) {
       pts = cs.concat([cs[0]]).map(z => fromLL(z[0], z[1]));
     if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
       return toast('The track reaches outside the theater.', true);
-    pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+    pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
     AU['tk:' + deps.flightInfo(f).cs] = { line, x: pts[0][0], y: pts[0][1] };
     PREF.tanks = (PREF.tanks || [])
       .filter(t => Math.hypot(t.x - pts[0][0], t.y - pts[0][1]) > 0.05)
@@ -1686,36 +1724,21 @@ export function createMap(host, deps) {
         { x: pts[0][0], y: pts[0][1], cs: deps.flightInfo(f).cs, ac: deps.flightInfo(f).ac || '', t: opWin(f) },
       ]);
     persist();
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
     map.fitBounds(window.L.latLngBounds(cs).pad(0.5));
-    toast(
-      'LINE' +
-        line +
-        ': track of ' +
-        deps.flightInfo(f).cs +
-        ' (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 4) +
-        ') added to the DTC.'
-    );
+    toast(lnName(line) + ': track of ' + deps.flightInfo(f).cs + ' (' + lnRange(line, slot, 5) + ') added to the DTC.');
   }
   // FRONT LINE: a whole empty LINE of 6 points along the front (friendly units closest to the enemy, end to end)
   function autoFront() {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first: the line is added to it.', true);
     if (auUsed('front')) return toast('The front line is already in the DTC.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line) return toast('No empty LINE left: the front line needs a whole LINE for itself.', true);
     const f = deps.getC() ? frontLine(UL, LINE_LEN) : null; // the friendly units and every spotted enemy ground unit
     if (!f || f.length < LINE_LEN)
@@ -1726,18 +1749,15 @@ export function createMap(host, deps) {
         true
       );
     addStop();
-    f.forEach((p, i) => deps.dtc.set('line', slot + i, { x: p.x, y: p.y, altFt: 0 }));
+    f.forEach((p, i) => deps.dtc.set(lg, slot + i, { x: p.x, y: p.y, altFt: 0 }));
     AU.front = { line, x: f[0].x, y: f[0].y };
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
     toast(
-      'LINE' +
-        line +
-        ': front line, 6 points (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 5) +
+      lnName(line) +
+        ': front line, 6 points (' +
+        lnRange(line, slot, 6) +
         ') on the friendly units closest to the enemy.'
     );
   }
@@ -1748,15 +1768,10 @@ export function createMap(host, deps) {
     if (auUsed('bull')) return toast('The bullseye line is already in the DTC.', true);
     const b = bullseye(deps.getC());
     if (!b) return toast('This campaign has no bullseye.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    } // an empty LINE: with other points in it the L would join them
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line'; // an empty LINE: with other points in it the L would join them
     if (!line) return toast('No empty LINE left: the bullseye L needs a whole LINE for itself.', true);
     addStop();
     const pts = [
@@ -1766,42 +1781,43 @@ export function createMap(host, deps) {
     ].map(p => fromLL(p[0], p[1]));
     if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
       return toast('The line would reach outside the theater.', true);
-    pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+    pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
     AU.bull = { line, x: pts[0][0], y: pts[0][1] };
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
-    toast(
-      'LINE' +
-        line +
-        ': bullseye L (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 2) +
-        ') added to the DTC.'
-    );
+    toast(lnName(line) + ': bullseye L (' + lnRange(line, slot, 3) + ') added to the DTC.');
   }
   // + LINEn adds points one click at a time; once the line is complete the same button is "- LINEn" and deletes the line (after asking)
   function lineTool(n) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return;
-    if (freeSlot(P, 'line', n) >= 0) return addStart('line', n);
+    const { g, len } = lineSpec(n);
+    if (freeSlot(P, g, n) >= 0) return addStart(g, n);
     toast(
-      'LINE' + n + ' is full (6 steerpoints), so nothing was added. Use − → Lines → ' + n + ' to empty it first.',
+      lnName(n) +
+        ' is full (' +
+        len +
+        (n <= 4 ? ' steerpoints' : ' points') +
+        '), so nothing was added. Use DELETE → Lines → ' +
+        n +
+        ' to empty it first.',
       true
     );
   }
-  async function lineDelete(n) {
+  // empties a whole line (its 6 steerpoints, or the 30 points of a SIT line); asks first unless `sure`
+  async function lineDelete(n, sure) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first.', true);
-    const a = (n - 1) * LINE_LEN;
-    if (P.line.slice(a, a + LINE_LEN).every(q => q.empty))
-      return toast('LINE' + n + ' is already empty, so nothing was removed.', true);
+    const { g, a, len } = lineSpec(n);
+    if (!lnUsed(P, n)) return toast(lnName(n) + ' is already empty, so nothing was removed.', true);
     addStop();
-    if (!(await confirm('Delete all the steerpoints of LINE' + n + '?'))) return;
-    for (let i = a; i < a + LINE_LEN; i++) deps.dtc.clear('line', i);
+    if (!sure && !(await confirm('Delete all the ' + (n <= 4 ? 'steerpoints' : 'points') + ' of ' + lnName(n) + '?')))
+      return;
+    const have = new Set(lnPts(P, n).map(q => q.slot));
+    for (let i = a; i < a + len; i++) if (g == 'line' || have.has(i)) deps.dtc.clear(g, i);
     dtc();
-    toast('LINE' + n + ' emptied.');
+    toast(lnName(n) + ' emptied.');
   }
   // picture (official or imported), re-projected once and kept. The BMS folder picture (16k, 100+ MB) is not re-projected as a whole: it is
   // decoded off the main thread and cut into tiles on demand at full resolution, so the program stays usable while it loads.
@@ -3540,7 +3556,14 @@ export function createMap(host, deps) {
       .slice(SAMPPT)
       .filter(e => e && e[0])
       .map(e => ({ name: e[0], label: e[2] || e[0] }));
-  const dtcCol = (g, it) => (g == 'ppt' && it && !isSamPpt(it.name) ? pal.dtc.pptO : pal.dtc[g]);
+  // the F-15 (its kneeboard chosen by the aircraft of the flight): the SIT lines, LINE1-4 with their looks and the lines 6-12 of [F15_SIT_LINES]
+  const sitOn = () => !!(deps.dtc && deps.dtc.sitOn && deps.dtc.sitOn());
+  const sitM = () => (sitOn() && deps.dtc.sitMeta ? deps.dtc.sitMeta() : null);
+  const dtcCol = (g, it) => {
+    const m = (g == 'line' || g == 'sit') && it && it.slot != null ? sitM() : null;
+    if (m) return '#' + m[lineNo(it)].hex;
+    return g == 'ppt' && it && !isSamPpt(it.name) ? pal.dtc.pptO : pal.dtc[g == 'sit' ? 'line' : g];
+  };
   const P0 = () => deps.dtc.points();
   function dtcInfo() {
     const ob = $('mpdopen');
@@ -3572,12 +3595,18 @@ export function createMap(host, deps) {
       b.disabled = !has;
     });
     $('mpdrect').disabled = !has;
-    [1, 2, 3, 4].forEach(n =>
+    const so = sitOn();
+    host.querySelectorAll('.sitrow').forEach(el => (el.style.display = so ? '' : 'none'));
+    host.querySelectorAll('.mpp [data-k=ds]').forEach(el => {
+      const r = el.closest('label') || el.parentElement;
+      if (r) r.style.display = so ? '' : 'none';
+    });
+    [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12].forEach(n =>
       host.querySelectorAll(`[data-add=line${n}],[data-del="${n}"]`).forEach(b => {
-        const a = (n - 1) * LINE_LEN,
-          pl = has ? P0().line.slice(a, a + LINE_LEN) : [],
-          full = has && pl.length > 0 && pl.every(q => !q.empty),
-          none = has && pl.every(q => q.empty);
+        const u = has ? lnUsed(P0(), n) : 0,
+          full = has && u >= lineSpec(n).len && (n > 4 || freeSlot(P0(), 'line', n) < 0),
+          none = has && !u;
+        if (n > 4) b.title = b.title.replace(/^(SIT line \d+|[A-Z][A-Z0-9 ]*?)(?=:)/, lnName(n));
         b.classList.toggle('lnr', full);
         b.classList.toggle('lng', has && !full && !none);
         b.classList.toggle('lnw', none);
@@ -3601,24 +3630,27 @@ export function createMap(host, deps) {
     return L.divIcon({
       className: 'dts ' + it.group,
       html:
-        `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.stpt}</b>` +
+        `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.group == 'sit' ? it.slot - lineSpec(lineNo(it)).a + 1 : it.stpt}</b>` +
         (it.group == 'ppt' && it.name ? `<i class="dtn" style="color:${col}">${deps.esc(pptLabel(it.name))}</i>` : ''),
       iconSize: [18, 18],
     });
   };
   const dtcTip = it =>
-    `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + ((it.slot % LINE_LEN) + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
+    (it.group == 'sit'
+      ? `<b>${deps.esc(lnName(lineNo(it)))}</b> · point ${it.slot - lineSpec(lineNo(it)).a + 1}`
+      : `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? deps.esc(lnName(lineOf(it.slot))) + ' point ' + ((it.slot % LINE_LEN) + 1) : GROUPS[it.group].label}`) +
+    `${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
   // after a change (a point or a whole line deleted ...) an unfinished line is recalculated: the highlighted point and the Done button follow
   function dtc() {
-    const am = addM && addM.g == 'line' && !addM.rect ? addM : null;
+    const am = addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? addM : null;
     try {
       dtc0();
     } finally {
-      if (am && addM === am) addStart('line', am.line);
+      if (am && addM === am) addStart(am.g, am.line);
     }
   }
   function dtc0() {
-    ['dp', 'dq', 'dl', 'da'].forEach(k => G[k].clearLayers());
+    ['dp', 'dq', 'dl', 'ds', 'da'].forEach(k => G[k].clearLayers());
     DT = [];
     LNP = [];
     attackDraw();
@@ -3627,7 +3659,9 @@ export function createMap(host, deps) {
     sams(deps.getC(), deps.getSel());
     autoRefresh();
     if (!P) return;
-    ['prec', 'ppt', 'line'].forEach(g => P[g].filter(p => !p.empty).forEach(dtcMark));
+    ['prec', 'ppt', 'line', ...(sitOn() ? ['sit'] : [])].forEach(g =>
+      (P[g] || []).filter(p => !p.empty).forEach(dtcMark)
+    );
     dtcLinesDraw();
     wtDraw();
     placeLabels();
@@ -3752,7 +3786,7 @@ export function createMap(host, deps) {
       it.x = x;
       it.y = y;
       if (e.ring) e.ring.setLatLng(ll);
-      if (it.group == 'line') dtcLinesDraw();
+      if (it.group == 'line' || it.group == 'sit') dtcLinesDraw();
     });
     mk.on('dragend', () => {
       const ll = mk.getLatLng(),
@@ -3773,12 +3807,19 @@ export function createMap(host, deps) {
     return e;
   }
   function dtcLinesDraw() {
-    const L = window.L;
-    LNP.forEach(l => G.dl.removeLayer(l));
+    const L = window.L,
+      SM = sitM();
+    LNP.forEach(l => {
+      G.dl.removeLayer(l);
+      G.ds.removeLayer(l);
+    });
     LNP = [];
     TLB.forEach(o => G.dl.removeLayer(o.mk));
     TLB = [];
-    dtcLines({ line: DT.filter(e => e.it.group == 'line').map(e => e.it) }).forEach(run => {
+    dtcLines({
+      line: DT.filter(e => e.it.group == 'line').map(e => e.it),
+      sit: SM ? DT.filter(e => e.it.group == 'sit').map(e => e.it) : [],
+    }).forEach(run => {
       const tk = (PREF.tanks || []).find(
         t => run.pts.length > 1 && Math.hypot(t.x - run.pts[0].x, t.y - run.pts[0].y) < 0.05
       );
@@ -3797,15 +3838,27 @@ export function createMap(host, deps) {
               toast('That flight cannot be selected.', true);
           }
         );
-      if (run.pts.length > 1)
-        LNP.push(
-          L.polyline(
-            run.pts.map(p => toLL(p.x, p.y)),
-            { color: dtcCol('line'), weight: 2, opacity: 0.9, interactive: false }
-          )
-            .bindTooltip('LINE' + run.line, { permanent: true, direction: 'center', className: 'lnlab' })
-            .addTo(G.dl)
-        );
+      if (run.pts.length > 1) {
+        // an F-15: the colour, the dash and the name of the SIT line (dimmed when it is not shown on the SIT)
+        const m = SM && SM[run.line],
+          px = m && SIT_DASH_PX[m.dash];
+        const pl = L.polyline(
+          run.pts.map(p => toLL(p.x, p.y)),
+          {
+            color: m ? '#' + m.hex : dtcCol('line'),
+            weight: m ? 2.4 : 2,
+            opacity: m && !m.on ? 0.4 : 0.9,
+            dashArray: px ? px.join(' ') : null,
+            interactive: false,
+          }
+        )
+          .bindTooltip(deps.esc(lnName(run.line)), { permanent: true, direction: 'center', className: 'lnlab' })
+          .addTo(G[run.line > 4 ? 'ds' : 'dl']);
+        LNP.push(pl);
+        // the label in the colour of the line (its element is kept by the tooltip while the layer is hidden)
+        const te = m && pl.getTooltip() ? pl.getTooltip().getElement() : null;
+        if (te) te.style.color = '#' + m.hex;
+      }
     });
   }
   // pre-planned threat list of BMS (data/ppt.js): the ring range comes from the list (feet), the same value the game uses
@@ -3840,36 +3893,46 @@ export function createMap(host, deps) {
       w = document.createElement('div'),
       ll = toLL(it.x, it.y);
     w.className = 'dtp';
+    const isLn = it.group == 'line' || it.group == 'sit',
+      ln = isLn ? lineNo(it) : 0,
+      sp = isLn ? lineSpec(ln) : null,
+      SM = isLn ? sitM() : null;
     const head =
-      it.group == 'line'
-        ? `<div><b>STPT ${it.stpt}</b> · LINE${lineOf(it.slot)}, point ${(it.slot % LINE_LEN) + 1} of ${LINE_LEN}</div>`
-        : it.group == 'prec'
-          ? `<label>STPT<input data-f="stpt" type="number" min="${g.first}" max="${g.first + g.n - 1}" step="1" value="${it.stpt}"></label>`
-          : `<div><b>STPT ${it.stpt}</b> · ${g.label}</div>`;
+      it.group == 'sit'
+        ? `<div><b>${deps.esc(lnName(ln))}</b> · SIT line ${ln}, point ${it.slot - sp.a + 1} of ${SIT_LEN}</div>`
+        : it.group == 'line'
+          ? `<div><b>STPT ${it.stpt}</b> · ${deps.esc(lnName(ln))}, point ${(it.slot % LINE_LEN) + 1} of ${LINE_LEN}</div>`
+          : it.group == 'prec'
+            ? `<label>STPT<input data-f="stpt" type="number" min="${g.first}" max="${g.first + g.n - 1}" step="1" value="${it.stpt}"></label>`
+            : `<div><b>STPT ${it.stpt}</b> · ${g.label}</div>`;
     const cur = pptIndex(it.name),
-      PL = deps.dtc.points(),
-      l0 = (lineOf(it.slot) - 1) * LINE_LEN;
-    const more =
-      it.group == 'line' &&
-      PL &&
-      PL.line.slice(l0, l0 + LINE_LEN).filter(q => !q.empty).length < LINE_LEN &&
-      !PL.line.slice(it.slot + 1, l0 + LINE_LEN).some(q => !q.empty); // the last point of an unfinished line
+      PL = deps.dtc.points();
+    const more = isLn && PL && lnUsed(PL, ln) < sp.len && freeSlot(PL, it.group, ln) == it.slot + 1; // the last point of an unfinished line
     const body =
       it.group == 'prec'
         ? `<label>Position<input data-f="pos" value="${fmtLL(ll[0], ll[1])}"></label><label>Altitude (ft)<input data-f="alt" type="number" value="${it.altFt}"></label>`
         : it.group == 'ppt'
           ? `<label>Threat<select data-f="type">${cur >= 0 ? '' : !it.name ? '<option value="" selected disabled>— choose a threat —</option>' : `<option value="" selected>${deps.esc(it.name)} (other)</option>`}${PPT.map((e, i) => `<option value="${i}"${i == cur ? ' selected' : ''}>${deps.esc(e[2])}</option>`).join('')}</select></label>`
           : '';
+    // an F-15: the looks of the SIT line (name, shown on the SIT, colour, dash), written into [F15_SIT_LINES]
+    const m = SM && SM[ln],
+      look = m
+        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"></span></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
+        : '';
     w.innerHTML =
       head +
       body +
+      look +
       '<div class="bar' +
-      (it.group == 'line' ? ' bar3' : '') +
+      (isLn ? ' bar3' + (it.group == 'sit' ? ' barw' : '') : '') +
       '" style="margin:6px 0 0">' +
       (more
         ? '<button class="btn g gn" data-a="addn" title="Add the next point of this line">＋ Add point</button>'
         : '') +
-      (it.group == 'line'
+      (it.group == 'sit'
+        ? '<button class="btn g" data-a="ins" title="A new point between this one and the next (half way)">＋ Insert after</button><button class="btn g" data-a="brk" title="A break after this point: the line goes on in a new piece">⌇ Break after</button>'
+        : '') +
+      (isLn
         ? ''
         : '<button class="btn g" data-a="conv" title="' +
           (it.group == 'ppt'
@@ -3879,9 +3942,9 @@ export function createMap(host, deps) {
           (it.group == 'ppt' ? '⇄ TGT Steerpoint' : '⇄ Pre-planned STPT') +
           '</button>') +
       '<button class="btn g rd" data-a="del">' +
-      (it.group == 'line' ? '− Delete point' : ICON.trash + ' Delete') +
+      (isLn ? '− Delete point' : ICON.trash + ' Delete') +
       '</button>' +
-      (it.group == 'line' ? '<button class="btn g rd" data-a="dline">' + ICON.trash + ' Delete line</button>' : '') +
+      (isLn ? '<button class="btn g rd" data-a="dline">' + ICON.trash + ' Delete line</button>' : '') +
       '</div><div class="hint err" style="color:#ff8a8a;min-height:0"></div>';
     const err = m => {
         w.querySelector('.err').textContent = m || '';
@@ -3977,17 +4040,60 @@ export function createMap(host, deps) {
     if (an)
       an.onclick = () => {
         map.closePopup();
-        addStart('line', lineOf(it.slot));
+        addStart(it.group, ln);
       };
     const dl = w.querySelector('[data-a=dline]');
     if (dl)
       dl.onclick = async () => {
-        // the whole line (its 6 rows)
-        if (!(await confirm('Delete all the steerpoints of LINE' + lineOf(it.slot) + '?'))) return;
-        const a = (lineOf(it.slot) - 1) * LINE_LEN;
-        for (let i = a; i < a + LINE_LEN; i++) deps.dtc.clear('line', i);
+        // the whole line (its 6 rows, or the 30 points of a SIT line)
+        if (!(await confirm('Delete all the ' + (ln <= 4 ? 'steerpoints' : 'points') + ' of ' + lnName(ln) + '?')))
+          return;
         map.closePopup();
-        dtc();
+        lineDelete(ln, true);
+      };
+    // SIT lines 6-12: a point in the middle of the next piece, or a break (the points after it move down one)
+    const shift = put => {
+      if (!EDIT) return;
+      const P = deps.dtc.points();
+      if (!P || !sitShift(P, it.slot, 1, deps.dtc.set, deps.dtc.clear, put))
+        return err(lnName(ln) + ' is full (' + SIT_LEN + ' points).');
+      map.closePopup();
+      dtc();
+    };
+    const ins = w.querySelector('[data-a=ins]');
+    if (ins)
+      ins.onclick = () => {
+        const P = deps.dtc.points(),
+          nx = P && P.sit.find(q => q.slot == it.slot + 1 && !q.empty);
+        shift(nx ? { x: (it.x + nx.x) / 2, y: (it.y + nx.y) / 2 } : { x: it.x + 2, y: it.y });
+      };
+    const brk = w.querySelector('[data-a=brk]');
+    if (brk) brk.onclick = () => shift(null);
+    // the looks: written at once; the lines and the points of that line drawn again, the menu stays open
+    const look1 = patch => {
+      if (!EDIT || !deps.dtc.setMeta) return;
+      deps.dtc.setMeta(ln, patch);
+      dtcLinesDraw();
+      DT.filter(z => (z.it.group == 'line' || z.it.group == 'sit') && lineNo(z.it) == ln).forEach(z =>
+        z.mk.setIcon(dtcIcon(z.it))
+      );
+      const m2 = sitM()[ln];
+      w.querySelectorAll('[data-son]').forEach(b => b.classList.toggle('on', (b.dataset.son == '1') == m2.on));
+      w.querySelectorAll('[data-shex]').forEach(b => b.classList.toggle('on', b.dataset.shex == m2.hex));
+      w.querySelectorAll('[data-sdash]').forEach(b => b.classList.toggle('on', +b.dataset.sdash == m2.dash));
+      if (f('shex')) f('shex').value = m2.hex;
+      autoRefresh();
+    };
+    if (f('sname')) f('sname').onchange = () => look1({ name: f('sname').value });
+    w.querySelectorAll('[data-son]').forEach(b => (b.onclick = () => look1({ on: b.dataset.son == '1' })));
+    w.querySelectorAll('[data-shex]').forEach(b => (b.onclick = () => look1({ hex: b.dataset.shex })));
+    w.querySelectorAll('[data-sdash]').forEach(b => (b.onclick = () => look1({ dash: +b.dataset.sdash })));
+    if (f('shex'))
+      f('shex').onchange = () => {
+        const v = f('shex').value.replace(/^#/, '').trim();
+        if (!/^[0-9a-f]{6}$/i.test(v)) return err('The colour is 6 hex digits, RRGGBB (FF0000 is red).');
+        err();
+        look1({ hex: v });
       };
     return w;
   }
@@ -4033,7 +4139,11 @@ export function createMap(host, deps) {
     const slot = freeSlot(P, g, line);
     if (slot < 0)
       return toast(
-        g == 'line' ? 'LINE' + line + ' already has its 6 steerpoints.' : 'No free slot left for this kind of point.',
+        g == 'line'
+          ? lnName(line) + ' already has its 6 steerpoints.'
+          : g == 'sit'
+            ? lnName(line) + ' already has its ' + SIT_LEN + ' points.'
+            : 'No free slot left for this kind of point.',
         true
       );
     addM = { g, slot, line };
@@ -4041,14 +4151,34 @@ export function createMap(host, deps) {
     const b = document.createElement('div');
     b.id = 'mpadd';
     b.className = 'mpp';
+    const sa = g == 'sit' ? lineSpec(line).a : 0;
     b.innerHTML =
       g == 'line'
-        ? `LINE${line}: click on the map to add point ${(slot % LINE_LEN) + 1} of ${LINE_LEN} (STPT ${GROUPS[g].first + slot}); every click adds the next one <button class="btn g">Done</button>`
-        : `Click on the map to place STPT ${GROUPS[g].first + slot} (${GROUPS[g].label}) <button class="btn g">Cancel</button>`;
+        ? `${deps.esc(lnName(line))}: click on the map to add point ${(slot % LINE_LEN) + 1} of ${LINE_LEN} (STPT ${GROUPS[g].first + slot}); every click adds the next one <button class="btn g">Done</button>`
+        : g == 'sit'
+          ? `${deps.esc(lnName(line))}: click on the map to add point ${slot - sa + 1} of ${SIT_LEN}; every click adds the next one${slot > sa && slot - sa < SIT_LEN - 1 ? ' <button class="btn g" data-a="brk" title="Leave a gap: the next point starts a new piece of the line">⌇ Break</button>' : ''} <button class="btn g">Done</button>`
+          : `Click on the map to place STPT ${GROUPS[g].first + slot} (${GROUPS[g].label}) <button class="btn g">Cancel</button>`;
     host.append(b);
-    b.querySelector('button').onclick = () => addStop(true);
+    b.querySelector('button:not([data-a])').onclick = () => addStop(true);
+    const bk = b.querySelector('[data-a=brk]');
+    if (bk)
+      bk.onclick = () => {
+        // a break: the next click goes one point further, the empty point between them splits the line
+        addM.slot = slot + 1;
+        if (ADL) {
+          ADL.remove();
+          ADL = null;
+        }
+        bk.remove();
+        b.firstChild.textContent = `${lnName(line)}: after a break, click on the map to start the next piece (point ${slot - sa + 2} of ${SIT_LEN}) `;
+      };
     window.addEventListener('keydown', addKey, true);
-    const prev = g == 'line' && slot % LINE_LEN > 0 ? P.line[slot - 1] : null;
+    const prev =
+      g == 'line' && slot % LINE_LEN > 0
+        ? P.line[slot - 1]
+        : g == 'sit' && slot > sa
+          ? P.sit.find(q => q.slot == slot - 1)
+          : null;
     if (prev && !prev.empty) {
       // an unfinished line: the last point is highlighted and Done sits beside it
       const L = window.L,
@@ -4068,7 +4198,7 @@ export function createMap(host, deps) {
         de = dm.getElement();
       L.DomEvent.disableClickPropagation(de);
       de.querySelector('button').onclick = () => addStop(true);
-      b.querySelector('button').remove();
+      b.querySelector('button:not([data-a])').remove();
     }
   }
   function addPlace(latlng) {
@@ -4088,13 +4218,13 @@ export function createMap(host, deps) {
     }
     sync();
     dtc();
-    if (g == 'line') {
+    if (g == 'line' || g == 'sit') {
       // a line is drawn point after point: stay in add mode until it is full (Done / Esc to stop earlier)
-      const line = lineOf(slot),
+      const line = lineNo({ group: g, slot }),
         P = deps.dtc.points(),
-        nx = P ? freeSlot(P, 'line', line) : -1;
-      if (nx >= 0) addStart('line', line);
-      else toast('LINE' + line + ' is complete (6 steerpoints).');
+        nx = P ? freeSlot(P, g, line) : -1;
+      if (nx >= 0) addStart(g, line);
+      else toast(lnName(line) + ' is complete (' + (g == 'sit' ? SIT_LEN + ' points' : '6 steerpoints') + ').');
       return;
     }
     const e = DT.find(z => z.it.group == g && z.it.slot == slot);
@@ -4115,15 +4245,10 @@ export function createMap(host, deps) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return;
     addStop();
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (pre && pre.whole ? k == (n - 1) * LINE_LEN : k >= 0 && LINE_LEN - (k % LINE_LEN) >= 5) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, pre && pre.whole ? 'whole' : 5),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line)
       return toast(
         pre && pre.whole
@@ -4131,12 +4256,12 @@ export function createMap(host, deps) {
           : 'No LINE has 5 free steerpoints left (a closed rectangle needs 5).',
         true
       );
-    addM = { rect: true, line, slot };
+    addM = { rect: true, line, slot, lg };
     host.classList.add('adding');
     const b = document.createElement('div');
     b.id = 'mpadd';
     b.className = 'mpp';
-    b.innerHTML = `Click on the map to place the closed rectangle for LINE${line} (5 steerpoints) <button class="btn g">Cancel</button>`;
+    b.innerHTML = `Click on the map to place the closed rectangle for ${deps.esc(lnName(line))} (5 ${lg == 'sit' ? 'points' : 'steerpoints'}) <button class="btn g">Cancel</button>`;
     host.append(b);
     b.querySelector('button').onclick = addStop;
     window.addEventListener('keydown', addKey, true);
@@ -4144,11 +4269,11 @@ export function createMap(host, deps) {
   }
   function rectPlace(c, pre) {
     const L = window.L,
-      { line, slot } = addM;
+      { line, slot, lg } = addM;
     addM = null;
     rectClear();
     const g = L.layerGroup().addTo(map),
-      col = dtcCol('line'),
+      col = dtcCol(lg, { group: lg, slot }),
       rc = (RC = {
         g,
         line,
@@ -4275,7 +4400,7 @@ export function createMap(host, deps) {
     rc.bm = L.marker(btnPos(), {
       icon: L.divIcon({
         className: 'rcb',
-        html: `<div class="rcbi"><span>LINE${line}</span><button class="btn" data-a="ok">Place</button><button class="btn g" data-a="no">Cancel</button></div>`,
+        html: `<div class="rcbi"><span>${deps.esc(lnName(line))}</span><button class="btn" data-a="ok">Place</button><button class="btn g" data-a="no">Cancel</button></div>`,
         iconSize: [0, 0],
       }),
       zIndexOffset: 950,
@@ -4291,7 +4416,7 @@ export function createMap(host, deps) {
         pts = cs.concat([cs[0]]).map(p => fromLL(p[0], p[1])); // NW, NE, SE, SW and NW again: the box is closed
       if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
         return toast('The rectangle reaches outside the theater.', true);
-      pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+      pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
       if (rc.tank) {
         PREF.tanks = (PREF.tanks || [])
           .filter(t => Math.hypot(t.x - pts[0][0], t.y - pts[0][1]) > 0.05)
@@ -4299,23 +4424,10 @@ export function createMap(host, deps) {
         persist();
       } // the line keeps its tanker label
       addStop();
-      if (!st.on.dl) {
-        st.on.dl = true;
-        save();
-        const k = host.querySelector('input[data-k=dl]');
-        if (k) k.checked = true;
-      }
+      showLayer(GROUPS[lg].layer);
       sync();
       dtc();
-      toast(
-        'LINE' +
-          line +
-          ': closed rectangle, 5 steerpoints (STPT ' +
-          (GROUPS.line.first + slot) +
-          '-' +
-          (GROUPS.line.first + slot + 4) +
-          ') added to the DTC.'
-      );
+      toast(lnName(line) + ': closed rectangle, 5 points (' + lnRange(line, slot, 5) + ') added to the DTC.');
     };
   }
 
@@ -4877,6 +4989,14 @@ export function createMap(host, deps) {
       refresh();
     },
     dtcItems: () => DT.map(e => ({ stpt: e.it.stpt, name: e.it.name, group: e.it.group })),
+    // the lines drawn (for the tests): colour, dash, opacity and label
+    dtcLineLooks: () =>
+      LNP.map(l => ({
+        col: l.options.color,
+        dash: l.options.dashArray || '',
+        op: l.options.opacity,
+        lab: l.getTooltip() ? String(l.getTooltip().getContent()) : '',
+      })),
     refresh,
     fromLL,
     refreshDtc: () => {
