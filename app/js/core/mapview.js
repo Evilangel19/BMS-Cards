@@ -1125,7 +1125,7 @@ export function createMap(host, deps) {
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
           <div class="fh sitrow">SIT lines 6-12 · F-15</div>${ln4('data-add', 'gb', n => `SIT line ${n}: each click on the map adds the next point (up to ${SIT_LEN}); Break leaves a gap, Esc or Done stops. Red = full, green = partly used, white = empty.`, S7, ' sitrow')}
           <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button>
-          <label class="mpsnap" title="A point of a line, added or dragged, goes exactly onto a point near it (14 px): the points of the lines, the PPTs, the TGT steerpoints and the steerpoints of the flight plan"><input type="checkbox" id="mpdsnap"> Snap to points</label></div>
+          <div class="mpsnapw"><button type="button" class="btn" id="mpdsnap" title="Snap: a point of a line, added or dragged, goes exactly onto a point near it (14 px): the points of the lines, the PPTs, the TGT steerpoints and the steerpoints of the flight plan. Press to switch it on or off.">Snap to points</button></div></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
           <button class="btn g rd tl" data-clr="prec" title="Remove every precision target">${ICON.trash}<span>TGT Stpt</span></button>
           <button class="btn g rd tl" data-clr="sam" title="Remove the SAM pre-planned threats (SA-n, AAA, MANPADS)">${ICON.trash}<span>SAM</span></button>
@@ -1281,14 +1281,18 @@ export function createMap(host, deps) {
         flyShow(b, open);
       };
     });
-    m.querySelectorAll('.fly button').forEach(x => x.addEventListener('click', () => foldAll()));
+    m.querySelectorAll('.fly button:not(#mpdsnap)').forEach(x => x.addEventListener('click', () => foldAll()));
     m.querySelectorAll('[data-clr]').forEach(b => (b.onclick = () => clearPoints(b.dataset.clr)));
+    // Snap to points: lit (green) when on, dark when off, like Names
     const snw = m.querySelector('#mpdsnap');
     if (snw) {
-      snw.checked = snapOn();
-      snw.onchange = () => {
-        PREF.snap = snw.checked;
+      const lit = () => snw.classList.toggle('g', !snapOn());
+      lit();
+      snw.onclick = ev => {
+        ev.stopPropagation();
+        PREF.snap = !snapOn();
         persist();
+        lit();
       };
     }
     m.querySelectorAll('[data-del]').forEach(b => (b.onclick = () => lineDelete(+b.dataset.del)));
@@ -4225,7 +4229,9 @@ export function createMap(host, deps) {
   // while a line is drawn the ring shows where the next click would snap
   const addHover = ev =>
     snapRing(addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? snapTo(ev.latlng, null) : null);
+  let ADDT = 0; // when the add banner was last taken away without fading: a new one right after only follows the next point (no animation)
   function addStop(fade) {
+    if (fade !== true && $('mpadd')) ADDT = Date.now();
     addM = null;
     if (map) map.off('mousemove', addHover);
     snapRing(null);
@@ -4261,7 +4267,7 @@ export function createMap(host, deps) {
     host.classList.add('adding');
     const b = document.createElement('div');
     b.id = 'mpadd';
-    b.className = 'mpp';
+    b.className = 'mpp' + (Date.now() - ADDT < 400 ? ' still' : '');
     const sa = g == 'sit' ? lineSpec(line).a : 0;
     b.innerHTML =
       g == 'line'
