@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: Map lines: snapping to nearby points (switch in ADD), the side lengths of rectangles in NM (also as labels), any colour for the F-15 SIT lines, SIT line buttons with the initial of the name (6E, 11H...).
 - Added: F-15 SIT lines (BMS 4.38.2): with the F-15 kneeboard the Data Cartridge shows the SIT lines 1-12 and the Map draws and edits them (lines 6-12 with 30 points and breaks, name, colour, dash, shown on the SIT); saved in the DTC, the campaign file and the mission.
 - Fixed: writing the campaign / TE .ini no longer drops the F-15 SIT lines ([F15_SIT_LINES]) of the BMS F-15 SIT Lines Editor.
 - Added: SEAD Package time slider (ROLEX late / LEEROY early, ±5 min in 15 s steps) that moves the times of the package but the SEAD flights, shown on the map, the scheme and the cards.

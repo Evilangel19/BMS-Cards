@@ -1124,7 +1124,8 @@ export function createMap(host, deps) {
           <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT ${STPT_RANGE.ppt}); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
           <div class="fh sitrow">SIT lines 6-12 · F-15</div>${ln4('data-add', 'gb', n => `SIT line ${n}: each click on the map adds the next point (up to ${SIT_LEN}); Break leaves a gap, Esc or Done stops. Red = full, green = partly used, white = empty.`, S7, ' sitrow')}
-          <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button></div>
+          <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button>
+          <label class="mpsnap" title="A point of a line, added or dragged, goes exactly onto a point near it (14 px): the points of the lines, the PPTs, the TGT steerpoints and the steerpoints of the flight plan"><input type="checkbox" id="mpdsnap"> Snap to points</label></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
           <button class="btn g rd tl" data-clr="prec" title="Remove every precision target">${ICON.trash}<span>TGT Stpt</span></button>
           <button class="btn g rd tl" data-clr="sam" title="Remove the SAM pre-planned threats (SA-n, AAA, MANPADS)">${ICON.trash}<span>SAM</span></button>
@@ -1282,6 +1283,14 @@ export function createMap(host, deps) {
     });
     m.querySelectorAll('.fly button').forEach(x => x.addEventListener('click', () => foldAll()));
     m.querySelectorAll('[data-clr]').forEach(b => (b.onclick = () => clearPoints(b.dataset.clr)));
+    const snw = m.querySelector('#mpdsnap');
+    if (snw) {
+      snw.checked = snapOn();
+      snw.onchange = () => {
+        PREF.snap = snw.checked;
+        persist();
+      };
+    }
     m.querySelectorAll('[data-del]').forEach(b => (b.onclick = () => lineDelete(+b.dataset.del)));
     m.querySelectorAll('[data-add]').forEach(
       b =>
@@ -1350,6 +1359,63 @@ export function createMap(host, deps) {
     }
     return null;
   };
+  // SNAPPING: a point of a line (added or dragged) within SNAP_PX of another point goes exactly onto it: the points of the lines, the PPTs, the TGT
+  // steerpoints and the steerpoints of the flight plan. A ring shows the target. Switch in ADD (kept).
+  const SNAP_PX = 14;
+  const snapOn = () => PREF.snap !== false;
+  let SNR = null;
+  const snapRing = ll => {
+    const L = window.L;
+    if (!ll) {
+      if (SNR) SNR.remove();
+      SNR = null;
+      return;
+    }
+    if (!SNR)
+      SNR = L.circleMarker(ll, { radius: 11, color: '#4cc38a', weight: 2.5, fill: false, interactive: false }).addTo(
+        map
+      );
+    else SNR.setLatLng(ll);
+  };
+  // the point to snap to: a Leaflet latlng with the exact grid position of the target (xy: [x, y] km), or null; self = the point being moved
+  function snapTo(ll, self) {
+    if (!snapOn() || !map) return null;
+    const L = window.L,
+      p = map.latLngToContainerPoint(ll),
+      cand = DT.filter(e => e.it !== self && !e.it.empty)
+        .map(e => ({ ll: e.mk.getLatLng(), xy: [e.it.x, e.it.y] }))
+        .concat(OFFR.map(o => ({ ll: L.latLng(o.ll), xy: fromLL(o.ll[0], o.ll[1]) })));
+    let best = null,
+      bd = SNAP_PX * SNAP_PX;
+    cand.forEach(c => {
+      const q = map.latLngToContainerPoint(c.ll),
+        d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+      if (d <= bd) {
+        bd = d;
+        best = c;
+      }
+    });
+    if (!best) return null;
+    const r = L.latLng(best.ll);
+    r.xy = best.xy;
+    return r;
+  }
+  // a length on a side ("20.0 NM"), a small label at the middle of the side
+  const lenIcon = t => window.L.divIcon({ className: 'rclen', html: `<span>${t}</span>`, iconSize: [0, 0] });
+  const nmTxt = nm => (nm < 100 ? nm.toFixed(1) : Math.round(nm)) + ' NM';
+  // a closed box of 4 square corners (5 points, the last on the first): the lengths of its sides in NM, or null
+  function boxSides(pts) {
+    if (pts.length != 5 || Math.hypot(pts[0].x - pts[4].x, pts[0].y - pts[4].y) > 0.05) return null;
+    const v = [0, 1, 2, 3].map(i => [pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y]),
+      len = v.map(([a, b]) => Math.hypot(a, b));
+    if (len.some(l => l < 0.1)) return null;
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = v[i],
+        [c, d] = v[(i + 1) % 4];
+      if (Math.abs(a * c + b * d) / (len[i] * len[(i + 1) % 4]) > 0.05) return null; // not square (about 3°)
+    }
+    return len.map(l => l / 1.852);
+  }
   const showLayer = k => {
     if (!st.on[k]) {
       st.on[k] = true;
@@ -3610,7 +3676,8 @@ export function createMap(host, deps) {
         b.classList.toggle('lnr', full);
         b.classList.toggle('lng', has && !full && !none);
         b.classList.toggle('lnw', none);
-        b.textContent = n;
+        // the SIT lines: the number and the initial of the name (6E ECOAST, 11H HAZARD)
+        b.textContent = n > 4 && so ? n + (String(lnName(n)).match(/[A-Z0-9]/i) || [''])[0].toUpperCase() : n;
       })
     );
     $('mpdrect').classList.toggle('lnr', has && !lineRoom(P0(), false)); // no LINE with 5 free points: red
@@ -3650,7 +3717,7 @@ export function createMap(host, deps) {
     }
   }
   function dtc0() {
-    ['dp', 'dq', 'dl', 'ds', 'da'].forEach(k => G[k].clearLayers());
+    ['dp', 'dq', 'dl', 'ds', 'dn', 'da'].forEach(k => G[k].clearLayers());
     DT = [];
     LNP = [];
     attackDraw();
@@ -3780,17 +3847,36 @@ export function createMap(host, deps) {
       offset: [0, -4],
       minWidth: 230,
     });
+    const isLine = it.group == 'line' || it.group == 'sit';
+    // while a line is drawn, a click on a point adds the next point of the line exactly there (snapped), its menu does not open
+    mk.on('preclick', () => {
+      if (!addM || addM.rect || (addM.g != 'line' && addM.g != 'sit')) return;
+      e.skipPop = true;
+      const ll = mk.getLatLng();
+      setTimeout(() => addM && addPlace(ll), 0);
+    });
+    mk.on('popupopen', () => {
+      if (e.skipPop) {
+        e.skipPop = false;
+        mk.closePopup();
+      }
+    });
     mk.on('drag', () => {
-      const ll = mk.getLatLng(),
-        [x, y] = fromLL(ll.lat, ll.lng);
+      const sn = isLine ? snapTo(mk.getLatLng(), it) : null,
+        ll = sn || mk.getLatLng(),
+        [x, y] = sn ? sn.xy : fromLL(ll.lat, ll.lng);
+      if (isLine) snapRing(sn);
       it.x = x;
       it.y = y;
       if (e.ring) e.ring.setLatLng(ll);
-      if (it.group == 'line' || it.group == 'sit') dtcLinesDraw();
+      if (isLine) dtcLinesDraw();
     });
     mk.on('dragend', () => {
+      const sn = isLine ? snapTo(mk.getLatLng(), it) : null;
+      snapRing(null);
+      if (sn) mk.setLatLng(sn);
       const ll = mk.getLatLng(),
-        [x, y] = fromLL(ll.lat, ll.lng);
+        [x, y] = sn ? sn.xy : fromLL(ll.lat, ll.lng);
       if (x < 0 || x > 1024 || y < 0 || y > 1024) {
         dtc();
         toast('That is outside the theater.', true);
@@ -3812,6 +3898,7 @@ export function createMap(host, deps) {
     LNP.forEach(l => {
       G.dl.removeLayer(l);
       G.ds.removeLayer(l);
+      G.dn.removeLayer(l);
     });
     LNP = [];
     TLB.forEach(o => G.dl.removeLayer(o.mk));
@@ -3855,6 +3942,21 @@ export function createMap(host, deps) {
           .bindTooltip(deps.esc(lnName(run.line)), { permanent: true, direction: 'center', className: 'lnlab' })
           .addTo(G[run.line > 4 ? 'ds' : 'dl']);
         LNP.push(pl);
+        // a rectangle (a closed box of square corners, also a tanker track): the lengths of its sides
+        const bs = run.line && boxSides(run.pts);
+        if (bs)
+          bs.forEach((nm, i) => {
+            const p = run.pts[i],
+              q = run.pts[i + 1];
+            LNP.push(
+              L.marker(toLL((p.x + q.x) / 2, (p.y + q.y) / 2), {
+                icon: lenIcon(nmTxt(nm)),
+                interactive: false,
+                keyboard: false,
+                zIndexOffset: 600,
+              }).addTo(G.dn)
+            );
+          });
         // the label in the colour of the line (its element is kept by the tooltip while the layer is hidden)
         const te = m && pl.getTooltip() ? pl.getTooltip().getElement() : null;
         if (te) te.style.color = '#' + m.hex;
@@ -3917,7 +4019,7 @@ export function createMap(host, deps) {
     // an F-15: the looks of the SIT line (name, shown on the SIT, colour, dash), written into [F15_SIT_LINES]
     const m = SM && SM[ln],
       look = m
-        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"></span></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
+        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"><input type="color" data-f="spick" value="#${m.hex.toLowerCase()}" title="Any colour" aria-label="Pick any colour"></span></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
         : '';
     w.innerHTML =
       head +
@@ -4082,12 +4184,15 @@ export function createMap(host, deps) {
       w.querySelectorAll('[data-shex]').forEach(b => b.classList.toggle('on', b.dataset.shex == m2.hex));
       w.querySelectorAll('[data-sdash]').forEach(b => b.classList.toggle('on', +b.dataset.sdash == m2.dash));
       if (f('shex')) f('shex').value = m2.hex;
+      if (f('spick')) f('spick').value = '#' + m2.hex.toLowerCase();
       autoRefresh();
+      dtcInfo(); // the buttons of the lines: the initial of a new name
     };
     if (f('sname')) f('sname').onchange = () => look1({ name: f('sname').value });
     w.querySelectorAll('[data-son]').forEach(b => (b.onclick = () => look1({ on: b.dataset.son == '1' })));
     w.querySelectorAll('[data-shex]').forEach(b => (b.onclick = () => look1({ hex: b.dataset.shex })));
     w.querySelectorAll('[data-sdash]').forEach(b => (b.onclick = () => look1({ dash: +b.dataset.sdash })));
+    if (f('spick')) f('spick').onchange = () => look1({ hex: f('spick').value.replace('#', '') });
     if (f('shex'))
       f('shex').onchange = () => {
         const v = f('shex').value.replace(/^#/, '').trim();
@@ -4117,8 +4222,13 @@ export function createMap(host, deps) {
     const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-in' });
     a.onfinish = a.oncancel = () => el.remove();
   };
+  // while a line is drawn the ring shows where the next click would snap
+  const addHover = ev =>
+    snapRing(addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? snapTo(ev.latlng, null) : null);
   function addStop(fade) {
     addM = null;
+    if (map) map.off('mousemove', addHover);
+    snapRing(null);
     rectClear();
     if (ADL) {
       ADL.remove();
@@ -4147,6 +4257,7 @@ export function createMap(host, deps) {
         true
       );
     addM = { g, slot, line };
+    if (g == 'line' || g == 'sit') map.on('mousemove', addHover);
     host.classList.add('adding');
     const b = document.createElement('div');
     b.id = 'mpadd';
@@ -4203,8 +4314,13 @@ export function createMap(host, deps) {
   }
   function addPlace(latlng) {
     if (addM.rect) return rectPlace(latlng);
-    const { g, slot } = addM,
-      [x, y] = fromLL(latlng.lat, latlng.lng);
+    const { g, slot } = addM;
+    let sn = null;
+    if (g == 'line' || g == 'sit') {
+      sn = snapTo(latlng, null);
+      snapRing(null);
+    }
+    const [x, y] = sn ? sn.xy : fromLL(latlng.lat, latlng.lng);
     if (x < 0 || x > 1024 || y < 0 || y > 1024) return toast('That is outside the theater.', true);
     const d = g == 'prec' ? { name: 'Map STPT ' + (GROUPS[g].first + slot) } : {};
     deps.dtc.set(g, slot, Object.assign({ x, y, altFt: 0 }, d));
@@ -4322,6 +4438,20 @@ export function createMap(host, deps) {
       fillOpacity: 0.08,
       interactive: false,
     }).addTo(g);
+    // the lengths of the sides while it is placed (NW-NE and SE-SW: 2a, NE-SE and SW-NW: 2b)
+    rc.lens = [0, 1, 2, 3].map(() =>
+      L.marker(rc.c, { icon: lenIcon(''), interactive: false, keyboard: false, zIndexOffset: 880 }).addTo(g)
+    );
+    const lens = () => {
+      const cs = corners();
+      rc.lens.forEach((mk, i) => {
+        const p = cs[i],
+          q = cs[(i + 1) % 4];
+        mk.setLatLng([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+        const el = mk.getElement();
+        if (el) el.firstChild.textContent = nmTxt(((i % 2 ? rc.b : rc.a) * 2) / NM);
+      });
+    };
     rc.lead = L.polyline([toLLm(0, rc.b), rotPos(1)], { color: col, weight: 1.5, interactive: false }).addTo(g);
     rc.lead2 = L.polyline([toLLm(0, -rc.b), rotPos(-1)], { color: col, weight: 1.5, interactive: false }).addTo(g);
     const mkH = (cls, size) => L.divIcon({ className: 'rch ' + cls, html: '<i></i>', iconSize: [size, size] });
@@ -4348,6 +4478,7 @@ export function createMap(host, deps) {
       rc.lead2.setLatLngs([toLLm(0, -rc.b), rq]);
       rc.bm.setLatLng(btnPos());
       heading();
+      lens();
     };
     rc.upd = () => upd();
     rc.hs = corners().map((p, i) => {
@@ -4395,6 +4526,7 @@ export function createMap(host, deps) {
     );
     rc.rm.bindTooltip('000°', { permanent: true, direction: 'right', offset: [8, 0], className: 'rtip' });
     map.on('zoomend', rc.upd);
+    lens();
     const ban = $('mpadd');
     if (ban) ban.style.display = 'none'; // the buttons are next to the rectangle, not in the banner
     rc.bm = L.marker(btnPos(), {
@@ -4991,7 +5123,7 @@ export function createMap(host, deps) {
     dtcItems: () => DT.map(e => ({ stpt: e.it.stpt, name: e.it.name, group: e.it.group })),
     // the lines drawn (for the tests): colour, dash, opacity and label
     dtcLineLooks: () =>
-      LNP.map(l => ({
+      LNP.filter(l => l.getLatLngs).map(l => ({
         col: l.options.color,
         dash: l.options.dashArray || '',
         op: l.options.opacity,

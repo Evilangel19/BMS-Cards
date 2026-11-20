@@ -1897,3 +1897,25 @@ main.wide #sqtabs {
   background: #1a212b;
   color: var(--tx);
 }
+/* the lengths of the sides of a rectangle (NM) */
+.rclen span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  font: 600 10.5px system-ui;
+  color: #e6edf3;
+  background: rgba(11, 15, 20, 0.78);
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  padding: 0 4px;
+  pointer-events: none;
+}
+.mpsnap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--mu);
+  cursor: pointer;
+}

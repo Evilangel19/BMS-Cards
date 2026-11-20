@@ -71,6 +71,9 @@ try:
         check('the broken line is drawn in two pieces %s' % labs, labs.count('FEZ') == 2)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
         check('the section [F15_SIT_LINES] keeps its place, the new keys go into it', pg.evaluate("()=>{const a=__app.lines;const i=a.findIndex(l=>l.raw=='[F15_SIT_LINES]'),j=a.findIndex(l=>l.k=='SITLINE_8_0'),c=a.findIndex(l=>l.raw=='[COMMS]');return i>=0&&j>i&&j<c}"))
+        # the buttons of the SIT lines: the number and the initial of the name
+        txt = lambda sel: pg.text_content(sel).strip()
+        check('the SIT line buttons: 6E, 7W, 8F, 11H (add and delete)', txt('[data-add=line6]') == '6E' and txt('[data-add=line7]') == '7W' and txt('[data-add=line8]') == '8F' and txt('[data-add=line11]') == '11H' and txt('[data-del="12"]') == '12R' and txt('[data-add=line3]') == '3')
         # the menu of a point: the looks of the line, insert, break
         open_pt = lambda x, y: (pg.mouse.click(*at(x, y)), pg.wait_for_timeout(400))
         open_pt(*S6[1])
@@ -82,6 +85,9 @@ try:
         check('Off: ENABLED 0, the line dimmed', ln('SITLINE_6_ENABLED') == '0' and looks()['ECOAST']['op'] < 0.5)
         pg.fill('.mpop [data-f=sname]', 'COAST E'); pg.press('.mpop [data-f=sname]', 'Enter'); pg.wait_for_timeout(300)
         check('the name: SITLINE_6_NAME, the label follows', ln('SITLINE_6_NAME') == 'COAST E' and 'COAST E' in looks())
+        check('...and its button: 6C', txt('[data-add=line6]') == '6C')
+        pg.locator('.mpop [data-f=spick]').evaluate("e=>{e.value='#12ab34';e.dispatchEvent(new Event('change'))}"); pg.wait_for_timeout(200)
+        check('the colour picker: any colour, written as COLORHEX', ln('SITLINE_6_COLORHEX') == '12AB34' and pg.input_value('.mpop [data-f=shex]') == '12AB34')
         pg.click('.mpop [data-a=ins]'); pg.wait_for_timeout(400)
         mid = ((S6[1][0] + S6[2][0]) / 2, (S6[1][1] + S6[2][1]) / 2)
         check('Insert after: a point half way, the next ones move down (5 points)', abs(float(ln('SITLINE_6_2').split(',')[1]) / FT - mid[0]) < 0.01 and not ln('SITLINE_6_4').startswith('0.000000'))
@@ -89,11 +95,33 @@ try:
         check('Break after: an empty point after it, the last one moves down', ln('SITLINE_6_4').startswith('0.000000') and not ln('SITLINE_6_5').startswith('0.000000'))
         open_pt(*S6[0]); pg.click('.mpop [data-a=del]'); pg.wait_for_timeout(400)
         check('Delete point: the others move up, the break with them', ln('SITLINE_6_3').startswith('0.000000') and ln('SITLINE_6_5').startswith('0.000000'))
+        # snapping: a point added 5 px from a point of ECOAST goes exactly onto it
+        pg.click('#mpdadd') if not pg.is_visible('[data-add=line9]') else None; pg.wait_for_timeout(300)
+        check('Snap to points: on by default, in ADD', pg.is_checked('#mpdsnap'))
+        pg.click('[data-add=line9]'); pg.wait_for_timeout(300)
+        x0, y0 = at(*S7[1]); pg.mouse.move(x0 + 4, y0 + 3); pg.wait_for_timeout(200)
+        pg.mouse.click(x0 + 4, y0 + 3); pg.wait_for_timeout(400); pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        check('snapped: SITLINE_9_0 is exactly the 2nd point of WCOAST', ln('SITLINE_9_0') == ln('SITLINE_7_1'))
+        pg.click('#mpdadd') if not pg.is_visible('#mpdsnap') else None; pg.wait_for_timeout(300)
+        pg.uncheck('#mpdsnap'); pg.click('[data-add=line9]'); pg.wait_for_timeout(300)
+        x0, y0 = at(*S7[0]); pg.mouse.click(x0 + 4, y0 + 3); pg.wait_for_timeout(400); pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+        check('Snap off: the point stays where it was clicked', ln('SITLINE_9_1') != ln('SITLINE_7_0') and not ln('SITLINE_9_1').startswith('0.000000'))
+        pg.click('#mpdadd') if not pg.is_visible('#mpdsnap') else None; pg.wait_for_timeout(300); pg.check('#mpdsnap')
+        # the rectangle: the lengths of its sides while it is placed and after, as labels
+        pg.click('#mpdrect'); pg.wait_for_timeout(300); pg.mouse.click(*at(470, 450)); pg.wait_for_timeout(500)
+        lens = lambda: sorted(pg.evaluate("()=>[...document.querySelectorAll('.rclen span')].map(e=>e.textContent)"))
+        check('placing the rectangle: its 4 sides in NM %s' % lens(), lens() == ['12.0 NM', '12.0 NM', '20.0 NM', '20.0 NM'])
+        pg.click('.rcbi [data-a=ok]'); pg.wait_for_timeout(500)
+        check('placed: the lengths stay as labels on LINE2 %s' % lens(), lens() == ['12.0 NM', '12.0 NM', '20.0 NM', '20.0 NM'] and not ln('lineSTPT_10').startswith('0.000000'))
+        if shots:
+            pg.evaluate("()=>{const M=__app.mapV;M.leaflet.setView(M.toLL(470,450),10,{animate:false})}"); pg.wait_for_timeout(500); pg.screenshot(path=shots + '/sit-rect.png')
+            pg.evaluate("()=>{const M=__app.mapV;M.leaflet.setView(M.toLL(500,430),8,{animate:false})}"); pg.wait_for_timeout(500)
+        check('their filter: Rectangle sides (NM)', pg.locator('#mpdtc input[data-k=dn]').count() == 1)
         if shots: pg.screenshot(path=shots + '/sit-map.png')
         # an F-16: the map has no SIT lines 6-12 and draws the lines 1-4 in the DTC colour
         pg.evaluate("()=>{window.__sitOn=false;__app.mapV.refreshDtc()}"); pg.wait_for_timeout(400)
         labs = [z['lab'] for z in pg.evaluate("()=>__app.mapV.dtcLineLooks()")]
-        check('an F-16: only LINE1-4 on the map, the SIT rows of ADD hidden %s' % labs, labs == ['LINE1'] and not pg.is_visible('[data-add=line6]'))
+        check('an F-16: only LINE1-4 on the map, the SIT rows of ADD hidden %s' % labs, labs == ['LINE1', 'LINE2'] and not pg.is_visible('[data-add=line6]'))
         pg.evaluate("()=>{window.__sitOn=true;__app.mapV.refreshDtc()}"); pg.wait_for_timeout(300)
         # the menu of a point, for the screenshot
         open_pt(*S7[0])
