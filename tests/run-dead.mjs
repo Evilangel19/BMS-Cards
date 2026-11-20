@@ -70,36 +70,38 @@ ck(
 );
 const K = deadPlan({ sam: SAM, wps, tactic: 'hk', roles: ['killer', 'hunter'], shot });
 ck(
-  'Hunter-Killer: the anchors at the reset point 8 nm outside the arc, either side of the way in',
-  Math.abs(nm(K.A, SAM) - 34) < 0.01 && Math.abs(nm(K.B, SAM) - 34) < 0.01 && K.A.y > 0 && K.B.y < 0,
-  [K.A, K.B]
+  'Hunter-Killer: one anchor 8 nm outside the arc, beside the way in (the side of the orbit)',
+  Math.abs(nm(K.A, SAM) - 34) < 0.01 && K.A.y > 0 && nm(K.hIn[0], K.A) < 0.01 && nm(K.kIn[0], K.A) < 0.01,
+  K.A
 );
 ck(
-  '...the hunter: the bait arc 90 degrees inside the WEZ, on the WEZ with ECM on, then back to its anchor',
+  '...the hunter: the bait arc 90 degrees inside the WEZ, on the WEZ with ECM on, then back to the anchor',
   K.arc.every(p => Math.abs(nm(p, SAM) - K.Recm) < 0.01) &&
     K.Rb < K.R &&
     nm(K.def[K.def.length - 1], K.A) < 0.01 &&
-    K.tArc0 < K.tArc1 &&
+    K.tArc0 < K.tLaunch &&
+    K.tLaunch < K.tArc1 &&
     K.tArc1 < K.tBack
 );
 ck(
-  '...the killer the same way round outside the WEZ; at the SAM launch both marked; then the attack from its anchor into the WEZ after the reset',
+  '...the killer the same way round outside the WEZ; when the SAM shoots at the hunter, it turns in and shoots a HARM; the impact on its way back',
   K.kArc.every(p => Math.abs(nm(p, SAM) - K.Rk) < 0.01 && nm(p, SAM) > K.R) &&
     nm(K.launchH, SAM) < K.R &&
-    nm(K.launchK, SAM) > K.R &&
-    nm(K.atk[0], K.B) < 0.01 &&
-    nm(K.atk[K.atk.length - 1], SAM) < K.R &&
-    K.tAtk > K.tBack &&
-    nm(K.kBack[K.kBack.length - 1], K.B) < 0.01
+    Math.abs(nm(K.Lk, SAM) - (nm(K.Kp, SAM) - 2)) < 0.01 &&
+    K.tHL > K.tLaunch &&
+    K.tImpK == K.tHL + K.tofK * 1000 &&
+    nm(K.kBack[0], K.Lk) < 0.01 &&
+    nm(K.kBack[K.kBack.length - 1], K.A) < 0.01 &&
+    !K.markK
 );
 ck(
-  '...the nav offsets of the anchors from the task steerpoint (STPT 2)',
-  K.oa &&
-    K.oa.n == 2 &&
-    Math.abs(K.oa.oa1.nm - 34) < 0.01 &&
-    K.oa.oa1.rngFt > 200000 &&
-    K.oa.oa1.brg > 270 &&
-    K.oa.oa2.brg < 270
+  '...the nav offset of the anchor from the task steerpoint (STPT 2): OA1 only',
+  K.oa && K.oa.n == 2 && Math.abs(K.oa.oa1.nm - 34) < 0.01 && K.oa.oa1.rngFt > 200000 && K.oa.oa1.brg > 270 && !K.oa.oa2
+);
+const Bm = deadPlan({ sam: SAM, wps, tactic: 'bomb', roles: ['killer', 'hunter'], shot });
+ck(
+  'Bombs: the killer marks the SAM when it shoots at the hunter (no HARM), back to the anchor; the hunter covers from a point on its way back',
+  Bm.markK && !Bm.Lk && nm(Bm.kBack[Bm.kBack.length - 1], Bm.A) < 0.01 && Bm.coverPt && Bm.tAtk > Bm.tBack
 );
 const K0 = deadPlan({ sam: SAM, wps, tactic: 'hk', roles: ['killer', 'killer'], shot });
 ck(

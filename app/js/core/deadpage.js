@@ -2,7 +2,7 @@
 // come from the HARM model (airmissile.js harmShot) with the missile of the HARM page. The page: the target (its rings, its radars, the location known or
 // not, one fire control radar on each launcher), the tactic (HARM standoff, Hunter-Killer, Bombs / Maverick) and the orbit side, the roles of the
 // seats, the altitude of the flight (the blocks of the manual), the map or the scheme, the steps, the shot or the attack, the nav offsets of the anchors
-// (OA1 / OA2 from the target steerpoint, written to the DTC; an anchor as a PPT). Buttons that ask before they write: HARM tables, PPT, Add card.
+// (OA1 from the target steerpoint, written to the DTC; the anchor as a PPT). Buttons that ask before they write: HARM tables, Auto PPT, Add card.
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, sams, target, seat, harms, hts}, harm(), toLL, attach, detach, cyclePlan, planMode, layerOn,
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), planLines(mode, {x, y}), pptTypes(), snap, kbAdd}
 import { deadPlan, defaultRoles, rolesOf, partnerRole, ALT_BLOCKS, at } from './dead.js';
@@ -190,51 +190,70 @@ export function createDeadPage(deps) {
         });
       O.push({ me: false, t: P.tEnd, s: `${hms(P.tEnd)} leave the arc, egress` });
     } else {
-      // Hunter-Killer and bombs: the steps of your aircraft green
+      // Hunter-Killer and bombs: the steps done together white (sh), those of your aircraft green
       const H_ = who('hunter'),
         K_ = who('killer'),
-        C_ = who('cover');
+        C_ = who('cover'),
+        hk = t == 'hk';
       O.push({
-        me: true,
+        sh: true,
         t: P.tA,
-        s: `${hms(P.tA)} fighting wing to the reset point, ${P.Da.toFixed(0)} nm from the SAM (${H_.length ? 'anchor H, OA1' : ''}${H_.length && K_.length ? ' · ' : ''}${K_.length ? 'anchor K, OA2' : ''})`,
+        s: `${hms(P.tA)} fighting wing to the anchor (OA1), ${P.Da.toFixed(0)} nm from the SAM, beside the way in`,
       });
       if (H_.length)
         O.push({
           me: me('hunter'),
           t: P.tArc0,
-          s: `${list(H_)}: ${hms(P.tArc0)} ECM on, the bait arc ${P.Rb.toFixed(0)} nm inside the WEZ (the WEZ with ECM on; SAM on the ${st.side == 'R' ? 'right' : 'left'}); at its launch: chaff, notch, back to anchor H`,
+          s: `${list(H_)}: ${hms(P.tArc0)} ECM on, the bait arc ${P.Rb.toFixed(0)} nm inside the WEZ (the WEZ with ECM on; SAM on the ${st.side == 'R' ? 'right' : 'left'})`,
         });
       if (K_.length)
         O.push({
           me: me('killer'),
           t: P.tArc0,
-          s: `${list(K_)}: the same way round ${P.Rk.toFixed(0)} nm from the SAM, outside the WEZ; at its launch mark it (MARK point: HAD box, TGP to refine), back to anchor K`,
+          s: `${list(K_)}: the same way round ${P.Rk.toFixed(0)} nm from the SAM, outside the WEZ`,
         });
-      O.push({
-        me: true,
-        t: P.tBack,
-        s: `${hms(P.tBack)} both back to the reset point: decide the attack profile, scan for the other threats${t == 'bomb' ? '' : ' (pop-up, loft, HARM HAD)'}`,
-      });
+      if (H_.length)
+        O.push({
+          me: me('hunter'),
+          t: P.tLaunch,
+          s: `${list(H_)}: ${hms(P.tLaunch)} the SAM shoots: defend (ECM, chaff, notch), back to the anchor`,
+        });
       if (K_.length)
+        O.push(
+          hk
+            ? {
+                me: me('killer'),
+                t: P.tHL,
+                s: `${list(K_)}: turn in, ${hms(P.tHL)} HARM at ${P.dLk.toFixed(0)} nm (${mode().toUpperCase()}${mode() == 'pos' ? ' ' + sub() : ''}) · ◆ ${hms(P.tImpK)} · back to the anchor`,
+              }
+            : {
+                me: me('killer'),
+                t: P.tLaunch,
+                s: `${list(K_)}: ${hms(P.tLaunch)} mark the SAM (MARK point: HAD box, TGP to refine), on round and back to the anchor`,
+              }
+        );
+      O.push({
+        sh: true,
+        t: P.tBack,
+        s: `${hms(P.tBack)} both at the anchor: ${hk ? 'assess the shot, scan for the other threats' : 'decide the attack profile, scan for the other threats'}`,
+      });
+      if (!hk && K_.length)
         O.push({
           me: me('killer'),
           t: P.tAtk,
-          s: `${list(K_)}: ${hms(P.tAtk)} attack on ${h3(P.attackHdg)}°${t == 'bomb' && st.atk ? ' (' + ATKN[st.atk] + ')' : ''}`,
+          s: `${list(K_)}: ${hms(P.tAtk)} attack from the anchor${st.atk ? ' (' + ATKN[st.atk] + ')' : ': choose the profile (On the map)'}`,
+        });
+      if (!hk && H_.length)
+        O.push({
+          me: me('hunter'),
+          t: P.tAtk,
+          s: `${list(H_)}: cover the attack from the cover point on the way back`,
         });
       if (C_.length)
         O.push({
           me: me('cover'),
           t: P.tA,
-          s: `${list(C_)}: top cover, the arc ${(P.Ra + 4).toFixed(0)} nm, the same way round`,
-        });
-      if (H_.length)
-        O.push({
-          me: me('hunter'),
-          t: P.tAtk,
-          s: C_.length
-            ? `${list(H_)}: at anchor H during the attack, ready to bait again`
-            : `${list(H_)}: top cover outside the WEZ while the killer attacks`,
+          s: `${list(C_)}: top cover, an orbit ${(P.Da + 2).toFixed(0)} nm from the SAM on the other side of the way in`,
         });
     }
     return O;
@@ -329,12 +348,12 @@ export function createDeadPage(deps) {
         )
         .join(
           ''
-        )}</span>${t == 'hs' ? `<span class="seg sm" data-fx="md">${['pos', 'had'].map(v => `<button type="button" class="${mode() == v ? 'on' : ''}" data-ddmode="${v}">${v.toUpperCase()}</button>`).join('')}</span><span class="seg sm" data-fx="sb">${['EOM', 'PB', 'RUK'].map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-ddsub="${v}">${v}</button>`).join('')}</span>` : ''}</div><p class="hint wnote">${
+        )}</span>${t != 'bomb' ? `<span class="seg sm" data-fx="md">${['pos', 'had'].map(v => `<button type="button" class="${mode() == v ? 'on' : ''}" data-ddmode="${v}">${v.toUpperCase()}</button>`).join('')}</span><span class="seg sm" data-fx="sb">${['EOM', 'PB', 'RUK'].map(v => `<button type="button" class="${sub() == v ? 'on' : ''}" data-ddsub="${v}">${v}</button>`).join('')}</span>` : ''}</div><p class="hint wnote">${
         t == 'hs'
           ? 'Location known: launch outside the WEZ, then fly the arc round it inside the search radar, so the SAM radiates and the HARM finds it (a HARM misses a radar that is off).'
           : t == 'hk'
-            ? 'Location unknown: the hunter baits the SAM on the arc, the killer marks it, both reset at the anchors, the killer attacks while the other covers.'
-            : 'No HARM: Mavericks, CBUs or IAMs. Plan the attack on the Weapons page (pop-up, loft, high or medium altitude) from the killer anchor.'
+            ? 'Location unknown: the hunter baits the SAM on the arc inside the WEZ; when it shoots at the hunter, the killer, the same way round outside the WEZ, turns in and shoots its HARM. Both back to the anchor.'
+            : 'No HARM: the hunter baits the SAM, the killer marks it (MARK point); both back to the anchor, then the killer attacks with Mavericks, CBUs or IAMs (the profile: On the map) while the hunter covers.'
       }</p>`
     );
     const R = roles();
@@ -348,9 +367,11 @@ export function createDeadPage(deps) {
                 ? 'L ' + hms(z.tl) + ' · ◆ ' + hms(z.imp)
                 : 'the arc ' + (P.Ra + 4).toFixed(0) + ' nm'
               : r == 'hunter'
-                ? 'anchor H · bait arc ' + P.Rb.toFixed(0) + ' nm'
+                ? 'bait arc ' + P.Rb.toFixed(0) + ' nm · SAM shot ' + hms(P.tLaunch)
                 : r == 'killer'
-                  ? 'anchor K · attack ' + h3(P.attackHdg) + '°'
+                  ? t == 'hk'
+                    ? 'HARM ' + hms(P.tHL) + ' · ◆ ' + hms(P.tImpK)
+                    : 'mark ' + hms(P.tLaunch) + ' · attack ' + hms(P.tAtk)
                   : 'top cover';
         return `<div class="ddtile${mine(i) ? ' me' : ''}" data-fx="tile${i}"><div class="th"><span class="no">#${i + 1}</span><span>${i == 0 ? 'LEAD' : i == 2 ? 'ELEMENT' : 'WINGMAN'}</span>${mine(i) ? '<span class="you">YOU</span>' : ''}</div><div class="chips">${rolesOf(
           t,
@@ -372,7 +393,7 @@ export function createDeadPage(deps) {
     put(
       q('#ddst'),
       `<h3>Steps</h3><ol class="ddsteps">${steps()
-        .map(o => `<li class="${o.me ? 'sdme' : ''}">${esc(o.s)}</li>`)
+        .map(o => `<li class="${o.me ? 'sdme' : o.sh ? 'ddsh' : ''}">${esc(o.s)}</li>`)
         .join('')}</ol>`
     );
     put(q('#dddt'), detail());
@@ -407,8 +428,11 @@ export function createDeadPage(deps) {
       const mg = P.dL - P.R;
       return `<h3>Shot · ${esc(seatName(z.i))}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(z.tl) + ' · ' + P.dL.toFixed(1) + ' nm · ' + Math.round(P.alt).toLocaleString('en-US') + ' ft · ' + P.gs + ' kt', mine(z.i) ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rTh.toFixed(1) + ' nm', P.dL <= P.rTh ? '' : 'wbad')}${kv('FLIGHT TIME', z.tof + ' s')}${kv('IMPACT', hms(z.imp) + (z.imp > P.tTurn ? ' · you on the arc (the SAM on)' : ' · <span class="sdw">before the arc</span>'))}${kv('YOUR MARGIN', (mg >= 0 ? '+' : '−') + Math.abs(mg).toFixed(1) + ' nm ' + (mg >= 0 ? 'outside' : 'INSIDE') + ' the WEZ · +' + (P.dL - P.Recm).toFixed(1) + ' nm (ECM on)', mg < 0 ? 'wbad' : '')}</div><p class="hint wnote">The missile of the HARM page; aimed at the SAM, from the altitude and ground speed of your flight plan on the way in.</p>`;
     }
-    const k = P.seats.find(w => w.role == 'killer');
-    return `<h3>${t == 'bomb' ? 'Attack' : 'Killer'}${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('FROM', 'anchor K · ' + (P.Ra + 8).toFixed(0) + ' nm')}${kv('ATTACK', hms(P.tAtk) + ' · run-in ' + h3(P.attackHdg) + '°', k && mine(k.i) ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'bait arc ' + P.Rb.toFixed(0) + ' nm (ECM on) · ' + hms(P.tArc0) + '–' + hms(P.tArc1) : '—')}</div>${
+    const k = P.seats.find(w => w.role == 'killer'),
+      km = k && mine(k.i);
+    if (t == 'hk')
+      return `<h3>Killer · HARM${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(P.tHL) + ' · ' + P.dLk.toFixed(1) + ' nm · ' + h3(P.attackHdg) + '°', km ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rThK.toFixed(1) + ' nm', P.dLk <= P.rThK ? '' : 'wbad')}${kv('FLIGHT TIME', P.tofK + ' s')}${kv('IMPACT', hms(P.tImpK) + ' · the killer on its way back')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'bait arc ' + P.Rb.toFixed(0) + ' nm (ECM on) · the SAM shoots ' + hms(P.tLaunch) : '—')}</div><p class="hint wnote">The killer shoots when the SAM shoots at the hunter (its radar on). The missile of the HARM page.</p>`;
+    return `<h3>Attack${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('MARK', hms(P.tLaunch) + ' · when the SAM shoots at the hunter')}${kv('ATTACK', hms(P.tAtk) + ' · from the anchor' + (st.atk ? ' · ' + ATKN[st.atk] : ''), km ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'covers from its cover point' : '—')}</div>${
       t == 'bomb'
         ? `<div class="ddbtns"><span class="hint">On the map:</span><span class="seg sm">${[
             ['', 'None'],
@@ -464,10 +488,7 @@ export function createDeadPage(deps) {
   function fillOA(q) {
     const box = q('#ddoa');
     if (tactic() == 'hs' || !P.oa) return put(box, '');
-    const A2 = [
-      ['oa1', 'Anchor H', 'the hunter', ROLE_COL.hunter],
-      ['oa2', 'Anchor K', 'the killer', ROLE_COL.killer],
-    ];
+    const A2 = [['oa1', 'Anchor', 'the hunter and the killer', '#e2e8f0']];
     if (!q('#ddoaf'))
       put(
         box,
@@ -500,9 +521,9 @@ export function createDeadPage(deps) {
       q('#ddoaf'),
       `<div class="oaf"><span>From <b>STPT ${o.n}</b> · ${route ? 'in the flight plan' : '<span class="wbad">not in the flight plan (1-24)</span>'}</span>${
         route
-          ? `<button type="button" class="btn g" data-ddoaw>Write OA1 · OA2 to the DTC</button>`
+          ? `<button type="button" class="btn g" data-ddoaw>Write OA1 to the DTC</button>`
           : `<button type="button" class="btn g ddman" disabled title="STPT ${o.n} is not in the flight plan (1-24): BMS does not take its offsets from the DTC">Manual</button>`
-      }</div><p class="hint wnote">${route ? 'BMS takes the offsets of a flight plan steerpoint from the DTC. ' : 'Type OA1 and OA2 in the DED. '}Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED).</p>`
+      }</div><p class="hint wnote">${route ? 'BMS takes the offsets of a flight plan steerpoint from the DTC. ' : 'Type OA1 in the DED. '}Offsets from a PPT or a markpoint are not taken from the DTC: type them on board (DED).</p>`
     );
   }
   const sw = (c, d, w = 3) =>
@@ -538,21 +559,31 @@ export function createDeadPage(deps) {
           ph.push({ a: z.tl, b: z.imp, k: 'harm' });
         } else ph.push({ a: P.tTurn, b: P.tEnd, k: 'cover', l: 'cover' });
       } else {
-        if (z.role == 'hunter')
+        if (z.role == 'hunter') {
           ph.push(
-            { a: P.tA, b: P.tArc0, k: 'run', l: 'anchor H' },
-            { a: P.tArc0, b: P.tArc1, k: 'arc', l: 'bait' },
-            { a: P.tArc1, b: P.tBack, k: 'def', l: 'defend, back' },
-            { a: P.tAtk, b: P.tAtk + 120000, k: 'hold', l: 'anchor H' }
+            { a: P.tA, b: P.tArc0, k: 'run', l: 'anchor' },
+            { a: P.tArc0, b: P.tLaunch, k: 'arc', l: 'bait' },
+            { a: P.tLaunch, b: P.tBack, k: 'def', l: 'defend, back' }
           );
-        if (z.role == 'killer') {
-          ph.push(
-            { a: P.tA, b: P.tAtk, k: 'hold', l: 'anchor K · mark' },
-            { a: P.tAtk, b: P.tAtk + 90000, k: 'atk', l: 'attack ' + h3(P.attackHdg) + '°' }
-          );
-          mk.push({ t: P.tArc0, s: '+' });
+          if (t == 'bomb') ph.push({ a: P.tAtk, b: P.tAtk + 120000, k: 'cover', l: 'cover point' });
         }
-        if (z.role == 'cover') ph.push({ a: P.tA, b: P.tAtk + 120000, k: 'cover', l: 'top cover' });
+        if (z.role == 'killer') {
+          if (t == 'hk') {
+            ph.push(
+              { a: P.tA, b: P.tHL, k: 'arc', l: 'round outside' },
+              { a: P.tHL, b: P.tImpK, k: 'harm' },
+              { a: P.tHL, b: P.tBack, k: 'run', l: 'back' }
+            );
+            mk.push({ t: P.tHL, s: 'L' }, { t: P.tImpK, s: '◆' });
+          } else {
+            ph.push(
+              { a: P.tA, b: P.tBack, k: 'hold', l: 'round outside · mark' },
+              { a: P.tAtk, b: P.tAtk + 90000, k: 'atk', l: 'attack' + (st.atk ? ' (' + ATKN[st.atk] + ')' : '') }
+            );
+            mk.push({ t: P.tLaunch, s: '+' });
+          }
+        }
+        if (z.role == 'cover') ph.push({ a: P.tA, b: P.tBack + 120000, k: 'cover', l: 'top cover' });
       }
       L.push({ i: z.i, role: z.role, ph, mk });
     });
@@ -695,18 +726,7 @@ export function createDeadPage(deps) {
         { x: s.x + r, y: s.y + r },
       ];
     if (tactic() == 'hs') return [...ring, P.L, P.turn, ...P.arc];
-    return [
-      ...ring,
-      P.X,
-      P.A,
-      P.B,
-      ...P.arc,
-      ...P.def,
-      ...P.kArc,
-      ...P.kBack,
-      ...P.cover,
-      ...(tactic() == 'hk' ? P.atk : []),
-    ];
+    return [...ring, P.A, ...P.arc, ...P.def, ...P.kPath, ...P.kBack, ...(roles().includes('cover') ? P.cover : [])];
   }
   // a point along a polyline, d nm from its start (the last point past its end)
   function along(pts, d) {
@@ -872,14 +892,15 @@ export function createDeadPage(deps) {
       path(P.egrPath, ROLE_COL.shooter, meRole == 'shooter', true);
       txt(P.egrPath[P.egrPath.length - 1], 'EGRESS ' + hms(P.tEnd).slice(3), ROLE_COL.shooter);
     } else {
-      // as the Training Manual draws it: fighting wing to the reset point, the hunter round inside the WEZ, the killer the same way outside, the SAM
-      // launch, both back to the reset point, then the killer's attack (Hunter-Killer; bombs: the lines of the attack page) and the top cover
+      // from the Training Manual, with the HARM: fighting wing to the anchor, the hunter round inside the WEZ, the killer the same way outside;
+      // when the SAM shoots at the hunter (red), the hunter defends and goes back; the killer (Hunter-Killer) turns in and shoots its HARM, (bombs)
+      // marks the SAM, then from the anchor attacks with the profile chosen while the hunter covers
       const hn = seatsOf('hunter'),
         kl = seatsOf('killer'),
         cv = seatsOf('cover'),
         meH = hn.some(i => mine(i)),
         meK = kl.some(i => mine(i)),
-        wIn = [at(s, P.th, P.Da + 14), P.X];
+        wIn = [at(s, P.th, P.Da + 14), P.A];
       const side = (q, d) =>
         q.map(p => {
           const dx = p.x - s.x,
@@ -887,9 +908,9 @@ export function createDeadPage(deps) {
             l = Math.hypot(dx, dy) || 1;
           return { x: p.x + (-dy / l) * d * P.dir, y: p.y + (dx / l) * d * P.dir };
         });
-      // the way in: the two aircraft side by side (fighting wing)
-      if (hn.length) path(side(wIn, 1.5 * KM_NM).concat([P.A]), ROLE_COL.hunter, meH);
-      if (kl.length) path(side(wIn, -1.5 * KM_NM).concat([P.B]), ROLE_COL.killer, meK);
+      // the way in: the two aircraft side by side (fighting wing) to the anchor
+      if (hn.length) path(side([wIn[0]], 0.8 * KM_NM).concat([P.A]), ROLE_COL.hunter, meH);
+      if (kl.length) path(side([wIn[0]], -0.8 * KM_NM).concat([P.A]), ROLE_COL.killer, meK);
       txt(
         wIn[0],
         (X.me.n == 2 ? '2-SHIP ' : '') + 'FIGHTING WING · ' + Math.round(P.alt).toLocaleString('en-US') + ' FT',
@@ -903,19 +924,9 @@ export function createDeadPage(deps) {
           'HUNTER ' + nums(hn) + ' · BAIT ' + P.Rb.toFixed(0) + ' NM, ECM ON',
           ROLE_COL.hunter
         );
-      }
-      if (kl.length) {
-        path(P.kIn.concat(P.kArc), ROLE_COL.killer, meK, false, P.kArc);
-        path(P.kBack, ROLE_COL.killer, meK, true);
-        txt(
-          P.kArc[Math.floor(P.kArc.length * 0.25)],
-          'KILLER ' + nums(kl) + ' · ' + P.Rk.toFixed(0) + ' NM, OUTSIDE THE WEZ',
-          ROLE_COL.killer
-        );
-      }
-      // the SAM launch: a red mark on both lines
-      const tick = (p, col) => {
-        const d = Math.hypot(p.x - s.x, p.y - s.y) || 1,
+        // the SAM shoots at the hunter: a red mark across its line
+        const p = P.launchH,
+          d = Math.hypot(p.x - s.x, p.y - s.y) || 1,
           u = { x: (p.x - s.x) / d, y: (p.y - s.y) / d },
           k = Math.max(0.6, P.R * 0.06) * KM_NM;
         line(
@@ -923,59 +934,62 @@ export function createDeadPage(deps) {
             { x: p.x - u.x * k, y: p.y - u.y * k },
             { x: p.x + u.x * k, y: p.y + u.y * k },
           ],
-          { color: col, weight: 3.5 }
+          { color: '#ff3b3b', weight: 3.5 }
         );
-      };
-      if (hn.length) {
-        tick(P.launchH, '#ff3b3b');
-        txt(P.launchH, 'SAM LAUNCH: HUNTER DEFENDS (ECM · CHAFF · NOTCH)', '#ff5a5a');
+        txt(p, 'SAM SHOOTS ' + hms(P.tLaunch).slice(3) + ': HUNTER DEFENDS (ECM · CHAFF · NOTCH)', '#ff5a5a');
       }
       if (kl.length) {
-        tick(P.launchK, '#ff3b3b');
-        txt(P.launchK, 'KILLER MARKS (MARK POINT)', ROLE_COL.killer);
-      }
-      // the killer's attack (Hunter-Killer only: with bombs, the lines of the attack page chosen)
-      if (kl.length && t == 'hk') {
-        const n = P.atk.length,
-          w0 = Math.max(0, n - 4);
-        path(P.atk.slice(0, w0 + 1), ROLE_COL.killer, meK);
-        line(P.atk.slice(w0), { color: c.halo, weight: 6, opacity: 0.6 });
-        line(P.atk.slice(w0), { color: '#ff3b3b', weight: 2.6 });
-        line(head(P.atk[n - 1], s, Math.max(0.8, P.R * 0.06)), { color: '#ff3b3b', weight: 2.6 });
-        line([P.atk[n - 1], s], { color: '#ff3b3b', weight: 2.6 });
+        path(P.kPath, ROLE_COL.killer, meK, false, P.kPath.slice(P.kIn.length));
+        path(P.kBack, ROLE_COL.killer, meK, true);
         txt(
-          P.atk[Math.floor(n / 2)],
-          'KILLER ATTACKS ' + hms(P.tAtk).slice(3) + ' · POP-UP / LOFT / HARM HAD',
+          P.kArc[Math.floor(P.kArc.length * 0.2)],
+          'KILLER ' + nums(kl) + ' · ' + P.Rk.toFixed(0) + ' NM, OUTSIDE THE WEZ',
           ROLE_COL.killer
         );
+        if (t == 'hk') {
+          // the HARM: the launch, its line to the SAM, the impact where the killer is then
+          line([P.Lk, s], { color: HARM, weight: meK ? 2.6 : 2 });
+          dot(P.Lk, HARM, meK ? 7 : 6);
+          txt(P.Lk, nums(kl) + ' L ' + hms(P.tHL).slice(3) + ' · ' + P.dLk.toFixed(0) + ' NM', meK ? SD_COL.YOU : HARM);
+          tag(P.impK, `<i class="sdimpm"></i>`, 'sdimp');
+          txt(P.impK, '◆ ' + hms(P.tImpK).slice(3), IMP);
+          tag(s, `<i class="sdimpm"></i>`, 'sdimp');
+        } else {
+          // bombs: the mark, then the attack from the anchor to the profile chosen
+          tag(P.markK, `<b class="ddmk" style="color:${ROLE_COL.killer}">+</b>`);
+          txt(P.markK, 'KILLER MARKS (MARK POINT) ' + hms(P.tLaunch).slice(3), ROLE_COL.killer);
+          const al = atkLines(),
+            p0 = al && al.segs && al.segs[0] && al.segs[0].pts[0];
+          if (p0) path([P.A, p0], ROLE_COL.killer, meK);
+          if (al && al.segs) {
+            al.segs.forEach(z => {
+              line(z.pts, { color: c.halo, weight: 5, opacity: 0.5 });
+              line(z.pts, { color: z.col, weight: 2.4, dashArray: z.dash || '' });
+            });
+            al.marks.forEach(m => {
+              dot(m, m.col, 4);
+              if (m.l) txt(m, String(m.l).toUpperCase(), m.col);
+            });
+          }
+          if (hn.length) {
+            dot(P.coverPt, ROLE_COL.hunter, 6);
+            txt(P.coverPt, 'HUNTER ' + nums(hn) + ' COVER POINT', ROLE_COL.hunter);
+          }
+        }
       }
-      // Bombs / Maverick: the lines of the attack page chosen, on the target steerpoint nearest to the SAM
-      const al = atkLines();
-      if (al && al.segs) {
-        al.segs.forEach(z => {
-          line(z.pts, { color: c.halo, weight: 5, opacity: 0.5 });
-          line(z.pts, { color: z.col, weight: 2.4, dashArray: z.dash || '' });
-        });
-        al.marks.forEach(m => {
-          dot(m, m.col, 4);
-          if (m.l) txt(m, String(m.l).toUpperCase(), m.col);
-        });
-      }
-      // top cover during the attack: the cover role, else the hunter (2-ship)
-      const tc = cv.length ? cv : hn;
-      if (tc.length) {
+      // top cover (the cover role): apart, on the other side of the way in
+      if (cv.length) {
         path(
           P.cover,
           ROLE_COL.cover,
-          tc.some(i => mine(i)),
+          cv.some(i => mine(i)),
           true,
           P.cover
         );
-        txt(P.cover[Math.floor(P.cover.length / 2)], nums(tc) + ' TOP COVER', ROLE_COL.cover);
+        txt(P.cover[Math.floor(P.cover.length / 2)], nums(cv) + ' TOP COVER', ROLE_COL.cover);
       }
-      if (hn.length) dot(P.A, ROLE_COL.hunter, 6, 'd');
-      dot(P.B, ROLE_COL.killer, 6, 'd');
-      txt(P.X, 'RESET · DECIDE THE ATTACK · OA1 H / OA2 K', '#e2e8f0');
+      dot(P.A, '#e2e8f0', 6, 'd');
+      txt(P.A, 'ANCHOR · OA1', '#e2e8f0');
     }
     if (fit) {
       fit = false;
@@ -986,7 +1000,7 @@ export function createDeadPage(deps) {
       used = [{ x: S0.x - 8, y: S0.y - 12, w: 16 + (s.name.length + 12) * 6.6, h: 20 }];
     LB.forEach(({ p, s2, col, cls }) => {
       const q = map.latLngToContainerPoint(ll(p)),
-        w = String(s2).length * 6.3 + 12,
+        w = String(s2).length * 7.2 + 12,
         h = 17,
         cw = map.getContainer().clientWidth,
         // away from the SAM, unless the text would go out of the map on that side
@@ -1136,11 +1150,11 @@ export function createDeadPage(deps) {
     }
   }
   async function addAnchor(k) {
-    const p = k == 'oa1' ? P.A : P.B,
+    const p = P.A,
       T = pptTypes(),
       sel = root.querySelector('[data-ddpptt="' + k + '"]'),
       e = T.find(x => x.name == (sel ? sel.value : st.ppt[k])) || T[0],
-      an = k == 'oa1' ? 'anchor H' : 'anchor K';
+      an = 'the anchor';
     if (!e) return deps.toast('The PPT types are read from Ppt.ini: open the BMS folder first.', true);
     if (
       !(await deps.confirm(
@@ -1157,13 +1171,12 @@ export function createDeadPage(deps) {
     if (!deps.dtc.has('NAV OFFSETS')) return deps.toast('This DTC has no NAV OFFSETS section.', true);
     if (
       !(await deps.confirm(
-        `Write the anchors as the nav offsets of STPT ${o.n}?\n\nOA1-${o.n} = ${o.oa1.brg}°, ${o.oa1.nm.toFixed(1)} nm, ${elOf('oa1')} ft (anchor H)\nOA2-${o.n} = ${o.oa2.brg}°, ${o.oa2.nm.toFixed(1)} nm, ${elOf('oa2')} ft (anchor K)`
+        `Write the anchor as the nav offset OA1 of STPT ${o.n}?\n\nOA1-${o.n} = ${o.oa1.brg}°, ${o.oa1.nm.toFixed(1)} nm, ${elOf('oa1')} ft`
       ))
     )
       return;
     deps.dtc.setOA('OA1-' + o.n, [o.oa1.brg, o.oa1.rngFt, elOf('oa1')].join(','));
-    deps.dtc.setOA('OA2-' + o.n, [o.oa2.brg, o.oa2.rngFt, elOf('oa2')].join(','));
-    deps.toast('OA1 and OA2 of STPT ' + o.n + ' written to the DTC.');
+    deps.toast('OA1 of STPT ' + o.n + ' written to the DTC.');
   }
   async function tables() {
     const T = deps.dtc.harm(),
@@ -1224,21 +1237,38 @@ export function createDeadPage(deps) {
         r == 'hunter'
           ? [
               ['YOUR ROLE', 'HUNTER', seatName(me)],
-              ['ANCHOR H', hms(P.tA), P.oa ? h3(P.oa.oa1.brg) + '° ' + P.oa.oa1.nm.toFixed(0) + ' NM · OA1' : ''],
+              ['ANCHOR', hms(P.tA), P.oa ? h3(P.oa.oa1.brg) + '° ' + P.oa.oa1.nm.toFixed(0) + ' NM · OA1' : ''],
               ['BAIT · ECM ON', 'ARC ' + P.Rb.toFixed(0), hms(P.tArc0) + '–' + hms(P.tArc1).slice(3)],
-              ['THEN', 'DEFEND', 'BACK TO ANCHOR H'],
+              ['SAM SHOOTS', hms(P.tLaunch), 'DEFEND, BACK TO THE ANCHOR' + (t == 'bomb' ? ' · COVER POINT' : '')],
             ]
           : r == 'killer'
             ? [
                 ['YOUR ROLE', 'KILLER', seatName(me)],
-                ['ANCHOR K', hms(P.tA), P.oa ? h3(P.oa.oa2.brg) + '° ' + P.oa.oa2.nm.toFixed(0) + ' NM · OA2' : ''],
-                ['MARK', 'HAD → TGP', t == 'hk' ? 'WHILE THE HUNTER BAITS' : 'HAD BOX → MARKPOINT'],
-                ['ATTACK', hms(P.tAtk), 'RUN-IN ' + h3(P.attackHdg) + '°', true],
+                ['ANCHOR', hms(P.tA), P.oa ? h3(P.oa.oa1.brg) + '° ' + P.oa.oa1.nm.toFixed(0) + ' NM · OA1' : ''],
+                ...(t == 'hk'
+                  ? [
+                      [
+                        'HARM LAUNCH',
+                        hms(P.tHL),
+                        P.dLk.toFixed(1) + ' NM · ' + h3(P.attackHdg) + '° · ' + mode().toUpperCase(),
+                        true,
+                      ],
+                      ['◆ IMPACT · TOF', hms(P.tImpK), P.tofK + ' S'],
+                    ]
+                  : [
+                      ['MARK', hms(P.tLaunch), 'WHEN THE SAM SHOOTS AT THE HUNTER'],
+                      [
+                        'ATTACK',
+                        hms(P.tAtk),
+                        'FROM THE ANCHOR' + (st.atk ? ' · ' + ATKN[st.atk].toUpperCase() : ''),
+                        true,
+                      ],
+                    ]),
               ]
             : [
                 ['YOUR ROLE', 'COVER', seatName(me)],
-                ['ARC', (P.Ra + 4).toFixed(0) + ' NM', ''],
-                ['FROM', hms(P.tAtk), ''],
+                ['ORBIT', (P.Da + 2).toFixed(0) + ' NM', 'THE OTHER SIDE OF THE WAY IN'],
+                ['FROM', hms(P.tA), ''],
                 ['', '', ''],
               ];
     }
@@ -1270,11 +1300,8 @@ export function createDeadPage(deps) {
             P.gs +
             ' kt' +
             (P.slow ? ' (350 kt or more)' : ' ✓'),
-      steps: steps().map(o => ({ me: o.me, s: o.s })),
-      oa:
-        t == 'hs' || !P.oa
-          ? null
-          : { ...P.oa, oa1: { ...P.oa.oa1, el: elOf('oa1') }, oa2: { ...P.oa.oa2, el: elOf('oa2') } },
+      steps: steps().map(o => ({ me: o.me, sh: o.sh, s: o.s })),
+      oa: t == 'hs' || !P.oa ? null : { ...P.oa, oa1: { ...P.oa.oa1, el: elOf('oa1') } },
       seats: R.map((r, i) => {
         const w = P.seats.find(q => q.i == i);
         return {
@@ -1288,9 +1315,11 @@ export function createDeadPage(deps) {
                 ? 'L ' + hms(w.tl) + ' · ◆ ' + hms(w.imp)
                 : 'ARC ' + hms(P.tTurn)
               : r == 'hunter'
-                ? 'ARC ' + hms(P.tArc0) + '–' + hms(P.tArc1) + ' · ANCHOR H ' + hms(P.tBack)
+                ? 'BAIT ' + hms(P.tArc0) + ' · SAM SHOOTS ' + hms(P.tLaunch) + ' · ANCHOR ' + hms(P.tBack)
                 : r == 'killer'
-                  ? 'ANCHOR K ' + hms(P.tA) + ' · ATTACK ' + hms(P.tAtk)
+                  ? t == 'hk'
+                    ? 'HARM ' + hms(P.tHL) + ' · ◆ ' + hms(P.tImpK)
+                    : 'MARK ' + hms(P.tLaunch) + ' · ATTACK ' + hms(P.tAtk)
                   : 'COVER ' + hms(P.tA),
         };
       }),
@@ -1334,25 +1363,31 @@ export function createDeadPage(deps) {
       marks.push({ p: P.turn, k: 'pt', col: '#fff', l: 'TURN ' + hms(P.tTurn).slice(3) });
       marks.push({ p: sam(), k: 'imp' });
     } else {
-      // as the Training Manual draws it (see paint)
+      // as paint draws it
       const has = r => R.includes(r);
       if (has('hunter')) {
         add(P.hIn.concat(P.arc), 'hunter', me == 'hunter', 5, false, P.arc);
         add(P.def, 'hunter', me == 'hunter', 4, true);
-        marks.push({ p: P.launchH, k: 'pt', col: '#ff3b3b', l: 'SAM LAUNCH: HUNTER DEFENDS' });
+        marks.push({ p: P.launchH, k: 'pt', col: '#ff3b3b', l: 'SAM SHOOTS: HUNTER DEFENDS' });
+        if (t == 'bomb') marks.push({ p: P.coverPt, k: 'pt', col: ROLE_COL.hunter, l: 'HUNTER COVER POINT' });
       }
       if (has('killer')) {
-        add(P.kIn.concat(P.kArc), 'killer', me == 'killer', 5, false, P.kArc);
+        add(P.kPath, 'killer', me == 'killer', 5, false, P.kArc);
         add(P.kBack, 'killer', me == 'killer', 4, true);
-        marks.push({ p: P.launchK, k: 'pt', col: ROLE_COL.killer, l: 'KILLER MARKS' });
         if (t == 'hk') {
-          add(P.atk, 'killer', me == 'killer', 5);
-          paths.push({ pts: [P.atk[P.atk.length - 1], sam()], col: '#ff3b3b', w: 4 });
-        }
+          paths.push({ pts: [P.Lk, sam()], col: HARM, w: 3 });
+          marks.push({
+            p: P.Lk,
+            k: 'pt',
+            col: HARM,
+            tc: me == 'killer' ? SD_COL.YOU : HARM,
+            l: 'L ' + hms(P.tHL).slice(3),
+          });
+          marks.push({ p: P.impK, k: 'imp' }, { p: sam(), k: 'imp' });
+        } else marks.push({ p: P.markK, k: 'pt', col: ROLE_COL.killer, l: 'KILLER MARKS' });
       }
-      if (has('cover') || has('hunter')) add(P.cover, 'cover', me == 'cover', 4, true, P.cover);
-      if (has('hunter')) marks.push({ p: P.A, k: 'anc', col: ROLE_COL.hunter, l: 'ANCHOR H · OA1' });
-      marks.push({ p: P.B, k: 'anc', col: ROLE_COL.killer, l: 'ANCHOR K · OA2' });
+      if (has('cover')) add(P.cover, 'cover', me == 'cover', 4, true, P.cover);
+      marks.push({ p: P.A, k: 'anc', col: '#e2e8f0', l: 'ANCHOR · OA1' });
     }
     return { paths, marks };
   }

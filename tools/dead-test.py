@@ -93,12 +93,12 @@ try:
         check('the SA-8: the red TELAR warning (3 alive), location unknown -> Hunter-Killer', pg.locator('#ddtg .ddtel').count() == 1 and '3 alive' in tg and 'unknown' in tg and pg.locator('#ddtc [data-ddtac=hk].on').count() == 1)
         # Hunter-Killer
         C = P()
-        check('Hunter-Killer: #1 killer, #2 hunter; the anchors as OA1 / OA2 of STPT 3', [s['role'] for s in C['seats']] == ['killer', 'hunter'] and C['oa'] and C['oa']['n'] == 3)
+        check('Hunter-Killer: #1 killer, #2 hunter; the anchor as OA1 of STPT 3', [s['role'] for s in C['seats']] == ['killer', 'hunter'] and C['oa'] and C['oa']['n'] == 3)
         check('...the bait inside the WEZ, on the WEZ with ECM on (%.1f of %.1f nm)' % (C['Rb'], C['R']), abs(C['Rb'] - C['Recm']) < 0.01 and C['Rb'] < C['R'] and 'ECM on' in pg.inner_text('#ddst'))
-        check('...green: the steps of your aircraft (the killer), the attack on its card', pg.locator('#ddst li.sdme').count() >= 3 and 'attack' in pg.inner_text('#ddst') and 'fighting wing' in pg.inner_text('#ddst li.sdme >> nth=0') and pg.locator('#dddt .sdme').count() == 1)
+        check('...the steps: done together white, yours (the killer: its HARM) green; the launch green on its card', pg.locator('#ddst li.ddsh').count() == 2 and 'fighting wing' in pg.inner_text('#ddst li.ddsh >> nth=0') and pg.locator('#ddst li.sdme').count() == 2 and 'HARM at' in pg.inner_text('#ddst') and pg.locator('#dddt .sdme').count() == 1)
         oa = pg.inner_text('#ddoa')
-        check('...the nav offsets in the right column, from STPT 3, Add buttons for the anchors, Write OA1 · OA2', pg.locator('.wpr #ddoa .oab').count() == 2 and pg.locator('#ddoa [data-ddadd]').count() == 2 and 'Write OA1' in oa and 'type them on board' in oa and 'FROM STPT 3' in oa.upper())
-        check('...the map: the anchors, the reset point, the SAM launch on both lines, the fighting wing', pg.locator('#ddmap .ddanc').count() == 2 and 'RESET' in pg.inner_text('#ddmap') and 'HUNTER DEFENDS' in pg.inner_text('#ddmap') and 'KILLER MARKS' in pg.inner_text('#ddmap') and 'FIGHTING WING' in pg.inner_text('#ddmap'))
+        check('...the nav offset in the right column, from STPT 3: the anchor (OA1), its Add button, Write OA1', pg.locator('.wpr #ddoa .oab').count() == 1 and pg.locator('#ddoa [data-ddadd]').count() == 1 and 'Write OA1' in oa and 'type them on board' in oa and 'FROM STPT 3' in oa.upper())
+        check('...the map: one anchor, the fighting wing, the SAM shooting at the hunter, the HARM of the killer and its impact, no cover (none chosen)', pg.locator('#ddmap .ddanc').count() == 1 and 'ANCHOR · OA1' in pg.inner_text('#ddmap') and 'HUNTER DEFENDS' in pg.inner_text('#ddmap') and 'KILLER MARKS' not in pg.inner_text('#ddmap') and 'FIGHTING WING' in pg.inner_text('#ddmap') and pg.locator('#ddmap .sdimp').count() == 2 and 'TOP COVER' not in pg.inner_text('#ddmap'))
         check('the buttons at the top, in the bar of SEAD | DEAD, without dots: HARM tables, Auto PPT, Add card', pg.locator('#wp .hsub .hacts button').all_inner_texts() == ['HARM tables', 'Auto PPT', 'Add card'])
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hk.png')
         msgs = []
@@ -107,7 +107,7 @@ try:
         check('...the PPT types for the anchors: only the ones that are not SAMs', pg.evaluate("()=>[...document.querySelectorAll('#ddoa select[data-ddpptt=oa1] option')].map(o=>o.value)") == ['REF', 'IP'])
         pg.select_option('#ddoa select[data-ddpptt=oa1]', 'IP'); pg.wait_for_timeout(300)
         n0 = cnt(); pg.click('#ddoa [data-ddadd=oa1]'); pg.wait_for_timeout(800)
-        check('+ PPT of anchor H: asked, then a PPT of the type chosen, no ring (%d -> %d)' % (n0, cnt()), msgs and 'anchor H' in msgs[-1] and 'Initial point' in msgs[-1] and cnt() == n0 + 1 and pg.evaluate("()=>__app.lines.some(l=>/^ppt_/.test(l.k)&&/, IP$/.test(l.v.trim()))"))
+        check('+ PPT of the anchor: asked, then a PPT of the type chosen, no ring (%d -> %d)' % (n0, cnt()), msgs and 'the anchor' in msgs[-1] and 'Initial point' in msgs[-1] and cnt() == n0 + 1 and pg.evaluate("()=>__app.lines.some(l=>/^ppt_/.test(l.k)&&/, IP$/.test(l.v.trim()))"))
         pg.click('#ddoa [data-ddadd=oa1]'); pg.wait_for_timeout(800)
         check('...twice: not added again', cnt() == n0 + 1)
         pg.locator('#ddoa input[data-ddel=oa1]').evaluate("e=>{e.value=1500;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(300)
@@ -116,7 +116,7 @@ try:
         v1 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='NAV OFFSETS'&&l.k=='OA1-3')||{}).v")
         v2 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='NAV OFFSETS'&&l.k=='OA2-3')||{}).v")
         b1 = C['oa']['oa1']
-        check('Write OA1 · OA2: asked, then OA1-3 / OA2-3 = bearing, range ft, elevation ft (%s, %s)' % (v1, v2), msgs and 'STPT 3' in msgs[0] and v1 == '%d,%d,1500' % (b1['brg'], b1['rngFt']) and v2 and v2.endswith(',0'))
+        check('Write OA1: asked, then OA1-3 = bearing, range ft, elevation ft, OA2-3 untouched (%s, %s)' % (v1, v2), msgs and 'STPT 3' in msgs[0] and v1 == '%d,%d,1500' % (b1['brg'], b1['rngFt']) and v2 == '0,0,0')
         # the scheme
         pg.click('#wp [data-ddview=sch]'); pg.wait_for_timeout(400)
         check('Scheme: a lane for each seat with its role', pg.locator('#ddsch svg.sdscv').count() == 1 and 'HUNTER' in pg.text_content('#ddsch svg') and 'KILLER' in pg.text_content('#ddsch svg') and not pg.locator('#ddmap').is_visible())
@@ -158,6 +158,8 @@ try:
         nt = pg.inner_text('#dddt')
         check('Bombs, HADB on the map: the lines of the HADB page on the steerpoint of the SA-8, the Weapons page left as it was (%s)' % nt[-160:], 'STPT 4' in nt and pg.locator('#wp .wtabs [data-mode=harm].on').count() == 1 and pg.evaluate("()=>__app.wpPage.state().tgt") == t0 and pg.evaluate("()=>__app.wpPage.state().mode") == m0)
         check('...its phases in the legend', 'Bomb fall' in pg.inner_text('#ddleg'))
+        mt = pg.inner_text('#ddmap')
+        check('...bombs on the map: the mark of the killer, the cover point of the hunter, the top cover of #3 #4, no HARM', 'KILLER MARKS' in mt and 'COVER POINT' in mt and 'TOP COVER' in mt and pg.locator('#ddmap .sdimp').count() == 0)
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-bomb.png')
         st = pg.evaluate("()=>__app.deadPage.state()")
         check('the page state for the mission file', st['atk'] == 'hadb' and st['tactic'] == 'bomb' and st['tgt'] == 's8' and st['side'] == 'R' and st['ecm'] == 70)

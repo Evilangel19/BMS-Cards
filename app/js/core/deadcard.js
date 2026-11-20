@@ -33,7 +33,7 @@ const hm = t => {
 const TOP = 190;
 const warnH = D => (D.telar >= 0 ? 84 : 0) + (D.alt ? 70 : 0);
 const stepsH = D => 50 + Math.min(8, D.steps.length) * 40;
-const oaH = D => (D.oa ? 50 + 3 * 40 + 10 : 0);
+const oaH = D => (D.oa ? 50 + (D.oa.oa2 ? 3 : 2) * 40 + 10 : 0);
 const seatsH = D => 50 + 36 + D.seats.length * 40;
 /** the box of the map or the scheme: under the role and the warnings, over the steps, the offsets and the flight */
 export function deadBox(D) {
@@ -145,7 +145,7 @@ export function drawDeadCard(x, D, kind = 'map') {
       x.fillStyle = '#e8f5ee';
       x.fillRect(30, y - 2, W - 60, 38);
     }
-    font(o.me ? '700' : '500', 23);
+    font(o.me || o.sh ? '700' : '500', 23);
     text(i + 1 + '.', 44, y + 26, o.me ? AC : MU);
     fitText(o.s, 84, y + 26, W - 140, o.me ? AC : TX);
     y += 40;
@@ -166,17 +166,19 @@ export function drawDeadCard(x, D, kind = 'map') {
     ['', 'BRG', 'RNG', 'ELEV', 'ANCHOR'].forEach((h, i) => text(h, C[i], y + 24, MU));
     y += 40;
     [
-      ['OA1', D.oa.oa1, 'H · HUNTER', '#15803d'],
+      ['OA1', D.oa.oa1, 'ANCHOR', TX],
       ['OA2', D.oa.oa2, 'K · KILLER', '#1d4ed8'],
-    ].forEach(([k, a, l, c]) => {
-      font('700', 26);
-      text(k, C[0], y + 26);
-      text(String(a.brg).padStart(3, '0') + '°', C[1], y + 26);
-      text(a.nm.toFixed(1) + ' NM', C[2], y + 26);
-      text(Math.round(a.el || 0).toLocaleString('en-US') + ' FT', C[3], y + 26);
-      text(l, C[4], y + 26, c);
-      y += 40;
-    });
+    ]
+      .filter(r => r[1])
+      .forEach(([k, a, l, c]) => {
+        font('700', 26);
+        text(k, C[0], y + 26);
+        text(String(a.brg).padStart(3, '0') + '°', C[1], y + 26);
+        text(a.nm.toFixed(1) + ' NM', C[2], y + 26);
+        text(Math.round(a.el || 0).toLocaleString('en-US') + ' FT', C[3], y + 26);
+        text(l, C[4], y + 26, c);
+        y += 40;
+      });
   }
   // the flight
   y = H - 56 - 20 - seatsH(D);

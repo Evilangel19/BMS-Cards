@@ -36,6 +36,32 @@ export function spline(P, k = 10) {
   o.push(P[P.length - 1]);
   return o;
 }
+/** the point d nm along a line (its end past it) */
+function alongP(P, d) {
+  let r = d;
+  for (let i = 1; i < P.length; i++) {
+    const l = nm(P[i - 1], P[i]);
+    if (r <= l && l > 0)
+      return { x: P[i - 1].x + ((P[i].x - P[i - 1].x) * r) / l, y: P[i - 1].y + ((P[i].y - P[i - 1].y) * r) / l };
+    r -= l;
+  }
+  return P[P.length - 1];
+}
+/** a line up to d nm along it */
+function cutP(P, d) {
+  const o = [P[0]];
+  let r = d;
+  for (let i = 1; i < P.length; i++) {
+    const l = nm(P[i - 1], P[i]);
+    if (r <= l) {
+      o.push(alongP([P[i - 1], P[i]], r));
+      return o;
+    }
+    o.push(P[i]);
+    r -= l;
+  }
+  return o;
+}
 /** the length of a line (nm) */
 const plen = P => P.slice(1).reduce((a, p, i) => a + nm(P[i], p), 0);
 /** the points of an arc of radius r nm round c from bearing b0 over span degrees (signed: + clockwise) */
@@ -206,21 +232,21 @@ export function deadPlan(o) {
     out.path = [prev, L, at(s, th, Ra), ...arc];
     return out;
   }
-  // Hunter-Killer and bombs, as the Training Manual draws it: the 2-ship in fighting wing to the reset point outside the WEZ (the anchors H and K
-  // either side of it), the hunter round the SAM inside the WEZ (on the WEZ with ECM on: the bait), the killer the same way round outside it; at the
-  // SAM launch the hunter defends, the killer marks; both back to the reset point; then the killer attacks from below the way in while the other
-  // gives top cover
+  // Hunter-Killer and bombs, from the Training Manual: the 2-ship in fighting wing to one anchor beside the way in, outside the WEZ (OA1); from it
+  // the hunter round the SAM inside the WEZ (on the WEZ with ECM on: the bait), the killer the same way round outside it. When the SAM shoots at
+  // the hunter (red), the hunter defends and goes back to the anchor; the killer:
+  //  - Hunter-Killer: turns in a little and shoots a HARM at the SAM (its launch, the HARM, the impact on its way back), then back to the anchor;
+  //  - bombs: marks the SAM (MARK point) and goes on round, back to the anchor; from there its attack (the Pop-up / HADB / TOSS page), the hunter
+  //    covering it from a point on its way back
   const Da = Ra + 8,
-    off = (Math.asin(Math.min(0.5, 1.5 / Da)) * 180) / Math.PI, // the anchors 1.5 nm either side of the way in
-    X = at(s, th, Da),
+    off = (Math.asin(Math.min(0.5, 2 / Da)) * 180) / Math.PI, // the anchor 2 nm beside the way in, on the side of the orbit
     A = at(s, th + dir * off, Da),
-    B = at(s, th - dir * off, Da),
     tA = tT - sec(Da),
     // the bait: inside the WEZ, on the edge of the WEZ with ECM on (the jammer keeps the SAM from a lock there; it still sees and may shoot)
     Rb = R * ecm,
     Rk = R + 4, // the killer: 4 nm outside the WEZ
     b0 = th + dir * 30,
-    hIn = spline([A, at(s, th + dir * 10, (Da + Rb) / 2 + 1.5), at(s, b0, Rb)]),
+    hIn = spline([A, at(s, th + dir * 12, (Da + Rb) / 2 + 1.5), at(s, b0, Rb)]),
     arc = arcPts(s, Rb, b0, dir * 85),
     bE = b0 + dir * 85,
     def = spline([
@@ -230,54 +256,96 @@ export function deadPlan(o) {
       at(s, th + dir * 45, Da + 5),
       A,
     ]),
-    kIn = spline([B, at(s, th + dir * 5, (Da + Rk) / 2 + 3), at(s, b0 + dir * 5, Rk)]),
+    kIn = spline([A, at(s, th + dir * 6, (Da + Rk) / 2 + 3), at(s, b0 + dir * 5, Rk)]),
     kArc = arcPts(s, Rk, b0 + dir * 5, dir * 85),
-    kE = b0 + dir * 90,
-    kBack = spline([
-      at(s, kE, Rk),
-      at(s, kE + dir * 12, Rk + 5),
-      at(s, kE - dir * 10, Da + 9),
-      at(s, th + dir * 40, Da + 9),
-      B,
-    ]),
-    // the SAM launch: at the middle of the bait arc, on both lines
+    kAll = kIn.concat(kArc),
+    // the SAM shoots at the hunter in the middle of its bait arc
     bL = b0 + dir * 50,
-    tArc0 = tA + sec(plen(hIn)),
+    hTo = plen(hIn),
+    tArc0 = tA + sec(hTo),
     tArc1 = tArc0 + sec((Rb * 85 * Math.PI) / 180),
     tLaunch = tArc0 + sec((Rb * 50 * Math.PI) / 180),
     tBack = tArc1 + sec(plen(def)),
-    // the killer's attack: from the reset point below the way in, then into the SAM (the last part the weapon)
-    atk = spline([B, at(s, th - dir * 20, Da - 1), at(s, th - dir * 40, R + 2), at(s, th - dir * 35, R * 0.55)]),
-    tAtk = tBack + 60000,
-    aEnd = atk[atk.length - 1],
-    // top cover: an orbit outside the WEZ on the side of the bait
-    cover = arcPts(s, Da + 2, th + dir * 25, dir * 60);
-  Object.assign(out, {
-    Rb,
-    Rk,
-    Da,
-    X,
-    hIn,
-    kIn,
-    kArc,
-    kBack,
-    A,
-    B,
-    tA,
-    arc,
-    tArc0,
-    tArc1,
-    tLaunch,
-    launchH: at(s, bL, Rb),
-    launchK: at(s, bL, Rk),
-    def,
-    tBack,
-    atk,
-    tAtk,
-    cover,
-    bK: th - dir * off,
-    attackHdg: (Math.round(brg(s.x - aEnd.x, s.y - aEnd.y)) + 360) % 360 || 360,
-  });
+    // the killer then: where it is on its way round
+    kd = ((tLaunch - tA) / 3600000) * gs,
+    Kp = alongP(kAll, kd),
+    kCut = cutP(kAll, kd),
+    out2 = {
+      Rb,
+      Rk,
+      Da,
+      A,
+      X: A,
+      tA,
+      arc,
+      hIn,
+      def,
+      tArc0,
+      tArc1,
+      tLaunch,
+      tBack,
+      launchH: at(s, bL, Rb),
+      kIn,
+      kArc,
+      Kp,
+    };
+  if (o.tactic == 'hk') {
+    // the HARM: a short turn in (2 nm) and the launch, the HARM to the SAM, the impact while the killer is on its way back
+    const dK = nm(Kp, s),
+      Lk = { x: s.x + ((Kp.x - s.x) * (dK - 2)) / dK, y: s.y + ((Kp.y - s.y) * (dK - 2)) / dK },
+      tHL = tLaunch + sec(2),
+      dL = nm(Lk, s),
+      h = o.shot ? o.shot({ ...Lk, altFt: alt, gsKt: gs }, s) : { rTh: dL + 10, vm: 0.36 },
+      tof = Math.round(dL / h.vm),
+      bLk = brg(Lk.x - s.x, Lk.y - s.y),
+      kBack = spline([
+        Lk,
+        at(s, bLk + dir * 18, dL + 6),
+        at(s, bLk - dir * 15, Da + 9),
+        at(s, th + dir * 40, Da + 9),
+        A,
+      ]),
+      impP = alongP(kBack, (tof / 3600) * gs);
+    if (dL > h.rTh)
+      out.warn.push(
+        `The HARM of the killer: ${dL.toFixed(0)} nm from the SAM, beyond its range (${h.rTh.toFixed(0)} nm).`
+      );
+    Object.assign(out2, {
+      kPath: kCut.concat([Lk]),
+      Lk,
+      tHL,
+      dLk: dL,
+      tofK: tof,
+      rThK: h.rTh,
+      tImpK: tHL + tof * 1000,
+      impK: impP,
+      kBack,
+      tAtk: tHL,
+      attackHdg: Math.round(brg(s.x - Lk.x, s.y - Lk.y)) || 360,
+    });
+  } else {
+    // bombs: the mark where the killer is when the SAM shoots, then on round and back to the anchor; the attack from the anchor; the hunter covers
+    // from a point on its way back
+    const kE = b0 + dir * 90,
+      kBack = spline([
+        at(s, kE, Rk),
+        at(s, kE + dir * 12, Rk + 5),
+        at(s, kE - dir * 10, Da + 9),
+        at(s, th + dir * 40, Da + 9),
+        A,
+      ]);
+    Object.assign(out2, {
+      kPath: kAll,
+      markK: Kp,
+      kBack,
+      coverPt: alongP(def, plen(def) * 0.7),
+      tAtk: tBack + 60000,
+      attackHdg: Math.round(brg(s.x - A.x, s.y - A.y)) || 360,
+    });
+  }
+  // top cover (the cover role, #3 / #4): an orbit outside the WEZ on the other side of the way in, apart from the hunter and the killer
+  out2.cover = arcPts(s, Da + 2, th - dir * 95, dir * 60);
+  Object.assign(out, out2);
   if (o.tactic == 'hk' && !idx('hunter').length) out.warn.push('No hunter: give the role to a seat.');
   if (!idx('killer').length) out.warn.push('No killer: give the role to a seat.');
   roles.forEach((r, i) => out.seats.push({ i, role: r }));
@@ -289,7 +357,7 @@ export function deadPlan(o) {
         rngFt: Math.round(nm(T, p) * FT_NM),
         nm: nm(T, p),
       });
-    out.oa = { n: tk.n, oa1: row(A), oa2: row(B) };
+    out.oa = { n: tk.n, oa1: row(A) };
   }
   return out;
 }
