@@ -1333,6 +1333,7 @@ export function createDeadPage(deps) {
   async function writeOA() {
     const o = P.oa;
     if (!o || !(o.n >= 1 && o.n <= 24)) return;
+    if (deps.dtc.open && !deps.dtc.open()) return deps.toast('No DTC: open one first.', true);
     if (!deps.dtc.has('NAV OFFSETS')) return deps.toast('This DTC has no NAV OFFSETS section.', true);
     if (
       !(await deps.confirm(

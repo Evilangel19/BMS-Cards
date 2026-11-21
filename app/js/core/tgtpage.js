@@ -182,12 +182,11 @@ export function createTargetPage(deps) {
     PLACED = [],
     DEFER = null, // the labels of the datacard layer, drawn after its symbols
     SYMS = null; // the places of those symbols (the labels keep off them)
-  // the colours of the page. On a card of the dark look (CARDDK): Program is drawn as it is (a dark page already) on the page and the panels of all
-  // the dark cards; Paper (BTG) is turned like the other cards, its black bands drawn light so they come out as dark panels with light text
+  // the colours of the page. On a card of the dark look (CARDDK, always in the Paper layout): Paper turned like the other cards, its black bands drawn
+  // light so they come out as dark panels with light text, its lines dim
   let CARDDK = false;
-  const PROG_DK = { ...PAL.prog, page: '#121212', panel: '#1a1e23', band: '#1a1e23', line: '#2c333b' },
-    PAPER_DK = { ...PAL.paper, band: '#e8ebef', btx: '#000000', line: '#9aa0a6' };
-  const P = () => (CARDDK ? (PF.pst == 'paper' ? PAPER_DK : PROG_DK) : PAL[PF.pst] || PAL.prog);
+  const PAPER_DK = { ...PAL.paper, band: '#e8ebef', btx: '#000000', line: '#9aa0a6' };
+  const P = () => (CARDDK ? PAPER_DK : PAL[PF.pst] || PAL.prog);
 
   // the picture under the symbols: {c (filtered), geo (null for a screenshot)}
   const FC = new Map();
@@ -1757,18 +1756,17 @@ export function createTargetPage(deps) {
 
   // ---- the page on screen: drawn at twice its size (sharp), in page pixels
   let cv = null;
-  // under Style: which style goes with the look of the cards (the ☀ / ☾ of the Kneeboard), the other one marked
+  // under Style: the look of the cards (the ☀ / ☾ of the Kneeboard); the cards are in the Paper (BTG) layout whatever the Style
   function styleHint() {
     const h = root && root.querySelector('.tgsth');
     if (!h) return;
-    const dk = cardDark(),
-      off = dk ? PF.pst == 'paper' : PF.pst == 'prog';
-    h.textContent = off
-      ? dk
-        ? 'The cards are dark: Paper (BTG) is a light page, made for the light cards. Program goes with them.'
-        : 'The cards are light: Program is a dark page, made for the dark cards. Paper (BTG) goes with them.'
-      : 'Program: a dark page, for the dark cards · Paper (BTG): a light page, for the light cards.';
-    h.classList.toggle('warn', off);
+    const dk = cardDark();
+    h.textContent = dk ? '☾ Dark cards selected' : '☀ Light cards selected';
+    h.title =
+      'The Kneeboard cards of the target are made in the Paper (BTG) layout, ' +
+      (dk ? 'dark' : 'light') +
+      ' as chosen on the Kneeboard page (each card keeps the other look too). The Style is for the page on screen, Save PNG and the datacard.';
+    h.classList.toggle('dk', dk);
   }
   function draw() {
     styleHint();
@@ -1934,11 +1932,21 @@ export function createTargetPage(deps) {
       });
     });
   }
+  // the cards are always in the Paper (BTG) layout (the Style of the page is for the screen, the PNG and the datacard): light, or dark (bands dark with
+  // light text) as the look of the cards
   function card(kind) {
+    const pst0 = PF.pst;
+    PF.pst = 'paper';
+    try {
+      return card0(kind);
+    } finally {
+      PF.pst = pst0;
+    }
+  }
+  function card0(kind) {
     return into(1600, 2400, 1600 / CW, () => {
       inkCard(x); // the look of the cards (the picture of the target is left as it is)
       CARDDK = cardDark();
-      /** @type {any} */ (x).__raw = CARDDK && PF.pst != 'paper'; // Program on a dark card: as it is, on the colours of the dark cards
       const p = P();
       if (kind == 'g') {
         cardHdr('BASIC TARGET GRAPHIC');

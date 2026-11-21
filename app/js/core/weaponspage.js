@@ -2066,7 +2066,7 @@ export function createWeaponsPage(deps) {
   async function clearAll() {
     if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) {
       if (mapHas()) deps.offs.clearAll();
-      await deps.alert('This DTC has no NAV OFFSETS section.');
+      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.');
       return;
     }
     const clr = toClear([]);
@@ -2095,7 +2095,7 @@ export function createWeaponsPage(deps) {
     // the Manual entry writes no offsets to the DTC, so it does not need the section: Apply then gives the datacard its values
     const nav = deps.lines().some(l => l.s == 'NAV OFFSETS');
     if (!nav && st.src == 'dtc') {
-      await deps.alert('This DTC has no NAV OFFSETS section.');
+      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.');
       return;
     }
     const agb = deps.lines().some(l => l.s == 'FCC_AGB');

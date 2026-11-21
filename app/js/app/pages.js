@@ -729,6 +729,7 @@ function deadDeps() {
     dtc: {
       ...d.dtc,
       has: sec => lines.some(l => l.s == sec),
+      open: () => lines.length > 0, // a DTC is open
       setOA: (key, v) => {
         S('NAV OFFSETS', key, v);
         dtcChanged('NAV OFFSETS', key);

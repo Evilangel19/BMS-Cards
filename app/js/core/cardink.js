@@ -208,3 +208,79 @@ export function otherLook(fn) {
     setCardDark(was);
   }
 }
+
+// a picture turned to the dark look pixel by pixel, in place (the datacard: its form is a picture): the colours as darkRGB turns the drawn ones; the
+// rectangles of keep [[x, y, w, h], ...] left as they are (the map or the target picture put on it)
+// its greys: the page #121212, the grey cells dark (0.75 -> 0.2), the black text near white, the edges of the text in between (always darker as lighter)
+const dcGrey = (r, g, b) => {
+  const [h, s, l] = hsl(r, g, b);
+  if (s >= 0.18) return darkRGB(r, g, b);
+  return rgb(h, s, l > 0.75 ? 0.07 + ((1 - l) / 0.25) * 0.13 : 0.2 + ((0.75 - l) / 0.75) * 0.73);
+};
+export function darkPixels(d, W, H, keep = []) {
+  const M = new Map(),
+    inK = (x, y) => keep.some(([a, b, w, h]) => x >= a && x < a + w && y >= b && y < b + h);
+  for (let y = 0; y < H; y++) {
+    const ky = keep.some(([, b, , h]) => y >= b && y < b + h);
+    for (let x = 0, i = y * W * 4; x < W; x++, i += 4) {
+      if (ky && inK(x, y)) continue;
+      const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2];
+      let o = M.get(k);
+      if (o === undefined) {
+        const [r, g, b] = dcGrey(d[i], d[i + 1], d[i + 2]);
+        o = (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(b);
+        M.set(k, o);
+      }
+      d[i] = o >> 16;
+      d[i + 1] = (o >> 8) & 255;
+      d[i + 2] = o & 255;
+    }
+  }
+  return d;
+}
+
+// the MDC format in the dark look: drawn by the program, so turned by what is drawn: the page #121212, its black bars dark panels (#2b3138) with their
+// white text kept white, the grey cells dark greys, the black text near white, the lines mid grey, the colours as darkRGB (the yellow cells dark olive)
+const css = ([r, g, b]) => `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+function dcCol(c, use) {
+  const p = typeof c == 'string' ? parse(c) : null;
+  if (!p || p[3] < 0.9) return c;
+  const [, s, l] = hsl(p[0], p[1], p[2]);
+  if (s >= 0.18) return css(darkRGB(p[0], p[1], p[2]));
+  if (use == 'text') return l < 0.5 ? '#eef2f6' : '#ffffff';
+  if (use == 'line') return '#6b737c';
+  if (l > 0.9) return '#121212';
+  if (l < 0.25) return '#2b3138';
+  return css(rgb(0, 0, 0.07 + (1 - l) * 0.6));
+}
+export function inkDc(x) {
+  const P = Object.getPrototypeOf(x),
+    fs = Object.getOwnPropertyDescriptor(P, 'fillStyle'),
+    ss = Object.getOwnPropertyDescriptor(P, 'strokeStyle');
+  let f = '#000';
+  Object.defineProperty(x, 'fillStyle', {
+    configurable: true,
+    get: () => f,
+    set: v => {
+      f = v;
+      fs.set.call(x, dcCol(v, 'area'));
+    },
+  });
+  Object.defineProperty(x, 'strokeStyle', {
+    configurable: true,
+    get: () => ss.get.call(x),
+    set: v => ss.set.call(x, dcCol(v, 'line')),
+  });
+  const ft = x.fillText,
+    st = x.strokeText;
+  x.fillText = function (...a) {
+    fs.set.call(x, dcCol(f, 'text'));
+    ft.apply(x, a);
+    fs.set.call(x, dcCol(f, 'area'));
+  };
+  x.strokeText = function (...a) {
+    ss.set.call(x, dcCol(f, 'text'));
+    st.apply(x, a);
+  };
+  return x;
+}

@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: dark datacard pages on the Kneeboard (Datacard and MDC format).
+- Changed: Target cards always in the Paper (BTG) layout, light or dark; Write OA1 / OA2 says No DTC when none is open.
+- Fixed: an F-16 flight in a package led by an F-15 wrote the F-15 kneeboard files and DTC.
 - Changed: one dark look for all the cards (the page of Weather SIGWX); Target cards keep their picture as filtered, Program and Paper (BTG) made right for dark cards, with a note on which style goes with the look.
 - Added: Cockpit tone (Settings > Kneeboard): the kneeboard pages written darker and with more contrast for the cockpit (Brightness / Contrast as in Photoshop, optional on dark pages).
 - Changed: warnings shown in red; map offsets need an open DTC; Target: Save PNG on the Page title row.

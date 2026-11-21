@@ -83,22 +83,22 @@ try:
             dark = k.endswith(' dark'); nm = k[:-5] if dark else k
             audit(nm, im, dark)
             check('%s%s: drawn for the cockpit (inkCard), smallest text %.0f px' % (nm, ' (dark)' if dark else '', mn), ink and mn >= 13)
-        # the Target cards (the made-up depot of tools/tgtpage-test.py): Paper (BTG) in both looks, Program in the dark look (a dark page by design)
+        # the Target cards (the made-up depot of tools/tgtpage-test.py): always in the Paper (BTG) layout, whatever the Style of the page, in both looks
         T = open(os.path.join(R, 'tools', 'tgtpage-test.py')).read(); tg = {}
         exec(T[T.index('FT = 3280'):T.index('try:')], tg)
         pg.evaluate(tg['TD'], [list(f) for f in tg['FEATS']]); pg.evaluate("t=>__app.parse(t)", tg['INI']); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(400); pg.click('#wp .wtabs [data-mode=tgt]'); pg.wait_for_timeout(900); pg.click('.tgp .tgfill'); pg.wait_for_timeout(300)
-        for st, looks in (('prog', [True]), ('paper', [False, True])):
+        for st, looks in (('prog', [False, True]), ('paper', [False, True])):
             pg.click('.tgp [data-seg=pst] [data-v=%s]' % st); pg.wait_for_timeout(300)
             for dark in looks:
                 tc = pg.evaluate("async d=>{const m=await import('./js/core/cardink.js');m.setCardDark(d);const L=await __app.ST.tgPage.allCards();m.setCardDark(false);return L.map(c=>[c.label,c.c.toDataURL()])}", dark)
                 for l, u in tc: audit('%s %s' % (l.replace('·', '-'), st), Image.open(BytesIO(base64.b64decode(u.split(',')[1]))), dark, 'Graphic' in l)
         pg.click('.tgp [data-seg=pst] [data-v=paper]'); pg.wait_for_timeout(200)
-        h = pg.evaluate("()=>{const h=document.querySelector('.tgp .tgsth');return [h.textContent,h.classList.contains('warn')]}")
+        h = pg.evaluate("()=>{const h=document.querySelector('.tgp .tgsth');return [h.textContent,h.classList.contains('dk')]}")
         pg.evaluate("()=>import('./js/core/cardink.js').then(m=>m.setCardDark(true))"); pg.click('.tgp [data-seg=pst] [data-v=prog]'); pg.click('.tgp [data-seg=pst] [data-v=paper]'); pg.wait_for_timeout(200)
-        h2 = pg.evaluate("()=>{const h=document.querySelector('.tgp .tgsth');return [h.textContent,h.classList.contains('warn')]}")
+        h2 = pg.evaluate("()=>{const h=document.querySelector('.tgp .tgsth');return [h.textContent,h.classList.contains('dk')]}")
         pg.evaluate("()=>import('./js/core/cardink.js').then(m=>m.setCardDark(false))")
-        check('Target, under Style: Paper with light cards goes with them, with dark cards it is marked (%s / %s)' % (h, h2), not h[1] and h2[1] and 'Program goes with them' in h2[0])
+        check('Target, under Style: the look of the cards (%s / %s)' % (h, h2), h[0] == '☀ Light cards selected' and not h[1] and h2[0] == '☾ Dark cards selected' and h2[1])
         for f in extra:
             dark = '/dark/' in f or '-dark' in os.path.basename(f)
             audit(os.path.basename(f).replace('.png', ''), Image.open(f), dark)
