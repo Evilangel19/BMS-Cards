@@ -121,7 +121,10 @@ export const jclone = o => {
   }
 };
 // act = {label, fn}: a button in the message (Undo); ms = how long it stays
+// act: a button of the toast {label, fn}; true: a warning (red)
 export function appToast(m, act, ms = 5000) {
+  const bad = act === true;
+  if (bad) act = null;
   let t = document.getElementById('apptoast');
   if (!t) {
     t = document.createElement('div');
@@ -131,6 +134,8 @@ export function appToast(m, act, ms = 5000) {
     document.body.append(t);
   }
   t.textContent = m;
+  t.style.borderColor = bad ? '#e5534b' : '#3ddc84';
+  t.style.color = bad ? '#ffb4ae' : '#e6edf3';
   if (act) {
     const b = document.createElement('button');
     b.type = 'button';

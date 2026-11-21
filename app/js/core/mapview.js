@@ -3374,10 +3374,15 @@ export function createMap(host, deps) {
     d.innerHTML =
       html +
       (deps.offs && p.n >= 1 && p.n <= 24
-        ? `<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map">Offsets</button><button class="btn g rd${Object.keys(deps.offs.get(p.n, neOf(p.ll))).length ? '' : ' nil'}" type="button" data-a="offdel" title="Delete every offset of this steerpoint">Delete offsets</button></div>`
+        ? `<div class="bar" style="margin:6px 0 0"><button class="btn g${deps.dtc && deps.dtc.points() ? '' : ' nil'}" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map (written into the NAV OFFSETS of the DTC: a DTC must be open)">Offsets</button><button class="btn g rd${Object.keys(deps.offs.get(p.n, neOf(p.ll))).length ? '' : ' nil'}" type="button" data-a="offdel" title="Delete every offset of this steerpoint">Delete offsets</button></div>`
         : '');
     const b = d.querySelector('[data-a=offs]');
-    if (b) b.onclick = later(() => offPanel(d, p, mk));
+    if (b)
+      b.onclick = later(() => {
+        // the offsets go into the NAV OFFSETS of the DTC: without a DTC open they would go nowhere
+        if (!(deps.dtc && deps.dtc.points())) return toast('Open a DTC first: the offsets are written into it.', true);
+        offPanel(d, p, mk);
+      });
     const dl = d.querySelector('[data-a=offdel]');
     if (dl)
       dl.onclick = later(() => {

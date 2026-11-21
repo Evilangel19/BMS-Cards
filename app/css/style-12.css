@@ -1472,3 +1472,15 @@
   min-width: 92px;
   text-align: right;
 }
+
+/* the title of the Page card with Save PNG at its right */
+.tgp .tgph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.tgp .tgph h3 {
+  margin: 0;
+}

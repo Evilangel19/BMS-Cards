@@ -17,7 +17,8 @@ import { ST } from './state.js';
 import { $, applyAnim, esc } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
 import { verCheck } from './ready.js';
-import { kbDir, kbMemLoad, kbRender } from './kneeboard.js';
+import { kbDir, kbMemLoad, kbRender, kbToneSample } from './kneeboard.js';
+import { toneRGBA } from '../core/tone.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
 import { mapV, sqPage } from './pages.js';
@@ -55,8 +56,13 @@ export async function autoLoadLast() {
 }
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
-const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data', 'help'];
-const SW_OF = { general: ['autoLoad', 'anim', 'upd', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'kneeboard', 'mission', 'map', 'data', 'help'];
+const SW_OF = {
+  general: ['autoLoad', 'anim', 'upd', 'oneShot'],
+  datacard: ['form', 'others', 'mfd'],
+  kneeboard: ['toneOn', 'toneDark'],
+  map: ['sat'],
+};
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -75,6 +81,7 @@ function readForm(dlg) {
     sw,
     radius: rad === '' ? '' : clamp(+rad || 0, 0, 300),
     trackers: q('c-trk').value.trim(),
+    tone: { bright: +q('c-tb').value, contrast: +q('c-tc').value },
     sat: {
       url: q('c-url').value.trim(),
       key: q('c-key').value.trim(),
@@ -88,6 +95,7 @@ const OF = {
   folders: v => v.paths,
   general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
+  kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
 };
@@ -204,6 +212,65 @@ export async function openSettings() {
     ) +
     sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
     '</div>';
+  const kb = C.kneeboard || {},
+    slider = (id, lab, hint, lo, hi, v) =>
+      '<div class="s-rw s-tone"><div class="tx"><label class="tt" for="' +
+      id +
+      '">' +
+      lab +
+      '</label><p class="hint">' +
+      hint +
+      '</p></div><input id="' +
+      id +
+      '" type="range" min="' +
+      lo +
+      '" max="' +
+      hi +
+      '" step="1" value="' +
+      v +
+      '"><output id="' +
+      id +
+      'o">' +
+      v +
+      '</output></div>';
+  const kneeboard =
+    top(
+      'kneeboard',
+      'Kneeboard',
+      'The pages as BMS shows them: the cockpit makes them lighter and flatter than on screen.'
+    ) +
+    '<div class="s-gp">' +
+    sw(
+      'toneOn',
+      'Cockpit tone',
+      'The kneeboard pages written darker and with more contrast (all of them: cards, pictures, datacard, documents; the mipmaps too). The cards are kept as they are: change the values and write the kneeboard again.',
+      kb.toneOn !== false
+    ) +
+    slider(
+      'c-tb',
+      'Brightness',
+      'As in Photoshop (Brightness/Contrast). Less: the greys and the colours darker.',
+      -100,
+      100,
+      kb.toneBright ?? -50
+    ) +
+    slider(
+      'c-tc',
+      'Contrast',
+      'As in Photoshop. More: the light greys go to white, the dark ones to black.',
+      -50,
+      100,
+      kb.toneContrast ?? 100
+    ) +
+    sw(
+      'toneDark',
+      'Also on dark pages',
+      'The dark cards get the tone too (it darkens their light text a little)',
+      !!kb.toneDark
+    ) +
+    '<div class="s-rw"><div class="tx"><div class="tt">Preview</div><p class="hint">The top of the left page of the Kneeboard row chosen: as it is, and as it is written.</p></div><button type="button" class="btn g" data-a="tonedef" title="Brightness -50, Contrast 100: the values tried in the cockpit">Default (−50 / 100)</button></div>' +
+    '<div class="s-tonepv"><canvas id="c-tpv0" width="360" height="250"></canvas><canvas id="c-tpv1" width="360" height="250"></canvas></div>' +
+    '</div>';
   const mission =
     top('mission', 'Mission & squadron', 'What a saved mission keeps, and how your squadron finds its pilots.').replace(
       'class="s-top"',
@@ -260,6 +327,7 @@ export async function openSettings() {
     '</div><div class="s-gl s-gap"><span>Preferences</span><i>optional</i></div>' +
     nav('general', 'General', 'sliders') +
     nav('datacard', 'Datacard', 'card') +
+    nav('kneeboard', 'Kneeboard', 'card') +
     nav('mission', 'Mission &amp; squadron', 'people') +
     nav('map', 'Map', 'map') +
     '<div class="s-gl s-gap"><span>Data</span><i>move or back up</i></div>' +
@@ -271,6 +339,7 @@ export async function openSettings() {
     page('diag', '') +
     page('general', general) +
     page('datacard', datacard) +
+    page('kneeboard', kneeboard) +
     page('mission', mission) +
     page('map', map) +
     page('data', '') +
@@ -326,7 +395,33 @@ export async function openSettings() {
       q('nv-' + p).setAttribute('aria-current', on ? 'page' : 'false');
     });
     if (id === 'help') helpFill(q('s-guide'));
+    if (id === 'kneeboard') tonePreview();
   };
+  // the preview of the Cockpit tone: the top of the left page of the Kneeboard row chosen, as it is and as it is written
+  let toneSrc = null;
+  function tonePreview() {
+    if (!toneSrc) toneSrc = kbToneSample(360, 250);
+    const v = readForm(dlg),
+      t = { on: v.sw.toneOn, bright: v.tone.bright, contrast: v.tone.contrast, dark: v.sw.toneDark };
+    q('c-tbo').textContent = String(v.tone.bright);
+    q('c-tco').textContent = String(v.tone.contrast);
+    [0, 1].forEach(i => {
+      const c = /** @type {HTMLCanvasElement} */ (q('c-tpv' + i)),
+        x = c.getContext('2d');
+      x.drawImage(toneSrc, 0, 0);
+      if (i) {
+        // the sample is one page: its tone as for a half of a kneeboard file
+        const im = x.getImageData(0, 0, c.width, c.height),
+          w = c.width,
+          h = c.height,
+          d2 = new Uint8ClampedArray(w * 2 * h * 4);
+        for (let y = 0; y < h; y++) d2.set(im.data.subarray(y * w * 4, (y + 1) * w * 4), y * w * 8);
+        toneRGBA(d2, w * 2, h, t);
+        for (let y = 0; y < h; y++) im.data.set(d2.subarray(y * w * 8, y * w * 8 + w * 4), y * w * 4);
+        x.putImageData(im, 0, 0);
+      }
+    });
+  }
 
   // folders: what each one is (found, automatic, not found ...), said next to its name
   const seq = {};
@@ -404,6 +499,13 @@ export async function openSettings() {
       checkUpdates: v.sw.upd,
     };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
+    n.kneeboard = {
+      ...(n.kneeboard || {}),
+      toneOn: v.sw.toneOn,
+      toneBright: v.tone.bright,
+      toneContrast: v.tone.contrast,
+      toneDark: v.sw.toneDark,
+    };
     n.mission = {
       ...(n.mission || {}),
       radiusNm: v.radius === '' ? ((ST.CFG.mission && ST.CFG.mission.radiusNm) ?? 60) : v.radius,
@@ -496,10 +598,16 @@ export async function openSettings() {
     else if (a === 'close') dlg.close();
     else if (a === 'save') save();
     else if (a === 'guidepdf') helpPdf();
-    else if (a === 'sw') {
+    else if (a === 'tonedef') {
+      /** @type {HTMLInputElement} */ (q('c-tb')).value = '-50';
+      /** @type {HTMLInputElement} */ (q('c-tc')).value = '100';
+      tonePreview();
+      refresh();
+    } else if (a === 'sw') {
       const on = !b.classList.contains('on');
       setSwitch(b, on);
       if (b.dataset.k === 'sat') setOpen(q('satbox'), on);
+      if (b.dataset.k === 'toneOn' || b.dataset.k === 'toneDark') tonePreview();
       refresh();
     } else if (a === 'report') {
       reportOpen = !reportOpen;
@@ -527,6 +635,7 @@ export async function openSettings() {
     if (t.id === 'c-rad') t.value = t.value.replace(/\D/g, '').slice(0, 3);
     else if (t.id === 'c-zoom') t.value = t.value.replace(/\D/g, '').slice(0, 2);
     if (t.id === 'c-rad' && +t.value > 300) t.value = '300';
+    if (t.id === 'c-tb' || t.id === 'c-tc') tonePreview();
     const k = t.id.startsWith('f-') && t.id.slice(2);
     if (k) {
       clearTimeout(later[k]);

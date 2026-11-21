@@ -18,6 +18,12 @@ export const DEFAULTS = {
     checkUpdates: true, // true = once a day the program asks GitHub whether a newer version exists (only a notice: nothing is downloaded)
     oneMapShot: false, // true = one map screenshot on the kneeboard: a new one takes the place (and the page) of the previous one
   },
+  kneeboard: {
+    toneOn: true, // Cockpit tone: the kneeboard pages written darker and with more contrast, for the light of the BMS cockpit (core/tone.js)
+    toneBright: -50, // Brightness as in Photoshop (-100 … 100)
+    toneContrast: 100, // Contrast as in Photoshop (-50 … 100)
+    toneDark: false, // true = also on the dark pages (the dark cards)
+  },
   mission: {
     radiusNm: 60, // a mission file keeps the units and flights within this distance of the route (the support flights of the datacard are always kept)
   },

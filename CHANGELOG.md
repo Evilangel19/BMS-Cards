@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: Cockpit tone (Settings > Kneeboard): the kneeboard pages written darker and with more contrast for the cockpit (Brightness / Contrast as in Photoshop, optional on dark pages).
+- Changed: warnings shown in red; map offsets need an open DTC; Target: Save PNG on the Page title row.
 - Fixed: Add all cards made the SEAD, DEAD, Attack and Target cards without their map; the side profile of the dark Attack card was light.
 - Added: Kneeboard: a ☀ / ☾ button for the look of one card (kept by the Light / Dark cards button) and Add all cards (every card of the flight, chosen on their pictures); Send card at the top.
 - Changed: one Add card a page, at the right of its tabs (Weapons, Weather, ROE / SOP); Target: Put on datacard at the top, Save PNG in Page.

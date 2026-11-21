@@ -633,12 +633,12 @@ function seadDeps() {
         dtcChanged('HARM', HARM_K(t, n));
       },
     },
-    // the AUTO PPT of the Map page for the threats assigned: the ones not in the DTC yet, after asking
+    // the AUTO PPT of the Map page for the threats assigned: the ones not in the DTC yet, after asking -> {msg, bad} (bad: a warning, in red) or null
     ppt: async list => {
       const P = dtcPoints(lines);
-      if (!lines.length || !P) return 'Open a DTC first: the threats are added to it.';
+      if (!lines.length || !P) return { msg: 'Open a DTC first: the threats are added to it.', bad: true };
       const miss = list.filter(s => !P.ppt.some(p => !p.empty && Math.hypot(p.x - s.x, p.y - s.y) < 0.5));
-      if (!miss.length) return 'Your threats are already pre-planned threats of the DTC.';
+      if (!miss.length) return { msg: 'Your threats are already pre-planned threats of the DTC.', bad: false };
       if (
         !(await confirm(
           'Add ' +
@@ -648,8 +648,9 @@ function seadDeps() {
             '?\n\nThe pre-planned threats already in the DTC stay.'
         ))
       )
-        return '';
-      return mapV.autoPptFor(miss).msg;
+        return null;
+      const r = mapV.autoPptFor(miss);
+      return { msg: r.msg, bad: !!r.bad };
     },
     snap: scale => mapV.snap(scale),
     kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),

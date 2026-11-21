@@ -1366,7 +1366,7 @@ export function createDeadPage(deps) {
   async function ppt() {
     const s = sam(),
       m = await deps.ppt([{ x: s.x, y: s.y, rng: s.rng, name: s.name }]);
-    if (m) deps.toast(m);
+    if (m && m.msg) deps.toast(m.msg, !!m.bad);
   }
 
   // ---- the cards

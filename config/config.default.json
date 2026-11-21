@@ -17,6 +17,12 @@
     "checkUpdates": true,
     "oneMapShot": false
   },
+  "kneeboard": {
+    "toneOn": true,
+    "toneBright": -50,
+    "toneContrast": 100,
+    "toneDark": false
+  },
   "mission": {
     "radiusNm": 60
   },

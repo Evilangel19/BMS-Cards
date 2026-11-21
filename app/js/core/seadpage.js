@@ -1044,7 +1044,7 @@ export function createSeadPage(deps) {
     const R = [...new Map(myShots().map(z => [z.id, z])).values()];
     if (!R.length) return deps.toast('No threat for your seat.', true);
     const m = await deps.ppt(R.map(z => ({ x: z.sam.x, y: z.sam.y, rng: z.sam.rng, name: z.sam.name })));
-    if (m) deps.toast(m);
+    if (m && m.msg) deps.toast(m.msg, !!m.bad);
     draw(false);
   }
 

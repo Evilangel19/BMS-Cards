@@ -2079,14 +2079,14 @@ export function createTargetPage(deps) {
    <label class="tgsl"><span>Grain</span><input type="range" min="0" max="60" step="2" data-pf="grn" value="${PF.grn}"></label>
    <label class="tgpen" title="The notes of the picture (Text, Callout, the names of Box and Circle) and the remarks of the Target information in handwriting, as typed. Only the font changes."><input type="checkbox"${PF.pen ? ' checked' : ''}> Handwritten notes</label>
    <label class="tgsl tgban"${PF.filt == 'uav' ? '' : ' hidden'}><span>Banner</span><input type="text" class="tgbant" maxlength="40"></label></div>
-  <div class="wcard"><h3>Page</h3><div class="tgrow"><span class="hint">Style</span>${seg(
+  <div class="wcard"><div class="tgph"><h3>Page</h3><button type="button" class="btn g tgpng" title="The page shown, as a PNG file">Save PNG</button></div><div class="tgrow"><span class="hint">Style</span>${seg(
     'pst',
     [
       ['prog', 'Program'],
       ['paper', 'Paper (BTG)'],
     ],
     PF.pst
-  )}<span class="tgsp"></span><button type="button" class="btn g tgpng" title="The page shown, as a PNG file">Save PNG</button></div>
+  )}</div>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
      'lsty',
      [

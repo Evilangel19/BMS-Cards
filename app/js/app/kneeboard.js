@@ -29,6 +29,7 @@ import {
 import { pdfOpen, pdfRender, pdfRenderTo, pdfPageText } from '../platform/pdf.js';
 import * as PJ from '../core/mission.js';
 import { toDDS5, toDDS } from '../core/dds.js';
+import { toneRGBA } from '../core/tone.js';
 import { setCardDark, cardDark } from '../core/cardink.js';
 import { busyStart, busySet, busyEnd } from '../core/busy.js';
 // the look of the cards drawn from now on (SEAD, DEAD, Attack, Weather): light or dark, kept in this browser / program
@@ -308,6 +309,30 @@ export function kbPage(ctx, sl, dx, dy, dw, dh) {
   }
   ctx.restore();
 }
+// the sample of Settings > Kneeboard: the top of the left page of the row chosen (else of the datacard), w x h
+export function kbToneSample(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  const x = c.getContext('2d'),
+    s = KBS[KBSEL] && KBS[KBSEL].left.kind != 'empty' ? KBS[KBSEL] : KBS[0];
+  x.fillStyle = '#fff';
+  x.fillRect(0, 0, w, h);
+  ST.KBG = null;
+  draw(); // the datacard as it is now
+  const p = document.createElement('canvas');
+  p.width = 1024;
+  p.height = 2048;
+  kbPage(p.getContext('2d'), s.left, 0, 0, 1024, 2048);
+  x.imageSmoothingQuality = 'high';
+  x.drawImage(p, 0, 0, 1024, (1024 * h) / w, 0, 0, w, h);
+  return c;
+}
+// the Cockpit tone of the settings (Settings > Kneeboard)
+export function kbTone() {
+  const k = (ST.CFG && ST.CFG.kneeboard) || {};
+  return { on: k.toneOn !== false, bright: k.toneBright ?? -50, contrast: k.toneContrast ?? 100, dark: !!k.toneDark };
+}
 export function kbRow(i) {
   const s = KBS[i];
   if (i == 0 && s.left.kind == 'dcl' && s.right.kind == 'dcr') return gapless();
@@ -345,6 +370,10 @@ export function kbThumbs() {
     x.imageSmoothingQuality = 'high';
     kbPage(x, s.left, 0, 0, pv.width / 2, pv.height);
     kbPage(x, s.right, pv.width / 2, 0, pv.width / 2, pv.height);
+    // the page as it goes into the cockpit: with the Cockpit tone of the settings
+    const im = x.getImageData(0, 0, pv.width, pv.height);
+    toneRGBA(im.data, pv.width, pv.height, kbTone());
+    x.putImageData(im, 0, 0);
     x.fillStyle = '#8886';
     x.fillRect(pv.width / 2 - 1, 0, 2, pv.height);
   }
@@ -1367,7 +1396,7 @@ export async function kbSave() {
         'Writing ' + rowFile(i, set) + ' (' + (done + 1) + ' of ' + rows.length + ')…'
       );
       await new Promise(r => setTimeout(r, 20));
-      const dd = kbRow(i).getContext('2d').getImageData(0, 0, 2048, 2048).data,
+      const dd = toneRGBA(kbRow(i).getContext('2d').getImageData(0, 0, 2048, 2048).data, 2048, 2048, kbTone()),
         bytes = KBFMT == 'dxt5' ? toDDS5(2048, dd) : toDDS(2048, dd);
       if (isDesktop()) {
         const path = joinPath(dir, rowFile(i, set)),
