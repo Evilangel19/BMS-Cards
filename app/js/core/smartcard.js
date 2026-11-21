@@ -192,7 +192,14 @@ export function scFoot(x, y, cols, last, lastRed) {
         .slice(0, 4)
         .forEach((s, i) => txt(x, 12 + c * 150, y + 16 + i * 16, i ? 13 : 11, String(s), i ? {} : { c: GREY, w: 700 }))
     );
-  if (last) txt(x, 12, y + 82, 12, last, { c: lastRed ? RED : INK });
+  if (last) {
+    // the last line fits the page: smaller, then cut
+    let t = String(last),
+      fs = 12;
+    while (fs > 10 && tw(x, fs, t) > 436) fs--;
+    while (t.length > 4 && tw(x, fs, t) > 436) t = t.slice(0, -2).replace(/[\s·]+$/, '') + '…';
+    txt(x, 12, y + 82, fs, t, { c: lastRed ? RED : INK });
+  }
 }
 /** lines of text from y, each [text, red]; size s, step d */
 export function scLines(x, a, y, rows, s = 13, d = 16) {
@@ -337,6 +344,50 @@ export function peaks(v, nx, ny, r = 4, min = 300) {
     }
   return o.sort((a, b) => b[2] - a[2]);
 }
+/** a grid smoothed by box blurs of 3 x 3 (pass times; the gaps kept) */
+export function smooth(v, nx, ny, pass = 1) {
+  let a = Array.from(v);
+  for (let p = 0; p < pass; p++) {
+    const b = a.slice();
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++) {
+        if (a[j * nx + i] == null) continue;
+        let s = 0,
+          n = 0;
+        for (let dj = -1; dj <= 1; dj++)
+          for (let di = -1; di <= 1; di++) {
+            const ii = i + di,
+              jj = j + dj;
+            if (ii < 0 || jj < 0 || ii >= nx || jj >= ny) continue;
+            const q = a[jj * nx + ii];
+            if (q == null) continue;
+            s += q;
+            n++;
+          }
+        b[j * nx + i] = s / n;
+      }
+    a = b;
+  }
+  return a;
+}
+/** the corners of a line rounded (Chaikin), its ends kept */
+export function chaikin(p, n = 1) {
+  let a = p;
+  for (let k = 0; k < n && a.length > 2; k++) {
+    const o = [a[0]];
+    for (let i = 0; i + 1 < a.length; i++) {
+      const [x0, y0] = a[i],
+        [x1, y1] = a[i + 1];
+      o.push([x0 * 0.75 + x1 * 0.25, y0 * 0.75 + y1 * 0.25], [x0 * 0.25 + x1 * 0.75, y0 * 0.25 + y1 * 0.75]);
+    }
+    o.push(a[a.length - 1]);
+    a = o;
+  }
+  return a;
+}
+export const pathLen = p => p.reduce((s, q, i) => (i ? s + Math.hypot(q[0] - p[i - 1][0], q[1] - p[i - 1][1]) : 0), 0);
+/** the step of the lines over the range of the ground of a view: at most four levels (250 ft at least) */
+export const levelStep = (lo, hi) => [250, 500, 1000, 2000, 4000].find(s => (hi - lo) / s <= 4) || 4000;
 /** the step of the contour lines for the highest ground of the view: a few lines, never a crowd */
 export const contourStep = top => (top > 6000 ? 2000 : top > 3000 ? 1000 : top > 1200 ? 500 : 250);
 
@@ -567,36 +618,56 @@ export function scPlan(x, P, box) {
     const { nx, ny, h } = G,
       gx = i => bx + ((i + 0.5) / nx) * bw,
       gy = j => by + ((j + 0.5) / ny) * bh;
-    // the sea (heights at 0 or below)
-    const cw = bw / nx + 0.6,
+    // the ground smoothed (the small bumps of the height map are noise at this scale), the sea where it is at 0: filled, its coast without the small bits
+    const sm = smooth(h, nx, ny, 5),
+      minLen = Math.min(bw, bh) * 0.22,
+      cw = bw / nx + 0.6,
       ch = bh / ny + 0.6;
     x.fillStyle = SEA;
     for (let j = 0; j < ny; j++)
       for (let i = 0; i < nx; i++)
-        if (h[j * nx + i] != null && h[j * nx + i] <= 0) x.fillRect(gx(i) - cw / 2, gy(j) - ch / 2, cw, ch);
-    const coast = contours(h, nx, ny, 0.5);
-    coast.forEach(c =>
-      line(
-        x,
+        if (sm[j * nx + i] != null && sm[j * nx + i] < 0.5) x.fillRect(gx(i) - cw / 2, gy(j) - ch / 2, cw, ch);
+    contours(sm, nx, ny, 0.5).forEach(c => {
+      const pts = chaikin(
         c.map(q => [gx(q[0]), gy(q[1])]),
-        { c: '#888888', w: 1 }
-      )
-    );
-    let top = 0;
-    for (let k = 0; k < h.length; k++) if (h[k] != null && h[k] > top) top = h[k];
-    const step = contourStep(top),
+        2
+      );
+      if (pathLen(pts) >= minLen) line(x, pts, { c: '#888888', w: 1 });
+    });
+    // the lines of a smoothed ground (the small bumps of the height map are noise at this scale): a few levels over the range of the view, the short
+    // pieces and the small rings dropped, the corners rounded; a value on the longest lines only
+    let lo = Infinity,
+      top = 0;
+    for (let k = 0; k < sm.length; k++)
+      if (sm[k] != null) {
+        if (sm[k] > top) top = sm[k];
+        if (sm[k] < lo) lo = sm[k];
+      }
+    const step = levelStep(Math.max(0, lo), top),
       labs = [];
-    for (let lev = step; lev < top; lev += step) {
-      const hi = lev >= (P.ingress || 0),
-        cs = contours(h, nx, ny, lev);
-      cs.forEach(c => {
-        const pts = c.map(q => [gx(q[0]), gy(q[1])]);
-        line(x, pts, { c: hi ? '#333333' : '#aaaaaa', w: hi ? 1.3 : 0.9, dash: hi ? [6, 3] : [4, 3] });
-        if (pts.length > 25) labs.push([pts[Math.floor(pts.length / 3)], lev, hi]);
+    for (let lev = Math.max(step, Math.ceil((lo + 1) / step) * step); lev < top; lev += step) {
+      const hi = lev >= (P.ingress || 0);
+      contours(sm, nx, ny, lev).forEach(c => {
+        const pts = chaikin(
+            c.map(q => [gx(q[0]), gy(q[1])]),
+            2
+          ),
+          len = pathLen(pts);
+        if (len < minLen) return;
+        line(x, pts, { c: hi ? '#333333' : '#999999', w: hi ? 1.3 : 0.9, dash: hi ? [7, 4] : [4, 4] });
+        labs.push([pts[Math.floor(pts.length / 2)], lev, hi, len]);
       });
     }
+    labs.sort((a, b) => b[3] - a[3]);
+    labs.splice(3);
     // the spot elevations: the highest of the view in bold; red above the ingress altitude
-    const pk = peaks(h, nx, ny, Math.max(3, Math.round(nx / 30))).slice(0, 5);
+    const pk = [];
+    for (const q of peaks(h, nx, ny, Math.max(4, Math.round(nx / 12)))) {
+      if (pk.length >= 3) break;
+      if (q[2] - lo < step * 0.75) continue; // not a peak at this scale
+      if (pk.some(o => Math.hypot(gx(o[0]) - gx(q[0]), gy(o[1]) - gy(q[1])) < 70)) continue;
+      pk.push(q);
+    }
     pk.forEach(([i, j, v], k) => {
       const a = gx(i),
         b = gy(j),

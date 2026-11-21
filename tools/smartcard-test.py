@@ -17,7 +17,7 @@ JS = r"""async () => {
   const v = r.v, segs = [['ingress', [r.action, r.pup]], ['climb', [r.pup, r.pdp]], ['pull', r.arc], ['dive', [r.map, r.release]], ['fall', [r.release, T]], ['egress', [r.release, Pp.project(r.release, 289, 6000)]]];
   const marks = [[r.action, 'ACT', ''], [r.pup, 'PUP 279°', ''], [r.pdp, 'PDP', ''], [r.release, 'REL 339°', ''], [r.oa, 'OA1', 'dia']];
   const pts = [...segs.flatMap(z => z[1]), T], [e0, e1, n0, n1] = S.planBox(pts, 436 / 246), nx = 120, ny = Math.round(nx * 246 / 436), h = [];
-  const H = (e, n) => 150 + 2600 * Math.exp(-((e - 9000) ** 2 + (n + 8000) ** 2) / 4e7) + 1800 * Math.exp(-((e + 6000) ** 2 + (n - 9000) ** 2) / 3e7) - (e + n < -45000 ? 400 : 0);
+  const H = (e, n) => 150 + 180 * Math.sin(e / 650) * Math.cos(n / 830) + 120 * Math.sin((e + n) / 410) + 2600 * Math.exp(-((e - 9000) ** 2 + (n + 8000) ** 2) / 4e7) + 1800 * Math.exp(-((e + 6000) ** 2 + (n - 9000) ** 2) / 3e7) - (e + n < -45000 ? 400 : 0);
   for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) h.push(Math.max(0, H(e0 + (i + .5) / nx * (e1 - e0), n1 - (j + .5) / ny * (n1 - n0))));
   const al = p => -Math.hypot(p.n, p.e);
   const A = { title: 'ATK · POP-UP T2', right: 'HAMMER 6', key: [['TGT', 'STPT 6'], ['TOT', '09:25'], ['ATK HDG', '339°'], ['WPN', '2×MK82'], ['PUP', '3.4 NM'], ['APEX', S.fmt(v.apexAltitude)], ['REL', S.fmt(3500)], ['MRA', S.fmt(v.mra), true]],

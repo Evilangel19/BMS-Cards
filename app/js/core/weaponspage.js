@@ -1221,13 +1221,25 @@ export function createWeaponsPage(deps) {
     const t = String(l || '').split(' · ')[0];
     return SHORT[t] !== undefined ? SHORT[t] : t.toUpperCase();
   };
+  // the weapon of the key box: the bomb chosen, else the first bomb of the loadout (number × name), short
+  function wpnShort() {
+    const b = bombSel();
+    if (b.loadout || b.manual)
+      return String(b.label)
+        .replace(/\s*\(.*\)$/, '')
+        .toUpperCase()
+        .slice(0, 12);
+    const L = (deps.loadout && deps.loadout(0)) || [],
+      w = L.find(z => /MK|GBU|CBU|BDU|BLU|AGM|JDAM|GBU|SDB|BOMB|M117|KAB|FAB/i.test(z.name)) || L[0];
+    return w ? (w.n > 1 ? w.n + '×' : '') + String(w.name).replace(/\s+/g, '').toUpperCase().slice(0, 9) : '--';
+  }
   function smartBase(r, PD0, spec, mra, offs, c, who) {
     const v = r.v,
       T = r.target,
       nmT = p => (p ? (dist(p, T) / FT_NM).toFixed(1) + ' NM' : '--'),
       tgt = ctx.t ? (ctx.sp && ctx.sp.n ? 'STPT ' + ctx.sp.n : ctx.t.name || 'TGT') : 'TGT',
       tot = deps.tot && ctx.sp ? deps.tot(ctx.sp.n) : '',
-      wpn = (bombSel().label || '').replace(/^\d+\s*[x×]\s*/i, m => m.replace(/\s/g, '')).slice(0, 10) || '--',
+      wpn = wpnShort(),
       fz =
         r.fuze && r.fuze.ad1
           ? 'AD1 ' + r.fuze.ad1.delay + ' s' + (r.fuze.ad1.armed ? ' ARM' : ' SAFE')
