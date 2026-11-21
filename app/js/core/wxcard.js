@@ -1016,7 +1016,7 @@ export function drawWxCard(x, D, style = 'sigwx') {
     // waypoints: their time below; winds aloft on a few
     let lastX = -99;
     D.route.forEach(p => {
-      const u = qx(p.d),
+      const u = Math.max(QX, Math.min(QX + QW, qx(p.d))), // on the chart (the last point a little past the end of the profile: at its end)
         v = qy(p.alt);
       x.fillStyle = '#fff';
       x.strokeStyle = ROUTE;
@@ -1029,11 +1029,18 @@ export function drawWxCard(x, D, style = 'sigwx') {
       lastX = u;
       x.fillStyle = INK;
       x.font = `bold ${kbPx(18)}px ${FONT}`;
-      x.textAlign = 'center';
       x.textBaseline = 'top';
-      x.fillText(String(p.n), u, QY + QH + 6);
+      // the labels inside the page: the one at the right end ends there, the one at the left end starts there
+      const tw = Math.max(
+          x.measureText(String(p.n)).width,
+          (x.font = `${kbPx(17)}px ${FONT}`) && x.measureText(hm(p.t)).width
+        ),
+        ux = Math.max(QX - 40 + tw / 2, Math.min(QX + QW - tw / 2, u));
+      x.textAlign = 'center';
+      x.font = `bold ${kbPx(18)}px ${FONT}`;
+      x.fillText(String(p.n), ux, QY + QH + 6);
       x.font = `${kbPx(17)}px ${FONT}`;
-      x.fillText(hm(p.t), u, QY + QH + 28);
+      x.fillText(hm(p.t), ux, QY + QH + 28);
     });
     const step = Math.max(1, Math.floor(D.route.length / 4));
     x.strokeStyle = '#374151';

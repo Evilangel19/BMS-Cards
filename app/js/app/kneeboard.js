@@ -45,7 +45,8 @@ export async function msfCards(dir) {
   const cd = joinPath(dir, 'cards');
   await IO.makeDir(cd);
   const files = new Map(),
-    alts = {};
+    alts = {},
+    keepOther = new Set(); // the other looks: kept by the memory too (it removes the files it did not write)
   let n = 0;
   for (const it of KBLIB) {
     const ext = (it.blob.type.split('/')[1] || 'png').replace('jpeg', 'jpg'),
@@ -57,6 +58,7 @@ export async function msfCards(dir) {
       const af = fn.replace(/\.[^.]+$/, '') + '.other.png';
       await IO.writeBytes(joinPath(cd, af), new Uint8Array(await it.other.arrayBuffer()));
       alts[fn] = { file: af, dark: !!it.dark };
+      keepOther.add(af);
     }
   }
   const slot = sl =>
@@ -88,7 +90,7 @@ export async function msfCards(dir) {
       )
     )
   );
-  return new Set(files.values());
+  return new Set([...files.values(), ...keepOther]);
 }
 // merge: the cards of a mission file are added to the cards already in memory (same name and size = the same card) and the arrangement in memory is kept
 export async function msfCardsLoad(dir, merge) {
@@ -118,6 +120,7 @@ export async function msfCardsLoad(dir, merge) {
         KBLIB.push(it);
       } catch (e) {}
     }
+    await kbLook(cardDark()); // the cards of two looks in the look chosen now
     if (had) return true;
     const slot = sl =>
       sl.kind == 'pic'
@@ -815,6 +818,7 @@ export function kbRender(keepMenu) {
     try {
       localStorage.setItem('bmscarddark', d ? '1' : '0');
     } catch (e) {}
+    savePrefs('cardlook.json', { dark: d });
     // the cards made by the program switch at once (they keep both looks); the kneeboard is then not saved until it is written again
     const n = await kbLook(d);
     kbMemLater();
@@ -1345,6 +1349,19 @@ function kbWarn() {
   if (sv) sv.classList.toggle('nil', !u);
 }
 export function kbWatch() {
+  // the look of the cards (Light / Dark cards) is kept in a file of the program too: the browser storage of the desktop app is not reliable at start
+  loadPrefs('cardlook.json')
+    .then(async o => {
+      if (!o || typeof o.dark != 'boolean' || o.dark === cardDark()) return;
+      setCardDark(o.dark);
+      if ((await kbLook(o.dark)) && $('kn') && !$('kn').classList.contains('hide')) kbRender();
+      const b = $('kbcd');
+      if (b) {
+        b.classList.toggle('g', !o.dark);
+        b.textContent = o.dark ? '☾ Dark cards' : '☀ Light cards';
+      }
+    })
+    .catch(() => {});
   loadPrefs('kbsaved.json')
     .then(o => {
       if (o && typeof o.sig == 'string') KBLAST = o.sig;
