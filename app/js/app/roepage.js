@@ -36,6 +36,7 @@ import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
 import { drawSmartText, SC_W, SC_H } from '../core/smartcard.js';
 import { fullText } from '../core/roesop.js';
 import { seatIdx } from './seat.js';
+import { flightTag } from './ato.js';
 import { chooseCards } from '../core/tgdlg.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
@@ -531,6 +532,17 @@ function writeCard() {
   draw();
   R.wrote = key(R.sel);
 }
+// the data of the Smart ROE / SOP card for the flight now (the combined Smart cards take their ROE / SOP part from it): null when nothing is chosen
+export function roeSmartNow() {
+  const seen = R.box && ST.CURK === R.flightKey,
+    c0 = seen && R.pick && !dirty() && chipOf(R.pick),
+    sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '';
+  try {
+    return roeSmart(seen ? R.sel : flightSel(), sub);
+  } catch (e) {
+    return null;
+  }
+}
 // the ROE / SOP cards, in both looks, for Add all cards of the Kneeboard (none when nothing is chosen; pages.js registers it)
 export async function roeAllCards() {
   const c = document.createElement('canvas');
@@ -574,7 +586,7 @@ function roeSmart(sel, sub) {
   const n = blocks.reduce((a, b) => a + b[1].length, 0);
   return {
     title: 'ROE / SOP',
-    right: F.cs || '',
+    right: flightTag() || F.cs || '',
     key: [
       ['JOKER', v('joker')],
       ['BINGO', v('bingo'), true],

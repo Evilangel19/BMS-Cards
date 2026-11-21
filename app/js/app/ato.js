@@ -396,3 +396,16 @@ export async function init7() {
   ATOCAT = new Set();
   ATOFX = { c: new Set(), p: new Set() };
 }
+
+// the flight chosen on the datacard as the Smart cards name it at the right of their title: "HAMMER 6 · PKG 4007" ('' without a flight)
+export function flightTag() {
+  try {
+    const el = /** @type {HTMLSelectElement|null} */ (document.getElementById('fsel')),
+      x = ST.C && ST.CL && ST.CL[+(el ? el.value : 0) || 0],
+      e = x && ATOL.find(z => z.f === x.f);
+    if (!e) return '';
+    return String(e.callsign).toUpperCase() + (e.pkgNo != null && e.pkgNo !== '' ? ' · PKG ' + e.pkgNo : '');
+  } catch (err) {
+    return '';
+  }
+}

@@ -21,6 +21,40 @@ export const cloudOf = p =>
 // the thickness of a cloud (as the Weather card draws it)
 const thick = p => (2500 + ((5 - (p.size || 0)) / 5) * 8500) * (p.tcu ? 1.5 : 1) * (p.cond >= 2 ? 0.7 : 1);
 
+/** the weather over the target of a Weather card's data, for the combined cards: {cloud, base, top, wind (at alt), z0, qnh, taf [lines]} */
+export function wxAtTarget(D, alt) {
+  const tot = D.tot != null ? D.tot : D.dep,
+    R = D.route || [],
+    S = D.prof || [],
+    T = R[D.tgt >= 0 ? D.tgt : 0] || R[0],
+    sT = T && S.length ? S.reduce((b, q) => (Math.abs(q.d - T.d) < Math.abs(b.d - T.d) ? q : b)) : null,
+    W = D.at ? D.at(tot) : null,
+    rep = k => (D.reports || []).find(r => r.lab.startsWith(k)),
+    o = {
+      cloud: cloudOf(sT) || 'NSC',
+      base: null,
+      top: null,
+      wind: '--',
+      z0: '--',
+      qnh: (/Q(\d{3,4})/.exec((rep('DEP') || {}).text || '') || [])[1] || '--',
+      taf: '',
+    };
+  if (sT && cloudOf(sT)) {
+    o.base = sT.cu;
+    o.top = sT.cu + thick(sT);
+  }
+  if (W && T)
+    try {
+      const w = W.wind(T.x, T.y, alt);
+      o.wind = String(Math.round(w.hdg) % 360 || 360).padStart(3, '0') + '/' + Math.round(w.spd);
+      o.z0 = fmt(((sT && sT.elev) || 0) + (Math.max(0, W.at(T.x, T.y).t) / 1.98) * 1000);
+    } catch (e) {
+      /* no weather there */
+    }
+  const t = rep('TGT');
+  o.taf = t ? String(t.text).replace(/^TAF\s+/, '') : '';
+  return o;
+}
 /** @param {CanvasRenderingContext2D} x */
 export function drawSmartWeather(x, D) {
   const tot = D.tot != null ? D.tot : D.dep,
@@ -46,7 +80,7 @@ export function drawSmartWeather(x, D) {
     }
   }
   const ct = S.length ? Math.min(...S.map(p => p.contrail || 99999)) : null;
-  scFrame(x, 'WEATHER · ' + hhmm(tot), String(D.title || '').split(' · ')[0]);
+  scFrame(x, 'WEATHER · ' + hhmm(tot), D.tag || String(D.title || '').split(' · ')[0]);
   scKey(x, [
     ['DEP ' + (D.depId || ''), col(rep('DEP')), BAD.has(col(rep('DEP')))],
     ['TGT CLOUD', cloudOf(sT) || 'NSC'],

@@ -1969,7 +1969,7 @@ export function createTargetPage(deps) {
     ];
     return {
       title: 'TARGET' + (t.refs.length ? ' · ' + t.refs[0] : ''),
-      right: i.cs || '',
+      right: i.tag || i.cs || '',
       key: [
         ['TARGET', ((s && s.fac) || t.name).toUpperCase().slice(0, 12)],
         ['ELEV', elv ? elv.altFt : '--'],
@@ -3231,6 +3231,9 @@ export function createTargetPage(deps) {
   }
   return {
     root,
+    // the data of the Smart Target card (null before the page was built or without a target): the combined Smart cards take their target from it
+    // (not built here: building the page takes the map of the page shown)
+    smart: () => (built && tgt() ? smartData() : null),
     allCards() {
       return allCards(this);
     },

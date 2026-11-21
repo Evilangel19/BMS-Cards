@@ -26,7 +26,7 @@ import { perfFill } from './perf.js';
 import { lines, openDtc, closeDtc } from './dtcfile.js';
 import { mapV } from './pages.js';
 import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
-import { atoSearch } from './ato.js';
+import { atoSearch, flightTag } from './ato.js';
 import { msfLoad } from './mission.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 
@@ -585,7 +585,10 @@ export async function init14() {
   wxPage = createWeatherPage({
     root: $('wx'),
     esc,
-    flight: wxFlight,
+    flight: () => {
+      const f = wxFlight();
+      return f ? { ...f, tag: flightTag() } : f;
+    },
     at: wxAt,
     fill: wxFill,
     fillState: wxFillState,

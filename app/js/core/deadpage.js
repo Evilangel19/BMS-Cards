@@ -16,6 +16,9 @@ import { threatOf } from './harmcodes.js';
 import { SD_COL } from './seadcard.js';
 import { drawDeadCard, DDC_W, DDC_H, deadBox, DD_PH } from './deadcard.js';
 import { toMag } from './magvar.js';
+import { drawSmartDead } from './smartsead.js';
+import { drawSmartCombined } from './smartcombo.js';
+import { wxAtTarget } from './smartwx.js';
 
 const FT_KM = 3280.84,
   KM_NM = 1.852;
@@ -1679,12 +1682,178 @@ export function createDeadPage(deps) {
   const KINDS = [
     ['map', 'With the map'],
     ['sch', 'With the scheme'],
+    ['smart', 'Smart'],
+    ['combo', 'Smart mission'],
   ];
+  // the Smart DEAD card (core/smartsead.js): the key numbers of the tactic, the plan around the SAM, the events, the roles
+  function smartData() {
+    const s = sam(),
+      t = tactic(),
+      R = roles(),
+      pm = v => (v ? hms(v).slice(0, 5) : '--'),
+      ok = a => Array.isArray(a) && a.length > 1 && a.every(p => p && isFinite(p.x)),
+      pt = p => p && isFinite(p.x),
+      alt = Math.round(P.alt / 1000) + 'k ' + (P.rating ? P.rating.r : ''),
+      key0 = [
+        ['SAM', s.name],
+        ['TOT', pm(P.task && P.task.t0)],
+        ['TACTIC', t == 'hs' ? 'STANDOFF' : t == 'hk' ? 'H-K' : 'BOMBS'],
+        ['ALT', alt, P.rating && P.rating.r == 'BAD'],
+      ],
+      wez = ['WEZ', Math.round(P.R) + ' NM', true],
+      rn = v => (v >= 10 ? Math.round(v) : Math.round(v * 10) / 10);
+    let key, lines, points, events, legend;
+    if (t == 'hs') {
+      key = [...key0, ['LAUNCH', pm(P.tL)], ['RANGE', P.dL.toFixed(0) + ' NM'], ['IMPACT', pm(P.tImp)], wez];
+      lines = [
+        ok(P.path) && { pts: P.path, w: 3 },
+        ok(P.arc) && { pts: P.arc, w: 3 },
+        ok(P.egrPath) && { pts: P.egrPath, w: 2, dash: [7, 4], arrow: true },
+      ];
+      points = [
+        pt(P.L) && { ...P.L, label: 'L ' + pm(P.tL) },
+        pt(P.turn) && { ...P.turn, label: 'TURN IN ' + pm(P.tTurn) },
+      ];
+      events = [
+        [P.tL, 'HARM launch, ' + P.dL.toFixed(0) + ' NM ' + h3(toMag(P.th + 180)) + '°'],
+        [P.tImp, 'impact (TOF ' + P.tof + ' s)'],
+        [P.tTurn, 'turn in, bait arc ' + P.Rb.toFixed(0) + ' NM, ECM as needed'],
+        [P.tEnd, 'egress'],
+      ];
+      legend = 'thick: the shooters · dashed: the egress';
+    } else {
+      key = [
+        ...key0,
+        ['ANCHOR', pm(P.tA)],
+        ['BAIT ARC', P.Rb.toFixed(1) + ' NM'],
+        t == 'hk' ? ['KILLER L', pm(P.tHL)] : ['ATTACK', pm(P.tAtk)],
+        wez,
+      ];
+      lines = [
+        ok(P.kPath) && { pts: P.kPath, w: 2, dash: [7, 4] },
+        ok(P.kBack) && { pts: P.kBack, w: 1.2, dash: [7, 4], arrow: true },
+        ok(P.hIn) && { pts: P.hIn, w: 3 },
+        ok(P.arc) && { pts: P.arc, w: 3 },
+        ok(P.def) && { pts: P.def, w: 1.5, arrow: true },
+      ];
+      points = [
+        pt(P.A) && { ...P.A, k: 'dia', label: 'OA1 ANCHOR ' + pm(P.tA) },
+        t == 'hk' && pt(P.Lk) && { ...P.Lk, label: 'KILLER L ' + pm(P.tHL) },
+        t == 'hk' && pt(P.impK) && { ...P.impK, k: 'imp' },
+        t == 'bomb' && pt(P.markK) && { ...P.markK, label: 'MARK' },
+        t == 'bomb' && pt(P.coverPt) && { ...P.coverPt, k: 'dia', label: 'COVER PT' },
+        pt(P.launchH) && { ...P.launchH, label: 'HUNTER DEFENDS' },
+      ];
+      events =
+        t == 'hk'
+          ? [
+              [P.tA, 'both at the OA1 anchor'],
+              [P.tArc0, 'hunter on the bait arc ' + P.Rb.toFixed(0) + ' NM, ECM as needed'],
+              [P.tHL, 'killer HARM when the SAM shoots at the hunter'],
+              [P.tImpK, 'impact (TOF ' + P.tofK + ' s)'],
+              [P.tBack, 'back to the anchor, egress'],
+            ]
+          : [
+              [P.tA, 'both at the OA1 anchor'],
+              [P.tArc0, 'hunter on the bait arc ' + P.Rb.toFixed(0) + ' NM'],
+              [P.tLaunch, 'the SAM shoots: hunter defends, killer marks'],
+              [P.tAtk, 'attack from the anchor (' + h3(toMag(P.attackHdg)) + '°)'],
+              [P.tBack, 'back to the anchor, egress'],
+            ];
+      legend = 'thick: the hunter · dashed: the killer';
+    }
+    const seats = R.map((r, i) => '#' + (i + 1) + ' ' + String(r).toUpperCase());
+    return {
+      title: 'DEAD · ' + (t == 'hs' ? 'HARM STANDOFF' : t == 'hk' ? 'HUNTER-KILLER' : 'BOMBS / MAVERICK'),
+      right: String(X.me.name).toUpperCase() + (X.me.pkgNo != null ? ' · PKG ' + X.me.pkgNo : ''),
+      key,
+      sam: { x: s.x, y: s.y, name: s.name },
+      rings: [
+        [P.Rdet * 1.852, 'SEARCH ' + rn(P.Rdet), 'det'],
+        [P.R * 1.852, 'WEZ ' + rn(P.R), 'wez'],
+        [P.Recm * 1.852, 'ECM ' + rn(P.Recm), 'ecm'],
+      ],
+      lines: lines.filter(Boolean),
+      points: points.filter(Boolean),
+      events: events.filter(e => e[0]).sort((a, b) => a[0] - b[0]),
+      legend,
+      foot: [
+        ['LEAD PAIR', ...seats.slice(0, 2)],
+        ['ELEMENT', ...(seats.slice(2).length ? seats.slice(2) : ['--'])],
+        ['ABORT', 'WEZ ' + rn(P.R) + ' NM', 'no SAM up'],
+      ],
+      last:
+        (P.oa && P.oa.oa1
+          ? 'OA1 ' + h3(P.oa.oa1.brg) + '° ' + P.oa.oa1.nm.toFixed(0) + ' NM from STPT ' + P.oa.n + ' · '
+          : '') +
+        'FL' +
+        Math.round(P.alt / 100) +
+        ' ' +
+        P.gs +
+        ' KT',
+    };
+  }
+  // the combined Smart card: this page's numbers and drawing over the target SAM, the weather over it and the ROE / SOP (COMBO: the base, read before)
+  let COMBO = null;
+  async function comboLoad() {
+    try {
+      COMBO = deps.combo ? await deps.combo() : null;
+    } catch (e) {
+      COMBO = null;
+    }
+  }
+  function comboData() {
+    const D = smartData(),
+      B = COMBO || {},
+      cruise = Math.max(0, ...X.me.f.wps.map(w => Math.abs(w.z || 0) * 10)),
+      fl = 'FL' + String(Math.round(cruise / 1000) * 10).padStart(3, '0'),
+      W = B.wx ? wxAtTarget(B.wx, cruise || 20000) : null,
+      check = !W
+        ? null
+        : W.base == null
+          ? { label: 'NO CLOUD OVER THE TARGET \u2713' }
+          : cruise > W.top
+            ? { label: fl + ' ABOVE THE TOPS ' + Math.round(W.top / 100) * 100 + ' \u2713' }
+            : cruise < W.base
+              ? { label: fl + ' UNDER THE BASE ' + Math.round(W.base / 100) * 100 }
+              : { label: fl + ' IN CLOUD', bad: true };
+    return {
+      title: 'MISSION · DEAD',
+      right: D.right,
+      key: D.key,
+      mod: {
+        kind: 'dead',
+        dead: D,
+        line: D.foot[0]
+          .slice(1)
+          .concat(D.foot[1].slice(1))
+          .filter(z => z != '--')
+          .join(' · '),
+      },
+      sam: {
+        name: D.sam.name + ' · ' + D.key[7][1],
+        text: [
+          D.title.replace(/^DEAD · /, ''),
+          D.rings
+            .filter(r => r[2] != 'det')
+            .map(r => r[1])
+            .join(' · '),
+        ],
+      },
+      wx: W,
+      windLabel: 'WIND ' + fl,
+      check,
+      roe: B.roe || null,
+      last: [D.last || '', ''],
+    };
+  }
   function drawCard(D, kind) {
     const c = document.createElement('canvas');
     c.width = DDC_W;
     c.height = DDC_H;
-    drawDeadCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, kind);
+    if (kind == 'combo') drawSmartCombined(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), comboData());
+    else if (kind == 'smart') drawSmartDead(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), smartData());
+    else drawDeadCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, kind);
     return c;
   }
   async function addCard(btn) {
@@ -1704,6 +1873,7 @@ export function createDeadPage(deps) {
     }
     btn.disabled = false;
     btn.textContent = bt;
+    await comboLoad();
     const C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(D, k)])),
       on = { map: true };
     const d = document.createElement('dialog');
@@ -1755,7 +1925,14 @@ export function createDeadPage(deps) {
         if (!blob) continue;
         // the card in the other look too (light / dark), so that the kneeboard can switch it later
         const alt = await new Promise(r => otherLook(() => drawCard(D, k)).toBlob(r, 'image/png'));
-        const at = await deps.kbAdd(blob, 'DEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''), alt, cardDark());
+        const at = await deps.kbAdd(
+          blob,
+          (k == 'combo' ? 'Smart · Mission · ' : k == 'smart' ? 'Smart · DEAD · ' : 'DEAD · ') +
+            X.me.name +
+            (k == 'sch' ? ' · scheme' : ''),
+          alt,
+          cardDark()
+        );
         out.push(at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards');
       }
       deps.toast('DEAD card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard: ' + out.join('; ') + '.');
@@ -1771,8 +1948,12 @@ export function createDeadPage(deps) {
 
     const B = deadBox(D);
     D.px = await snapPlan(B.w / B.h);
+    await comboLoad();
     return KINDS.map(([k, l]) => ({
-      name: 'DEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''),
+      name:
+        (k == 'combo' ? 'Smart · Mission · ' : k == 'smart' ? 'Smart · DEAD · ' : 'DEAD · ') +
+        X.me.name +
+        (k == 'sch' ? ' · scheme' : ''),
       label: 'DEAD · ' + l,
       c: drawCard(D, k),
       alt: otherLook(() => drawCard(D, k)),

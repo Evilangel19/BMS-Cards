@@ -391,6 +391,7 @@ export function createWeatherPage(deps) {
     const Wt = deps.at(fl.tot != null ? fl.tot : t0);
     return {
       title: fl.title,
+      tag: fl.tag || '',
       sub:
         'Weather at ' +
         hhmm(fl.tot != null ? fl.tot : t0) +
@@ -600,6 +601,11 @@ export function createWeatherPage(deps) {
   }
   return {
     allCards,
+    // the data of the Weather card of the flight now (the combined Smart cards take the weather at the target from it)
+    smartData: async () => {
+      const fl = deps.flight();
+      return fl ? cardData(fl) : null;
+    },
     render: () => {
       if (!deps.root.isConnected || deps.root.closest('.hide')) return;
       draw();

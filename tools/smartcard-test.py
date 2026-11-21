@@ -34,7 +34,9 @@ JS = r"""async () => {
   const prof = [...Array(81)].map((_, k) => { const d = k * 100 / 80; return { d, x: d, y: 0, t: 0, alt: 0, cond: d > 50 && d < 85 ? 2 : 1, cu: d > 50 && d < 85 ? 9000 : 6000, dens: d > 50 && d < 85 ? 9 : 5, size: 3, tcu: d > 60 && d < 70 ? 1 : 0, fogEnd: d > 95 ? 2 : 60, tt: 15, contrail: 29000, elev: 300 + 1800 * Math.exp(-((d - 45) ** 2) / 120) }; });
   const W = { at: () => ({ t: 15 }), wind: (x, y, a) => ({ hdg: 270, spd: Math.round(a / 600) }) };
   const wx = mk(WX.drawSmartWeather, { title: 'Hammer 6 · 2× F-16C · Strike', sub: 'Weather at 09:25Z (hourly maps)', dep: 9 * 3600000, tot: 9 * 3600000 + 25 * 60000, route, tgt: 2, depId: 'RKJK', ldgId: 'RKSO', prof, at: () => W, contrail: [29000], reports: [{ lab: 'DEP RKJK  METAR', text: 'RKJK 0900Z 24008KT 9999 SCT060 15/08 Q1013 NOSIG', col: 'GRN' }, { lab: 'TGT  TAF', text: 'TAF 0812 27015KT 6000 -SHRA BKN090 TEMPO 0910 3000 TSRA BKN040CB' }, { lab: 'LDG RKSO  METAR', text: 'RKSO 1100Z 25010KT 9999 FEW050 13/06 Q1012', col: 'BLU' }, { lab: 'ALTN RKTN  METAR', text: 'RKTN 1100Z 00000KT 0800 FG OVC003', col: 'RED' }] });
-  return { wx: wx.toDataURL(), size: [light.width, light.height], bg: [px(light, 800, 2390), px(dark, 800, 2390)], bar: [px(light, 20, 20), px(dark, 20, 20)], reds: [reds(light), reds(dark)], png: [light.toDataURL(), dark.toDataURL(), roe.toDataURL()] };
+  const CB = await import('/app/js/core/smartcombo.js'), Wt = WX.wxAtTarget({ title: 'x', dep: 0, tot: 0, route, tgt: 2, prof, at: () => W, reports: [{ lab: 'DEP RKJK  METAR', text: 'RKJK 0900Z 24008KT 9999 SCT060 Q1013', col: 'GRN' }, { lab: 'TGT  TAF', text: 'TAF 0812 27015KT 6000 -SHRA BKN090 TEMPO 0910 3000 TSRA BKN040CB' }] }, 3000);
+  const combo = mk(CB.drawSmartCombined, { title: 'MISSION · POP-UP T2', right: 'HAMMER 6 · PKG 4007', key: A.key, mod: { kind: 'attack', label: 'ATTACK · POP-UP T2', side: A.side, line: 'PULL 279° 480 KCAS 500 ft · CLIMB 30° · TOF 8.5 s AD1 4 s ARM' }, tgt: { key: [['TARGET', 'BRIDGE 12'], ['ELEV', '420'], ['DMPI', '2'], ['ATK HDG', '339°'], ['LAT', 'N38°23.45'], ['LONG', 'E126°48.94'], ['STATUS', '100 %']], cx: 0, cy: 0, feats: [{ x: -0.05, y: 0, kind: 'span' }, { x: 0.05, y: 0.02, kind: 'span' }, { x: 0.2, y: 0.15, kind: 'ware' }], dmpis: [{ x: -0.05, y: 0, n: 1 }, { x: 0.05, y: 0.02, n: 2 }], hdgTrue: 339 }, wx: Wt, windLabel: 'WIND 3k', check: { label: 'APEX 5 298 < BASE 9 000 \u2713' }, roe: { key: [['JOKER', '4500'], ['BINGO', '3500', true], ['LASER', '1688'], ['M3', '4521'], ['PRESET', 'STANDARD']], blocks: [['ENGAGE', ['No release without TGT visual / TGP', 'SAM / AAA: self-defence only']], ['SOP', ['#2 +30 s, 1.5 NM']]] }, last: ['OA1 339° 3 960 ft · EGR 289° · GS 451 kt', ''] });
+  return { combo: combo.toDataURL(), wx: wx.toDataURL(), size: [light.width, light.height], bg: [px(light, 800, 2390), px(dark, 800, 2390)], bar: [px(light, 20, 20), px(dark, 20, 20)], reds: [reds(light), reds(dark)], png: [light.toDataURL(), dark.toDataURL(), roe.toDataURL()] };
 }"""
 try:
     with sync_playwright() as p:
@@ -47,11 +49,13 @@ try:
         check('dark: the page near black, the title bar turned light %s %s' % (r['bg'][1], r['bar'][1]), max(r['bg'][1]) < 40 and min(r['bar'][1]) > 150)
         check('the limits in red in both looks (MRA, the enemy unit) %s' % r['reds'], r['reds'][0] > 200 and r['reds'][1] > 200)
         check('the Smart Weather card drawn', len(r['wx']) > 20000)
+        check('the combined Smart card drawn', len(r['combo']) > 20000)
         check('no page errors %s' % errs[:2], not errs)
         if OUT:
             for i, n in enumerate(('light', 'dark', 'roe')):
                 open(os.path.join(OUT, 'sc_%s.png' % n), 'wb').write(base64.b64decode(r['png'][i].split(',')[1]))
             open(os.path.join(OUT, 'sc_wx.png'), 'wb').write(base64.b64decode(r['wx'].split(',')[1]))
+            open(os.path.join(OUT, 'sc_combo.png'), 'wb').write(base64.b64decode(r['combo'].split(',')[1]))
         b.close()
 finally:
     srv.terminate()

@@ -20,6 +20,9 @@ import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { drawSeadCard, cardBox, SDC_W, SDC_H, SD_COL } from './seadcard.js';
 import { toMag } from './magvar.js';
+import { drawSmartSead } from './smartsead.js';
+import { drawSmartCombined } from './smartcombo.js';
+import { wxAtTarget } from './smartwx.js';
 
 const FT_KM = 3280.84,
   KM_NM = 1.852;
@@ -1208,12 +1211,142 @@ export function createSeadPage(deps) {
   const KINDS = [
     ['map', 'With the map'],
     ['sch', 'With the scheme'],
+    ['smart', 'Smart'],
+    ['combo', 'Smart mission'],
   ];
+  // the Smart SEAD card (core/smartsead.js): the key numbers, the timeline of the SAMs, the plan, the launches
+  function smartData() {
+    const Z = P.shots.filter(z => !st.skip[z.id]),
+      lt = z => (z.launch.off ? (z.launch.fix ? z.launch.fix.t : z.imp) : z.launch.t),
+      ok = Z.filter(z => !z.launch.off),
+      R = P.rows.filter(r => !st.skip[r.id]),
+      need = R.reduce((a, r) => a + r.need.reduce((b, n) => b + n[1] - n[0], 0), 0),
+      gap = R.reduce((a, r) => a + r.gaps.reduce((b, g) => b + g.t1 - g.t0, 0), 0),
+      cov = need > 0 ? Math.round((100 * (need - gap)) / need) : 100,
+      ls = Z.map(lt).sort((a, b) => a - b),
+      T = [...R.flatMap(r => r.on.flat()), ...ls, ...Z.map(z => z.imp)],
+      prot = X.flights.filter(f => !f.sead && st.prot[f.key] !== false),
+      pm = s => hms(s).slice(0, 5);
+    return {
+      title: 'SEAD · ' + mode().toUpperCase(),
+      right: String(X.me.name).toUpperCase() + ' · PKG ' + X.me.pkgNo,
+      key: [
+        ['1ST L', ls.length ? pm(ls[0]) : '--'],
+        ['LAST L', ls.length ? pm(ls[ls.length - 1]) : '--'],
+        ['HARM', String(Z.length)],
+        ['MODE', mode().toUpperCase()],
+        ['1ST IMP', ok.length ? pm(Math.min(...ok.map(z => z.imp))) : '--'],
+        ['COVER', cov + ' %', cov < 90],
+        ['PUSH', st.dt ? dtTxt().toUpperCase() : 'ON TIME'],
+        ['SAMS', String(R.length)],
+      ],
+      t0: Math.min(...T) - 30000,
+      t1: Math.max(...T) + 30000,
+      rows: R.map(r => ({
+        name: r.sam.name,
+        on: r.on,
+        cover: r.shots.filter(z => !z.launch.off && !st.skip[z.id]).map(z => [z.imp, z.cover]),
+        gaps: [...r.gaps.map(g => [g.t0, g.t1]), ...(r.pre ? [[r.pre.t0, r.pre.t1]] : [])],
+        marks: r.shots
+          .filter(z => !st.skip[z.id])
+          .map(z => ({ t: lt(z), label: '#' + (z.seat + 1) + ' ' + pm(lt(z)), late: !!z.launch.off })),
+      })),
+      plan: {
+        sams: R.map(r => ({ x: r.sam.x, y: r.sam.y, r: r.sam.rng, name: r.sam.name })),
+        prot: prot.map(f => f.f.wps.map(w => ({ x: w.x, y: w.y }))),
+        me: X.me.f.wps.map(w => ({ x: w.x, y: w.y })),
+        shots: ok.map(z => ({
+          x: z.launch.x,
+          y: z.launch.y,
+          sx: z.sam.x,
+          sy: z.sam.y,
+          label: '#' + (z.seat + 1) + ' ' + pm(z.launch.t),
+        })),
+        legend:
+          'black: ' +
+          String(X.me.name).toUpperCase() +
+          ' · grey: ' +
+          prot.map(f => String(f.name).toUpperCase()).join(', '),
+      },
+      table: Z.slice()
+        .sort((a, b) => lt(a) - lt(b))
+        .map(z => {
+          const L = z.launch,
+            off = !!L.off;
+          return [
+            '#' +
+              (z.seat + 1) +
+              '    ' +
+              hms(lt(z)) +
+              '  ' +
+              String(z.sam.name).padEnd(6) +
+              ' ' +
+              (off ? ' -- ' : h3(toMag(L.brg)) + '°') +
+              '  ' +
+              (off ? ' -- ' : String(Math.round(L.d / 1.852)).padStart(2) + 'NM') +
+              ' ' +
+              pm(z.imp) +
+              (off ? '  LATE' : ''),
+            off,
+          ];
+        }),
+      last: 'PROTECTS ' + prot.map(f => String(f.name).toUpperCase()).join(', '),
+    };
+  }
+  // the combined Smart card: this page's numbers and drawing over the target SAM, the weather over it and the ROE / SOP (COMBO: the base, read before)
+  let COMBO = null;
+  async function comboLoad() {
+    try {
+      COMBO = deps.combo ? await deps.combo() : null;
+    } catch (e) {
+      COMBO = null;
+    }
+  }
+  function comboData() {
+    const D = smartData(),
+      B = COMBO || {},
+      cruise = Math.max(0, ...X.me.f.wps.map(w => Math.abs(w.z || 0) * 10)),
+      fl = 'FL' + String(Math.round(cruise / 1000) * 10).padStart(3, '0'),
+      W = B.wx ? wxAtTarget(B.wx, cruise || 20000) : null,
+      check = !W
+        ? null
+        : W.base == null
+          ? { label: 'NO CLOUD OVER THE TARGET \u2713' }
+          : cruise > W.top
+            ? { label: fl + ' ABOVE THE TOPS ' + Math.round(W.top / 100) * 100 + ' \u2713' }
+            : cruise < W.base
+              ? { label: fl + ' UNDER THE BASE ' + Math.round(W.base / 100) * 100 }
+              : { label: fl + ' IN CLOUD', bad: true };
+    return {
+      title: 'MISSION · SEAD',
+      right: D.right,
+      key: D.key,
+      mod: {
+        kind: 'sead',
+        sead: D,
+        line:
+          D.key[2][1] + ' HARM ' + mode().toUpperCase() + ' · ' + fl + ' · ' + D.last.replace(/^PROTECTS/, 'protects'),
+      },
+      sam: D.rows.length
+        ? {
+            name: D.rows[0].name + ' · ' + D.plan.sams.length + ' SAMS',
+            text: D.plan.sams.map(z => z.name + ' ' + Math.round(z.r / 1.852) + ' NM').slice(0, 2),
+          }
+        : null,
+      wx: W,
+      windLabel: 'WIND ' + fl,
+      check,
+      roe: B.roe || null,
+      last: [D.last || '', ''],
+    };
+  }
   function drawCard(D, kind) {
     const c = document.createElement('canvas');
     c.width = SDC_W;
     c.height = SDC_H;
-    drawSeadCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, kind);
+    if (kind == 'combo') drawSmartCombined(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), comboData());
+    else if (kind == 'smart') drawSmartSead(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), smartData());
+    else drawSeadCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, kind);
     return c;
   }
   async function addCard(btn) {
@@ -1230,6 +1363,7 @@ export function createSeadPage(deps) {
       return deps.toast('SEAD card: ' + ((e && e.message) || e), true);
     }
     btn.disabled = false;
+    await comboLoad();
     const C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(D, k)])),
       on = {};
     let pre = ['map'];
@@ -1296,7 +1430,14 @@ export function createSeadPage(deps) {
         if (!blob) continue;
         // the card in the other look too (light / dark), so that the kneeboard can switch it later
         const alt = await new Promise(r => otherLook(() => drawCard(D, k)).toBlob(r, 'image/png'));
-        const at = await deps.kbAdd(blob, 'SEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''), alt, cardDark());
+        const at = await deps.kbAdd(
+          blob,
+          (k == 'combo' ? 'Smart · Mission · ' : k == 'smart' ? 'Smart · SEAD · ' : 'SEAD · ') +
+            X.me.name +
+            (k == 'sch' ? ' · scheme' : ''),
+          alt,
+          cardDark()
+        );
         out.push(at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards');
       }
       deps.toast('SEAD card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard: ' + out.join('; ') + '.');
@@ -1312,8 +1453,12 @@ export function createSeadPage(deps) {
     if (!D.shots.length) return [];
     const B = cardBox(D);
     D.px = await snapPlan(B.w / B.h);
+    await comboLoad();
     return KINDS.map(([k, l]) => ({
-      name: 'SEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''),
+      name:
+        (k == 'combo' ? 'Smart · Mission · ' : k == 'smart' ? 'Smart · SEAD · ' : 'SEAD · ') +
+        X.me.name +
+        (k == 'sch' ? ' · scheme' : ''),
       label: 'SEAD · ' + l,
       c: drawCard(D, k),
       alt: otherLook(() => drawCard(D, k)),

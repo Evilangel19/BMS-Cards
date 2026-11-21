@@ -88,7 +88,7 @@ try:
         # the Attack kneeboard cards: one per role with the split, the role shown kept
         ac = pg.evaluate("()=>__app.wpPage.atkCards().map(d=>({role:d.role,other:!!d.other,rows:d.rows.length}))")
         check('Attack cards: the Add card button, one card for the lead and one for the element %s' % ac, pg.locator('[data-tabcard]').count() == 1 and len(ac) == 2 and ac[0]['role'] != ac[1]['role'] and all(c['other'] and c['rows'] > 3 for c in ac) and who() == 'elem')
-        sm = pg.evaluate("async()=>(await __app.wpPage.allCards()).filter(z=>z.name.startsWith('Smart')).map(z=>[z.name,z.c.width,z.c.height])")
+        sm = pg.evaluate("async()=>(await __app.wpPage.allCards()).filter(z=>z.name.startsWith('Smart · Attack')).map(z=>[z.name,z.c.width,z.c.height])")
         check('Smart Attack cards: one for the lead and one for the element, 1600 x 2400 %s' % sm, len(sm) == 2 and all(z[1:] == [1600, 2400] for z in sm))
         pg.click('[data-mode=hadb]'); pg.wait_for_timeout(500)
         check('HADB has its own split', sb() == 'Split')

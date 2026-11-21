@@ -156,12 +156,20 @@ try:
         k0 = pg.evaluate('()=>__app.KBLIB.length')
         pg.click('#wp [data-tabcard]')
         pg.wait_for_selector('dialog.tgdlg[open]', timeout=15000)
-        check('Add card…: a dialog with the two cards (map, scheme)', pg.locator('dialog.tgdlg[open] .tgcard').count() == 2)
-        pg.click('dialog.tgdlg[open] .tgcard[data-kind=sch]'); pg.click('dialog.tgdlg[open] [data-a=ok]')
-        for _ in range(40):
-            if pg.evaluate('()=>__app.KBLIB.length') >= k0 + 2: break
+        check('Add card…: a dialog with the four cards (map, scheme, Smart, Smart mission)', pg.locator('dialog.tgdlg[open] .tgcard').count() == 4 and pg.locator('dialog.tgdlg[open] .tgcard[data-kind=smart]').count() == 1 and pg.locator('dialog.tgdlg[open] .tgcard[data-kind=combo]').count() == 1)
+        pg.click('dialog.tgdlg[open] .tgcard[data-kind=sch]')
+        for kd in ('smart', 'combo'):
+            if not pg.locator('dialog.tgdlg[open] .tgcard[data-kind=%s].on' % kd).count(): pg.click('dialog.tgdlg[open] .tgcard[data-kind=%s]' % kd)
+        pg.click('dialog.tgdlg[open] [data-a=ok]')
+        for _ in range(60):
+            if pg.evaluate('()=>__app.KBLIB.length') >= k0 + 4: break
             pg.wait_for_timeout(250)
-        check('...both added to the Kneeboard', pg.evaluate('()=>__app.KBLIB.length') == k0 + 2)
+        nm = pg.evaluate('()=>__app.KBLIB.slice(-4).map(i=>i.name)')
+        check('...the four added to the Kneeboard, the Smart ones named so %s' % nm, pg.evaluate('()=>__app.KBLIB.length') == k0 + 4 and any(n.startswith('Smart · DEAD') for n in nm) and any(n.startswith('Smart · Mission') for n in nm))
+        if shots:
+            for pre, fn in (('Smart · DEAD', 'smart-dead'), ('Smart · Mission', 'combo-dead')):
+                d = pg.evaluate("p=>{const it=__app.KBLIB.slice(-4).find(i=>i.name.startsWith(p));return new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(it.blob)})}", pre)
+                open(shots + '/' + fn + '.png', 'wb').write(base64.b64decode(d.split(',')[1]))
         t0 = pg.evaluate("()=>__app.wpPage.state().tgt"); m0 = pg.evaluate("()=>__app.wpPage.state().mode")
         pg.click('#dddt [data-ddatk=hadb]'); pg.wait_for_timeout(900)
         nt = pg.inner_text('#dddt')

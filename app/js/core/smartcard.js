@@ -233,7 +233,7 @@ export function labeller(x) {
           [-d - w, h + d - 4],
         ];
       for (const [dx, dy] of tries) {
-        const b0 = [a + dx - 1, b + dy - h, a + dx + w + 1, b + dy + 2];
+        const b0 = [a + dx, b + dy - h, a + dx + w, b + dy + 2];
         if (o.box && (b0[0] < o.box[0] || b0[2] > o.box[2] || b0[1] < o.box[1] || b0[3] > o.box[3])) continue;
         if (!o.force && !free(b0)) continue;
         used.push(b0);

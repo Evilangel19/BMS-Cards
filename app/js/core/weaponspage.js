@@ -12,6 +12,8 @@ import { attackTrack, fragZone, deconflict, fromSplit } from './deconf.js';
 import { fragOutline } from './frag.js';
 import { drawAtkCard, ATC_W, ATC_H } from './atkcard.js';
 import { drawSmartAttack, SC_W, SC_H, planBox } from './smartcard.js';
+import { drawSmartCombined } from './smartcombo.js';
+import { wxAtTarget } from './smartwx.js';
 import { chooseCards } from './tgdlg.js';
 import {
   computeHadb,
@@ -1341,7 +1343,7 @@ export function createWeaponsPage(deps) {
     return {
       kind,
       title: 'ATK · ' + (c.label || kind.toUpperCase()) + (who == 'lead' ? ' · A' : who == 'elem' ? ' · B' : ''),
-      right: ((deps.title && deps.title()) || '').split(' · ')[0] || '',
+      right: (deps.tag && deps.tag()) || ((deps.title && deps.title()) || '').split(' · ')[0] || '',
       key,
       foot,
       last: (oa ? oa + ' · ' : '') + 'EGR ' + eg + ' · GS ' + Math.round(v.groundSpeed || 0) + ' kt',
@@ -1440,21 +1442,73 @@ export function createWeaponsPage(deps) {
       last: sm.last,
     };
   }
-  // the Smart cards of the roles, in both looks: [{name, c, alt, dark}]
+  // the combined Smart card of a role: the attack (its key numbers, its side profile) over the target, the weather over it and the ROE / SOP
+  function comboOf(sm, A, B) {
+    const tops = sm.side.segs.filter(z => z[0] != 'fall').flatMap(z => z[1].map(p => p[1])),
+      top = tops.length ? Math.max(...tops) : 0,
+      wAlt = Math.max(3000, Math.round((sm.ingress || 0) / 1000) * 1000),
+      W = B.wx ? wxAtTarget(B.wx, wAlt) : null,
+      what = sm.kind == 'toss' ? 'BOMB TOP' : sm.kind == 'hadb' ? 'ROLL-IN' : 'APEX',
+      ftop =
+        sm.kind == 'toss'
+          ? (sm.side.segs.find(z => z[0] == 'fall') || [0, [[0, 0]]])[1].reduce((m, p) => Math.max(m, p[1]), 0)
+          : top,
+      check = !W
+        ? null
+        : W.base == null
+          ? { label: 'NO CLOUD OVER THE TARGET \u2713' }
+          : ftop < W.base
+            ? { label: what + ' ' + fmt(ftop) + ' < BASE ' + fmt(W.base) + ' \u2713' }
+            : { label: what + ' ' + fmt(ftop) + ' IN CLOUD ' + fmt(W.base) + '-' + fmt(W.top), bad: true };
+    return {
+      title: 'MISSION · ' + sm.title.replace(/^ATK · /, ''),
+      right: sm.right,
+      key: sm.key,
+      mod: {
+        kind: 'attack',
+        label: 'ATTACK · ' + sm.title.replace(/^ATK · /, ''),
+        side: A.side,
+        line: sm.foot
+          .map(c => c.slice(1).join(' '))
+          .join(' · ')
+          .slice(0, 64),
+      },
+      tgt: B.tgt,
+      wx: W,
+      windLabel: 'WIND ' + wAlt / 1000 + 'k',
+      check,
+      roe: B.roe,
+      last: [sm.last, ''],
+    };
+  }
+  // the Smart cards of the roles, in both looks: [{name, c, alt, dark, kind}] (the attack card, and the combined card when the base can be read)
   async function smartCards(L) {
     const out = [];
+    let B = null;
+    try {
+      B = deps.combo ? await deps.combo() : null;
+    } catch (e) {
+      B = null;
+    }
     for (const D of L) {
       if (!D || !D.sm) continue;
       const A = await smartCard(D.sm),
-        mk = () => {
+        mk = (f, data) => () => {
           const c = document.createElement('canvas');
           c.width = SC_W;
           c.height = SC_H;
-          drawSmartAttack(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), A);
+          f(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), data);
           return c;
         };
-      const nm = 'Smart · Attack · ' + D.role + (D.target ? ' · ' + D.target : '');
-      out.push({ name: nm, label: nm, c: mk(), alt: otherLook(mk), dark: cardDark() });
+      const nm = 'Smart · Attack · ' + D.role + (D.target ? ' · ' + D.target : ''),
+        m1 = mk(drawSmartAttack, A);
+      out.push({ name: nm, label: nm, c: m1(), alt: otherLook(m1), dark: cardDark(), sk: 'smart' });
+      if (B) {
+        const C = comboOf(D.sm, A, B),
+          m2 = mk(drawSmartCombined, C),
+          n2 = 'Smart · Mission · ' + D.role + (D.target ? ' · ' + D.target : '');
+        out.push({ name: n2, label: n2, c: m2(), alt: otherLook(m2), dark: cardDark(), sk: 'combo' });
+      }
     }
     return out;
   }
@@ -1524,7 +1578,7 @@ export function createWeaponsPage(deps) {
       const L = atkCards();
       if (!L.length) throw new Error('no attack to draw');
       // the classic card and the Smart card of each role, chosen on their pictures (the choice kept for the next time)
-      let keep = { std: true, smart: true };
+      let keep = { std: true, smart: true, combo: true };
       try {
         keep = { ...keep, ...JSON.parse(localStorage.getItem('atkcardkinds') || '{}') };
       } catch (e) {
@@ -1553,7 +1607,12 @@ export function createWeaponsPage(deps) {
           });
         }
         for (const z of await smartCards(L))
-          o.push({ ...z, kind: 'smart', label: 'Smart · ' + z.name.split(' · ')[2], on: keep.smart });
+          o.push({
+            ...z,
+            kind: z.sk,
+            label: (z.sk == 'combo' ? 'Smart mission · ' : 'Smart · ') + z.name.split(' · ')[2],
+            on: z.sk == 'combo' ? keep.combo : keep.smart,
+          });
         return o;
       });
       btn.disabled = false;
@@ -1562,7 +1621,11 @@ export function createWeaponsPage(deps) {
       try {
         localStorage.setItem(
           'atkcardkinds',
-          JSON.stringify({ std: pick.some(z => z.kind == 'std'), smart: pick.some(z => z.kind == 'smart') })
+          JSON.stringify({
+            std: pick.some(z => z.kind == 'std'),
+            smart: pick.some(z => z.kind == 'smart'),
+            combo: pick.some(z => z.kind == 'combo'),
+          })
         );
       } catch (e) {
         /* not kept */

@@ -58,7 +58,7 @@ import { G, S, dtcOverwrite, dtcRevert, lines, stpts, MERGED } from './dtcfile.j
 import { isShipBase, shipKind } from '../core/carriers.js';
 import { PERFP, RLI, baseName, bvrCells, perfEnv, perfFill, perfSave, rwyAuto, rwyFt, imcOpt } from './perf.js';
 import { targetData, wtAdd, wtList, wtPut } from './dtctargets.js';
-import { ATOL, PLAYER, msLocked, atoSearch } from './ato.js';
+import { ATOL, PLAYER, msLocked, atoSearch, flightTag } from './ato.js';
 import { l16Add, l16Can, l16Has, l16Mate, l16Plan, l16Preview, l16Remove } from './l16link.js';
 import { apply } from './selection.js';
 import { F, dtcChanged, setField } from './datacard.js';
@@ -66,7 +66,7 @@ import { applyDTC, dtcClear, dtcSet, sitOn, sitSetMeta } from './dtcapply.js';
 import { kbAddShot, kbAddTray, kbAddPic, KBX } from './kneeboard.js';
 import { draw } from './cardview.js';
 import { SHOT } from '../core/cardlayout.js';
-import { dtcDir, wxWind, wxAt, wxKey, wxLoadKeys, wxFlight } from './campaign.js';
+import { dtcDir, wxWind, wxAt, wxKey, wxLoadKeys, wxFlight, wxPage } from './campaign.js';
 import { openSettings } from './settings.js';
 import { APP_VERSION } from '../core/version.js';
 import {
@@ -89,7 +89,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
-import { roeDraw, roeAllCards } from './roepage.js';
+import { roeDraw, roeAllCards, roeSmartNow } from './roepage.js';
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
@@ -445,7 +445,7 @@ function tgtDeps() {
         return [];
       }
     },
-    info: () => ({ cs: F.cs || '', mis: F.mis || '', tot: String(F.d1 || '').split(' · ')[0], wpn: F.ag || '' }),
+    info: () => ({ cs: F.cs || '', mis: F.mis || '', tot: String(F.d1 || '').split(' · ')[0], wpn: F.ag || '', tag: flightTag() }),
     geoLL: (x, y) => {
       try {
         return ST.C ? CAM.geoLL(ST.C, x, y) : mFmtLL(...mToLL(x, y));
@@ -613,6 +613,7 @@ function seadCtx() {
 const HARM_K = (t, n) => `THREAT ${t} ${n}`;
 function seadDeps() {
   return {
+    combo: () => comboBase(),
     esc,
     toast: appToast,
     confirm: m => confirm(m),
@@ -907,6 +908,29 @@ async function smartRefs(b) {
   return out;
 }
 
+// the fixed base of the combined Smart cards: the target of the Target page, the weather of the flight, its ROE / SOP (each null when it has none)
+async function comboBase() {
+  let tgt = null,
+    wx = null,
+    roe = null;
+  try {
+    tgt = ST.tgPage && ST.tgPage.smart ? await ST.tgPage.smart() : null;
+  } catch (e) {
+    tgt = null;
+  }
+  try {
+    wx = wxPage && wxPage.smartData ? await wxPage.smartData() : null;
+  } catch (e) {
+    wx = null;
+  }
+  try {
+    roe = roeSmartNow();
+  } catch (e) {
+    roe = null;
+  }
+  return { tgt, wx, roe };
+}
+
 // run 9: statements that run when the program starts (in the order of the original file)
 export async function init9() {
   harmRoot = document.createElement('div');
@@ -1100,6 +1124,8 @@ export async function init9() {
       }
     },
     refs: box => smartRefs(box),
+    tag: () => flightTag(),
+    combo: () => comboBase(),
     changed: (sec, key) => dtcChanged(sec, key),
     confirm: m => confirm(m),
     alert: (m, k) => alert(m, k),

@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: Smart SEAD and DEAD cards, and the Smart mission cards: one page with the task (Pop-up, HADB, TOSS, SEAD or DEAD), the target, the weather over it (checked against the attack or the cruise level) and the ROE / SOP; every Smart card names the flight and its package.
 - Added: Smart cards for the Kneeboard, in the look of a real smart card (key numbers in a box, a drawing with its values, red for the limits): Attack (Pop-up, HADB, TOSS) with the side profile over the real terrain and a plan view with contour lines, spot elevations and the places, bridges, towers and enemy units near the attack (ICAO / NATO symbols); Weather; Target; ROE / SOP. Chosen next to the classic cards in Add card and Add all cards.
 - Added: Map > Display > HARM: the drawing of Weapons > HARM for the flight (its SEAD plan, its DEAD tactic, or else the Single shot); Pop-up/HADB/TOSS and HARM are off at first.
 - Changed: headings and bearings are shown magnetic, with the magnetic variation of the theater (BMS 4.38); offsets, VIP / VRP and winds stay true.
