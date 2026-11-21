@@ -11,6 +11,8 @@ import { computePopup, DEFAULTS, LIMITS, FT_NM, FT_KT, bearing, dist, project, o
 import { attackTrack, fragZone, deconflict, fromSplit } from './deconf.js';
 import { fragOutline } from './frag.js';
 import { drawAtkCard, ATC_W, ATC_H } from './atkcard.js';
+import { drawSmartAttack, SC_W, SC_H, planBox } from './smartcard.js';
+import { chooseCards } from './tgdlg.js';
 import {
   computeHadb,
   computeToss,
@@ -1162,7 +1164,9 @@ export function createWeaponsPage(deps) {
     } catch (e) {
       offs = [];
     }
+    const sm = smartBase(r, PD0, spec, mra, offs, c, who);
     return {
+      sm,
       role: who == 'flight' ? 'FLIGHT' : whoName(who),
       roleCol: who == 'lead' ? '#1d4ed8' : who == 'elem' ? '#b45309' : '#1f8a4c',
       title: (deps.title && deps.title()) || '',
@@ -1203,6 +1207,244 @@ export function createWeaponsPage(deps) {
       offsets: offs,
       notes: ['BMS Cards · an estimate from the TO graphs and the plan; check it in the game.'],
     };
+  }
+  // ---- the Smart card of an attack (core/smartcard.js): the numbers of the attack ready, the terrain and the references read when the card is made
+  const SHORT = {
+    Release: 'REL',
+    'Roll out': 'ROLL OUT',
+    'PUP · pull-up': 'PUP',
+    'VRP · turn': 'VRP',
+    'Line-up': 'LINE-UP',
+    MAP: '',
+  };
+  const short = l => {
+    const t = String(l || '').split(' · ')[0];
+    return SHORT[t] !== undefined ? SHORT[t] : t.toUpperCase();
+  };
+  function smartBase(r, PD0, spec, mra, offs, c, who) {
+    const v = r.v,
+      T = r.target,
+      nmT = p => (p ? (dist(p, T) / FT_NM).toFixed(1) + ' NM' : '--'),
+      tgt = ctx.t ? (ctx.sp && ctx.sp.n ? 'STPT ' + ctx.sp.n : ctx.t.name || 'TGT') : 'TGT',
+      tot = deps.tot && ctx.sp ? deps.tot(ctx.sp.n) : '',
+      wpn = (bombSel().label || '').replace(/^\d+\s*[x×]\s*/i, m => m.replace(/\s/g, '')).slice(0, 10) || '--',
+      fz =
+        r.fuze && r.fuze.ad1
+          ? 'AD1 ' + r.fuze.ad1.delay + ' s' + (r.fuze.ad1.armed ? ' ARM' : ' SAFE')
+          : r.fuze && r.fuze.burst
+            ? 'BA ' + fmt(v.burstAltitude)
+            : '',
+      stick = v.ripplePulses > 1 ? v.ripplePulses + ' × ' + fmt(v.stickSpacing) + ' ft' : 'single',
+      eg = hm(v.egressHeading) + '°',
+      kind = st.mode,
+      red = mra != null && v.releaseAltitude < mra;
+    // the plan: the segments of the page, the line to OA1 left out, the egress from the release
+    const segs = PD0.segs.filter(z => z[0] != 'ref' && !(z[0] == 'egress' && z[1][0] === T));
+    if (!segs.some(z => z[0] == 'egress') && isFinite(v.egressHeading))
+      segs.push(['egress', [r.release, project(r.release, v.egressHeading, Math.min(8000, v.egressRange || 8000))]]);
+    const marks = PD0.marks
+      .filter(m => m[0] && isFinite(m[0].n) && m[1] !== 'VIP')
+      .map(m => [
+        m[0],
+        short(m[1]) +
+          (m[1] == 'PUP' || m[1] == 'PUP · pull-up'
+            ? ' ' + hm(v.pullHeading || v.ingressHeading || v.attackHeading) + '°'
+            : ''),
+        m[3] == 'dia' ? 'dia' : '',
+      ])
+      .map(m => (m[1] == 'REL' ? [m[0], 'REL ' + hm(v.attackHeading) + '°', m[2]] : m));
+    // the side: as on the page (the escape of the fragments left out); x from the target, negative before it
+    const sSegs = spec.segs.filter(z => z[0] != 'escape'),
+      sMarks = spec.marks.map(mk => mk[0]),
+      sLabels = spec.marks.map(mk => [
+        mk[0][0],
+        mk[0][1],
+        short(mk[1]) + (/\d/.test(mk[1]) && !/\d/.test(short(mk[1])) ? ' ' + String(mk[1]).replace(/^[^\d]*/, '') : ''),
+      ]);
+    const key =
+      kind == 'popup'
+        ? [
+            ['TGT', tgt],
+            ['TOT', tot || '--'],
+            ['ATK HDG', hm(v.attackHeading) + '°'],
+            ['WPN', wpn],
+            ['PUP', nmT(r.pup)],
+            ['APEX', fmt(v.apexAltitude)],
+            ['REL', fmt(v.releaseAltitude), red],
+            ['MRA', mra ? fmt(mra) : '--', true],
+          ]
+        : kind == 'hadb'
+          ? [
+              ['TGT', tgt],
+              ['TOT', tot || '--'],
+              ['ATK HDG', hm(v.attackHeading) + '°'],
+              ['WPN', wpn],
+              ['ROLL-IN', fmt(v.ingressAltitude)],
+              ['DIVE', v.diveAngle + '°'],
+              ['REL', fmt(v.releaseAltitude), red],
+              mra ? ['MRA', fmt(mra), true] : ['SLANT', ((v.wheelRange || 0) / FT_NM).toFixed(1) + ' NM'],
+            ]
+          : [
+              ['TGT', tgt],
+              ['TOT', tot || '--'],
+              ['ATK HDG', hm(v.attackHeading) + '°'],
+              ['WPN', wpn],
+              ['PUP', nmT(r.pup)],
+              ['ANGLE', v.releaseAngle + '°'],
+              ['REL', ((v.releaseRange || 0) / FT_NM).toFixed(1) + ' NM'],
+              ['MIN REL', fmt(v.minReleaseAltitude || v.releaseAltitude), true],
+            ];
+    const foot =
+      kind == 'popup'
+        ? [
+            ['INGRESS', 'PULL ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
+            ['ROLL-IN', 'CLIMB ' + c.cl, 'AOD ' + fmt(v.aod), 'TRACK ' + v.timeOnFinal + ' s'],
+            ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+          ]
+        : kind == 'hadb'
+          ? [
+              ['INGRESS', 'HDG ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
+              [
+                'ROLL-IN',
+                'TURN ' + Math.round(v.turnAngle || 0) + '° ' + v.turnG + ' G',
+                'AOD ' + (v.aod / FT_NM).toFixed(1) + ' NM',
+                'TRACK ' + v.timeOnFinal + ' s',
+              ],
+              ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+            ]
+          : [
+              ['INGRESS', 'HDG ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
+              [
+                'PULL-UP',
+                v.turnG + ' G to ' + v.releaseAngle + '°',
+                'PULL ' + ((v.pullDistance || 0) / FT_NM).toFixed(2) + ' NM',
+                'REL ' + c.rs + ' KCAS',
+              ],
+              ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+            ];
+    const oa = (offs || [])
+      .slice(0, 2)
+      .map(o => o[0] + ' ' + o[1] + ' ' + o[2] + ' ft')
+      .join(' · ');
+    return {
+      kind,
+      title: 'ATK · ' + (c.label || kind.toUpperCase()) + (who == 'lead' ? ' · A' : who == 'elem' ? ' · B' : ''),
+      right: ((deps.title && deps.title()) || '').split(' · ')[0] || '',
+      key,
+      foot,
+      last: (oa ? oa + ' · ' : '') + 'EGR ' + eg + ' · GS ' + Math.round(v.groundSpeed || 0) + ' kt',
+      T,
+      ingress: v.ingressAltitude,
+      unrolled: kind == 'popup', // the x of the pop-up profile runs along the flown path; HADB / TOSS along the attack line
+      attack: v.attackHeading,
+      segs,
+      marks,
+      side: {
+        segs: sSegs,
+        marks: sMarks,
+        labels: sLabels,
+        line: mra
+          ? { h: mra, label: 'MRA ' + fmt(mra) }
+          : kind == 'toss' && v.minReleaseAltitude
+            ? { h: v.minReleaseAltitude, label: 'MIN REL ' + fmt(v.minReleaseAltitude) }
+            : null,
+      },
+    };
+  }
+  // the card itself: the grid of the terrain of the plan view and the ground under the path, the references near the attack, then the drawing
+  const PLAN_AR = 436 / 246;
+  async function smartCard(sm) {
+    const T = sm.T,
+      pts = [...sm.segs.flatMap(z => z[1]), ...sm.marks.map(m => m[0]), T].filter(p => p && isFinite(p.n)),
+      [e0, e1, n0, n1] = planBox(pts, PLAN_AR),
+      nx = 120,
+      ny = Math.round(nx / PLAN_AR),
+      G = { e0, e1, n0, n1, nx, ny, h: /** @type {number[]} */ ([]) },
+      q = [];
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++)
+        q.push({ e: e0 + ((i + 0.5) / nx) * (e1 - e0), n: n1 - ((j + 0.5) / ny) * (n1 - n0) });
+    // the path flown (the plan segments in order, without the fall and the egress), for the ground of the profile and the references
+    const path = sm.segs
+        .filter(z => !['fall', 'egress', 'ref'].includes(z[0]))
+        .flatMap(z => z[1])
+        .filter(p => p && isFinite(p.n))
+        .concat([T]),
+      dense = [];
+    for (let i = 0; i + 1 < path.length; i++)
+      for (let k = 0; k < 8; k++) {
+        const a = path[i],
+          b = path[i + 1],
+          f = k / 8;
+        dense.push({ n: a.n + (b.n - a.n) * f, e: a.e + (b.e - a.e) * f });
+      }
+    dense.push(T);
+    const A = ((sm.attack || 0) * Math.PI) / 180,
+      ua = { n: Math.cos(A), e: Math.sin(A) },
+      after = [1, 2, 3, 4, 5, 6].map(k => ({ n: T.n + ua.n * 500 * k, e: T.e + ua.e * 500 * k }));
+    let H = null;
+    try {
+      H = deps.elev ? await deps.elev([...q, ...dense, ...after]) : null;
+    } catch (e) {
+      H = null;
+    }
+    let ter = null;
+    if (H && H.length == q.length + dense.length + after.length) {
+      G.h = H.slice(0, q.length).map(h => (h == null ? null : Math.max(0, h)));
+      // x of each point: from the target backwards (the flown distance for the pop-up, the distance along the attack line for HADB / TOSS)
+      const xs = [];
+      let acc = 0;
+      for (let i = dense.length - 1; i >= 0; i--) {
+        if (i < dense.length - 1) acc += dist(dense[i], dense[i + 1]);
+        xs[i] = sm.unrolled ? -acc : (dense[i].n - T.n) * ua.n + (dense[i].e - T.e) * ua.e;
+      }
+      ter = dense
+        .map((p, i) => [xs[i], H[q.length + i] || 0])
+        .concat(after.map((p, k) => [500 * (k + 1), H[q.length + dense.length + k] || 0]));
+      ter.sort((a, b) => a[0] - b[0]);
+    }
+    // the references near the path (1.5 NM), the most useful first, at most 7
+    let refs = [];
+    try {
+      const all = deps.refs ? (await deps.refs({ e0, e1, n0, n1 })) || [] : [],
+        near = p => Math.min(...dense.map(d => Math.hypot(d.n - p.n, d.e - p.e))),
+        PR = { city: 0, town: 1, airfield: 2, bridge: 3, sam: 4, unit: 4, obst: 5, obj: 6, village: 7 };
+      refs = all
+        .map(r => ({ ...r, d: near(r) }))
+        .filter(r => r.d < 1.5 * FT_NM && dist(r, T) > 600)
+        .sort((a, b) => (PR[a.k] ?? 9) - (PR[b.k] ?? 9) || a.d - b.d)
+        .slice(0, 7);
+    } catch (e) {
+      refs = [];
+    }
+    const xMin = Math.min(...sm.side.segs.flatMap(z => z[1].map(p => p[0])));
+    return {
+      title: sm.title,
+      right: sm.right,
+      key: sm.key,
+      side: { ...sm.side, ter, x0: xMin, x1: 2500 },
+      plan: { segs: sm.segs, marks: sm.marks, target: T, grid: G.h.length ? G : null, ingress: sm.ingress, refs },
+      foot: sm.foot,
+      last: sm.last,
+    };
+  }
+  // the Smart cards of the roles, in both looks: [{name, c, alt, dark}]
+  async function smartCards(L) {
+    const out = [];
+    for (const D of L) {
+      if (!D || !D.sm) continue;
+      const A = await smartCard(D.sm),
+        mk = () => {
+          const c = document.createElement('canvas');
+          c.width = SC_W;
+          c.height = SC_H;
+          drawSmartAttack(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), A);
+          return c;
+        };
+      const nm = 'Smart · Attack · ' + D.role + (D.target ? ' · ' + D.target : '');
+      out.push({ name: nm, label: nm, c: mk(), alt: otherLook(mk), dark: cardDark() });
+    }
+    return out;
   }
   // the plan of a card on the map of the Map page: the lent map fitted to the card's points (in the middle band of the card's proportions), its
   // picture taken without the drawing of this page, the points in its pixels; the map goes back as it was
@@ -1269,23 +1511,57 @@ export function createWeaponsPage(deps) {
     try {
       const L = atkCards();
       if (!L.length) throw new Error('no attack to draw');
+      // the classic card and the Smart card of each role, chosen on their pictures (the choice kept for the next time)
+      let keep = { std: true, smart: true };
+      try {
+        keep = { ...keep, ...JSON.parse(localStorage.getItem('atkcardkinds') || '{}') };
+      } catch (e) {
+        /* the default */
+      }
+      const list = await busyRun('Preparing the Attack cards…', async () => {
+        const o = [];
+        for (const D of L) {
+          D.px = await snapPlan(D); // the loading bar of the map
+          const mk = () => {
+            const c = document.createElement('canvas');
+            c.width = ATC_W;
+            c.height = ATC_H;
+            drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D);
+            return c;
+          };
+          const nm = 'Attack · ' + D.role + (D.target ? ' · ' + D.target : '');
+          o.push({
+            kind: 'std',
+            role: D.role,
+            name: nm,
+            label: 'Attack · ' + D.role,
+            c: mk(),
+            alt: otherLook(mk),
+            on: keep.std,
+          });
+        }
+        for (const z of await smartCards(L))
+          o.push({ ...z, kind: 'smart', label: 'Smart · ' + z.name.split(' · ')[2], on: keep.smart });
+        return o;
+      });
+      btn.disabled = false;
+      const pick = await chooseCards(list, 'Add Attack cards to the Kneeboard');
+      if (!pick.length) return;
+      try {
+        localStorage.setItem(
+          'atkcardkinds',
+          JSON.stringify({ std: pick.some(z => z.kind == 'std'), smart: pick.some(z => z.kind == 'smart') })
+        );
+      } catch (e) {
+        /* not kept */
+      }
       const out = [];
-      for (const D of L) {
-        D.px = await busyRun('Preparing the Attack cards…', () => snapPlan(D)); // the loading bar of the map
-        const c = document.createElement('canvas');
-        c.width = ATC_W;
-        c.height = ATC_H;
-        drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D);
-        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      for (const z of pick) {
+        const blob = await new Promise(r => z.c.toBlob(r, 'image/png'));
         if (!blob) continue;
-        // the other look too (light / dark): the kneeboard switches it later
-        const c2 = document.createElement('canvas');
-        c2.width = ATC_W;
-        c2.height = ATC_H;
-        otherLook(() => drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c2.getContext('2d')), D));
-        const alt = await new Promise(r => c2.toBlob(r, 'image/png'));
-        const at = await deps.kbAdd(blob, 'Attack · ' + D.role + (D.target ? ' · ' + D.target : ''), alt, cardDark());
-        out.push(D.role + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
+        const alt = await new Promise(r => z.alt.toBlob(r, 'image/png'));
+        const at = await deps.kbAdd(blob, z.name, alt, cardDark());
+        out.push(z.label + ': ' + (at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards'));
       }
       if (deps.toast)
         deps.toast(
@@ -1323,7 +1599,7 @@ export function createWeaponsPage(deps) {
         const nm = 'Attack · ' + D.role + (D.target ? ' · ' + D.target : '');
         out.push({ name: nm, label: nm, c: mk(), alt: otherLook(mk), dark: cardDark() });
       }
-      return out;
+      return out.concat(await smartCards(atkCards()));
     } catch (e) {
       return [];
     } finally {

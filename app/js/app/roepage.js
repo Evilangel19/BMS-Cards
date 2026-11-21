@@ -33,6 +33,10 @@ import { markMan } from './selection.js';
 import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
+import { drawSmartText, SC_W, SC_H } from '../core/smartcard.js';
+import { fullText } from '../core/roesop.js';
+import { seatIdx } from './seat.js';
+import { chooseCards } from '../core/tgdlg.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
 // folded (bmsroeclosed2), Chosen only (bmsroeonly)
@@ -544,13 +548,60 @@ export async function roeAllCards() {
     roeCardDraw(p, k.getContext('2d'), sub);
     return k;
   };
-  return plan.map(p => ({
-    name: p.title + (sub ? ' · ' + sub : ''),
-    label: p.title,
-    c: mk(p),
-    alt: otherLook(() => mk(p)),
-    dark: cardDark(),
-  }));
+  const sm = roeSmartCard(seen ? R.sel : flightSel(), sub);
+  return plan
+    .map(p => ({
+      name: p.title + (sub ? ' · ' + sub : ''),
+      label: p.title,
+      c: mk(p),
+      alt: otherLook(() => mk(p)),
+      dark: cardDark(),
+    }))
+    .concat(sm ? [sm] : []);
+}
+// the Smart ROE / SOP card (core/smartcard.js): the numbers of the flight in the key box (joker, bingo, IFF, laser), the ROE and the SOP in short blocks
+function roeSmart(sel, sub) {
+  const T = fullText(sel),
+    v = k => (F[k] != null && String(F[k]).trim() ? String(F[k]).trim() : '--'),
+    lsr = v('fl' + seatIdx() + '_5'),
+    blocks = [
+      ...T.roe.map(([lab, L]) => [String(lab).toUpperCase(), L]),
+      ...(T.roeFree.length ? [['ROE', T.roeFree]] : []),
+      ...T.sop.map(([ph, L]) => [String(ph).toUpperCase(), L.map(([lab, t]) => (lab ? lab + ': ' : '') + t)]),
+      ...(T.sopFree.length ? [['SOP', T.sopFree]] : []),
+    ];
+  if (!blocks.length) return null;
+  const n = blocks.reduce((a, b) => a + b[1].length, 0);
+  return {
+    title: 'ROE / SOP',
+    right: F.cs || '',
+    key: [
+      ['JOKER', v('joker')],
+      ['BINGO', v('bingo'), true],
+      ['LASER', lsr],
+      ['M1', v('m1')],
+      ['M3', v('m3')],
+      ['M4', v('m4')],
+      ['PRESET', (sub || 'Custom').toUpperCase().slice(0, 10)],
+      ['RULES', String(n)],
+    ],
+    blocks,
+    foot: [],
+    last: sub ? 'ROE preset: ' + sub : '',
+  };
+}
+function roeSmartCard(sel, sub) {
+  const D = roeSmart(sel, sub);
+  if (!D) return null;
+  const mk = () => {
+    const k = document.createElement('canvas');
+    k.width = SC_W;
+    k.height = SC_H;
+    drawSmartText(/** @type {CanvasRenderingContext2D} */ (k.getContext('2d')), D);
+    return k;
+  };
+  const nm = 'Smart · ROE / SOP' + (sub ? ' · ' + sub : '');
+  return { name: nm, label: 'Smart · ROE / SOP', c: mk(), alt: otherLook(mk), dark: cardDark() };
 }
 // Add card: the whole text on Kneeboard cards (two when one is not enough: ROE and SOP apart, the pilot is told first)
 async function addCards() {
@@ -563,16 +614,35 @@ async function addCards() {
   const c0 = R.pick && !dirty() && chipOf(R.pick),
     sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '',
     go = async () => {
-      for (const p of plan) {
-        roeCardDraw(p, x, sub);
-        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-        // the other look too (light / dark): the kneeboard switches it later
-        otherLook(() => roeCardDraw(p, x, sub));
-        const alt = await new Promise(r => c.toBlob(r, 'image/png'));
-        await kbAddPic(blob, p.title + (sub ? ' · ' + sub : ''), alt, cardDark());
+      // the classic card(s) and the Smart card, chosen on their pictures
+      const mk = p => {
+          const k = document.createElement('canvas');
+          k.width = CARD_W;
+          k.height = CARD_H;
+          roeCardDraw(p, /** @type {CanvasRenderingContext2D} */ (k.getContext('2d')), sub);
+          return k;
+        },
+        sm = roeSmartCard(R.sel, sub),
+        list = plan
+          .map(p => ({
+            kind: 'std',
+            name: p.title + (sub ? ' · ' + sub : ''),
+            label: p.title,
+            c: mk(p),
+            alt: otherLook(() => mk(p)),
+          }))
+          .concat(sm ? [{ ...sm, kind: 'smart' }] : []);
+      const pick = await chooseCards(list, 'Add ROE / SOP cards to the Kneeboard');
+      if (!pick.length) return;
+      for (const z of pick) {
+        const blob = await new Promise(r => z.c.toBlob(r, 'image/png')),
+          alt = await new Promise(r => z.alt.toBlob(r, 'image/png'));
+        if (blob) await kbAddPic(blob, z.name, alt, cardDark());
       }
       appToast(
-        plan.length == 1 ? 'ROE / SOP card added to the Kneeboard.' : 'Two ROE / SOP cards added to the Kneeboard.'
+        pick.length == 1
+          ? 'ROE / SOP card added to the Kneeboard.'
+          : pick.length + ' ROE / SOP cards added to the Kneeboard.'
       );
     };
   if (plan.length == 1) return go();

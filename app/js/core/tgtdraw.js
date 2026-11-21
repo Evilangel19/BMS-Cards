@@ -172,7 +172,7 @@ const KINDS = [
 /** the kind of a feature from its name: span, rwy, bunk, tank, rad, aaa, tow, ware or adm (any other building) */
 export const featKind = name => (KINDS.find(([, r]) => r.test(String(name || ''))) || ['adm'])[0];
 /** size of the symbol of a kind, in metres [width, height] */
-const KSIZE = {
+export const KSIZE = {
   bunk: [40, 26],
   ware: [72, 30],
   tank: [30, 30],

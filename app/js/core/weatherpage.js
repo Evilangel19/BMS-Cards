@@ -10,7 +10,10 @@ import { pickAll } from './tgdlg.js';
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
 import { busyRun } from './busy.js';
 import { WX_MODES as MODES, prOf, legend, drawWx } from './wxlayer.js';
-import { drawWxCard, WXC_W, WXC_H } from './wxcard.js';
+import { drawWxCard as drawWxClassic, WXC_W, WXC_H } from './wxcard.js';
+import { drawSmartWeather } from './smartwx.js';
+// the Weather card of a kind: SIGWX, RADAR, WIND (core/wxcard.js) or Smart (core/smartwx.js)
+const drawWxCard = (x, D, k) => (k == 'smart' ? drawSmartWeather(x, D) : drawWxClassic(x, D, k));
 
 const NOTE = ['Clear', 'Fair', 'Poor', 'Inclement'],
   NCOL = ['#7ee2a8', '#7ee2a8', '#f0c46a', '#ff9a9a'],
@@ -419,6 +422,7 @@ export function createWeatherPage(deps) {
     ['sigwx', 'SIGWX', 'Weather · '],
     ['radar', 'RADAR', 'Weather · '],
     ['wind', 'WIND', 'Winds · '],
+    ['smart', 'Smart', 'Smart · Weather · '],
   ];
   const chosen = () => {
     try {
@@ -588,7 +592,7 @@ export function createWeatherPage(deps) {
     };
     return KINDS.map(([k, l, pre]) => ({
       name: pre + (fl.title || '') + ' · ' + l,
-      label: 'Weather · ' + l,
+      label: k == 'smart' ? 'Smart · Weather' : 'Weather · ' + l,
       c: mk(k),
       alt: otherLook(() => mk(k)),
       dark: cardDark(),

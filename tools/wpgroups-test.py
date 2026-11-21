@@ -1,6 +1,6 @@
 """Checks the split of the flight on the Weapons page: Split / Rejoin per attack section, LEAD / ELEMENT shown, the element born as the mirror of the
 lead, the white drawing of the other attack, the deconfliction card (spacing at the split point; amber when only the timing clears it, red when an attack
-parameter can), the red sliders, Apply by the seat, the state, Edit points steady. Usage: python3 tools/wpgroups-test.py [dtc.ini]
+parameter can), the red sliders, Apply by the seat, the state, Edit points steady, the Attack cards (classic and Smart). Usage: python3 tools/wpgroups-test.py [dtc.ini]
 (default: the Bear Trap DTC of tests/fixtures)."""
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
@@ -88,6 +88,8 @@ try:
         # the Attack kneeboard cards: one per role with the split, the role shown kept
         ac = pg.evaluate("()=>__app.wpPage.atkCards().map(d=>({role:d.role,other:!!d.other,rows:d.rows.length}))")
         check('Attack cards: the Add card button, one card for the lead and one for the element %s' % ac, pg.locator('[data-tabcard]').count() == 1 and len(ac) == 2 and ac[0]['role'] != ac[1]['role'] and all(c['other'] and c['rows'] > 3 for c in ac) and who() == 'elem')
+        sm = pg.evaluate("async()=>(await __app.wpPage.allCards()).filter(z=>z.name.startsWith('Smart')).map(z=>[z.name,z.c.width,z.c.height])")
+        check('Smart Attack cards: one for the lead and one for the element, 1600 x 2400 %s' % sm, len(sm) == 2 and all(z[1:] == [1600, 2400] for z in sm))
         pg.click('[data-mode=hadb]'); pg.wait_for_timeout(500)
         check('HADB has its own split', sb() == 'Split')
         pg.click('[data-split]'); pg.wait_for_timeout(600)

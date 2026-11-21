@@ -170,20 +170,20 @@ try:
         # Kneeboard and datacard
         n0 = pg.evaluate('()=>__app.KBLIB.length')
         pg.click('#wp [data-tabcard]'); pg.wait_for_timeout(600)
-        check('Add card: a window with the three cards, all chosen (Select none)', pg.locator('.tgdlg .tgcard').count() == 3 and pg.locator('.tgdlg .tgcard.on').count() == 3 and pg.inner_text('.tgdlg .tgall') == 'Select none')
+        check('Add card: a window with the four cards (Graphic, Information, Details, Smart), all chosen (Select none)', pg.locator('.tgdlg .tgcard').count() == 4 and pg.locator('.tgdlg .tgcard.on').count() == 4 and pg.inner_text('.tgdlg .tgall') == 'Select none')
         if shots: pg.locator('.tgdlg').screenshot(path=shots + '/tgt-cards.png')
         pg.click('.tgdlg .tgcard >> nth=2'); pg.wait_for_timeout(200)
-        check('...the third card left out, then chosen again', pg.locator('.tgdlg .tgcard.on').count() == 2 and pg.inner_text('.tgdlg .tgall') == 'Select all')
+        check('...the third card left out, then chosen again', pg.locator('.tgdlg .tgcard.on').count() == 3 and pg.inner_text('.tgdlg .tgall') == 'Select all')
         pg.click('.tgdlg .tgcard >> nth=2'); pg.wait_for_timeout(200)
         pg.click('.tgdlg [data-a=ok]')
-        for _ in range(40):  # three big pictures to encode
-            if pg.evaluate('()=>__app.KBLIB.length') - n0 >= 3: break
+        for _ in range(60):  # four big pictures to encode
+            if pg.evaluate('()=>__app.KBLIB.length') - n0 >= 4: break
             pg.wait_for_timeout(250)
         if shots:
             pg.click('[data-t=kn]'); pg.wait_for_timeout(1200); pg.screenshot(path=shots + '/tgt-kb.png', full_page=True); pg.click('[data-t=wp]'); pg.wait_for_timeout(600)
-        check('...three cards are in the Kneeboard (%d)' % (pg.evaluate('()=>__app.KBLIB.length') - n0), pg.evaluate('()=>__app.KBLIB.length') - n0 == 3)
+        check('...four cards are in the Kneeboard, the Smart one too (%d)' % (pg.evaluate('()=>__app.KBLIB.length') - n0), pg.evaluate('()=>__app.KBLIB.length') - n0 == 4 and any('Smart' in z for z in pg.evaluate('()=>__app.KBLIB.slice(-4).map(i=>i.name)')))
         if shots:
-            for i, k in enumerate('gtd'):
+            for i, k in enumerate('gtds'):
                 d = pg.evaluate("k=>__app.ST.tgPage._t.card(k).toDataURL()", k); open(shots + '/tgt-card-%s.png' % k, 'wb').write(base64.b64decode(d.split(',')[1]))
         pg.click('.tgp .tgdc'); pg.wait_for_timeout(300)
         check('Put on datacard: first the crop frame of the datacard (its shape on the picture)', pg.locator('.tgp .tgcropbar').is_visible() and 'Datacard format' in pg.inner_text('.tgp .tgcropn'))

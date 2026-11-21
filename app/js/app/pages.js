@@ -830,6 +830,83 @@ function makeHarmTab() {
   };
 }
 
+// the references of a Smart card in a box {e0, e1, n0, n1} (feet): places, airfields, bridges, towers and other objectives of the campaign
+// (ICAO symbols), the enemy ground units spotted (NATO): [{k, n, e, label}]
+const REF_KIND = {
+    8: 'city',
+    28: 'town',
+    29: 'village',
+    1: 'airfield',
+    2: 'airfield',
+    6: 'bridge',
+    21: 'obst',
+    22: 'obst',
+  },
+  REF_CODE = {
+    11: 'FAC',
+    20: 'PWR',
+    25: 'REF',
+    7: 'CHM',
+    17: 'NUC',
+    21: 'RDR',
+    9: 'C2',
+    22: 'TWR',
+    10: 'DEP',
+    19: 'PRT',
+    3: 'ARM',
+    13: 'FRT',
+  };
+let REFOBJ = null;
+async function smartRefs(b) {
+  const inBox = p => p.e >= b.e0 && p.e <= b.e1 && p.n >= b.n0 && p.n <= b.n1,
+    out = [],
+    nm = t =>
+      String(t || '')
+        .replace(/\s+\d+$/, '')
+        .toUpperCase()
+        .slice(0, 14);
+  try {
+    const d = targetData();
+    if (d) {
+      if (!REFOBJ) REFOBJ = d.objectives().catch(() => (REFOBJ = null));
+      const L = (await REFOBJ) || [];
+      L.filter(inBox).forEach(o => {
+        const k = REF_KIND[o.type] || (REF_CODE[o.type] ? 'obj' : '');
+        if (!k) return;
+        out.push({
+          k,
+          n: o.n,
+          e: o.e,
+          label: k == 'obst' ? REF_CODE[o.type] : k == 'obj' ? REF_CODE[o.type] : nm(o.name),
+        });
+      });
+    }
+  } catch (e) {
+    /* no objectives */
+  }
+  try {
+    if (ST.C) {
+      const v = ST.VIEW !== null ? ST.VIEW : ST.C.playerTeam != null ? ST.C.playerTeam : 1;
+      mapUnits(ST.C, v)
+        .filter(m => m.hostile && m.spotted && m.u.kind == 'gnd')
+        .forEach(m => {
+          const p = { n: m.u.y * 3280.84, e: m.u.x * 3280.84 };
+          if (inBox(p))
+            out.push({
+              k: m.sam ? 'sam' : 'unit',
+              ...p,
+              label: String(m.name || m.cat || '')
+                .toUpperCase()
+                .slice(0, 12),
+            });
+        });
+    }
+  } catch (e) {
+    /* no units */
+  }
+  return out;
+}
+
 // run 9: statements that run when the program starts (in the order of the original file)
 export async function init9() {
   harmRoot = document.createElement('div');
@@ -1010,6 +1087,19 @@ export async function init9() {
         e = x && ATOL.find(z => z.f === x.f);
       return e ? e.callsign + ' · ' + e.n + '× ' + e.ac + ' · ' + e.mission : '';
     },
+    // the Smart Attack card: the time over steerpoint n of the flight chosen (hh:mm), and the references of the map in a box (feet)
+    tot: n => {
+      try {
+        const f = ST.C && ST.CL.length && ST.CL[+$('fsel').value || 0] && ST.CL[+$('fsel').value || 0].f,
+          w = f && f.wps && f.wps[n - 1];
+        if (!w || !(w.arr > 0)) return '';
+        const m = Math.floor(w.arr / 60000);
+        return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+      } catch (e) {
+        return '';
+      }
+    },
+    refs: box => smartRefs(box),
     changed: (sec, key) => dtcChanged(sec, key),
     confirm: m => confirm(m),
     alert: (m, k) => alert(m, k),

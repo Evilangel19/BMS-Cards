@@ -33,6 +33,8 @@ import {
 } from './tgtdraw.js';
 import { OBJ_TYPES } from './targets.js';
 import { toMag } from './magvar.js';
+import { drawSmartTarget } from './smarttgt.js';
+import { featKind } from './tgtdraw.js';
 // the headings and bearings the pilot reads: magnetic (BMS 4.38); the heading of the pod picture ("T"), the wind and the turn of the picture stay true
 const brgM = b => brg3(toMag(b));
 
@@ -1938,7 +1940,67 @@ export function createTargetPage(deps) {
   }
   // the cards are always in the Paper (BTG) layout (the Style of the page is for the screen, the PNG and the datacard): light, or dark (bands dark with
   // light text) as the look of the cards
+  // the Smart card of the target (core/smarttgt.js): the numbers of the target, a sketch of its buildings and DMPIs, the components, the remarks
+  function smartData() {
+    const t = tgt(),
+      s = st(),
+      f = t && FEAT[t.key];
+    if (!t) return null;
+    const i = deps.info ? deps.info() : {},
+      R = attackRoute(t),
+      d0 = t.dmpis[0],
+      elv = t.dmpis.find(d => d.altFt),
+      ll = String(deps.geoLL ? deps.geoLL(d0 ? d0.x : t.x, d0 ? d0.y : t.y) : '').split(/\s+(?=[EW]\s?\d)/),
+      feats = (f && f.feats) || [],
+      hdgT = R && R.hdg != null ? R.hdg : null,
+      hdg = hdgT != null ? String(Math.round(toMag(hdgT)) % 360 || 360).padStart(3, '0') + '°' : '--',
+      dm = t.dmpis.map((d, k) => ({ x: d.x, y: d.y, n: k + 1, short: d.short || '' })),
+      names = new Map();
+    feats.forEach(q => names.set(q.name, (names.get(q.name) || 0) + 1));
+    const comps = [
+      ...dm.map(
+        d =>
+          'DMPI ' +
+          d.n +
+          (d.short ? '  ' + d.short.toUpperCase() : '') +
+          (t.dmpis[d.n - 1].altFt ? '  ELEV ' + t.dmpis[d.n - 1].altFt : '')
+      ),
+      ...[...names.entries()].slice(0, 6).map(([n, c]) => '   ' + c + ' × ' + String(n).toUpperCase()),
+    ];
+    return {
+      title: 'TARGET' + (t.refs.length ? ' · ' + t.refs[0] : ''),
+      right: i.cs || '',
+      key: [
+        ['TARGET', ((s && s.fac) || t.name).toUpperCase().slice(0, 12)],
+        ['ELEV', elv ? elv.altFt : '--'],
+        ['DMPI', String(t.dmpis.length)],
+        ['ATK HDG', hdg],
+        ['LAT', (ll[0] || '--').replace(/\s+/g, '')],
+        ['LONG', (ll[1] || '--').replace(/\s+/g, '')],
+        ['STATUS', f && f.pct != null ? f.pct + ' %' : '--', f && f.pct != null && f.pct < 50],
+        ['TOT', i.tot || '--'],
+      ],
+      cx: t.x,
+      cy: t.y,
+      feats: feats.map(q => ({ x: q.x, y: q.y, kind: featKind(q.name), st: q.st, name: q.name })),
+      dmpis: dm,
+      ing: R && R.ing ? R.ing : [],
+      egr: R && R.egr ? R.egr : [],
+      hdg: hdgT != null ? hdg : null,
+      hdgTrue: hdgT,
+      comps,
+      notes: [s && s.rem ? s.rem : ''].filter(Boolean),
+    };
+  }
   function card(kind) {
+    if (kind == 's') {
+      const c = document.createElement('canvas'),
+        D = smartData();
+      c.width = 1600;
+      c.height = 2400;
+      if (D) drawSmartTarget(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D);
+      return c;
+    }
     const pst0 = PF.pst;
     PF.pst = 'paper';
     try {
@@ -2783,8 +2845,9 @@ export function createTargetPage(deps) {
         ['g', 'Graphic'],
         ['t', 'Target information'],
         ['d', 'Details (positive ID)'],
+        ['s', 'Smart'],
       ],
-      on = { g: true, t: true, d: true };
+      on = { g: true, t: true, d: true, s: true };
     d.className = 'tgdlg';
     d.innerHTML = `<h3>Add cards to the Kneeboard</h3><p class="hint">Each page becomes a card. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
     document.body.append(d);
@@ -3157,9 +3220,10 @@ export function createTargetPage(deps) {
       ['g', 'Graphic'],
       ['t', 'Target information'],
       ['d', 'Details (positive ID)'],
+      ['s', 'Smart'],
     ].map(([k, l]) => ({
-      name: 'Target · ' + t.name + ' · ' + l,
-      label: 'Target · ' + l,
+      name: k == 's' ? 'Smart · Target · ' + t.name : 'Target · ' + t.name + ' · ' + l,
+      label: k == 's' ? 'Smart · Target' : 'Target · ' + l,
       c: card(k),
       alt: otherLook(() => card(k)),
       dark: cardDark(),
