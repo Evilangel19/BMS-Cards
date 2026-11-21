@@ -52,7 +52,7 @@ async function run(keys) {
       if (it && it.st == 'todo') await it.go();
     }
   } catch (e) {
-    appToast('Not everything was written: ' + ((e && e.message) || e));
+    appToast('Not everything was written: ' + ((e && e.message) || e), true);
   }
   busy = false;
   draw(true);

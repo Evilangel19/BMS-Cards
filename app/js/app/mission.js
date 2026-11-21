@@ -226,7 +226,7 @@ export async function msfSave() {
     ST.XBASE = extraSig();
     appToast('Mission saved in: ' + dir);
   } catch (e) {
-    alert('Could not save the mission: ' + ((e && e.message) || e));
+    alert('Could not save the mission: ' + ((e && e.message) || e), 'bad');
   }
 }
 // ---- missions to send to other pilots ----
@@ -511,13 +511,13 @@ async function msfShared(d) {
   dtcReloaded();
   dtcBtns();
   $('fn').textContent = ST.name + ' · mission applied (' + r.n + ' lines)';
-  if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.');
+  if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.', true);
   return r.n > 0;
 }
 // true when the mission was opened (false: refused, cancelled or failed; the program is as it was)
 export async function msfLoad(text, file) {
   const no = m => {
-    if (m) alert(m);
+    if (m) alert(m, 'bad');
     return false;
   };
   const r = PJ.parseMission(text);

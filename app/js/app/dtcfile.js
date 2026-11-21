@@ -284,9 +284,12 @@ async function trainingIni(p) {
   }
 }
 export async function dtcOverwrite() {
-  if (!lines.length) return alert('Open a DTC file first.');
+  if (!lines.length) return alert('Open a DTC file first.', 'bad');
   if (!ST.DTCF || !ST.DTCF.path)
-    return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
+    return alert(
+      'The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.',
+      'bad'
+    );
   syncRoute();
   if (!lines.some(l => l.dirty) && !MERGED.length) return;
   let extra = [];
@@ -310,7 +313,8 @@ export async function dtcOverwrite() {
     return alert(
       'This is the DTC of a training mission:\n' +
         ST.DTCF.path +
-        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit training DTCs.'
+        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit training DTCs.',
+      'bad'
     );
   if (!edit) extra = extra.filter(f => !trExtra.includes(f));
   const trWarn =
@@ -385,7 +389,8 @@ export async function dtcOverwrite() {
       alert(
         'The DTC was saved, but these campaign files could NOT be written:\n\n' +
           failed.join('\n') +
-          '\n\nThe changes are still marked as not saved: fix the problem (file in use? folder not writable?) and press Write again.'
+          '\n\nThe changes are still marked as not saved: fix the problem (file in use? folder not writable?) and press Write again.',
+        'bad'
       );
     else
       appToast(
@@ -397,7 +402,7 @@ export async function dtcOverwrite() {
       if (mapV.isReady()) mapV.refreshDtc();
     } catch (e) {}
   } catch (e) {
-    alert('Could not write the file: ' + ((e && e.message) || e));
+    alert('Could not write the file: ' + ((e && e.message) || e), 'bad');
   }
 }
 

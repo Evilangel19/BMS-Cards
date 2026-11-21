@@ -1294,7 +1294,7 @@ export function createWeaponsPage(deps) {
             '.'
         );
     } catch (e) {
-      if (deps.toast) deps.toast('The attack card could not be made: ' + ((e && e.message) || e));
+      if (deps.toast) deps.toast('The attack card could not be made: ' + ((e && e.message) || e), true);
     }
     btn.disabled = false;
     draw(true);
@@ -2066,7 +2066,7 @@ export function createWeaponsPage(deps) {
   async function clearAll() {
     if (!deps.lines().some(l => l.s == 'NAV OFFSETS')) {
       if (mapHas()) deps.offs.clearAll();
-      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.');
+      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.', 'bad');
       return;
     }
     const clr = toClear([]);
@@ -2095,7 +2095,7 @@ export function createWeaponsPage(deps) {
     // the Manual entry writes no offsets to the DTC, so it does not need the section: Apply then gives the datacard its values
     const nav = deps.lines().some(l => l.s == 'NAV OFFSETS');
     if (!nav && st.src == 'dtc') {
-      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.');
+      await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.', 'bad');
       return;
     }
     const agb = deps.lines().some(l => l.s == 'FCC_AGB');

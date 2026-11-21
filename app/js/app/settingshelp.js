@@ -39,6 +39,6 @@ export async function helpPdf() {
     const p = await saveFileBytes(new Uint8Array(await r.arrayBuffer()), GUIDE_PDF);
     if (p) appToast('Guide saved: ' + p);
   } catch (e) {
-    appToast('The guide could not be saved: ' + (e.message || e));
+    appToast('The guide could not be saved: ' + (e.message || e), true);
   }
 }

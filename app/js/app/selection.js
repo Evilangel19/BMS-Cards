@@ -212,7 +212,8 @@ export async function loadCam(file, stale) {
 async function loadCam0(file, stale) {
   if (!CAM.D.ct.length)
     return alert(
-      'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.'
+      'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.',
+      'bad'
     );
   let C;
   try {
@@ -230,7 +231,8 @@ async function loadCam0(file, stale) {
           ? '\n\nThe selected theater is "' +
             (ST.TH ? ST.TH.name : '?') +
             '": a campaign of another theater cannot be read with its tables. Choose the right theater in the theater menu and open the campaign again.'
-          : '')
+          : ''),
+      'bad'
     );
   }
   await loadBaseOwners(C);
@@ -245,7 +247,7 @@ async function loadCam0(file, stale) {
         BMS_TESTED +
         '): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.'
     );
-  if (!ST.CL.length) return alert('No flight with a datacard found in this campaign.');
+  if (!ST.CL.length) return alert('No flight with a datacard found in this campaign.', 'bad');
   $('fsel').innerHTML = ST.CL.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('');
   const pk = () => {
     const m = pick();

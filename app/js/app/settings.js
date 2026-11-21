@@ -600,7 +600,7 @@ export async function openSettings() {
     } catch (e) {
       loading = false;
       if (dlg.open) refresh();
-      alert('Could not save settings: ' + ((e && e.message) || e));
+      alert('Could not save settings: ' + ((e && e.message) || e), 'bad');
     }
   }
 
@@ -719,7 +719,8 @@ export async function checkAppFolder() {
       r.dir +
       '\n\nThe settings, the squadron, the missions, the kneeboard cards and the backups of the DTC and kneeboard files are kept there: nothing would be saved. ' +
       MOVE_HINT +
-      (r.why ? '\n\n(' + r.why + ')' : '')
+      (r.why ? '\n\n(' + r.why + ')' : ''),
+    'bad'
   );
   return false;
 }
@@ -732,7 +733,8 @@ onSaveFail((name, e) => {
       ' in the folder of the program (' +
       String((e && e.message) || e || 'error') +
       ').\n\nIf the folder cannot be written (Program Files, a protected, read-only or synced folder, a full disk), your changes are not kept. ' +
-      MOVE_HINT
+      MOVE_HINT,
+    'bad'
   );
 });
 
@@ -760,7 +762,7 @@ async function configBlocked(r) {
   try {
     await saveConfig(ST.CFG);
   } catch (e) {
-    alert('config.json could not be written: ' + ((e && e.message) || e));
+    alert('config.json could not be written: ' + ((e && e.message) || e), 'bad');
   }
 }
 // Windows has its animations turned off: asked once whether the program has them (they also allow dragging the Kneeboard cards); the answer is kept
@@ -790,7 +792,7 @@ export async function init18() {
       applyAnim();
       await askMotion();
       if (r.blocked) await configBlocked(r);
-      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
+      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'), 'bad');
       kbMemLoad();
       await loadGameData();
       await fillCampaigns();

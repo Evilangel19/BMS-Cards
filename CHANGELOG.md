@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: the messages that stop an action are shown in red; the TE / Training menu is as wide as the campaign menu.
 - Fixed: with the animations off in Windows the Kneeboard cards could not be dragged: the program now asks at start whether to have the animations.
 - Fixed: a mission applied to a new DTC without the sections WDP adds (NAV OFFSETS, ICP, Laser, FCC) lost those lines: they can now be added.
 - Added: the BMS training missions (.trn) in the TE menu, now "Select a TE or Training".

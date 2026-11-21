@@ -766,7 +766,7 @@ export function createDocsPage(deps) {
     if (!deps.toast) return;
     const k = run.k,
       pages = k + ' page' + (k == 1 ? '' : 's');
-    if (err) deps.toast('Could not add the page: ' + err + (k ? ' (' + pages + ' added before the error).' : ''));
+    if (err) deps.toast('Could not add the page: ' + err + (k ? ' (' + pages + ' added before the error).' : ''), true);
     else if (run.stop) deps.toast('Stopped: ' + k + ' of ' + run.n + ' pages added to the Kneeboard cards.');
     else deps.toast(pages + ' added to the Kneeboard cards.');
   }

@@ -1608,7 +1608,7 @@ export function createSquadronPage(deps) {
       await navigator.clipboard.writeText(t);
       deps.toast && deps.toast('Copied.');
     } catch (e) {
-      deps.toast && deps.toast('Could not copy: select the text and copy it by hand.');
+      deps.toast && deps.toast('Could not copy: select the text and copy it by hand.', true);
     }
   };
   const ago = t => {
@@ -3339,7 +3339,7 @@ export function createSquadronPage(deps) {
     const to = nameOfIn(q)(q.mc);
     if (!(await confirm('Leave "' + q.name + '" and hand the command to ' + to + '?'))) return;
     const r = orgAct(q, { t: 'leave' });
-    if (!r.ok) return deps.toast ? deps.toast(r.error) : say(r.error);
+    if (!r.ok) return deps.toast ? deps.toast(r.error, true) : say(r.error);
     setTimeout(() => leave(q, 'You left ' + q.name + ': ' + to + ' is the commander now.'), 600);
   };
 
@@ -3640,7 +3640,7 @@ export function createSquadronPage(deps) {
     wireLost($('#sqlost'), {
       act: a => orgAct(cur(), a),
       tryAct: a => orgTry(cur(), a),
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });
     const og = $('#sqorg');
@@ -3675,7 +3675,7 @@ export function createSquadronPage(deps) {
               if (!b) return;
               if (b.dataset.to) {
                 const r = orgAct(cur(), { t: 'cmd', uid: b.dataset.to });
-                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+                if (!r.ok) deps.toast ? deps.toast(r.error, true) : say(r.error);
               }
               if (b.dataset.to || 'x' in b.dataset) close();
             };
@@ -3718,7 +3718,7 @@ export function createSquadronPage(deps) {
                 if (!(await confirm('Replace the packages and flights with this template?'))) return;
                 const t = list[+d.use],
                   r = orgAct(q, (qq, actor, ctx) => orgFromTemplate(qq, actor, t, ctx));
-                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+                if (!r.ok) deps.toast ? deps.toast(r.error, true) : say(r.error);
                 close();
               } else if (d.del != null) {
                 list.splice(+d.del, 1);
@@ -3732,7 +3732,7 @@ export function createSquadronPage(deps) {
         );
       },
       leave: () => leaveHandover(),
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });
     og.addEventListener('focusout', () => setTimeout(() => orgPending && drawOrg(), 80));
@@ -3938,7 +3938,7 @@ export function createSquadronPage(deps) {
       theater: () => (B.theater ? B.theater() : ''),
       wide: b => B.wide && B.wide(b),
       wx: B.wx || null,
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
     });
   }
   // the saved squadrons, rosters and settings; the swarms start as soon as they are known

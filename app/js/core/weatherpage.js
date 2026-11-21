@@ -438,7 +438,7 @@ export function createWeatherPage(deps) {
       D = await busyRun('Preparing the Weather cards…', () => cardData(fl)); // the loading bar of the map
     } catch (e) {
       btn.disabled = false;
-      if (deps.toast) deps.toast('The Weather card could not be made: ' + ((e && e.message) || e));
+      if (deps.toast) deps.toast('The Weather card could not be made: ' + ((e && e.message) || e), true);
       return;
     }
     btn.disabled = false;

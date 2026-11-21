@@ -336,6 +336,13 @@ dialog.msg {
 .msg .mi.warn {
   background: #b8741a;
 }
+/* a message that stops an action or says what went wrong: red (alert(m, 'bad')) */
+dialog.msg.bad {
+  border-color: #e5534b;
+}
+.msg.bad .mi {
+  background: #c93c37;
+}
 .msg .mt {
   white-space: pre-wrap;
   line-height: 1.5;

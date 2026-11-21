@@ -536,7 +536,8 @@ export async function kbAddAll() {
   }
   if (!L.length)
     return alert(
-      'No card to make for this flight: open its pages first (Weapons, Weather, ROE / SOP) and choose what to plan.'
+      'No card to make for this flight: open its pages first (Weapons, Weather, ROE / SOP) and choose what to plan.',
+      'bad'
     );
   const on = L.map(c => !c.off),
     d = document.createElement('dialog');
@@ -677,7 +678,7 @@ async function kbReplaceShot(blob) {
 }
 export async function kbAddShot(c) {
   const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-  if (!blob) return alert('The screenshot could not be saved.');
+  if (!blob) return alert('The screenshot could not be saved.', 'bad');
   if (ST.CFG && ST.CFG.ui && ST.CFG.ui.oneMapShot) {
     const at = await kbReplaceShot(blob);
     if (at) {
@@ -805,7 +806,7 @@ export async function kbImport(files, side, row) {
         }
       } else added.push(await kbMakeItem(f, f.name));
     } catch (e) {
-      alert('Could not read ' + f.name + (ext == 'pdf' ? ' (PDF)' : '') + ': ' + ((e && e.message) || e));
+      alert('Could not read ' + f.name + (ext == 'pdf' ? ' (PDF)' : '') + ': ' + ((e && e.message) || e), 'bad');
     }
   }
   if (!added.length) {
@@ -996,12 +997,13 @@ export function kbRender(keepMenu) {
   // the look of the chosen card only: kept when the general button switches the others
   if ($('kblk'))
     $('kblk').onclick = async () => {
-      if (!KBCARD) return alert('Click a card first (in a slot or among the unused cards).');
+      if (!KBCARD) return alert('Click a card first (in a slot or among the unused cards).', 'bad');
       if (!KBCARD.other)
         return alert(
           kbProg(KBCARD)
             ? '"' + KBCARD.name + '" has one look only: add it again from its page to have both.'
-            : 'No dark version available: "' + KBCARD.name + '" is a document, a picture or a map, kept as it is.'
+            : 'No dark version available: "' + KBCARD.name + '" is a document, a picture or a map, kept as it is.',
+          'bad'
         );
       await kbSwapLook(KBCARD);
       KBCARD.fixed = true;
@@ -1014,8 +1016,9 @@ export function kbRender(keepMenu) {
   if ($('kbsend'))
     $('kbsend').onclick = () => {
       if (!KBCARD || KBCARD.dc)
-        return alert('Click a picture card first (in a slot or among the unused cards), then press Send card.');
-      if (!KBX.can()) return alert('Join or create a squadron first (Squadron page): the card is sent to its pilots.');
+        return alert('Click a picture card first (in a slot or among the unused cards), then press Send card.', 'bad');
+      if (!KBX.can())
+        return alert('Join or create a squadron first (Squadron page): the card is sent to its pilots.', 'bad');
       if (KBX.send) KBX.send(KBCARD);
     };
   el.querySelectorAll('div.kbt[data-i]').forEach(t =>
@@ -1376,11 +1379,11 @@ export async function kbRestore() {
   const dir = kbDir(),
     st = $('kbst');
   if (!isDesktop()) {
-    alert('Restore works in the desktop program only.');
+    alert('Restore works in the desktop program only.', 'bad');
     return;
   }
   if (!dir) {
-    alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.');
+    alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.', 'bad');
     return;
   }
   const bk = await kbBackupFor(dir),
@@ -1394,7 +1397,7 @@ export async function kbRestore() {
       else if (await fileExists(legacy)) have.push([f, legacy]);
     }
   if (!have.length) {
-    alert('No backups found in:\n' + bk);
+    alert('No backups found in:\n' + bk, 'bad');
     return;
   }
   if (
@@ -1413,7 +1416,7 @@ export async function kbRestore() {
     for (const [f, a] of have) await writeBytes(joinPath(dir, f), await readBytes(a));
     st.textContent = 'Restored ' + have.length + ' original file(s).';
   } catch (e) {
-    alert('Could not restore: ' + ((e && e.message) || e));
+    alert('Could not restore: ' + ((e && e.message) || e), 'bad');
   }
 }
 // the files to write: those of the aircraft of the flight (its type is read in the datacard: the row of the package of the flight, its callsign; else the
@@ -1463,7 +1466,7 @@ export async function kbSave() {
   )
     return;
   if (isDesktop() && !dir) {
-    alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.');
+    alert('Set the BMS install folder (or the Kneeboard DDS folder) in Settings first.', 'bad');
     return;
   }
   if (
@@ -1532,7 +1535,8 @@ export async function kbSave() {
         ((e && e.message) || e) +
         '\n\n' +
         done +
-        ' file(s) were written before the error.'
+        ' file(s) were written before the error.',
+      'bad'
     );
   } finally {
     busyEnd(bid);

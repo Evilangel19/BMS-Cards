@@ -177,7 +177,7 @@ export async function saveBlob(blob, name, startDir) {
       if (!path) return;
       await T().fs.writeFile(path, new Uint8Array(await blob.arrayBuffer()));
     } catch (e) {
-      alert('Could not save the file: ' + ((e && e.message) || e));
+      alert('Could not save the file: ' + ((e && e.message) || e), 'bad');
     }
     return;
   }

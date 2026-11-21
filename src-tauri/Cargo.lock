@@ -144,7 +144,7 @@ dependencies = [
 
 [[package]]
 name = "bms-cards"
-version = "1.3.0-beta.59"
+version = "1.3.0-beta.60"
 dependencies = [
  "tauri",
  "tauri-build",

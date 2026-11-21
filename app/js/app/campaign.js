@@ -449,7 +449,7 @@ async function selectCampaign0(name) {
   try {
     bytes = await readBytes(joinPath(dir, name));
   } catch (e) {
-    if (!stale()) alert('Unable to read the campaign file: ' + ((e && e.message) || e));
+    if (!stale()) alert('Unable to read the campaign file: ' + ((e && e.message) || e), 'bad');
     return;
   }
   if (stale()) return;
@@ -498,7 +498,7 @@ export async function loadFmap(file) {
   try {
     W = CAM.parseFmap(new Uint8Array(await file.arrayBuffer()));
   } catch (e) {
-    return alert('Unable to read the .fmap: ' + e.message);
+    return alert('Unable to read the .fmap: ' + e.message, 'bad');
   }
   if (ST.C && ST.CL.length && !(await discardOk())) return;
   manClear();
@@ -508,7 +508,7 @@ export async function loadFmap(file) {
 }
 export async function loadL16(file) {
   const m = parseLink16(await file.text());
-  if (!Object.keys(m).length) return alert('No STN found in the Link16 file.');
+  if (!Object.keys(m).length) return alert('No STN found in the Link16 file.', 'bad');
   ST.L16 = m;
   atoSearch();
   if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
@@ -516,7 +516,7 @@ export async function loadL16(file) {
 }
 export async function loadIFF(file) {
   const m = parseIff(await file.text());
-  if (!Object.keys(m).length) return alert('No IFF policy found in the file.');
+  if (!Object.keys(m).length) return alert('No IFF policy found in the file.', 'bad');
   ST.IFFP = m;
   if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
   else alert('IFF policy loaded: open a campaign to fill in the IFF column.');
@@ -526,7 +526,7 @@ export async function loadTwx(file) {
   try {
     T = parseTwx(await file.arrayBuffer());
   } catch (e) {
-    return alert(e.message);
+    return alert(e.message, 'bad');
   }
 
   const v = T.iso;
@@ -565,8 +565,15 @@ export async function init14() {
     heights: pts => tgtHeights(pts),
     coast: () => coastKm(),
     kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
-    toast: m => appToast(m),
+    toast: (m, bad) => appToast(m, bad),
   });
+  // the TE / Training menu as wide as the campaign menu (its names are longer: it would grow)
+  const cs = $('csel'),
+    syncW = () => {
+      if (cs.offsetWidth) $('tesel').style.width = cs.offsetWidth + 'px';
+    };
+  if (window.ResizeObserver) new ResizeObserver(syncW).observe(cs);
+  syncW();
   $('csel').onchange = () => selectCampaign($('csel').value);
   $('tesel').onchange = () => selectCampaign($('tesel').value);
   $('cam').onclick = async () => {

@@ -559,7 +559,7 @@ async function addCards() {
   c.height = CARD_H;
   const x = c.getContext('2d'),
     plan = roeCardPlan(R.sel, x);
-  if (!plan.length) return appToast('Nothing chosen yet: no card to add.');
+  if (!plan.length) return appToast('Nothing chosen yet: no card to add.', true);
   const c0 = R.pick && !dirty() && chipOf(R.pick),
     sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '',
     go = async () => {
@@ -731,7 +731,7 @@ function wire(box) {
       R.lastT = now;
       if (dbl && kk == R.pick) {
         R.lastQ = null;
-        if (!c.ed) return appToast('Only the commander changes the presets of the squadron.');
+        if (!c.ed) return appToast('Only the commander changes the presets of the squadron.', true);
         R.open = true;
         if (c.std) R.name = c.name;
         render();

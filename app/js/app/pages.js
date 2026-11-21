@@ -1010,7 +1010,7 @@ export async function init9() {
     },
     changed: (sec, key) => dtcChanged(sec, key),
     confirm: m => confirm(m),
-    alert: m => alert(m),
+    alert: (m, k) => alert(m, k),
     ll: (n, e) => mapV.toLL(e / 3280.84, n / 3280.84),
     attach: el => mapV.attach(el),
     detach: () => mapV.detach(),

@@ -169,7 +169,7 @@ export function wireLost(box, h) {
     if (!o || !n) return h.toast('Choose the old pilot and the new one.');
     if (await h.confirm('Give the seat of the old pilot to the new one? The old entry leaves the squadron.')) {
       const r = h.act({ t: 'seat', old: o, nu: n });
-      if (!r.ok) h.toast(r.error);
+      if (!r.ok) h.toast(r.error, true);
     }
   };
 }
@@ -181,7 +181,7 @@ export function wireLost(box, h) {
 export function wireOrg(box, h) {
   const run = a => {
     const r = h.act(a);
-    if (!r.ok) h.toast(r.error);
+    if (!r.ok) h.toast(r.error, true);
     return r;
   };
   // the open mission names the new package or flight when it can (its name is not used in the squadron yet)
@@ -312,15 +312,15 @@ export function wireOrg(box, h) {
       setTimeout(() => box.removeEventListener('click', swallow, true), 0);
       if (z) {
         const to = z.dataset.drop;
-        if (!ok.get(to)) h.toast(err.get(to) || 'This pilot cannot go there.');
+        if (!ok.get(to)) h.toast(err.get(to) || 'This pilot cannot go there.', true);
         else if (to == '@pk') {
           const r = h.newPack(uid);
-          if (!r.ok) h.toast(r.error);
+          if (!r.ok) h.toast(r.error, true);
         } else if (to.startsWith('@fl:')) {
           const pk = to.slice(4),
             p = view().packages.find(x => x.id === pk),
             r = h.newFlight(uid, pk, prefName('fl', 'Flight', p ? p.flights.length : 0, p));
-          if (!r.ok) h.toast(r.error);
+          if (!r.ok) h.toast(r.error, true);
         } else run({ t: 'as', uid, f: to });
       }
       box.dispatchEvent(new Event('dragend')); // the board is drawn again if something changed while he dragged

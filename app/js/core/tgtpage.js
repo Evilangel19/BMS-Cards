@@ -2454,7 +2454,7 @@ export function createTargetPage(deps) {
       }, 'image/png');
     };
     q('.tgdc').onclick = () => {
-      if (!pic()) return deps.toast && deps.toast('There is no picture yet.');
+      if (!pic()) return deps.toast && deps.toast('There is no picture yet.', true);
       cropStart();
     };
     // drawing on the picture
@@ -2694,7 +2694,7 @@ export function createTargetPage(deps) {
       s.bv++;
       setView('shot');
     };
-    im.onerror = () => deps.toast && deps.toast('The picture could not be read.');
+    im.onerror = () => deps.toast && deps.toast('The picture could not be read.', true);
     im.src = URL.createObjectURL(file);
   }
   // the Map page lent to the tab (live): what it shows is chosen first, then Take picture opens the frame
@@ -2710,7 +2710,7 @@ export function createTargetPage(deps) {
     const ok = await deps.mapShow(m, [t.x, t.y], PF.range);
     if (!ok) {
       unframe();
-      deps.toast && deps.toast('The map could not be loaded.');
+      deps.toast && deps.toast('The map could not be loaded.', true);
       return;
     }
     if (!framing || !st() || st().view != 'map') return;

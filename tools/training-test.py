@@ -32,10 +32,14 @@ try:
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(2000)
         opts = pg.eval_on_selector_all('#tesel option', 'o=>o.map(x=>[x.value,x.textContent])')
         check('the TE menu: Select a TE or Training, the .tac and the training .trn %s' % opts, opts == [['', '— Select a TE or Training —'], ['TE_OWN.tac', 'TE_OWN'], ['TE_TEST_01.trn', 'TE_TEST_01 · Training'], ['TE_TEST_02.trn', 'TE_TEST_02 · Training']])
+        w = pg.evaluate("()=>[document.getElementById('csel').offsetWidth,document.getElementById('tesel').offsetWidth]")
+        check('the TE / Training menu as wide as the campaign menu %s' % w, w[0] > 0 and w[0] == w[1])
         open_ = "async p=>{const D=await import('/app/js/app/dtcfile.js'),P=await import('/app/js/platform/desktop.js');const b=await P.readBytes(p);await D.openDtc({name:p.split('\\\\').pop(),path:p,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)});D.S('STPT','target_0','1.000000, 2.000000, 0.000000, 1, Not set')}"
         write = "async()=>{const D=await import('/app/js/app/dtcfile.js');await D.dtcOverwrite()}"
         pg.evaluate(open_, TR); pg.wait_for_timeout(300); n0 = len(msgs)
+        pg.evaluate("()=>{window.__bad=0;new MutationObserver(ms=>ms.forEach(m=>m.addedNodes.forEach(n=>{if(n.matches&&n.matches('dialog.msg.bad'))window.__bad++}))).observe(document.body,{childList:true})}")
         pg.evaluate(write); pg.wait_for_timeout(300)
+        check('...that message in red', pg.evaluate("()=>window.__bad") == 1)
         check('the DTC of a training mission: Write DTC says it is protected and writes nothing', desk.text(TR) == INI and any('training mission' in m and 'Edit training DTCs' in m for m in msgs[n0:]))
         # the setting on: a warning, then written
         pg.evaluate("()=>{__app.CFG.ui.editTraining=true}"); n0 = len(msgs)

@@ -1,10 +1,11 @@
-// The program's own message boxes (instead of the ones of Windows): alert() shows a message, confirm() asks and gives a promise (always await it). Fade in / out like the other menus.
+// The program's own message boxes (instead of the ones of Windows): alert() shows a message (alert(m, 'bad'): in red), confirm() asks and gives a promise (always await it). Fade in / out like the other menus.
 (function () {
   const Q = [];
   let busy = false;
   const anim = () => !document.documentElement.classList.contains('noanim');
   // lb: the words of the buttons {ok, no} (OK / Cancel)
   function show(kind, msg, lb) {
+    if (lb === 'bad') lb = { bad: true };
     return new Promise(res => {
       Q.push({ kind, msg: String(msg), res, lb: lb || {} });
       next();
@@ -15,10 +16,10 @@
     busy = true;
     const { kind, msg, res, lb } = Q.shift();
     const d = document.createElement('dialog');
-    d.className = 'msg';
+    d.className = 'msg' + (lb.bad ? ' bad' : ''); // bad: a message that stops an action or says what went wrong (red)
     d.innerHTML =
       '<div class="mh"><span class="mi">' +
-      (kind == 'confirm' ? '?' : 'i') +
+      (kind == 'confirm' ? '?' : lb.bad ? '!' : 'i') +
       '</span><div class="mt"></div></div><div class="mb"><button class="btn" data-ok type="button">OK</button>' +
       (kind == 'confirm' ? '<button class="btn g" data-no type="button">Cancel</button>' : '') +
       '</div>';
@@ -79,8 +80,9 @@
       c0.call(d, v);
     };
   };
-  window.alert = msg => {
-    show('alert', msg);
+  // alert(msg, 'bad'): in red, for a message that stops an action or says what went wrong
+  window.alert = (msg, lb) => {
+    show('alert', msg, lb);
   };
   window.confirm = (msg, lb) => show('confirm', msg, lb);
 })();
