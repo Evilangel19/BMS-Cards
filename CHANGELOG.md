@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: Map > Display > HARM: the drawing of Weapons > HARM for the flight (its SEAD plan, its DEAD tactic, or else the Single shot); Pop-up/HADB/TOSS and HARM are off at first.
 - Changed: headings and bearings are shown magnetic, with the magnetic variation of the theater (BMS 4.38); offsets, VIP / VRP and winds stay true.
 - Changed: the theater projection is read from the Projection string of Theater.txt; the MSA / ERAA use the highest ground of every km of the height map, made once in the background at the first start and kept in the program folder (a peak between the samples is no longer missed, and no slow second pass).
 - Changed: a TE with its own .ini is handled like a training mission (its DTC opened with it, closed when another is chosen, protected); the DTC button of the map is red when no DTC is open; TE_New / TE_New_NT are no longer listed.

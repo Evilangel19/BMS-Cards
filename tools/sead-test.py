@@ -181,6 +181,15 @@ try:
         pg.click('.kball .tgall'); pg.wait_for_timeout(100)
         check('...every card chosen at first; Select none / Select all (%d %s, %d %s)' % (n0, t0, n1, t1), n0 == len(lab) and t0 == 'Select none' and n1 == 0 and t1 == 'Select all' and off and pg.locator('.kball .tgcard.on').count() == n0)
         pg.click('.kball [data-a=no]'); pg.wait_for_timeout(300)
+        # Map > Display > HARM: the drawing of this page on the Map page, off by default, on and off with its switch
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(900)
+        d0 = pg.evaluate("()=>['da','hm'].map(k=>__app.mapV.state().on[k])")
+        check('Map: Pop-up/HADB/TOSS and HARM are off at first %s' % d0, d0 == [False, False] and pg.evaluate("__app.mapV.count('hm')") == 0)
+        pg.evaluate("()=>{const c=document.querySelector('#mpdsp input[data-k=hm]');c.click()}"); pg.wait_for_timeout(1500)
+        n = pg.evaluate("__app.mapV.count('hm')")
+        check('Map: HARM on draws the %s drawing (%d layers)' % ('SEAD', n), n > 5)
+        pg.evaluate("()=>{const c=document.querySelector('#mpdsp input[data-k=hm]');c.click()}"); pg.wait_for_timeout(500)
+        check('Map: HARM off, nothing drawn', pg.evaluate("__app.mapV.count('hm')") == 0)
         check('no page errors', not errs)
         if errs: print(errs)
 finally:

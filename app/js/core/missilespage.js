@@ -743,7 +743,7 @@ export function createMissilesPage(deps) {
   }
   // the map layer (satellite / coast) fades with the slider, or is switched off
   function applyOp() {
-    if (!M) return;
+    if (!M || M.ov) return;
     const o = st.map.on ? st.map.op / 100 : 0;
     ['tilePane', 'coastP'].forEach(k => {
       const p = M.map.getPane(k);
@@ -1303,6 +1303,28 @@ export function createMissilesPage(deps) {
     },
     root: deps.root,
     leave: detachMap,
+    // the drawing of the HARM page on the Map page (its Display > HARM switch): the same layers, in the group given, without moving the view or fading the map
+    overlay: async o => {
+      if (st.mode != 'harm') return false;
+      await load();
+      compute();
+      if (!res || res.error) return false;
+      if (!o.map._wpR) {
+        o.map.createPane('wpP').style.zIndex = 470;
+        o.map._wpR = o.L.canvas({ pane: 'wpP' });
+      }
+      const m0 = M,
+        f0 = fit;
+      M = { ...o, ov: true };
+      fit = false;
+      try {
+        paint();
+      } finally {
+        M = m0;
+        fit = f0;
+      }
+      return true;
+    },
     state: () => st,
     setState: o => {
       if (o && typeof o == 'object') {

@@ -179,6 +179,15 @@ try:
         pg.evaluate("()=>__app.deadPage.setState({tactic:'x',side:5,ecm:'<b>',roles:[],tgt:{},mode:'q',sub:'Z',view:3})")
         st = pg.evaluate("()=>__app.deadPage.state()")
         check('a broken state from a file is brought back to sane values', st['tactic'] is None and st['side'] == 'R' and st['ecm'] == 70 and st['roles'] == {} and st['tgt'] is None and st['mode'] is None and st['view'] == 'map')
+        # Map > Display > HARM: the drawing of this page on the Map page, off by default, on and off with its switch
+        pg.click('[data-t=mp]'); pg.wait_for_timeout(900)
+        d0 = pg.evaluate("()=>['da','hm'].map(k=>__app.mapV.state().on[k])")
+        check('Map: Pop-up/HADB/TOSS and HARM are off at first %s' % d0, d0 == [False, False] and pg.evaluate("__app.mapV.count('hm')") == 0)
+        pg.evaluate("()=>{const c=document.querySelector('#mpdsp input[data-k=hm]');c.click()}"); pg.wait_for_timeout(1500)
+        n = pg.evaluate("__app.mapV.count('hm')")
+        check('Map: HARM on draws the %s drawing (%d layers)' % ('DEAD', n), n > 5)
+        pg.evaluate("()=>{const c=document.querySelector('#mpdsp input[data-k=hm]');c.click()}"); pg.wait_for_timeout(500)
+        check('Map: HARM off, nothing drawn', pg.evaluate("__app.mapV.count('hm')") == 0)
         check('no page errors', not errs)
         if errs: print(errs)
 finally:

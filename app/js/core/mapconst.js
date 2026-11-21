@@ -89,7 +89,8 @@ export const MAP_LAYERS = [
   ['ff', 'Friendly flights', true, 'In flight'],
   ['rc', 'Enemy radar coverage', false, 'Display'],
   ['msa', 'MSA and ERAA', false, 'Display'],
-  ['da', 'Pop-up/HADB/TOSS/HARM', true, 'Display'],
+  ['da', 'Pop-up/HADB/TOSS', false, 'Display'],
+  ['hm', 'HARM', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];

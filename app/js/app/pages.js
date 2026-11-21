@@ -121,6 +121,8 @@ export async function init6() {
         return d && d.radars ? busyWrap('Loading the radars…', d.radars()) : Promise.resolve([]);
       },
     },
+    // Display > HARM: the drawing of the HARM page of the flight (SEAD plan, DEAD tactic, else Single shot) in the group of the map
+    harm: o => (seadPage.usable() ? seadPage : deadPage.usable() ? deadPage : harmPage).overlay(o),
     attack: () => {
       const a = ST.wpPage && ST.wpPage.spec && ST.wpPage.spec();
       if (!a) return null;

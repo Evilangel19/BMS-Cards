@@ -1,5 +1,5 @@
 // Version of the program (the same as package.json, src-tauri/tauri.conf.json and src-tauri/Cargo.toml; tests/run-version.mjs checks it, with the two lock files)
-export const APP_VERSION = '1.3.0-beta.65';
+export const APP_VERSION = '1.3.0-beta.66';
 // the version of Falcon BMS the readers were checked with (the warnings about other files name it)
 export const BMS_TESTED = '4.38.2';
 // the older versions still read without a warning (the files did not change between them)

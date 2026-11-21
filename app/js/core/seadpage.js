@@ -1342,6 +1342,33 @@ export function createSeadPage(deps) {
       const c = deps.ctx();
       return !!(c && c.ok);
     },
+    // the drawing of the page on the Map page (its Display > HARM switch): the same layers, in the group given, without moving the view; false: nothing to draw
+    overlay: async o => {
+      if (!H && deps.harm) {
+        try {
+          H = await deps.harm();
+        } catch (e) {
+          H = null;
+        }
+      }
+      compute();
+      if (!X && X.ok) return false;
+      if (!o.map._sdR) {
+        o.map.createPane('sdP').style.zIndex = 470;
+        o.map._sdR = o.L.canvas({ pane: 'sdP' });
+      }
+      const m0 = M,
+        f0 = fit;
+      M = { ...o, ov: true };
+      fit = false;
+      try {
+        paint(true);
+      } finally {
+        M = m0;
+        fit = f0;
+      }
+      return true;
+    },
     state: () => st,
     setState: o => {
       if (o && typeof o == 'object') {

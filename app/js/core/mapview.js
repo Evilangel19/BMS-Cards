@@ -458,6 +458,7 @@ export function createMap(host, deps) {
     };
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
+    map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
     zc();
     host.addEventListener(
       'click',
@@ -519,7 +520,7 @@ export function createMap(host, deps) {
     uf: ['Friendly units', 'Friendly units · JTAC only'],
     sj: 'Only the JTAC of the flight',
   };
-  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS/HARM' };
+  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS', hm: 'HARM' };
   // the details of the filters, in the tooltips (the rows stay on one line)
   const TIP = {
     nav: 'VOR and TACAN stations',
@@ -534,7 +535,8 @@ export function createMap(host, deps) {
     fs: 'Only support flights: tankers, AWACS, JSTARS...',
     fe: 'Only the enemy flights your side has spotted',
     rc: 'Approximate coverage of the enemy radars at the chosen altitude',
-    da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss, HARM)',
+    da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss)',
+    hm: 'The drawing of Weapons > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -828,7 +830,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -2667,6 +2669,10 @@ export function createMap(host, deps) {
     });
     if (st.on.msa) G.msaS.addTo(map);
     else map.removeLayer(G.msaS);
+    if (!!st.on.hm !== HMON) {
+      HMON = !!st.on.hm;
+      harmDraw();
+    }
     objDraw();
     radarCov();
     msaDraw();
@@ -3781,6 +3787,7 @@ export function createMap(host, deps) {
     DT = [];
     LNP = [];
     attackDraw();
+    harmDraw();
     const P = deps.dtc && deps.dtc.points();
     dtcInfo();
     sams(deps.getC(), deps.getSel());
@@ -3840,6 +3847,28 @@ export function createMap(host, deps) {
       toast('Weapon target ' + (w.n + 1) + ' removed.');
     };
     return ro(d);
+  }
+  // the drawing of the HARM page of the flight (SEAD, DEAD or Single shot: deps.harm(group) draws it in the group and says whether there was one); the HARM
+  // page draws it itself while it has the map. Drawn again at every zoom (the texts of DEAD are placed for the scale); the last call wins.
+  let HMN = 0,
+    HMON = false;
+  function harmDraw() {
+    const n = ++HMN;
+    if (!G.hm) return;
+    G.hm.clearLayers();
+    if (away || !deps.harm || !st.on.hm) return;
+    const g = window.L.layerGroup();
+    new Promise(r => r(deps.harm({ L: window.L, map, WL: g })))
+      .then(ok => {
+        if (n !== HMN || away) return;
+        G.hm.clearLayers();
+        if (ok)
+          g.getLayers().forEach(l => {
+            g.removeLayer(l);
+            G.hm.addLayer(l);
+          });
+      })
+      .catch(() => {});
   }
   // the attack worked out on the Weapons page (deps.attack(): lines per phase and marks as [lat, lon]); the Weapons page draws it itself while it has the map
   function attackDraw() {
