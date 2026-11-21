@@ -344,8 +344,11 @@ function tgtDeps() {
           });
       }
       try {
-        const a = ST.wpPage && ST.wpPage.attack();
-        if (a && a.t && a.t.stpt > 0 && a.t.stpt < 31)
+        const a = ST.wpPage && ST.wpPage.attack(),
+          wp = a && a.t && f && f.wps ? f.wps[a.t.stpt - 1] : null;
+        // the target of the attack planner, unless it is a steerpoint that is no target (take-off, landing, nav...): with no target chosen the planner
+        // takes the first steerpoint, the airbase of departure, which is not a target
+        if (a && a.t && a.t.stpt > 0 && a.t.stpt < 31 && !(wp && [0, 1, 2, 3, 4, 7, 8].includes(wp.act)))
           pts.push({
             kind: 'stpt',
             ref: 'STPT ' + a.t.stpt,
