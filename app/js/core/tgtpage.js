@@ -7,6 +7,7 @@
 //   attack() -> {segs, t, hdg, egr, spd, rel, fz, wpn}|null, route() -> [{n, x, y}], info() -> {cs, mis, tot, wpn}, geoLL(x, y), pick() -> Promise<{x, y, name}|null>,
 //   mapFrame(el, [x, y], nm) -> Promise<bool>, mapDetach(), fromLL(lat, lon), kbAdd(blob, name) -> Promise<{side, row}|null>, putShot(canvas), shotDim(), prefs: {load, save}}
 import { inkCard, otherLook, cardDark } from './cardink.js';
+import { pickAll } from './tgdlg.js';
 import {
   PAL,
   COL,
@@ -2780,7 +2781,7 @@ export function createTargetPage(deps) {
         ['t', 'Target information'],
         ['d', 'Details (positive ID)'],
       ],
-      on = { g: true, t: true, d: false };
+      on = { g: true, t: true, d: true };
     d.className = 'tgdlg';
     d.innerHTML = `<h3>Add cards to the Kneeboard</h3><p class="hint">Each page becomes a card. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
     document.body.append(d);
@@ -2816,6 +2817,7 @@ export function createTargetPage(deps) {
       d.close();
       setTimeout(() => d.remove(), 200);
     };
+    pickAll(d); // Select all / none
     d.querySelector('[data-a=no]').onclick = close;
     d.addEventListener('cancel', e => {
       e.preventDefault();
@@ -3158,7 +3160,6 @@ export function createTargetPage(deps) {
       c: card(k),
       alt: otherLook(() => card(k)),
       dark: cardDark(),
-      off: k == 'd',
     }));
   }
   return {

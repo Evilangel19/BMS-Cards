@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: Select none / Select all in the windows that choose Kneeboard cards; the Target details card chosen by default.
 - Added: dark datacard pages on the Kneeboard (Datacard and MDC format).
 - Changed: Target cards always in the Paper (BTG) layout, light or dark; Write OA1 / OA2 says No DTC when none is open.
 - Fixed: an F-16 flight in a package led by an F-15 wrote the F-15 kneeboard files and DTC.

@@ -6,6 +6,7 @@
 //        at(ms) -> fmap | null (the map of that hour, or the campaign map), fill() (write ATIS, TAF and runways), fillState() -> {diff},
 //        attach(el) -> Promise<{L, map} | null>, detach(), toLL(xKm, yKm) -> [lat, lon], fromLL(lat, lon) -> [xKm, yKm], bounds: [[lat, lon], [lat, lon]]}
 import { otherLook, cardDark } from './cardink.js';
+import { pickAll } from './tgdlg.js';
 import { WX_ALT, WX_COND, wxLevel } from '../parsers/fmap.js';
 import { busyRun } from './busy.js';
 import { WX_MODES as MODES, prOf, legend, drawWx } from './wxlayer.js';
@@ -486,6 +487,7 @@ export function createWeatherPage(deps) {
       d.close();
       setTimeout(() => d.remove(), 200);
     };
+    pickAll(d); // Select all / none
     d.querySelector('[data-a=no]').onclick = close;
     d.addEventListener('cancel', e => {
       e.preventDefault();

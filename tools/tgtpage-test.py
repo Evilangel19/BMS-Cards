@@ -170,10 +170,11 @@ try:
         # Kneeboard and datacard
         n0 = pg.evaluate('()=>__app.KBLIB.length')
         pg.click('#wp [data-tabcard]'); pg.wait_for_timeout(600)
-        check('Add card: a window with the three cards, two of them chosen', pg.locator('.tgdlg .tgcard').count() == 3 and pg.locator('.tgdlg .tgcard.on').count() == 2)
+        check('Add card: a window with the three cards, all chosen (Select none)', pg.locator('.tgdlg .tgcard').count() == 3 and pg.locator('.tgdlg .tgcard.on').count() == 3 and pg.inner_text('.tgdlg .tgall') == 'Select none')
         if shots: pg.locator('.tgdlg').screenshot(path=shots + '/tgt-cards.png')
         pg.click('.tgdlg .tgcard >> nth=2'); pg.wait_for_timeout(200)
-        check('...the third card chosen too', pg.locator('.tgdlg .tgcard.on').count() == 3)
+        check('...the third card left out, then chosen again', pg.locator('.tgdlg .tgcard.on').count() == 2 and pg.inner_text('.tgdlg .tgall') == 'Select all')
+        pg.click('.tgdlg .tgcard >> nth=2'); pg.wait_for_timeout(200)
         pg.click('.tgdlg [data-a=ok]')
         for _ in range(40):  # three big pictures to encode
             if pg.evaluate('()=>__app.KBLIB.length') - n0 >= 3: break

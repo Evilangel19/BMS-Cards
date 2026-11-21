@@ -10,6 +10,7 @@ import {
   parsePages,
   cycleNext,
 } from '../core/kneeboard.js';
+import { pickAll } from '../core/tgdlg.js';
 import { createDocsPage } from '../core/docspage.js';
 import {
   listDir,
@@ -570,6 +571,7 @@ export async function kbAddAll() {
     d.close();
     d.remove();
   };
+  pickAll(d); // Select all / none
   d.querySelector('[data-a=no]').onclick = close;
   d.addEventListener('cancel', e => {
     e.preventDefault();

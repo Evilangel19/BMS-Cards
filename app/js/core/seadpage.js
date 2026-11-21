@@ -12,6 +12,7 @@
 //   detach(), cyclePlan(), planMode(), layerOn(k), pal(), dtc: {harm(), setHarm(t, n, code)}, ppt([{x, y, rng, name}]) -> Promise<string>, snap(scale),
 //   kbAdd(blob, name)}
 import { otherLook, cardDark } from './cardink.js';
+import { pickAll } from './tgdlg.js';
 import { seadPlan, timed, posAt, inside, seatLabels, BACKUP_NM_MIN, POS_AREA, MIN_GAP_S } from './sead.js';
 import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
@@ -1273,6 +1274,7 @@ export function createSeadPage(deps) {
       d.close();
       setTimeout(() => d.remove(), 200);
     };
+    pickAll(d); // Select all / none
     d.querySelector('[data-a=no]').onclick = close;
     d.addEventListener('cancel', e => {
       e.preventDefault();

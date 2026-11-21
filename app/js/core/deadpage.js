@@ -6,6 +6,7 @@
 // deps: {esc, toast, confirm, ctx() -> {ok, why} | {ok, me, sams, target, seat, harms, hts}, harm(), toLL, attach, detach, cyclePlan, planMode, layerOn,
 //   pal, dtc: {harm(), setHarm(t, n, code), has(sec), setOA(key, value)}, ppt([{x, y, rng, name}]), addPpt({x, y, name}), planLines(mode, {x, y}), pptTypes(), snap, kbAdd}
 import { otherLook, cardDark } from './cardink.js';
+import { pickAll } from './tgdlg.js';
 import { deadPlan, defaultRoles, rolesOf, partnerRole, ALT_BLOCKS, at } from './dead.js';
 import { busyRun } from './busy.js';
 import { mapKeep } from './mapkeep.js';
@@ -1737,6 +1738,7 @@ export function createDeadPage(deps) {
       d.close();
       setTimeout(() => d.remove(), 200);
     };
+    pickAll(d); // Select all / none
     d.querySelector('[data-a=no]').onclick = close;
     d.addEventListener('cancel', e => {
       e.preventDefault();
