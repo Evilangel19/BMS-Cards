@@ -1,4 +1,4 @@
-"""The DTC of a training mission (an .ini next to a .tac of the same name, preset by the mission): Write DTC does not change it unless Settings > General > Edit
+"""The DTC of a training mission (an .ini next to a .trn of the same name, preset by the mission; the .ini of a TE .tac is not one): Write DTC does not change it unless Settings > General > Edit
 training DTCs is on, and then only after a warning; with another DTC open, the training .ini is left out of the campaign files written. A desktop in memory
 (tools/fakedesk.py), made-up files (no BMS files). Usage: python3 tools/training-test.py"""
 import json, os, subprocess, sys, time
@@ -23,7 +23,7 @@ try:
         br = p.chromium.launch()
         desk = FakeDesk(APP)
         desk.put(APP + '\\config.json', json.dumps({'paths': {'bmsInstall': 'C:\\BMS', 'campaigns': CD}}))
-        desk.put(TR, INI); desk.put(CD + '\\TE_TEST_01.tac', 'not a real campaign'); desk.put(OWN, INI.replace('TE_TEST_01', 'Viper')); desk.put(CD + '\\TE_TEST_02.trn', 'not a real campaign'); desk.put(CD + '\\Korea.cam', 'x')
+        desk.put(TR, INI); desk.put(CD + '\\TE_TEST_01.trn', 'not a real campaign'); desk.put(CD + '\\TE_OWN.tac', 'x'); desk.put(CD + '\\TE_OWN.ini', INI); desk.put(OWN, INI.replace('TE_TEST_01', 'Viper')); desk.put(CD + '\\TE_TEST_02.trn', 'not a real campaign'); desk.put(CD + '\\Korea.cam', 'x')
         pg = br.new_page(viewport={'width': 1400, 'height': 900}); errs = []; msgs = []; ans = [True]
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
@@ -31,7 +31,7 @@ try:
         desk.install(pg)
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(2000)
         opts = pg.eval_on_selector_all('#tesel option', 'o=>o.map(x=>[x.value,x.textContent])')
-        check('the TE menu: Select a TE or Training, the .tac and the training .trn %s' % opts, opts == [['', '— Select a TE or Training —'], ['TE_TEST_01.tac', 'TE_TEST_01'], ['TE_TEST_02.trn', 'TE_TEST_02 · Training']])
+        check('the TE menu: Select a TE or Training, the .tac and the training .trn %s' % opts, opts == [['', '— Select a TE or Training —'], ['TE_OWN.tac', 'TE_OWN'], ['TE_TEST_01.trn', 'TE_TEST_01 · Training'], ['TE_TEST_02.trn', 'TE_TEST_02 · Training']])
         open_ = "async p=>{const D=await import('/app/js/app/dtcfile.js'),P=await import('/app/js/platform/desktop.js');const b=await P.readBytes(p);await D.openDtc({name:p.split('\\\\').pop(),path:p,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)});D.S('STPT','target_0','1.000000, 2.000000, 0.000000, 1, Not set')}"
         write = "async()=>{const D=await import('/app/js/app/dtcfile.js');await D.dtcOverwrite()}"
         pg.evaluate(open_, TR); pg.wait_for_timeout(300); n0 = len(msgs)
@@ -49,6 +49,10 @@ try:
         check('another DTC: written, the training .ini left out and said so (%s)' % m[:80].replace('\n', ' '), '1.000000, 2.000000' in desk.text(OWN) and desk.text(TR) == INI and 'Not written' in m and 'TE_TEST_01.ini' in m)
         pg.click('#cfgbtn'); pg.wait_for_timeout(500); pg.click('#nv-general'); pg.wait_for_timeout(300)
         check('Settings > General: Edit training DTCs, off at first', pg.locator('[data-a=sw][data-k=editTrain]').count() == 1 and pg.get_attribute('[data-a=sw][data-k=editTrain]', 'aria-checked') == 'false')
+        # the .ini of a TE (.tac) is its DTC, not a preset training one: written as any DTC
+        pg.evaluate(open_, CD + '\\TE_OWN.ini'); pg.wait_for_timeout(300); n0 = len(msgs)
+        pg.evaluate(write); pg.wait_for_timeout(300)
+        check('the .ini of a TE (.tac): not protected, written', '1.000000, 2.000000' in desk.text(CD + '\\TE_OWN.ini') and 'TRAINING' not in ' '.join(msgs[n0:]))
         check('no page errors %s' % errs[:2], not errs)
 finally:
     srv.terminate()

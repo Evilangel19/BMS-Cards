@@ -458,9 +458,9 @@ async function selectCampaign0(name) {
   if (ST.C && ST.C.isTe)
     $('cinfo').textContent =
       (/\.trn$/i.test(name) ? 'Training mission. ' : 'Tactical Engagement. ') + $('cinfo').textContent;
-  // a training mission (.trn, or a .tac with its own DTC): its DTC <name>.ini next to it, preset by the mission. Its DTC is opened with it, unless the last
+  // a training mission (.trn; a TE .tac with an .ini is not one): its DTC <name>.ini next to it, preset by the mission. Its DTC is opened with it, unless the last
   // DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as before). The file is protected: dtcfile.js dtcOverwrite.
-  const ini = /\.(tac|trn)$/i.test(name) ? find('.ini') : null;
+  const ini = /\.trn$/i.test(name) ? find('.ini') : null;
   ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini } : null;
   if (ST.TRAIN) {
     $('cinfo').textContent =

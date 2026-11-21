@@ -269,11 +269,11 @@ export function syncRoute() {
   due.forEach(([k, v]) => S('STPT', k, v));
   return due.length > 0;
 }
-// the DTC of a training mission: an .ini with a .trn (or a .tac) of the same name next to it
+// the DTC of a training mission: an .ini with a .trn of the same name next to it (the .ini of a TE .tac is not protected)
 async function trainingIni(p) {
   if (!p || !/\.ini$/i.test(p)) return false;
   try {
-    return (await IO.fileExists(p.replace(/\.ini$/i, '.trn'))) || (await IO.fileExists(p.replace(/\.ini$/i, '.tac')));
+    return await IO.fileExists(p.replace(/\.ini$/i, '.trn'));
   } catch (e) {
     return false;
   }
