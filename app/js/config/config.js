@@ -17,7 +17,7 @@ export const DEFAULTS = {
     wxTaf: 'TGT', // the forecast of the Weather page and of the datacard: 'TGT' = the target airfield, 'LDG' = the landing one
     checkUpdates: true, // true = once a day the program asks GitHub whether a newer version exists (only a notice: nothing is downloaded)
     oneMapShot: false, // true = one map screenshot on the kneeboard: a new one takes the place (and the page) of the previous one
-    editTraining: false, // true = Write DTC may change the DTC of a training mission (the .ini next to its .tac), after a warning
+    editTraining: false, // true = Write DTC may change the DTC of a training mission (the .ini next to its .trn or .tac), after a warning
   },
   kneeboard: {
     toneOn: true, // Cockpit tone: the kneeboard pages written darker and with more contrast, for the light of the BMS cockpit (core/tone.js)

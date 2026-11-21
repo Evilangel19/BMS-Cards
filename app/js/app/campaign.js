@@ -272,9 +272,9 @@ export let wxPage;
 export const campDir = () =>
   ST.CFG.paths.campaigns ||
   (ST.CFG.paths.bmsInstall ? jp(ST.CFG.paths.bmsInstall, 'Data', ST.TH ? ST.TH.campaign : 'Campaign') : '');
-// the campaign menu (.cam) and the Tactical Engagement menu (.tac) are separate; choosing in one clears the other
+// the campaign menu (.cam) and the menu of the Tactical Engagements (.tac) and training missions (.trn, the same format) are separate; choosing in one clears the other
 export const setSel = n => {
-  const te = /\.tac$/i.test(n || '');
+  const te = /\.(tac|trn)$/i.test(n || '');
   $('csel').value = te ? '' : n || '';
   $('tesel').value = te ? n : '';
   $('csel').classList.toggle('dimsel', !!n && te);
@@ -286,7 +286,7 @@ export async function fillCampaigns() {
     d = campDir();
   if (!isDesktop() || !d) {
     sel.innerHTML = '<option value="">— set the BMS folder in Settings, or use Open ▾ › Campaign —</option>';
-    tsel.innerHTML = '<option value="">— select a tactical engagement —</option>';
+    tsel.innerHTML = '<option value="">— Select a TE or Training —</option>';
     return;
   }
   const all = (await listDir(d)).filter(e => !e.isDirectory),
@@ -297,15 +297,20 @@ export async function fillCampaigns() {
       .map(e => e.name)
       .sort(srt),
     tacs = all
-      .filter(e => /\.tac$/i.test(e.name))
+      .filter(e => /\.(tac|trn)$/i.test(e.name))
       .map(e => e.name)
       .sort(srt);
   sel.innerHTML = '<option value="">— select a campaign —</option>' + names.map(n => opt(n, /\.cam$/i)).join('');
   if (!names.length)
     sel.innerHTML = '<option value="">— no campaigns found in ' + d.replace(/</g, '&lt;') + ' —</option>';
   tsel.innerHTML =
-    '<option value="">— select a tactical engagement —</option>' + tacs.map(n => opt(n, /\.tac$/i)).join('');
-  if (!tacs.length) tsel.innerHTML = '<option value="">— no tactical engagements found —</option>';
+    '<option value="">— Select a TE or Training —</option>' +
+    tacs
+      .map(n =>
+        /\.trn$/i.test(n) ? opt(n, /\.trn$/i).replace(/<\/option>$/, ' · Training</option>') : opt(n, /\.tac$/i)
+      )
+      .join('');
+  if (!tacs.length) tsel.innerHTML = '<option value="">— no TE or training found —</option>';
 }
 // the last choice wins: the arrow keys on the menu choose one campaign after the other, and a slow file of a campaign left behind must not end up over the one chosen last
 // the Weather card: the BMS terrain heights (ft) at points in km, null without the BMS folder
@@ -366,7 +371,7 @@ async function selectCampaign0(name) {
   }
   const dir = campDir(),
     es = await listDir(dir),
-    stem = name.replace(/\.(cam|tac)$/i, '');
+    stem = name.replace(/\.(cam|tac|trn)$/i, '');
   if (stale()) return;
   const find = (...sfx) => {
     const e =
@@ -450,14 +455,19 @@ async function selectCampaign0(name) {
   if (stale()) return;
   await loadCam(new File([bytes], name), stale);
   if (stale()) return;
-  if (ST.C && ST.C.isTe) $('cinfo').textContent = 'Tactical Engagement. ' + $('cinfo').textContent;
-  // a training mission: a tactical engagement with its own DTC (<name>.ini next to it, preset by the mission). Its DTC is opened with it, unless the last
+  if (ST.C && ST.C.isTe)
+    $('cinfo').textContent =
+      (/\.trn$/i.test(name) ? 'Training mission. ' : 'Tactical Engagement. ') + $('cinfo').textContent;
+  // a training mission (.trn, or a .tac with its own DTC): its DTC <name>.ini next to it, preset by the mission. Its DTC is opened with it, unless the last
   // DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as before). The file is protected: dtcfile.js dtcOverwrite.
-  const ini = /\.tac$/i.test(name) ? find('.ini') : null;
+  const ini = /\.(tac|trn)$/i.test(name) ? find('.ini') : null;
   ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini } : null;
   if (ST.TRAIN) {
     $('cinfo').textContent =
-      'Training mission (its DTC: ' + ini + '). ' + $('cinfo').textContent.replace(/^Tactical Engagement\. /, '');
+      'Training mission (its DTC: ' +
+      ini +
+      '). ' +
+      $('cinfo').textContent.replace(/^(Tactical Engagement|Training mission)\. /, '');
     const open = ST.DTCF && ST.DTCF.path;
     if (!ST.TRAINSKIP && (!open || open.toLowerCase() != ST.TRAIN.path.toLowerCase())) {
       const dirty = lines.some(l => l.dirty);
@@ -561,9 +571,9 @@ export async function init14() {
   $('tesel').onchange = () => selectCampaign($('tesel').value);
   $('cam').onclick = async () => {
     const f = await pickFile({
-      exts: ['cam', 'tac', 'bcrd'],
+      exts: ['cam', 'tac', 'trn', 'bcrd'],
       startDir: ST.CFG.paths.campaigns,
-      title: 'Open a campaign, a Tactical Engagement or a mission',
+      title: 'Open a campaign, a Tactical Engagement, a training mission or a mission',
     });
     if (!f) return;
     if (/\.bcrd$/i.test(f.name)) {

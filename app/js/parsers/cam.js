@@ -599,6 +599,6 @@ export function openCam(u8, D, name) {
     objOwnRaw: OD.own,
     objFeatRaw: OD.feat,
     parse: { num: pu.num, count: units.length, end: pu.end, len: pu.len },
-    name: (name || '').replace(/\.(cam|tac)$/i, ''),
+    name: (name || '').replace(/\.(cam|tac|trn)$/i, ''),
   };
 }

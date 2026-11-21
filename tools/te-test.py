@@ -1,4 +1,4 @@
-"""Tactical Engagement (.tac): separate menu next to the campaign menu, handled like a campaign. Uses a fake BMS folder with Data/Campaign. Usage: python3 tools/te-test.py"""
+"""Tactical Engagement (.tac) and training mission (.trn, the same format, with its own DTC): separate menu next to the campaign menu, handled like a campaign. Uses a fake BMS folder with Data/Campaign. Usage: python3 tools/te-test.py"""
 import sys, os, subprocess, time, json, shutil, tempfile
 from playwright.sync_api import sync_playwright
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -6,6 +6,8 @@ FX = R + '/tests/fixtures/'
 BMS = tempfile.mkdtemp(); camp = BMS + '/Data/Campaign'; os.makedirs(camp); os.makedirs(BMS + '/User/Config')
 for f in os.listdir(FX + 'te'):
     if f.startswith('TE_'): shutil.copy(FX + 'te/' + f, camp + '/' + f)
+# a training mission: the same TE as a .trn with its own DTC (.ini)
+shutil.copy(FX + 'te/TE_BMS_03_F-16_DEAD.tac', camp + '/TE_BMS_TRAIN_01.trn'); open(camp + '/TE_BMS_TRAIN_01.ini', 'w').write('[MISSION]\r\ntitle=TE_BMS_TRAIN_01\r\n')
 for f in ['EvilKorea.cam', 'EvilKorea.iff', 'EvilKorea.twx', 'EvilKorea_l16.txtpb']: shutil.copy(FX + 'evilkorea/' + f, camp + '/' + f)
 open(camp + '/Save1.cam', 'wb').write(b'x')
 INIT = """(()=>{const root=%s;window.__TAURI__={core:{invoke:async(c)=>{if(c==='app_dir')return '/app';if(c==='detect_bms')return root;return null}},dialog:{open:async()=>null,save:async()=>null},
@@ -42,7 +44,9 @@ try:
         pg.goto('http://127.0.0.1:8774/app/index.html'); pg.wait_for_timeout(1800)
         co = pg.eval_on_selector_all('#csel option', 'o=>o.map(x=>x.value)'); to = pg.eval_on_selector_all('#tesel option', 'o=>o.map(x=>x.value)')
         check('the campaign menu lists only .cam files (no Save1, no .tac)', co == ['', 'EvilKorea.cam'])
-        check('the Tactical Engagement menu lists the .tac files, with its own placeholder', to == ['', 'TE_BMS_03_F-16_DEAD.tac'] and pg.eval_on_selector('#tesel option', 'o=>o.textContent') == '— select a tactical engagement —')
+        check('the TE menu lists the .tac and the training .trn files, with its own placeholder', to == ['', 'TE_BMS_03_F-16_DEAD.tac', 'TE_BMS_TRAIN_01.trn'] and pg.eval_on_selector('#tesel option', 'o=>o.textContent') == '— Select a TE or Training —' and pg.eval_on_selector_all('#tesel option', 'o=>o[2].textContent') == 'TE_BMS_TRAIN_01 · Training')
+        pg.select_option('#tesel', 'TE_BMS_TRAIN_01.trn'); pg.wait_for_timeout(2000)
+        check('a training mission opens as a TE, with its own DTC (%s)' % pg.inner_text('#cinfo')[:60], pg.eval_on_selector('#fsel', 'e=>e.options.length') == 5 and pg.inner_text('#cinfo').startswith('Training mission (its DTC: TE_BMS_TRAIN_01.ini)') and pg.evaluate("()=>__app.ST.DTCF&&__app.ST.DTCF.path||''").endswith('TE_BMS_TRAIN_01.ini'))
         check('both menus are in the top bar, the theater menu is another one', pg.locator('#kbtop > #csel').count() == 1 and pg.locator('#kbtop > #tesel').count() == 1 and pg.locator('#tsel').count() == 1)
         pg.select_option('#tesel', 'TE_BMS_03_F-16_DEAD.tac'); pg.wait_for_timeout(2000)
         info = pg.inner_text('#cinfo')

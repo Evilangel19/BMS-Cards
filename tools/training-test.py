@@ -23,13 +23,15 @@ try:
         br = p.chromium.launch()
         desk = FakeDesk(APP)
         desk.put(APP + '\\config.json', json.dumps({'paths': {'bmsInstall': 'C:\\BMS', 'campaigns': CD}}))
-        desk.put(TR, INI); desk.put(CD + '\\TE_TEST_01.tac', 'not a real campaign'); desk.put(OWN, INI.replace('TE_TEST_01', 'Viper'))
+        desk.put(TR, INI); desk.put(CD + '\\TE_TEST_01.tac', 'not a real campaign'); desk.put(OWN, INI.replace('TE_TEST_01', 'Viper')); desk.put(CD + '\\TE_TEST_02.trn', 'not a real campaign'); desk.put(CD + '\\Korea.cam', 'x')
         pg = br.new_page(viewport={'width': 1400, 'height': 900}); errs = []; msgs = []; ans = [True]
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.on('dialog', lambda d: (msgs.append(d.message), d.accept() if ans[0] else d.dismiss()))
         desk.install(pg)
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(2000)
+        opts = pg.eval_on_selector_all('#tesel option', 'o=>o.map(x=>[x.value,x.textContent])')
+        check('the TE menu: Select a TE or Training, the .tac and the training .trn %s' % opts, opts == [['', '— Select a TE or Training —'], ['TE_TEST_01.tac', 'TE_TEST_01'], ['TE_TEST_02.trn', 'TE_TEST_02 · Training']])
         open_ = "async p=>{const D=await import('/app/js/app/dtcfile.js'),P=await import('/app/js/platform/desktop.js');const b=await P.readBytes(p);await D.openDtc({name:p.split('\\\\').pop(),path:p,arrayBuffer:async()=>b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength)});D.S('STPT','target_0','1.000000, 2.000000, 0.000000, 1, Not set')}"
         write = "async()=>{const D=await import('/app/js/app/dtcfile.js');await D.dtcOverwrite()}"
         pg.evaluate(open_, TR); pg.wait_for_timeout(300); n0 = len(msgs)
