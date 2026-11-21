@@ -78,10 +78,17 @@ export function darkRGB(r, g, b) {
   const [h, s, l] = hsl(r, g, b);
   let s2 = s,
     l2 = l;
+  // one dark look for all the cards, as the Weather SIGWX card: the page #121212, the boxes and panels one dark grey (about #1a1e23), the text near white
   if (s < 0.18)
     l2 = 0.07 + (1 - l) * 0.86; // greys turned over: the page near black, the text near white
-  else if (l > 0.8) {
-    l2 = 0.16 + (1 - l) * 0.6; // pale tints (the boxes): dark tints of the same colour
+  else if (l > 0.94 && s < 0.35) {
+    l2 = 0.07; // the page of a card in a pale grey-blue (SEAD, DEAD): the page of all of them
+    s2 = 0;
+  } else if (l > 0.8 && s < 0.35) {
+    l2 = 0.115 + (0.94 - l) * 0.25; // the pale grey-blue of the boxes and headers: the dark grey of the panels
+    s2 = Math.min(s, 0.12);
+  } else if (l > 0.8) {
+    l2 = 0.14 + (1 - l) * 0.4; // pale tints of a colour (a warning box): dark tints of the same colour
     s2 = s * 0.6;
   } else if (l < 0.55) l2 = Math.min(0.78, 1.1 - l); // dark colours (text, lines): lighter
   return rgb(h, clamp(s2), clamp(l2));

@@ -1484,3 +1484,13 @@
 .tgp .tgph h3 {
   margin: 0;
 }
+
+/* under Style: the style that goes with the look of the cards */
+.tgp .tgsth {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.tgp .tgsth.warn {
+  color: #f0a030;
+}

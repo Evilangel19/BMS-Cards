@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: one dark look for all the cards (the page of Weather SIGWX); Target cards keep their picture as filtered, Program and Paper (BTG) made right for dark cards, with a note on which style goes with the look.
 - Added: Cockpit tone (Settings > Kneeboard): the kneeboard pages written darker and with more contrast for the cockpit (Brightness / Contrast as in Photoshop, optional on dark pages).
 - Changed: warnings shown in red; map offsets need an open DTC; Target: Save PNG on the Page title row.
 - Fixed: Add all cards made the SEAD, DEAD, Attack and Target cards without their map; the side profile of the dark Attack card was light.

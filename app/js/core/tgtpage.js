@@ -182,7 +182,12 @@ export function createTargetPage(deps) {
     PLACED = [],
     DEFER = null, // the labels of the datacard layer, drawn after its symbols
     SYMS = null; // the places of those symbols (the labels keep off them)
-  const P = () => PAL[PF.pst] || PAL.prog;
+  // the colours of the page. On a card of the dark look (CARDDK): Program is drawn as it is (a dark page already) on the page and the panels of all
+  // the dark cards; Paper (BTG) is turned like the other cards, its black bands drawn light so they come out as dark panels with light text
+  let CARDDK = false;
+  const PROG_DK = { ...PAL.prog, page: '#121212', panel: '#1a1e23', band: '#1a1e23', line: '#2c333b' },
+    PAPER_DK = { ...PAL.paper, band: '#e8ebef', btx: '#000000', line: '#9aa0a6' };
+  const P = () => (CARDDK ? (PF.pst == 'paper' ? PAPER_DK : PROG_DK) : PAL[PF.pst] || PAL.prog);
 
   // the picture under the symbols: {c (filtered), geo (null for a screenshot)}
   const FC = new Map();
@@ -1288,7 +1293,17 @@ export function createTargetPage(deps) {
     ];
   }
   // the picture with its symbols in IMG
+  // the picture of the target: as the filters make it, in both looks of the cards (never turned by the dark look)
   function picture() {
+    const r = /** @type {any} */ (x).__raw;
+    /** @type {any} */ (x).__raw = true;
+    try {
+      picture0();
+    } finally {
+      /** @type {any} */ (x).__raw = r;
+    }
+  }
+  function picture0() {
     const p = pic(),
       s = st();
     x.fillStyle = '#000';
@@ -1568,9 +1583,9 @@ export function createTargetPage(deps) {
           x.lineTo(X0 + TW, y + 6);
           x.stroke();
         } else {
-          x.fillStyle = '#000';
+          x.fillStyle = p.band;
           x.fillRect(X0 - 6, y - FS - 2, TW + 6, FS + 7);
-          x.fillStyle = '#fff';
+          x.fillStyle = p.btx;
           x.font = 'bold ' + (FS - 0.5) + 'px ' + FONT;
           x.fillText(q, X0, y);
         }
@@ -1718,9 +1733,12 @@ export function createTargetPage(deps) {
           bh = o.h,
           sw = src.c.width / 5,
           sh = (sw * bh) / bw;
+        const r = /** @type {any} */ (x).__raw;
+        /** @type {any} */ (x).__raw = true; // the picture as it is
         x.fillStyle = '#000';
         x.fillRect(bx, by, bw, bh);
         x.drawImage(src.c, a.u * src.c.width - sw / 2, a.v * src.c.height - sh / 2, sw, sh, bx, by, bw, bh);
+        /** @type {any} */ (x).__raw = r;
         x.strokeStyle = p.line;
         x.lineWidth = PF.pst == 'prog' ? 1 : 2;
         x.strokeRect(bx, by, bw, bh);
@@ -1739,7 +1757,21 @@ export function createTargetPage(deps) {
 
   // ---- the page on screen: drawn at twice its size (sharp), in page pixels
   let cv = null;
+  // under Style: which style goes with the look of the cards (the ☀ / ☾ of the Kneeboard), the other one marked
+  function styleHint() {
+    const h = root && root.querySelector('.tgsth');
+    if (!h) return;
+    const dk = cardDark(),
+      off = dk ? PF.pst == 'paper' : PF.pst == 'prog';
+    h.textContent = off
+      ? dk
+        ? 'The cards are dark: Paper (BTG) is a light page, made for the light cards. Program goes with them.'
+        : 'The cards are light: Program is a dark page, made for the dark cards. Paper (BTG) goes with them.'
+      : 'Program: a dark page, for the dark cards · Paper (BTG): a light page, for the light cards.';
+    h.classList.toggle('warn', off);
+  }
   function draw() {
+    styleHint();
     if (!cv) return;
     x = cv.getContext('2d');
     x.setTransform(2, 0, 0, 2, 0, 0);
@@ -1835,6 +1867,7 @@ export function createTargetPage(deps) {
       CROPR = R0;
       SCR = S0;
       selA = s0;
+      CARDDK = false;
     }
     return c;
   }
@@ -1903,15 +1936,15 @@ export function createTargetPage(deps) {
   }
   function card(kind) {
     return into(1600, 2400, 1600 / CW, () => {
-      inkCard(x); // heavier text, the look of the cards (the picture of the target is left as it is)
+      inkCard(x); // the look of the cards (the picture of the target is left as it is)
+      CARDDK = cardDark();
+      /** @type {any} */ (x).__raw = CARDDK && PF.pst != 'paper'; // Program on a dark card: as it is, on the colours of the dark cards
       const p = P();
       if (kind == 'g') {
         cardHdr('BASIC TARGET GRAPHIC');
         IMG = { x: 0, y: 160, w: CW, h: 560 };
         CARDM = true;
-        /** @type {any} */ (x).__raw = true;
         picture();
-        /** @type {any} */ (x).__raw = false;
         CARDM = false;
         x.strokeStyle = p.line;
         x.lineWidth = PF.pst == 'prog' ? 1 : 2;
@@ -2087,6 +2120,7 @@ export function createTargetPage(deps) {
     ],
     PF.pst
   )}</div>
+   <p class="hint tgsth"></p>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
      'lsty',
      [
