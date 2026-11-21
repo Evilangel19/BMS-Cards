@@ -159,6 +159,30 @@ export const openDtc = async f => {
     draw();
   }
 };
+// no DTC open any more (the DTC of a TE / training mission closed when another one is chosen): the program as at start, without a DTC
+export function closeDtc() {
+  MERGED = [];
+  parse('');
+  lines = [];
+  ST.DTCF = null;
+  ST.name = '';
+  try {
+    if (ST.CFG && ST.CFG.ui) ST.CFG.ui.lastDtc = ''; // not opened again at start
+  } catch (e) {
+    /* none */
+  }
+  $('fn').textContent = 'No file open (BMS User\\Config folder)';
+  if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
+  else {
+    applyDTC();
+    buildForm();
+    draw();
+  }
+  dtcBtns();
+  try {
+    if (mapV.isReady()) mapV.refreshDtc();
+  } catch (e) {}
+}
 export const dtcOut = () => lines.map(l => (l.dirty ? l.k + '=' + l.v : l.raw)).join('\r\n') + '\r\n';
 // Undo every change since the file was opened or last saved: edited lines get their original value back, lines added by an edit are dropped
 export async function dtcRevert() {
@@ -274,11 +298,11 @@ export function syncRoute() {
   due.forEach(([k, v]) => S('STPT', k, v));
   return due.length > 0;
 }
-// the DTC of a training mission: an .ini with a .trn of the same name next to it (the .ini of a TE .tac is not protected)
+// the DTC of a TE or a training mission: an .ini with a .tac or .trn of the same name next to it (BMS loads it for that mission, not the callsign.ini)
 async function trainingIni(p) {
   if (!p || !/\.ini$/i.test(p)) return false;
   try {
-    return await IO.fileExists(p.replace(/\.ini$/i, '.trn'));
+    return (await IO.fileExists(p.replace(/\.ini$/i, '.trn'))) || (await IO.fileExists(p.replace(/\.ini$/i, '.tac')));
   } catch (e) {
     return false;
   }
@@ -311,21 +335,21 @@ export async function dtcOverwrite() {
   for (const f of extra) if (await trainingIni(f)) trExtra.push(f);
   if (trSelf && !edit)
     return alert(
-      'This is the DTC of a training mission:\n' +
+      'This is the DTC of a TE or training mission:\n' +
         ST.DTCF.path +
-        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit training DTCs.',
+        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit TE and training DTCs.',
       'bad'
     );
   if (!edit) extra = extra.filter(f => !trExtra.includes(f));
   const trWarn =
     edit && (trSelf || trExtra.length)
-      ? '⚠ TRAINING MISSION: ' +
+      ? '⚠ TE / TRAINING MISSION: ' +
         (trSelf ? 'this file is' : 'the campaign file ' + trExtra.join(', ') + ' is') +
         ' the DTC preset by the mission. Writing changes it (the original is kept once in backup\\dtc).\n\n'
       : '';
   const trSkip =
     !edit && trExtra.length
-      ? '\n\nNot written (the DTC of the training mission, protected: Settings > General > Edit training DTCs):\n' +
+      ? '\n\nNot written (the DTC of the TE / training mission, protected: Settings > General > Edit TE and training DTCs):\n' +
         trExtra.join('\n')
       : '';
   if (

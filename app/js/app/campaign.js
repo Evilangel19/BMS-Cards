@@ -23,7 +23,7 @@ import { ST } from './state.js';
 import { $, appToast, esc, jp, rememberLast } from './base.js';
 import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
-import { lines, openDtc } from './dtcfile.js';
+import { lines, openDtc, closeDtc } from './dtcfile.js';
 import { mapV } from './pages.js';
 import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
 import { atoSearch } from './ato.js';
@@ -297,7 +297,7 @@ export async function fillCampaigns() {
       .map(e => e.name)
       .sort(srt),
     tacs = all
-      .filter(e => /\.(tac|trn)$/i.test(e.name))
+      .filter(e => /\.(tac|trn)$/i.test(e.name) && !/^te_new(_nt)?\.tac$/i.test(e.name)) // TE_New, TE_New_NT: the blanks of BMS for a new TE
       .map(e => e.name)
       .sort(srt);
   sel.innerHTML = '<option value="">— select a campaign —</option>' + names.map(n => opt(n, /\.cam$/i)).join('');
@@ -353,6 +353,8 @@ async function selectCampaign0(name) {
     if (!stale()) setSel(ST.CAMSEL);
     return;
   }
+  if (stale()) return;
+  if (name !== ST.CAMSEL) await leaveTeDtc();
   if (stale()) return;
   ST.CAMSEL = name;
   setSel(name);
@@ -458,26 +460,30 @@ async function selectCampaign0(name) {
   if (ST.C && ST.C.isTe)
     $('cinfo').textContent =
       (/\.trn$/i.test(name) ? 'Training mission. ' : 'Tactical Engagement. ') + $('cinfo').textContent;
-  // a training mission (.trn; a TE .tac with an .ini is not one): its DTC <name>.ini next to it, preset by the mission. Its DTC is opened with it, unless the last
-  // DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as before). The file is protected: dtcfile.js dtcOverwrite.
-  const ini = /\.trn$/i.test(name) ? find('.ini') : null;
-  ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini } : null;
+  // a TE (.tac) or a training mission (.trn) with its DTC <name>.ini next to it: BMS loads that file for the mission (the callsign.ini is for the
+  // campaigns). It is opened with it, unless the last DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as
+  // before); choosing another TE, a campaign or nothing closes it again (leaveTeDtc). The file is protected: dtcfile.js dtcOverwrite.
+  const ini = /\.(tac|trn)$/i.test(name) ? find('.ini') : null;
+  const prev = ST.DTCF && ST.DTCF.path;
+  ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini, prev: prev || null } : null;
   if (ST.TRAIN) {
     $('cinfo').textContent =
-      'Training mission (its DTC: ' +
+      (/\.trn$/i.test(name) ? 'Training mission' : 'Tactical Engagement') +
+      ' (its DTC: ' +
       ini +
       '). ' +
       $('cinfo').textContent.replace(/^(Tactical Engagement|Training mission)\. /, '');
-    const open = ST.DTCF && ST.DTCF.path;
+    const open = prev;
+    if (open && open.toLowerCase() == ST.TRAIN.path.toLowerCase()) ST.TRAIN.prev = null;
     if (!ST.TRAINSKIP && (!open || open.toLowerCase() != ST.TRAIN.path.toLowerCase())) {
       const dirty = lines.some(l => l.dirty);
       if (
         !dirty ||
-        confirm(
-          'Open the DTC of the training mission (' +
+        (await confirm(
+          'Open the DTC of the mission (' +
             ini +
             ')?\n\nThe DTC open now has changes not written: they are lost. Cancel keeps it open.'
-        )
+        ))
       )
         try {
           const b = await readBytes(ST.TRAIN.path);
@@ -488,10 +494,40 @@ async function selectCampaign0(name) {
             arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
           });
         } catch (e) {
-          appToast('The DTC of the training mission could not be read: ' + ((e && e.message) || e), true);
+          appToast('The DTC of the mission could not be read: ' + ((e && e.message) || e), true);
         }
     }
   }
+}
+// another TE, a campaign or nothing chosen: the DTC of the TE / training mission opened with it is closed, and the DTC open before it comes back (else none).
+// A DTC opened by hand since then stays.
+async function leaveTeDtc() {
+  const t = ST.TRAIN;
+  ST.TRAIN = null;
+  if (!t) return;
+  const open = ST.DTCF && ST.DTCF.path;
+  if (!open || open.toLowerCase() != t.path.toLowerCase()) return;
+  if (
+    lines.some(l => l.dirty) &&
+    !(await confirm('The DTC of the mission (' + t.name + ') has changes not written: they are lost.', {
+      ok: 'Close it',
+      no: 'Keep it open',
+    }))
+  )
+    return;
+  if (t.prev)
+    try {
+      const b = await readBytes(t.prev);
+      await openDtc({
+        name: t.prev.split(/[\\/]/).pop(),
+        path: t.prev,
+        arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+      });
+      return;
+    } catch (e) {
+      /* the DTC before it is gone: none */
+    }
+  closeDtc();
 }
 export async function loadFmap(file) {
   let W;

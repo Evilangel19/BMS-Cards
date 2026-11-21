@@ -234,6 +234,15 @@
 #mpdtcb i {
   font-style: normal;
 }
+/* no DTC open: the DTC button of the map in red */
+#mpdtcb.nodtc {
+  background: #8f1d1d;
+  color: #fff;
+  border-color: #c43434;
+}
+#mpdtcb.nodtc:hover {
+  background: #b02525;
+}
 #mpshots {
   position: absolute;
   right: 10px;

@@ -207,8 +207,8 @@ export async function openSettings() {
     ) +
     sw(
       'editTrain',
-      'Edit training DTCs',
-      'The DTC of a training mission (the .ini next to its .trn) is preset by the mission: off, Write DTC never changes it. On: it can be written, after a warning (the original is kept once in backup\\dtc).',
+      'Edit TE and training DTCs',
+      'The DTC of a TE or training mission (the .ini next to its .tac or .trn, loaded by BMS for that mission instead of the callsign.ini) is preset by the mission: off, Write DTC never changes it. On: it can be written, after a warning (the original is kept once in backup\\dtc).',
       !!ui.editTraining
     ) +
     '</div>';

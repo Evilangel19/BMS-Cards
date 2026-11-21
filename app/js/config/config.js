@@ -18,7 +18,7 @@ export const DEFAULTS = {
     checkUpdates: true, // true = once a day the program asks GitHub whether a newer version exists (only a notice: nothing is downloaded)
     oneMapShot: false, // true = one map screenshot on the kneeboard: a new one takes the place (and the page) of the previous one
     osMotion: '', // Windows without animations: '' not asked yet, 'on' = the animations anyway (the answer Yes at start), 'off' = No
-    editTraining: false, // true = Write DTC may change the DTC of a training mission (the .ini next to its .trn), after a warning
+    editTraining: false, // true = Write DTC may change the DTC of a training mission (the .ini next to its .tac or .trn), after a warning
   },
   kneeboard: {
     toneOn: true, // Cockpit tone: the kneeboard pages written darker and with more contrast, for the light of the BMS cockpit (core/tone.js)

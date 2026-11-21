@@ -3707,6 +3707,7 @@ export function createMap(host, deps) {
     $('mpdsave').disabled = !has || !(deps.dtc.canOverwrite && deps.dtc.canOverwrite()) || !deps.dtc.dirty();
     $('mpdsave').classList.toggle('nil', $('mpdsave').disabled);
     $('mpmsave').classList.toggle('nil', !(deps.missionDirty && deps.missionDirty()));
+    $('mpdtcb').classList.toggle('nodtc', !has); // red: no DTC open
     if (ob) {
       ob.classList.toggle('g', !has);
       ob.style.display = has ? '' : 'none';

@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: a TE with its own .ini is handled like a training mission (its DTC opened with it, closed when another is chosen, protected); the DTC button of the map is red when no DTC is open; TE_New / TE_New_NT are no longer listed.
 - Changed: the messages that stop an action are shown in red; the TE / Training menu is as wide as the campaign menu.
 - Fixed: with the animations off in Windows the Kneeboard cards could not be dragged: the program now asks at start whether to have the animations.
 - Fixed: a mission applied to a new DTC without the sections WDP adds (NAV OFFSETS, ICP, Laser, FCC) lost those lines: they can now be added.
