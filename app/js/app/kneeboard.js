@@ -271,6 +271,8 @@ export function kbDcPages() {
   DCK = { v, c: gapless(c) };
   return DCK.c;
 }
+// a card made by the program (its page can make it again, in both looks): by its name
+const kbProg = it => /^(SEAD|DEAD|Attack|Target|Weather|ROE \/ SOP)\b/.test(String((it && it.name) || ''));
 export let KBCARD = null; // the picture card chosen for "Send card…" (click a card: in a slot or among the unused ones)
 // hooks set by the squadron page (the modules cannot import each other): send(item) opens the choice of pilots
 export const KBX = { send: null, can: () => false, src: {} }; // src: the cards of the pages for Add all cards (set by them)
@@ -966,7 +968,11 @@ export function kbRender(keepMenu) {
       lk.title = !KBCARD
         ? 'Click a card made by the program, then switch it between light and dark'
         : !two
-          ? '"' + KBCARD.name + '" has one look only (an imported page, a map, or a card made before 1.3.0-beta.48)'
+          ? kbProg(KBCARD)
+            ? '"' +
+              KBCARD.name +
+              '" has one look only (made before 1.3.0-beta.48): add it again from its page to have both'
+            : 'No dark version available: "' + KBCARD.name + '" is a document, a picture or a map'
           : '"' +
             KBCARD.name +
             '": ' +
@@ -992,7 +998,11 @@ export function kbRender(keepMenu) {
     $('kblk').onclick = async () => {
       if (!KBCARD) return alert('Click a card first (in a slot or among the unused cards).');
       if (!KBCARD.other)
-        return alert('"' + KBCARD.name + '" has one look only: add it again from its page to have both.');
+        return alert(
+          kbProg(KBCARD)
+            ? '"' + KBCARD.name + '" has one look only: add it again from its page to have both.'
+            : 'No dark version available: "' + KBCARD.name + '" is a document, a picture or a map, kept as it is.'
+        );
       await kbSwapLook(KBCARD);
       KBCARD.fixed = true;
       if (KBCARD.dc) dcLookSave();
@@ -1082,7 +1092,7 @@ export function kbRender(keepMenu) {
       (d ? 'Dark' : 'Light') +
       ' cards: ' +
       (n ? n + ' card' + (n > 1 ? 's' : '') + ' switched; ' : '') +
-      'the cards made from now on are drawn so. Cards made before 1.3.0-beta.48 have one look only: add them again.';
+      'the cards made from now on are drawn so. Documents, pictures and maps have no dark version (they stay as they are).';
   };
   $('kbcd').onclick = () => look(!cardDark());
   $('kbfit').onchange = () => {

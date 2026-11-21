@@ -42,9 +42,15 @@ export const AUTO_HINT = { campaigns: () => campDir(), dtc: () => dtcDir(), knee
 export async function autoLoadLast() {
   const u = ST.CFG.ui || {};
   if (!isDesktop() || !u.autoLoad) return;
-  const c = u.lastCamp;
-  if (c && [...$('csel').options, ...$('tesel').options].some(o => o.value == c)) await selectCampaign(c);
-  const d = u.lastDtc;
+  const c = u.lastCamp,
+    d = u.lastDtc;
+  // a training mission opens its own DTC, unless the last DTC is opened just after (the last one opened wins, as before)
+  ST.TRAINSKIP = !!(d && (await fileExists(d)));
+  try {
+    if (c && [...$('csel').options, ...$('tesel').options].some(o => o.value == c)) await selectCampaign(c);
+  } finally {
+    ST.TRAINSKIP = false;
+  }
   if (d && (await fileExists(d))) {
     const b = await readBytes(d);
     await openDtc({
@@ -58,7 +64,7 @@ export async function autoLoadLast() {
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
 const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'kneeboard', 'mission', 'map', 'data', 'help'];
 const SW_OF = {
-  general: ['autoLoad', 'anim', 'upd', 'oneShot'],
+  general: ['autoLoad', 'anim', 'upd', 'oneShot', 'editTrain'],
   datacard: ['form', 'others', 'mfd'],
   kneeboard: ['toneOn', 'toneDark'],
   map: ['sat'],
@@ -93,7 +99,7 @@ function readForm(dlg) {
 // the part of the values that belongs to a section
 const OF = {
   folders: v => v.paths,
-  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot],
+  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot, v.sw.editTrain],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
   kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone],
   mission: v => [v.radius, v.trackers],
@@ -198,6 +204,12 @@ export async function openSettings() {
       'One map screenshot',
       'A new map screenshot replaces the last one, on the same kneeboard page. Off: each screenshot is a new card.',
       !!ui.oneMapShot
+    ) +
+    sw(
+      'editTrain',
+      'Edit training DTCs',
+      'The DTC of a training mission (the .ini next to its .tac) is preset by the mission: off, Write DTC never changes it. On: it can be written, after a warning (the original is kept once in backup\\dtc).',
+      !!ui.editTraining
     ) +
     '</div>';
   const datacard =
@@ -497,6 +509,7 @@ export async function openSettings() {
       autoLoad: v.sw.autoLoad,
       oneMapShot: v.sw.oneShot,
       checkUpdates: v.sw.upd,
+      editTraining: v.sw.editTrain,
     };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
     n.kneeboard = {

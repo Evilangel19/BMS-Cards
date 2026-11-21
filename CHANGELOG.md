@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: training missions open their own DTC, protected unless Settings > General > Edit training DTCs is on.
+- Changed: documents, pictures and maps on the Kneeboard say No dark version available.
 - Changed: Select none / Select all in the windows that choose Kneeboard cards; the Target details card chosen by default.
 - Added: dark datacard pages on the Kneeboard (Datacard and MDC format).
 - Changed: Target cards always in the Paper (BTG) layout, light or dark; Write OA1 / OA2 says No DTC when none is open.

@@ -15,7 +15,8 @@
     "lastCamp": "",
     "wxTaf": "TGT",
     "checkUpdates": true,
-    "oneMapShot": false
+    "oneMapShot": false,
+    "editTraining": false
   },
   "kneeboard": {
     "toneOn": true,

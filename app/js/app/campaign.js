@@ -23,7 +23,7 @@ import { ST } from './state.js';
 import { $, appToast, esc, jp, rememberLast } from './base.js';
 import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
-import { lines } from './dtcfile.js';
+import { lines, openDtc } from './dtcfile.js';
 import { mapV } from './pages.js';
 import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
 import { atoSearch } from './ato.js';
@@ -451,6 +451,37 @@ async function selectCampaign0(name) {
   await loadCam(new File([bytes], name), stale);
   if (stale()) return;
   if (ST.C && ST.C.isTe) $('cinfo').textContent = 'Tactical Engagement. ' + $('cinfo').textContent;
+  // a training mission: a tactical engagement with its own DTC (<name>.ini next to it, preset by the mission). Its DTC is opened with it, unless the last
+  // DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as before). The file is protected: dtcfile.js dtcOverwrite.
+  const ini = /\.tac$/i.test(name) ? find('.ini') : null;
+  ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini } : null;
+  if (ST.TRAIN) {
+    $('cinfo').textContent =
+      'Training mission (its DTC: ' + ini + '). ' + $('cinfo').textContent.replace(/^Tactical Engagement\. /, '');
+    const open = ST.DTCF && ST.DTCF.path;
+    if (!ST.TRAINSKIP && (!open || open.toLowerCase() != ST.TRAIN.path.toLowerCase())) {
+      const dirty = lines.some(l => l.dirty);
+      if (
+        !dirty ||
+        confirm(
+          'Open the DTC of the training mission (' +
+            ini +
+            ')?\n\nThe DTC open now has changes not written: they are lost. Cancel keeps it open.'
+        )
+      )
+        try {
+          const b = await readBytes(ST.TRAIN.path);
+          if (stale()) return;
+          await openDtc({
+            name: ini,
+            path: ST.TRAIN.path,
+            arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+          });
+        } catch (e) {
+          appToast('The DTC of the training mission could not be read: ' + ((e && e.message) || e), true);
+        }
+    }
+  }
 }
 export async function loadFmap(file) {
   let W;

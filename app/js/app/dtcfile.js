@@ -269,6 +269,15 @@ export function syncRoute() {
   due.forEach(([k, v]) => S('STPT', k, v));
   return due.length > 0;
 }
+// the DTC of a training mission: an .ini with a .tac of the same name next to it
+async function trainingIni(p) {
+  if (!p || !/\.ini$/i.test(p)) return false;
+  try {
+    return await IO.fileExists(p.replace(/\.ini$/i, '.tac'));
+  } catch (e) {
+    return false;
+  }
+}
 export async function dtcOverwrite() {
   if (!lines.length) return alert('Open a DTC file first.');
   if (!ST.DTCF || !ST.DTCF.path)
@@ -287,17 +296,42 @@ export async function dtcOverwrite() {
     disk = null;
   }
   const outside = !!(disk && ST.DTCF.orig && !sameBytes(disk, ST.DTCF.orig));
+  // the DTC of a training mission (an .ini next to a .tac of the same name): preset by the mission, written only with Settings > General > Edit training DTCs
+  const edit = !!(ST.CFG.ui && ST.CFG.ui.editTraining),
+    trSelf = await trainingIni(ST.DTCF.path),
+    trExtra = [];
+  for (const f of extra) if (await trainingIni(f)) trExtra.push(f);
+  if (trSelf && !edit)
+    return alert(
+      'This is the DTC of a training mission:\n' +
+        ST.DTCF.path +
+        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit training DTCs.'
+    );
+  if (!edit) extra = extra.filter(f => !trExtra.includes(f));
+  const trWarn =
+    edit && (trSelf || trExtra.length)
+      ? '⚠ TRAINING MISSION: ' +
+        (trSelf ? 'this file is' : 'the campaign file ' + trExtra.join(', ') + ' is') +
+        ' the DTC preset by the mission. Writing changes it (the original is kept once in backup\\dtc).\n\n'
+      : '';
+  const trSkip =
+    !edit && trExtra.length
+      ? '\n\nNot written (the DTC of the training mission, protected: Settings > General > Edit training DTCs):\n' +
+        trExtra.join('\n')
+      : '';
   if (
     !(await confirm(
-      (outside
-        ? '⚠ This file is not the one opened here any more: it was changed outside BMS Cards (by BMS, or another program), or the DTC comes from a mission. Writing replaces it with the DTC shown here, and the changes made outside are lost.\n\n'
-        : '') +
+      trWarn +
+        (outside
+          ? '⚠ This file is not the one opened here any more: it was changed outside BMS Cards (by BMS, or another program), or the DTC comes from a mission. Writing replaces it with the DTC shown here, and the changes made outside are lost.\n\n'
+          : '') +
         'Overwrite this file with your changes?\n\n' +
         ST.DTCF.path +
         (extra.length
           ? '\n\nThe steerpoints, PPT, lines and weapon targets are also written, as BMS keeps them, to the campaign files BMS loads in the game:\n' +
             extra.join('\n')
           : '') +
+        trSkip +
         '\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'
     ))
   )
