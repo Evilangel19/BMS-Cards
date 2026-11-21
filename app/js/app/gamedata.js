@@ -26,6 +26,7 @@ import {
 } from '../bmsdata/bmsdata.js';
 import { CAM } from '../core/cam-core.js';
 import { setGeo } from '../rules/geo.js';
+import { parseMagVar, setMagGrid } from '../core/magvar.js';
 import { ocdPath } from '../core/targets.js';
 import { parseAtc, buildAirbases } from '../bmsdata/airbases.js';
 import { parseAip } from '../bmsdata/aip.js';
@@ -199,6 +200,36 @@ async function readGameData(reloadTheaters, stage = () => {}) {
       if (g) setGeo(g.lat, g.lon, g.proj, g.sizeKm);
       else setGeo();
       ST.THGEO = g;
+      // the magnetic variation of the theater: <theater>\Weather\MagVarMap_<theater>.csv (TerrData\Korea\Weather, Add-On Balkans\Terrdata\Balkans\Weather ...)
+      let mg = null;
+      try {
+        if (ST.TH) {
+          const data = jp(inst, 'Data'),
+            up = d => (Array.isArray(d) ? d : String(d).split(/[\\/]+/)).filter(Boolean),
+            bases = [
+              ST.TH.terrain,
+              ST.TH.newterrain ? up(ST.TH.newterrain).slice(0, -1) : null,
+              ['TerrData', ST.TH.name],
+            ].filter(Boolean);
+          for (const b of bases) {
+            const wdir = jp(data, ...up(b), 'Weather');
+            let es = [];
+            try {
+              es = (await listDir(wdir)).filter(e => !e.isDirectory && /^magvarmap.*\.csv$/i.test(e.name));
+            } catch (e) {
+              es = [];
+            }
+            if (!es.length) continue;
+            const own =
+              es.find(e => e.name.toLowerCase() == ('magvarmap_' + up(b).slice(-1)[0] + '.csv').toLowerCase()) || es[0];
+            mg = parseMagVar(new TextDecoder('utf-8').decode(await readBytes(jp(wdir, own.name))));
+            if (mg) break;
+          }
+        }
+      } catch (e) {
+        mg = null;
+      }
+      setMagGrid(mg);
       const gk = g ? g.lat + ',' + g.lon : 'k';
       const tk = (ST.TH ? ST.TH.name : '') + '|' + gk; // a theater whose centre is not read has the key of Korea: the theater name tells them apart
       if (tk !== ST.GEOKEY && !(ST.GEOKEY === 'k' && gk === 'k')) {

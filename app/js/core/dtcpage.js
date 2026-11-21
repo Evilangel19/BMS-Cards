@@ -39,6 +39,7 @@ import { ewsEvents, ewsSummary, createEwsFx } from './ewsfx.js';
 import { readTarget, targetLine } from './targets.js';
 import { openTargetPicker } from './targetpicker.js';
 import { THREATS } from './harmcodes.js';
+import { toMag } from './magvar.js';
 export const pageOf = s => SEC_OF[s] || 'raw';
 const STPT_TYPES = {
   0: 'Nav',
@@ -200,7 +201,13 @@ export function createDtcPage(deps) {
             name: STPT_TYPES[s.t] || '#' + s.t,
             pos: deps.ll(+s.x, +s.y),
             alt: s.alt,
-            hdg: q ? String((Math.round((Math.atan2(dE, dN) * 180) / Math.PI) + 360) % 360).padStart(3, '0') + '°' : '',
+            hdg: q
+              ? String(
+                  Math.round(
+                    toMag((Math.atan2(dE, dN) * 180) / Math.PI, (+s.y + +q.y) / 6561.68, (+s.x + +q.x) / 6561.68)
+                  ) % 360
+                ).padStart(3, '0') + '°'
+              : '', // magnetic, at the middle of the leg (feet / 3280.84 x 2 = km)
             dist: q ? (Math.hypot(dN, dE) / 6076.12).toFixed(1) : '',
             spd: '',
             form: '',

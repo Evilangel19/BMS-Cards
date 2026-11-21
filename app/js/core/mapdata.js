@@ -6,6 +6,7 @@ import { tmInv, tmFwd, getGeo } from '../rules/geo.js';
 import { ord } from './flight.js';
 import { allyOf, hostileOf } from './coalitions.js';
 import { clean } from './flight.js';
+import { toMag } from './magvar.js';
 
 // campaign km -> [lat, lon]
 export const toLL = (gx, gy) => tmInv((gx - 512) * 1000, (gy - 512) * 1000);
@@ -197,6 +198,7 @@ export function flightState(f, t) {
   return {
     ll: toLL(x, y),
     hdg: ((Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI + 360) % 360,
+    mhdg: toMag((Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI, x, y), // magnetic: what the pilot reads
     altFt: Math.round((a.z + (b.z - a.z) * k) * 10),
     gsKt: dt > 0 ? Math.round(km / KM_NM / (dt / 3600000)) : 0,
   };
@@ -215,6 +217,7 @@ export function legs(route) {
     return {
       nm: Math.hypot(dx, dy) / KM_NM,
       hdg: ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360,
+      mhdg: toMag((Math.atan2(dx, dy) * 180) / Math.PI, (p.x + q.x) / 2, (p.y + q.y) / 2), // magnetic: the texts
       from: q.ll,
       to: p.ll,
       mid: [(q.ll[0] + p.ll[0]) / 2, (q.ll[1] + p.ll[1]) / 2],

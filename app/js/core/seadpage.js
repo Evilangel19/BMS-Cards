@@ -19,6 +19,7 @@ import { mapKeep } from './mapkeep.js';
 import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { drawSeadCard, cardBox, SDC_W, SDC_H, SD_COL } from './seadcard.js';
+import { toMag } from './magvar.js';
 
 const FT_KM = 3280.84,
   KM_NM = 1.852;
@@ -620,7 +621,7 @@ export function createSeadPage(deps) {
       tb = tabTxt(z.sam.code);
     return (
       h +
-      `<div class="kv">${kv('LAUNCH', hms(L.t) + ' · ' + L.from.toFixed(1) + ' nm after STPT ' + L.leg + (L.moved ? ' <span class="hint">(' + L.moved + ' s earlier: outside its ring)</span>' : ''), me ? 'sdme' : '')}${kv('TURN TO', h3(L.brg) + '° (route ' + h3(L.hdg) + '°)')}${kv(
+      `<div class="kv">${kv('LAUNCH', hms(L.t) + ' · ' + L.from.toFixed(1) + ' nm after STPT ' + L.leg + (L.moved ? ' <span class="hint">(' + L.moved + ' s earlier: outside its ring)</span>' : ''), me ? 'sdme' : '')}${kv('TURN TO', h3(toMag(L.brg)) + '° (route ' + h3(toMag(L.hdg)) + '°)')}${kv(
         'MODE',
         md == 'pos'
           ? 'POS ' +
@@ -1075,7 +1076,7 @@ export function createSeadPage(deps) {
         tl: z.launch.off ? '—' : hms(z.launch.t),
         imp: hms(z.imp),
         at: z.launch.off ? '' : z.launch.from.toFixed(1) + ' NM AFTER STPT ' + z.launch.leg,
-        brg: z.launch.off ? '' : h3(z.launch.brg),
+        brg: z.launch.off ? '' : h3(toMag(z.launch.brg)),
         d: z.launch.off ? 0 : z.launch.d,
         tof: z.launch.off ? 0 : z.launch.tof,
         ok: !z.launch.off && z.launch.ok && !(md == 'pos' && (!z.ref || !z.ref.inArea)),

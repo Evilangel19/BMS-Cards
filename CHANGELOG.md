@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Changed: headings and bearings are shown magnetic, with the magnetic variation of the theater (BMS 4.38); offsets, VIP / VRP and winds stay true.
 - Changed: the theater projection is read from the Projection string of Theater.txt; the MSA / ERAA read the high ground again at full detail (a peak between the samples is no longer missed).
 - Changed: a TE with its own .ini is handled like a training mission (its DTC opened with it, closed when another is chosen, protected); the DTC button of the map is red when no DTC is open; TE_New / TE_New_NT are no longer listed.
 - Changed: the messages that stop an action are shown in red; the TE / Training menu is as wide as the campaign menu.

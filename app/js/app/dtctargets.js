@@ -197,7 +197,7 @@ export async function init8() {
               name: fActName(f.wps, i, mn),
               pos: mFmtLL(w.ll[0], w.ll[1]),
               alt: w.altFt,
-              hdg: l ? String(Math.round(l.hdg)).padStart(3, '0') + '°' : '',
+              hdg: l ? String(Math.round(l.mhdg) % 360).padStart(3, '0') + '°' : '',
               dist: l ? l.nm.toFixed(1) : '',
               spd: l && dt > 0 ? Math.round(l.nm / dt) : '',
               form:

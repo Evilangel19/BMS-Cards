@@ -28,6 +28,7 @@ import {
 import { WX_MODES, legend as wxLegend, drawWx } from './wxlayer.js';
 import { WX_ALT, wxLevel } from '../parsers/fmap.js';
 import { symbolSvg, airbaseSvg, SIDE_COL } from './mapsymbols.js';
+import { toMag } from './magvar.js'; // the bearings written on the board: magnetic
 
 const rad = d => (d * Math.PI) / 180;
 const hhmm = ms => {
@@ -2109,7 +2110,7 @@ class Room {
       ctx.stroke();
     }
     const lab =
-      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(brg(o.a, o.b)) + '° · ' + fmtNm(dist(o.a, o.b));
+      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(toMag(brg(o.a, o.b))) + '° · ' + fmtNm(dist(o.a, o.b));
     const lo = (o.k == 'hold' ? 0 : r) + 16,
       sg = o.k == 'hold' ? -1 : 1;
     this.text(
@@ -2171,7 +2172,7 @@ class Room {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     });
-    const l1 = fmtNm(d) + ' · ' + pad3(br) + '°',
+    const l1 = fmtNm(d) + ' · ' + pad3(toMag(br)) + '°',
       l2 = fmtKm(d) + ' · ' + fmtFt(d);
     ctx.font = '700 12px system-ui';
     const w = Math.max(ctx.measureText(l1).width, ((ctx.font = '500 11px system-ui'), ctx.measureText(l2).width)) + 16;
@@ -2266,7 +2267,7 @@ class Room {
     ctx.fill();
     this.text(
       ctx,
-      pad3(br) + '° · ' + fmtNm(d),
+      pad3(toMag(br)) + '° · ' + fmtNm(d),
       e.x + 12 * Math.cos(an),
       e.y + 12 * Math.sin(an) + 4,
       '#fff',

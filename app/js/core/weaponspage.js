@@ -20,6 +20,7 @@ import {
   HADB_LIMITS,
   TOSS_LIMITS,
 } from './strike.js';
+import { toMag } from './magvar.js';
 
 const KEY = 'wppopup3';
 const MODES = [
@@ -55,6 +56,8 @@ const b3 = b => {
 }; // bearings and headings run 1-360
 const nm2 = ft => (ft / FT_NM).toFixed(2) + ' nm';
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
+// a heading the pilot flies: magnetic (BMS 4.38); the bearings of the NAV OFFSETS and of the VIP stay true, as the DED takes them
+const hm = h => h3(toMag(h));
 
 // a NAV OFFSETS value: steerpoint first for the four VIP / VRP rows (as the game and WDP write it), the older order (bearing, range, elevation, steerpoint) is recognised by its first value
 export function navRow(text, withStpt = true) {
@@ -864,8 +867,8 @@ export function createWeaponsPage(deps) {
         [r.map, r.release, 'dive'],
       ],
       labels: [
-        [mid(r.climbStart, r.pdp), 'Climb ' + h3(v.pullHeading) + '°', 'left', [-8, 0]],
-        [mid(r.map, r.release), 'Attack ' + h3(v.attackHeading) + '°', 'right', [8, 0]],
+        [mid(r.climbStart, r.pdp), 'Climb ' + hm(v.pullHeading) + '°', 'left', [-8, 0]],
+        [mid(r.map, r.release), 'Attack ' + hm(v.attackHeading) + '°', 'right', [8, 0]],
       ],
     };
   }
@@ -1099,7 +1102,7 @@ export function createWeaponsPage(deps) {
             ['Dive angle', v.diveAngle + '°'],
             ['Tracking', v.timeOnFinal + ' s'],
             ['Release', `${c.rh} ft · ${c.rs} kt`],
-            ['Egress', `${h3(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
+            ['Egress', `${hm(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
           ]
         : st.mode == 'hadb'
           ? [
@@ -1111,7 +1114,7 @@ export function createWeaponsPage(deps) {
               ['Dive angle', v.diveAngle + '°'],
               ['Tracking', v.timeOnFinal + ' s'],
               ['Release', `${c.rh} ft · ${c.rs} kt`],
-              ['Egress', `${h3(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
+              ['Egress', `${hm(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
             ]
           : [
               ['Ingress', `${c.ia} ft · ${c.is} kt`],
@@ -1121,7 +1124,7 @@ export function createWeaponsPage(deps) {
               ['Release angle', v.releaseAngle + '°'],
               ['Pull-up distance', nm(v.pullDistance)],
               ['Release', `${c.rh} ft · ${c.rs} kt`],
-              ['Egress', `${h3(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
+              ['Egress', `${hm(v.egressHeading)}° · ${nm(v.egressRange || 0)}`],
             ];
     // the spacing (split) and the safety
     const T = dcTexts(),
@@ -2026,10 +2029,10 @@ export function createWeaponsPage(deps) {
     c.is = fmt(v.ingressSpeed || v.releaseSpeed);
     c.rh = fmt(v.releaseAltitude);
     c.rs = fmt(v.releaseSpeed);
-    c.ah = h3(v.attackHeading) + '°';
+    c.ah = hm(v.attackHeading) + '°';
     if (st.mode == 'popup')
       Object.assign(c, {
-        ph: h3(v.pullHeading) + '°',
+        ph: hm(v.pullHeading) + '°',
         cl: Math.round(v.climbAngle) + '°',
         pd: fmt(v.pulldownAltitude),
         tn: side + ' ' + v.turnG + 'G',
@@ -2037,7 +2040,7 @@ export function createWeaponsPage(deps) {
       });
     else if (st.mode == 'hadb')
       Object.assign(c, {
-        ph: h3(v.ingressHeading) + '°',
+        ph: hm(v.ingressHeading) + '°',
         cl: 'DA ' + v.diveAngle + '°',
         pd: 'AOD ' + (v.aod / FT_NM).toFixed(1),
         tn: side + ' ' + v.turnG + 'G',
@@ -2045,7 +2048,7 @@ export function createWeaponsPage(deps) {
       });
     else
       Object.assign(c, {
-        ph: h3(r.hasTurn ? v.ingressHeading : v.attackHeading) + '°',
+        ph: hm(r.hasTurn ? v.ingressHeading : v.attackHeading) + '°',
         cl: 'RA ' + v.releaseAngle + '°',
         pd: 'PUL ' + (v.pullDistance / FT_NM).toFixed(1),
         tn: r.hasTurn ? side + ' ' + v.angleOff + '°' : 'none',
@@ -2361,7 +2364,7 @@ export function createWeaponsPage(deps) {
           `<tr><td>${esc(x.label)}</td><td>${b3(x.row.brg)}°</td><td>${fmt(x.row.rng)}</td><td>${x.alt === undefined ? '' : fmt(x.alt) + ' ft'}</td></tr>`
       )
       .join('');
-    const pupTile = `<div class="tile"><span>${st.mode == 'popup' ? 'PUP' : 'VIP'} to target</span><b>${h3(v.pupBearing)}° · ${(v.pupToTarget / FT_NM).toFixed(1)} nm</b></div>`;
+    const pupTile = `<div class="tile"><span>${st.mode == 'popup' ? 'PUP' : 'VIP'} to target</span><b>${hm(v.pupBearing)}° · ${(v.pupToTarget / FT_NM).toFixed(1)} nm</b></div>`;
     let tiles, kv, turn;
     if (st.mode == 'hadb') {
       tiles =
@@ -2379,8 +2382,8 @@ export function createWeaponsPage(deps) {
         k('TURN DROP', fmt(v.altitudeLoss) + ' ft') +
         k('TOF STICK', v.tofStick.toFixed(1) + ' s');
       turn =
-        k('INGRESS HDG', h3(v.ingressHeading) + '°') +
-        k('ATTACK HDG', h3(v.attackHeading) + '°') +
+        k('INGRESS HDG', hm(v.ingressHeading) + '°') +
+        k('ATTACK HDG', hm(v.attackHeading) + '°') +
         k('ANGLE OFF', v.angleOff + '°') +
         k('TURN', v.side == 'left' ? 'Left' : 'Right') +
         k('TURN G', v.turnG + ' G') +
@@ -2398,9 +2401,9 @@ export function createWeaponsPage(deps) {
         k('BOMB TOF', v.timeOfFall.toFixed(1) + ' s') +
         k('TOF STICK', v.tofStick.toFixed(1) + ' s');
       turn =
-        k('ATTACK HDG', h3(v.attackHeading) + '°') +
+        k('ATTACK HDG', hm(v.attackHeading) + '°') +
         (r.hasTurn
-          ? k('INGRESS HDG', h3(v.ingressHeading) + '°') +
+          ? k('INGRESS HDG', hm(v.ingressHeading) + '°') +
             k('ANGLE OFF', v.angleOff + '°') +
             k('TURN', v.side == 'left' ? 'Left' : 'Right')
           : k('TURN', 'none')) +
@@ -2422,12 +2425,12 @@ export function createWeaponsPage(deps) {
         k('TOF STICK', v.tofStick.toFixed(1) + ' s');
       turn =
         (v.profileType == 1
-          ? k('APPROACH', h3(v.approachHeading) + '°') + k('OFFSET ANG', Math.round(v.offsetAngle) + '°')
+          ? k('APPROACH', hm(v.approachHeading) + '°') + k('OFFSET ANG', Math.round(v.offsetAngle) + '°')
           : '') +
-        k('CLIMB HDG', h3(v.pullHeading) + '°') +
+        k('CLIMB HDG', hm(v.pullHeading) + '°') +
         k('CLIMB ANG', v.climbAngle + '°') +
         k('ANGLE OFF', v.angleOff + '°') +
-        k('ATTACK HDG', h3(v.attackHeading) + '°') +
+        k('ATTACK HDG', hm(v.attackHeading) + '°') +
         k('TURN', v.side == 'left' ? 'Left' : 'Right');
     }
     const fzc = fuzeCard(v, r.fuze, turn);

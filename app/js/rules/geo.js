@@ -1,4 +1,5 @@
 // @ts-check
+import { toMag } from '../core/magvar.js';
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 const hmN = ms => {
   const s = Math.floor(ms / 1000) % 86400,
@@ -136,7 +137,7 @@ const locXY = (C, x, y) => {
   const n = y - C.bull.y,
     e = x - C.bull.x;
   return (
-    String(Math.round(((Math.atan2(e, n) * 180) / Math.PI + 360) % 360) % 360).padStart(3, '0') +
+    String(Math.round(toMag((Math.atan2(e, n) * 180) / Math.PI, x, y)) % 360).padStart(3, '0') + // magnetic
     '/' +
     Math.round(Math.hypot(n, e) / 1.852)
   );

@@ -15,6 +15,7 @@ import { harmShot, NM } from './airmissile.js';
 import { threatOf } from './harmcodes.js';
 import { SD_COL } from './seadcard.js';
 import { drawDeadCard, DDC_W, DDC_H, deadBox, DD_PH } from './deadcard.js';
+import { toMag } from './magvar.js';
 
 const FT_KM = 3280.84,
   KM_NM = 1.852;
@@ -221,7 +222,7 @@ export function createDeadPage(deps) {
           O.push({
             me: mine(z.i),
             t: z.tl,
-            s: `${'#' + (z.i + 1)} launch ${hms(z.tl)}${k ? ' (' + k * 8 + ' s after #' + (P.seats.find(q => q.role == 'shooter').i + 1) + ')' : ''} at ${P.dL.toFixed(0)} nm, ${mode().toUpperCase()}${mode() == 'pos' ? ' ' + sub() : ''}, heading ${h3(z.brgL)}°`,
+            s: `${'#' + (z.i + 1)} launch ${hms(z.tl)}${k ? ' (' + k * 8 + ' s after #' + (P.seats.find(q => q.role == 'shooter').i + 1) + ')' : ''} at ${P.dL.toFixed(0)} nm, ${mode().toUpperCase()}${mode() == 'pos' ? ' ' + sub() : ''}, heading ${h3(toMag(z.brgL))}°`,
           })
         );
       O.push({
@@ -491,7 +492,7 @@ export function createDeadPage(deps) {
     const k = P.seats.find(w => w.role == 'killer'),
       km = k && mine(k.i);
     if (t == 'hk')
-      return `<h3>Killer · HARM${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(P.tHL) + ' · ' + P.dLk.toFixed(1) + ' nm · ' + h3(P.attackHdg) + '°', km ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rThK.toFixed(1) + ' nm', P.dLk <= P.rThK ? '' : 'wbad')}${kv('FLIGHT TIME', P.tofK + ' s')}${kv('IMPACT', hms(P.tImpK) + ' · the killer on its way back')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'bait arc ' + P.Rb.toFixed(0) + ' nm (ECM as needed) · the SAM shoots ' + hms(P.tLaunch) : '—')}</div><p class="hint wnote">The killer shoots when the SAM shoots at the hunter (its radar on). The missile of the HARM page.</p>`;
+      return `<h3>Killer · HARM${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('MISSILE', esc((H && H.m && H.m.name) || 'AGM-88') + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''))}${kv('LAUNCH', hms(P.tHL) + ' · ' + P.dLk.toFixed(1) + ' nm · ' + h3(toMag(P.attackHdg)) + '°', km ? 'sdme' : '')}${kv('RANGE', 'HARM ' + P.rThK.toFixed(1) + ' nm', P.dLk <= P.rThK ? '' : 'wbad')}${kv('FLIGHT TIME', P.tofK + ' s')}${kv('IMPACT', hms(P.tImpK) + ' · the killer on its way back')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'bait arc ' + P.Rb.toFixed(0) + ' nm (ECM as needed) · the SAM shoots ' + hms(P.tLaunch) : '—')}</div><p class="hint wnote">The killer shoots when the SAM shoots at the hunter (its radar on). The missile of the HARM page.</p>`;
     return `<h3>Attack${k ? ' · ' + esc(seatName(k.i)) : ''}</h3><div class="kv">${kv('MARK', hms(P.tLaunch) + ' · when the SAM shoots at the hunter')}${kv('ATTACK', hms(P.tAtk) + ' · from the anchor' + (st.atk ? ' · ' + ATKN[st.atk] : ''), km ? 'sdme' : '')}${kv('WEZ', 'enters at ' + P.R.toFixed(0) + ' nm · ECM on ' + P.Recm.toFixed(0) + ' nm')}${kv('HUNTER', P.seats.some(w => w.role == 'hunter') ? 'covers from its cover point' : '—')}</div>${
       t == 'bomb'
         ? `<div class="ddbtns"><span class="hint">On the map:</span><span class="seg sm">${[
@@ -1391,7 +1392,7 @@ export function createDeadPage(deps) {
                 'SHOOTER',
                 seatName(me) + ' · ' + mode().toUpperCase() + (mode() == 'pos' ? ' ' + sub() : ''),
               ],
-              ['LAUNCH', hms(z.tl), P.dL.toFixed(1) + ' NM · HDG ' + h3(z.brgL) + '°', true],
+              ['LAUNCH', hms(z.tl), P.dL.toFixed(1) + ' NM · HDG ' + h3(toMag(z.brgL)) + '°', true],
               ['THEN', 'BAIT ' + P.Rb.toFixed(0) + ' NM', hms(P.tTurn) + ' · TURN IN, ECM AS NEEDED'],
               ['◆ IMPACT · TOF', hms(z.imp), z.tof + ' S'],
             ]
@@ -1420,7 +1421,7 @@ export function createDeadPage(deps) {
                       [
                         'HARM LAUNCH',
                         hms(P.tHL),
-                        P.dLk.toFixed(1) + ' NM · ' + h3(P.attackHdg) + '° · ' + mode().toUpperCase(),
+                        P.dLk.toFixed(1) + ' NM · ' + h3(toMag(P.attackHdg)) + '° · ' + mode().toUpperCase(),
                         true,
                       ],
                       ['◆ IMPACT · TOF', hms(P.tImpK), P.tofK + ' S'],

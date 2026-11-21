@@ -15,6 +15,7 @@ import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 import { seatCheck, seatEnter } from './seat.js';
+import { setMagRef } from '../core/magvar.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
 export const fkey = f => (f && f.campId != null ? String(f.campId) : null);
@@ -83,6 +84,12 @@ export function apply(i, mode) {
     const pg = groupPackages(ATOL.filter(z => z.pkg == ST.ATOSEL.pkg.n))[0];
     if (pg) ATOCAT.add(pg.cat);
     ST.VIEW = PLAYER;
+  }
+  {
+    // the magnetic variation of the pages without a place of their own (attack, SEAD, DEAD, Target headings): the middle of the route of the flight
+    const w = ((ST.CL[i] && ST.CL[i].f && ST.CL[i].f.wps) || []).filter(p => isFinite(p.x) && isFinite(p.y));
+    if (w.length) setMagRef(w.reduce((a, p) => a + p.x, 0) / w.length, w.reduce((a, p) => a + p.y, 0) / w.length);
+    else setMagRef();
   }
   FD.forEach(d => (F[d.k] = ''));
   XD.forEach(k => (F[k] = ''));

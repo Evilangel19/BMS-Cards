@@ -32,6 +32,9 @@ import {
   filterPic,
 } from './tgtdraw.js';
 import { OBJ_TYPES } from './targets.js';
+import { toMag } from './magvar.js';
+// the headings and bearings the pilot reads: magnetic (BMS 4.38); the heading of the pod picture ("T"), the wind and the turn of the picture stay true
+const brgM = b => brg3(toMag(b));
 
 const FT_KM = 3280.84,
   PW = 1100,
@@ -553,7 +556,7 @@ export function createTargetPage(deps) {
     const k = g ? pxPerKm() : 0;
     if (sh.sam)
       D.sams.forEach(s => {
-        const txt = `${s.name} · ${s.nm.toFixed(1)} NM ${brg3(s.brg)} · WEZ ${s.rNm.toFixed(0)} NM${s.inside ? ' · TGT INSIDE' : ''}`;
+        const txt = `${s.name} · ${s.nm.toFixed(1)} NM ${brgM(s.brg)} · WEZ ${s.rNm.toFixed(0)} NM${s.inside ? ' · TGT INSIDE' : ''}`;
         if (!g) return edge(s.brg, txt, COL.sam);
         const [cx, cy] = W2P(s.x, s.y),
           R = s.r * k,
@@ -683,7 +686,7 @@ export function createTargetPage(deps) {
         leg(
           R.ing,
           COL.ing,
-          'RUN-IN ' + (R.hdg != null ? brg3(R.hdg) : '') + (R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''),
+          'RUN-IN ' + (R.hdg != null ? brgM(R.hdg) : '') + (R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''),
           [14, 8],
           true,
           R.ip,
@@ -694,7 +697,7 @@ export function createTargetPage(deps) {
         leg(
           R.egr,
           COL.egr,
-          'EGRESS ' + (R.ehdg != null ? brg3(R.ehdg) : ''),
+          'EGRESS ' + (R.ehdg != null ? brgM(R.ehdg) : ''),
           [],
           false,
           R.ep,
@@ -941,7 +944,7 @@ export function createTargetPage(deps) {
         D.tgt,
         ll[0],
         ll[1],
-        D.hdg != null && 'BRG ' + brg3(D.hdg).replace('°', ''),
+        D.hdg != null && 'BRG ' + brgM(D.hdg).replace('°', ''),
         D.elv && 'ELV ' + D.elv.replace(' FT', 'F'),
       ],
       false,
@@ -1021,7 +1024,7 @@ export function createTargetPage(deps) {
       [
         'BLK HOT',
         'NFOV',
-        D.hdg != null && 'HDG ' + brg3(D.hdg),
+        D.hdg != null && 'HDG ' + brgM(D.hdg),
         D.alt != null && 'ALT ' + D.alt.toLocaleString('en-US'),
         D.spd != null && 'GS ' + D.spd + ' KT',
         'LRD ARM',
@@ -1221,7 +1224,7 @@ export function createTargetPage(deps) {
       x.setLineDash([]);
       head(p1x, p1y, p2[0], p2[1], 20, c);
       const hd = (Math.atan2(p2[0] - p1x, -(p2[1] - p1y)) * 180) / Math.PI - nUp(); // a heading on the ground
-      tag('RUN-IN ' + brg3(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20, {
+      tag('RUN-IN ' + brgM(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20, {
         col: c,
         al: 'c',
       });
@@ -1656,12 +1659,12 @@ export function createTargetPage(deps) {
     if (D) {
       D.sams.forEach(q =>
         L(
-          `${q.name}: ${q.nm.toFixed(1)} NM ${brg3(q.brg)} · WEZ ${q.rNm.toFixed(0)} NM${q.inside ? ' · the target is inside' : ''}`,
+          `${q.name}: ${q.nm.toFixed(1)} NM ${brgM(q.brg)} · WEZ ${q.rNm.toFixed(0)} NM${q.inside ? ' · the target is inside' : ''}`,
           PF.pst == 'prog' ? COL.sam : '#a35a00'
         )
       );
       D.units.forEach(q =>
-        L(`${q.name}: ${q.nm.toFixed(1)} NM ${brg3(q.brg)}`, PF.pst == 'prog' ? COL.unit : '#b00000')
+        L(`${q.name}: ${q.nm.toFixed(1)} NM ${brgM(q.brg)}`, PF.pst == 'prog' ? COL.unit : '#b00000')
       );
       if (!D.sams.length && !D.units.length) L('No known enemy SAM or unit near the target.', p.mu);
     } else M();
@@ -1671,14 +1674,14 @@ export function createTargetPage(deps) {
       const R = D.route;
       if (R.src == 'attack') {
         L(
-          `${R.mode || 'Attack'} · run-in ${R.hdg != null ? brg3(R.hdg) : '—'}${R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''}${R.rel ? ' · release ' + Math.round(R.rel).toLocaleString('en-US') + ' ft' : ''}`
+          `${R.mode || 'Attack'} · run-in ${R.hdg != null ? brgM(R.hdg) : '—'}${R.spd ? ' · ' + Math.round(R.spd) + ' KT' : ''}${R.rel ? ' · release ' + Math.round(R.rel).toLocaleString('en-US') + ' ft' : ''}`
         );
-        L(`Egress ${R.ehdg != null ? brg3(R.ehdg) : '—'}${R.wpn ? ' · ' + R.wpn : ''}`);
+        L(`Egress ${R.ehdg != null ? brgM(R.ehdg) : '—'}${R.wpn ? ' · ' + R.wpn : ''}`);
       } else {
         L(
-          `Flight plan: STPT ${R.stpt}${R.ipName ? ' from ' + R.ipName : ''}${R.hdg != null ? ' · in ' + brg3(R.hdg) : ''}`
+          `Flight plan: STPT ${R.stpt}${R.ipName ? ' from ' + R.ipName : ''}${R.hdg != null ? ' · in ' + brgM(R.hdg) : ''}`
         );
-        L(`Out${R.epName ? ' to ' + R.epName : ''}${R.ehdg != null ? ' · ' + brg3(R.ehdg) : ''}`);
+        L(`Out${R.epName ? ' to ' + R.epName : ''}${R.ehdg != null ? ' · ' + brgM(R.ehdg) : ''}`);
       }
       const i = deps.info ? deps.info() : {};
       if (t.flight && i.tot) L('TOT ' + i.tot);

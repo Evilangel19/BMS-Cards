@@ -5,6 +5,7 @@ import { mapKeep } from './mapkeep.js';
 import { timeline, CLASSES, STD, mslName, toKt, toMach } from './bvrtimeline.js';
 import { bvrShot, harmShot, marShot, HARM_SUB, NM } from './airmissile.js';
 import { bearing, project } from './popup.js';
+import { toMag } from './magvar.js';
 
 const FT_KM = 3280.84;
 // surface-to-air missiles (they have a radar seeker too) and the inert training rounds are not air-to-air shots
@@ -341,7 +342,7 @@ export function createMissilesPage(deps) {
               ? 'EOMG is still possible.'
               : 'no EOMG either (TI and GI both on): the missile neither glides nor flexes.');
       return (
-        `<div class="wpt">${tiles}</div><div class="wcard"><h3>Shot</h3><div class="kv">${kv('LAUNCH POINT', r.shot ? h3(bearing(r.em, r.launch) % 360) + '° · ' + (r.shot / NM).toFixed(1) + ' nm from the emitter' : 'none: outside the envelope')}${kv('ATTACK HDG', h3(v.heading) + '°')}${kv('LOFT ANGLE', r.loft == null ? 'none (no loft table)' : Math.round(r.loft) + '°')}${kv('FLIGHT TIME', fmt(r.flight) + ' s')}` +
+        `<div class="wpt">${tiles}</div><div class="wcard"><h3>Shot</h3><div class="kv">${kv('LAUNCH POINT', r.shot ? h3(toMag(bearing(r.em, r.launch))) + '° · ' + (r.shot / NM).toFixed(1) + ' nm from the emitter' : 'none: outside the envelope')}${kv('ATTACK HDG', h3(v.heading) + '°')}${kv('LOFT ANGLE', r.loft == null ? 'none (no loft table)' : Math.round(r.loft) + '°')}${kv('FLIGHT TIME', fmt(r.flight) + ' s')}` +
         (r.ringFt
           ? kv('SAM RING', (r.ringFt / NM).toFixed(1) + ' nm') +
             kv(
@@ -826,7 +827,7 @@ export function createMissilesPage(deps) {
       color: '#111',
       weight: 2,
     }).addTo(WL);
-    lab(r.launch, 'Launch · ' + h3(r.v.heading) + '°');
+    lab(r.launch, 'Launch · ' + h3(toMag(r.v.heading)) + '°');
     L.circleMarker(ll(r.em), {
       renderer: RN,
       radius: 7,

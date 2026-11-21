@@ -15,6 +15,7 @@ import {
   egressHeading,
   offsetRow,
 } from './popup.js';
+import { toMag } from './magvar.js';
 
 const rad = d => (d * Math.PI) / 180,
   deg = r => (r * 180) / Math.PI,
@@ -224,8 +225,8 @@ export function computeHadb(target, ref, inp) {
         [endTurn, release, 'dive'],
       ],
       labels: [
-        [mid2(oa, pup), 'Ingress ' + h3(hin) + '°'],
-        [mid2(endTurn, release), 'Attack ' + h3(attack) + '°'],
+        [mid2(oa, pup), 'Ingress ' + hm(hin) + '°'],
+        [mid2(endTurn, release), 'Attack ' + hm(attack) + '°'],
       ],
     },
     vert,
@@ -403,8 +404,8 @@ export function computeToss(target, ref, inp) {
         [pup, release, 'climb'],
       ],
       labels: [
-        [mid2(oa, pup), 'Attack ' + h3(attack) + '°'],
-        ...(vrp ? [[mid2(oa2L, vrp), 'Ingress ' + h3(hin) + '°']] : []),
+        [mid2(oa, pup), 'Attack ' + hm(attack) + '°'],
+        ...(vrp ? [[mid2(oa2L, vrp), 'Ingress ' + hm(hin) + '°']] : []),
       ],
     },
     vert,
@@ -482,4 +483,5 @@ export function matCheck(r, ppt, sam) {
 }
 const mid2 = (a, b) => ({ n: (a.n + b.n) / 2, e: (a.e + b.e) / 2 });
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
+const hm = h => h3(toMag(h)); // magnetic, as the pilot reads it
 export { offsetRow, FT_NM };

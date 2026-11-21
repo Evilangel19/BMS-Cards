@@ -84,6 +84,7 @@ import {
   store,
   tgtName,
 } from './mapconst.js';
+import { magAt } from './magvar.js';
 export function createMap(host, deps) {
   let map = null,
     G = {},
@@ -2947,7 +2948,7 @@ export function createMap(host, deps) {
             ' · ' +
             s.gsKt +
             ' kt · ' +
-            Math.round(s.hdg) +
+            Math.round(s.mhdg) +
             '°',
           { direction: 'right', offset: [10, 0] }
         )
@@ -2967,7 +2968,7 @@ export function createMap(host, deps) {
   const msaZ = () => (map ? map.getZoom() : 8);
   function msaMark(ll, secs, hov) {
     const L = window.L,
-      sy = msaSymbol(secs, msaZ(), deps.magvar ? deps.magvar() : 0);
+      sy = msaSymbol(secs, msaZ(), magAt(...fromLL(ll[0], ll[1]))); // the bearings of the sectors magnetic, with the variation of the place
     return L.marker(ll, {
       icon: L.divIcon({ className: hov ? 'msas fxh' : 'msas', html: sy.html, iconSize: [0, 0] }), // fxh: the symbol under the mouse fades in
       interactive: false,
@@ -3171,7 +3172,7 @@ export function createMap(host, deps) {
       mk.bindPopup(
         () =>
           stpPopup(
-            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
+            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.mhdg) % 360).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
             p,
             mk
           ),

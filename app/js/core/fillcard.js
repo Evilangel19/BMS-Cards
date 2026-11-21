@@ -27,6 +27,7 @@ import { mapUnits } from './mapdata.js';
 import { wezOf, wezText, wezSams } from './wez.js';
 import { escShort, csShort } from './mdcfill.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
+import { toMag } from './magvar.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
 // a target in the notes: the long words of the unit names shortened, so that the line holds at a size that reads
 const tgtShort = t =>
@@ -200,7 +201,9 @@ function fillCard(C, f, ld = 0) {
         dx = p.x - q.x,
         dy = p.y - q.y,
         nm = Math.hypot(dx, dy) * 0.539957;
-      F[`fp${i}_2`] = String(Math.round(((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360)).padStart(3, '0');
+      F[`fp${i}_2`] = String(
+        Math.round(toMag((Math.atan2(dx, dy) * 180) / Math.PI, (p.x + q.x) / 2, (p.y + q.y) / 2)) % 360
+      ).padStart(3, '0'); // magnetic, as the HSI
       F[`fp${i}_3`] = nm.toFixed(1);
       const dt = (p.arr - (q.dep || q.arr)) / 1000;
       if (dt > 0 && q.arr) {
