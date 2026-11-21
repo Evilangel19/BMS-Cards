@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: Add all cards made the SEAD, DEAD, Attack and Target cards without their map; the side profile of the dark Attack card was light.
 - Added: Kneeboard: a ☀ / ☾ button for the look of one card (kept by the Light / Dark cards button) and Add all cards (every card of the flight, chosen on their pictures); Send card at the top.
 - Changed: one Add card a page, at the right of its tabs (Weapons, Weather, ROE / SOP); Target: Put on datacard at the top, Save PNG in Page.
 - Fixed: the departure airport was listed among the targets.

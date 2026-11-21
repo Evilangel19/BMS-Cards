@@ -415,7 +415,13 @@ const ALL_SRC = [
 export async function kbAddAll() {
   const L = [],
     none = [],
-    bid = busyStart('Making the cards…', true);
+    bid = busyStart('Making the cards…', true),
+    tab0 = document.querySelector('.tab.on[data-t]'),
+    cover = document.createElement('div'); // the pages with a map make their cards on screen: the Kneeboard stays in front
+  cover.id = 'kbcover';
+  cover.innerHTML = '<span>Making the cards…</span>';
+  document.body.append(cover);
+  if (KBX.begin) KBX.begin();
   try {
     for (let i = 0; i < ALL_SRC.length; i++) {
       const [k, l] = ALL_SRC[i],
@@ -432,6 +438,15 @@ export async function kbAddAll() {
       else none.push(l);
     }
   } finally {
+    try {
+      if (KBX.end) await KBX.end();
+    } catch (e) {
+      /* the pages as they are */
+    }
+    const t = /** @type {HTMLElement|null} */ (tab0 && !tab0.classList.contains('on') ? tab0 : null);
+    if (t) t.click();
+    await new Promise(r => setTimeout(r, 150));
+    cover.remove();
     busyEnd(bid);
   }
   if (!L.length)
@@ -483,10 +498,16 @@ export async function kbAddAll() {
     if (!pick.length) return;
     close();
     let slots = 0;
-    for (const c of pick) {
-      const b = await new Promise(r => c.c.toBlob(r, 'image/png')),
-        a = await new Promise(r => c.alt.toBlob(r, 'image/png'));
-      if (b && (await kbAddPic(b, c.name, a, c.dark))) slots++;
+    const ab = busyStart('Adding the cards…', true);
+    try {
+      for (const c of pick) {
+        const b = await new Promise(r => c.c.toBlob(r, 'image/png')),
+          a = await new Promise(r => c.alt.toBlob(r, 'image/png'));
+        if (b && (await kbAddPic(b, c.name, a, c.dark))) slots++;
+        busySet(ab, ((pick.indexOf(c) + 1) / pick.length) * 100);
+      }
+    } finally {
+      busyEnd(ab);
     }
     kbRender();
     kbMemLater();
@@ -823,7 +844,7 @@ export function kbRender(keepMenu) {
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
- <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program, then switch it between light and dark">☀</button><button class="btn g" id="kball" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): chosen on their pictures, then put into the Kneeboard">＋ Add all cards…</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP): light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
+ <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program, then switch it between light and dark">☀</button><button class="btn g" id="kball" style="margin-left:auto" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): chosen on their pictures, then put into the Kneeboard">＋ Add all cards…</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP): light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
  <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;

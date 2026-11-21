@@ -690,3 +690,16 @@ dialog[open]::backdrop {
   font-size: 16px;
   text-align: center;
 }
+
+/* Add all cards: the pages with a map make their cards on screen, behind this cover */
+#kbcover {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  background: var(--bg, #0b0f14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mu, #8b98a8);
+  font-size: 13px;
+}

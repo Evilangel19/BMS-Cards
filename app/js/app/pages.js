@@ -853,11 +853,72 @@ export async function init9() {
   deadPage = createDeadPage(deadDeps());
   harmTab = makeHarmTab();
   ST.tgPage = createTargetPage(tgtDeps());
-  // Add all cards (Kneeboard): the cards of these pages, in the order of the window
-  KBX.src.sead = () => seadPage.allCards();
-  KBX.src.dead = () => deadPage.allCards();
-  KBX.src.atk = () => (ST.wpPage ? ST.wpPage.allCards() : []);
-  KBX.src.tgt = () => ST.tgPage.allCards();
+  // Add all cards (Kneeboard): the cards of these pages, in the order of the window. The pages with a map make their cards on screen (the picture of
+  // the map is taken from the map shown in them), under the cover of the Kneeboard: Weapons is opened on their tab, then put back as it was.
+  const wpGo = async (mode, hsub) => {
+    const q = s => /** @type {HTMLElement|null} */ (document.querySelector(s)),
+      wait = ms => new Promise(r => setTimeout(r, ms));
+    if (!q('#wp:not(.hide)') || !q('#wp .wtabs')) {
+      const t = q('.tab[data-t=wp]');
+      if (t) t.click();
+      await wait(400);
+    }
+    const b = q('#wp .wtabs [data-mode="' + mode + '"]');
+    if (b && !b.classList.contains('on')) {
+      b.click();
+      await wait(500);
+    }
+    if (hsub) {
+      const h = q('#wp [data-hsub="' + hsub + '"]');
+      if (h && !h.classList.contains('on')) {
+        h.click();
+        await wait(500);
+      }
+    }
+    await wait(700); // the map in its place, its tiles
+  };
+  let wp0 = null;
+  KBX.begin = () => {
+    let hs = null;
+    try {
+      hs = sessionStorage.getItem('harmsub');
+    } catch (e) {
+      /* none */
+    }
+    wp0 = { mode: ST.wpPage && ST.wpPage.mode ? ST.wpPage.mode() : null, hs };
+  };
+  KBX.end = async () => {
+    const q = s => /** @type {HTMLElement|null} */ (document.querySelector(s));
+    if (wp0 && wp0.hs) {
+      const h = q('#wp [data-hsub="' + wp0.hs + '"]');
+      if (h && !h.classList.contains('on')) h.click();
+    }
+    if (wp0 && wp0.mode) {
+      const b = q('#wp .wtabs [data-mode="' + wp0.mode + '"]');
+      if (b && !b.classList.contains('on')) b.click();
+    }
+    wp0 = null;
+  };
+  KBX.src.sead = async () => {
+    if (!seadPage.usable()) return [];
+    await wpGo('harm', 'sead');
+    return seadPage.allCards();
+  };
+  KBX.src.dead = async () => {
+    if (!deadPage.usable()) return [];
+    await wpGo('harm', 'dead');
+    return deadPage.allCards();
+  };
+  KBX.src.atk = async () => {
+    if (!ST.wpPage) return [];
+    const m = ST.wpPage.amode ? ST.wpPage.amode() : 'popup';
+    await wpGo(m);
+    return ST.wpPage.allCards();
+  };
+  KBX.src.tgt = async () => {
+    await wpGo('tgt');
+    return ST.tgPage.allCards();
+  };
   KBX.src.roe = roeAllCards;
   // the desktop program takes the files dropped on its window: a picture dropped on Weapons > Target is its screenshot
   if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));

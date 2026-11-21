@@ -171,6 +171,12 @@ try:
         check('...back on Weapons: its choice again (%s)' % pg.inner_text('#wp [data-sdpf]'), pg.inner_text('#wp [data-sdpf]') == 'No filters')
         pg.click('#wp [data-sdpf]'); pg.click('#wp [data-sdpf]'); pg.click('#wp [data-sdpf]'); pg.wait_for_timeout(500)
         check('...round to the Map filters', pg.inner_text('#wp [data-sdpf]') == 'Map filters' and mf() == f0)
+        # Add all cards of the Kneeboard: the SEAD page makes its cards on screen (Weapons opened behind a cover), so the map card has its map
+        pg.click('[data-t=kn]'); pg.wait_for_timeout(600); pg.click('#kball'); pg.wait_for_selector('.kball .tgcard', timeout=30000); pg.wait_for_timeout(300)
+        lab = pg.locator('.kball .tgcard').all_inner_texts()
+        sd = pg.evaluate("()=>{const c=document.querySelector('.kball .tgcard canvas'),d=c.getContext('2d').getImageData(20,70,160,110).data,s=new Set();for(let i=0;i<d.length;i+=16)s.add(d[i]>>4<<8|d[i+1]>>4<<4|d[i+2]>>4);return s.size}")
+        check('Add all cards: the two SEAD cards, the map card with its map (%s, %d colours), back on the Kneeboard' % (lab, sd), lab[:2] == ['SEAD · With the map', 'SEAD · With the scheme'] and sd > 12 and pg.locator('.tab.on[data-t=kn]').count() == 1 and pg.locator('#kbcover').count() == 0)
+        pg.click('.kball [data-a=no]'); pg.wait_for_timeout(300)
         check('no page errors', not errs)
         if errs: print(errs)
 finally:

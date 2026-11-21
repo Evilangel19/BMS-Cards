@@ -3345,6 +3345,8 @@ export function createWeaponsPage(deps) {
         }
       : null;
   return {
+    mode: () => st.mode, // Add all cards of the Kneeboard: the tab to give back
+    amode: () => (ATK.includes(st.mode) ? st.mode : ATK.includes(st.amode) ? st.amode : 'popup'), // the attack page last shown
     lethal,
     allCards,
     refresh,

@@ -355,6 +355,8 @@ export function drawAtkCard(x, D) {
   x.font = `${kbPx(19)}px ${FONT}`;
   x.fillStyle = MUTE;
   x.fillText('altitudes above the target · fragments of your bombs red, of the other role yellow', 230, QY - 14);
+  // the profile is a dark picture in both looks: its colours as they are (the dark look would turn its ground light)
+  /** @type {any} */ (x).__raw = true;
   x.fillStyle = '#0f1419';
   x.fillRect(QX - 110, QY, QW + 110, QH);
   x.save();
@@ -453,6 +455,7 @@ export function drawAtkCard(x, D) {
   x.textAlign = 'right';
   x.textBaseline = 'middle';
   for (let a = 0; a < qtop; a += step) x.fillText(a ? (a / 1000).toFixed(0) + 'k' : 'TGT', QX - 10, qy(a));
+  /** @type {any} */ (x).__raw = false;
   x.strokeStyle = INK;
   x.lineWidth = 2;
   x.strokeRect(QX - 110, QY, QW + 110, QH);
