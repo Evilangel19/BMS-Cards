@@ -59,6 +59,9 @@
           "path": "**/*.[nN][eE][wW]"
         },
         {
+          "path": "**/cache/terrmax_*.[bB][iI][nN]"
+        },
+        {
           "path": "**/*.[bB][aA][dD]"
         },
         {

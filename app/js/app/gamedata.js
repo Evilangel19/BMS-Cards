@@ -27,6 +27,7 @@ import {
 import { CAM } from '../core/cam-core.js';
 import { setGeo } from '../rules/geo.js';
 import { parseMagVar, setMagGrid } from '../core/magvar.js';
+import { terrMaxStart } from './terrmax.js';
 import { ocdPath } from '../core/targets.js';
 import { parseAtc, buildAirbases } from '../bmsdata/airbases.js';
 import { parseAip } from '../bmsdata/aip.js';
@@ -230,6 +231,7 @@ async function readGameData(reloadTheaters, stage = () => {}) {
         mg = null;
       }
       setMagGrid(mg);
+      terrMaxStart(); // the highest ground of every km for the MSA: read from its file, else made in the background (terrmax.js)
       const gk = g ? g.lat + ',' + g.lon : 'k';
       const tk = (ST.TH ? ST.TH.name : '') + '|' + gk; // a theater whose centre is not read has the key of Korea: the theater name tells them apart
       if (tk !== ST.GEOKEY && !(ST.GEOKEY === 'k' && gk === 'k')) {
