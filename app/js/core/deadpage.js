@@ -335,7 +335,7 @@ export function createDeadPage(deps) {
       <div class="wpr"><div class="wcard" id="ddst"></div><div class="wcard" id="dddt"></div><div id="ddoa"></div><div id="ddwn"></div></div></div>
       <div class="sdbar"><span class="hint" id="ddnote"></span></div>`;
     // the buttons of the page at the top, in the bar of the HARM tab (harmTab puts them there)
-    acts.innerHTML = `<button type="button" class="btn g" data-ddtab title="Checks the HARM tables of the DTC for the target: adds it only after asking">HARM tables</button><button type="button" class="btn g" data-ddppt title="The target as a pre-planned threat of the DTC (the AUTO PPT of the Map page), after asking">Auto PPT</button><button type="button" class="btn" data-ddcard title="A DEAD card for the Kneeboard: with the map or with the scheme">Add card</button>`;
+    acts.innerHTML = `<button type="button" class="btn g" data-ddtab title="Checks the HARM tables of the DTC for the target: adds it only after asking">HARM tables</button><button type="button" class="btn g" data-ddppt title="The target as a pre-planned threat of the DTC (the AUTO PPT of the Map page), after asking">Auto PPT</button>`;
     wire();
   }
   const kv = (a, b, c) => `<span>${a}</span><b${c ? ` class="${c}"` : ''}>${b}</b>`;
@@ -1283,7 +1283,6 @@ export function createDeadPage(deps) {
       }
       if (c('[data-ddtab]')) return tables();
       if (c('[data-ddppt]')) return ppt();
-      if (c('[data-ddcard]')) return addCard(c('[data-ddcard]'));
     };
     root.onchange = e => {
       const d = e.target.dataset || {};
@@ -1674,6 +1673,10 @@ export function createDeadPage(deps) {
       fit = false;
     }
   }
+  const KINDS = [
+    ['map', 'With the map'],
+    ['sch', 'With the scheme'],
+  ];
   function drawCard(D, kind) {
     const c = document.createElement('canvas');
     c.width = DDC_W;
@@ -1698,11 +1701,7 @@ export function createDeadPage(deps) {
     }
     btn.disabled = false;
     btn.textContent = bt;
-    const KINDS = [
-        ['map', 'With the map'],
-        ['sch', 'With the scheme'],
-      ],
-      C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(D, k)])),
+    const C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(D, k)])),
       on = { map: true };
     const d = document.createElement('dialog');
     d.className = 'tgdlg';
@@ -1760,9 +1759,27 @@ export function createDeadPage(deps) {
     d.showModal();
   }
 
+  // every card of this page, in both looks, for Add all cards of the Kneeboard: [{name, label, c, alt, dark}] (none when there is nothing to plan)
+  async function allCards() {
+    compute();
+    if (!P) return [];
+    const D = cardData();
+
+    const B = deadBox(D);
+    D.px = await snapPlan(B.w / B.h);
+    return KINDS.map(([k, l]) => ({
+      name: 'DEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''),
+      label: 'DEAD · ' + l,
+      c: drawCard(D, k),
+      alt: otherLook(() => drawCard(D, k)),
+      dark: cardDark(),
+    }));
+  }
   return {
     root,
     acts: () => acts,
+    allCards,
+    addCard: b => addCard(b), // Add card of the Weapons tabs
     // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;

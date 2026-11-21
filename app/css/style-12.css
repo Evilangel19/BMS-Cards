@@ -415,6 +415,27 @@
 .tgdlg .tgsp {
   flex: 1;
 }
+/* Add all cards of the Kneeboard: many cards, in rows that scroll */
+.tgdlg.kball {
+  width: min(960px, 96vw);
+}
+.tgdlg.kball .tgcards {
+  flex-wrap: wrap;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.tgdlg.kball .tgcard {
+  width: 166px;
+}
+.tgdlg.kball .tgcard canvas {
+  width: 120px;
+  height: 180px;
+}
+.tgdlg.kball .tgcard span {
+  text-align: center;
+  line-height: 1.25;
+}
 /* the LEVELS menu of the Map page, lent to the bar of the picture */
 .tgp .tglev {
   position: relative;

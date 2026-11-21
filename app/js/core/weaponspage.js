@@ -1299,6 +1299,34 @@ export function createWeaponsPage(deps) {
     btn.disabled = false;
     draw(true);
   }
+  // every attack card, in both looks, for Add all cards of the Kneeboard: [{name, label, c, alt, dark}] (none without an attack: no target chosen, or a
+  // steerpoint that is no target)
+  async function allCards() {
+    const m0 = st.mode;
+    if (!ATK.includes(st.mode)) st.mode = ATK.includes(st.amode) ? st.amode : 'popup';
+    try {
+      compute();
+      if (!ctx || !ctx.t || !ctx.T.some(x => x.v === st.tgt)) return []; // no target chosen: the planner would take the first steerpoint
+      const out = [];
+      for (const D of atkCards()) {
+        D.px = await snapPlan(D);
+        const mk = () => {
+          const c = document.createElement('canvas');
+          c.width = ATC_W;
+          c.height = ATC_H;
+          drawAtkCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D);
+          return c;
+        };
+        const nm = 'Attack · ' + D.role + (D.target ? ' · ' + D.target : '');
+        out.push({ name: nm, label: nm, c: mk(), alt: otherLook(mk), dark: cardDark() });
+      }
+      return out;
+    } catch (e) {
+      return [];
+    } finally {
+      st.mode = m0;
+    }
+  }
   // the cards of the roles: the flight, or the lead and the element of a split flight
   function atkCards() {
     const m = st.inMode;
@@ -2436,6 +2464,16 @@ export function createWeaponsPage(deps) {
     return h;
   }
 
+  // Add card at the right of the tabs: the cards of the page shown (an attack, the SEAD or DEAD page of the HARM tab, the pages of the target)
+  function wireTabCard(root) {
+    const b = root.querySelector('[data-tabcard]');
+    if (!b) return;
+    b.onclick = () => {
+      if (ATK.includes(st.mode)) return addAtkCards(b);
+      const p = st.mode == 'tgt' ? deps.tgt : deps.harm;
+      if (p && p.addCard) return p.addCard(b);
+    };
+  }
   function draw(keepLeft) {
     const sub = st.mode == 'harm' ? deps.harm : st.mode == 'tgt' ? deps.tgt : null;
     if (sub) {
@@ -2449,7 +2487,7 @@ export function createWeaponsPage(deps) {
       if (deps.applyBtn) deps.applyBtn.classList.add('nil');
       const root = deps.root;
       if (!keepLeft || !root.contains(sub.root)) {
-        root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
+        root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD or DEAD card, or the pages of the target">Add card</button></div>`;
         root.appendChild(sub.root);
         root.querySelectorAll('[data-mode]').forEach(
           b =>
@@ -2463,6 +2501,7 @@ export function createWeaponsPage(deps) {
               draw(false);
             })
         );
+        wireTabCard(root);
       }
       sub.render();
       return;
@@ -2508,7 +2547,7 @@ export function createWeaponsPage(deps) {
         )
         .join('');
       const md = st.mode,
-        tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
+        tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD or DEAD card, or the pages of the target">Add card</button></div>`;
       const gq = grpOf(st.inMode),
         one = seatInfo().size <= 1,
         // the rows and buttons of the split fade in when they appear, not each time the panel is drawn again (a click on them would be lost)
@@ -2720,7 +2759,7 @@ export function createWeaponsPage(deps) {
           ${oa1Row}
           <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
-        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button><span style="flex:1"></span><button class="btn" type="button" data-atkcard title="Kneeboard cards of this attack: one for the flight, or one for the lead and one for the element of a split flight (the plan on the map of the Map page, the side profile, the parameters, the spacing, the NAV OFFSETS)">Add card</button></div>
+        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
           <div class="wrow wmap"><label>Map layer</label>${seg(
             'mapon',
             [
@@ -3119,8 +3158,7 @@ export function createWeaponsPage(deps) {
       };
       po.textContent = LAB[deps.planMode ? deps.planMode() : 0];
     }
-    const acb = root.querySelector('[data-atkcard]');
-    if (acb) acb.onclick = () => addAtkCards(acb);
+    wireTabCard(root);
     const fb = root.querySelector('[data-fit]');
     if (fb)
       fb.onclick = () => {
@@ -3308,6 +3346,7 @@ export function createWeaponsPage(deps) {
       : null;
   return {
     lethal,
+    allCards,
     refresh,
     render: () => {
       if (deps.root.closest('.hide')) return;

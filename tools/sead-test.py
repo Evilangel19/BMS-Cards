@@ -130,7 +130,7 @@ try:
         cd = pg.evaluate("()=>__app.seadPage.card()")
         check('the SEAD card data: your seat (#2), all the shots, the scheme and the events', cd['seatName'] == '#2' and len(cd['shots']) >= 3 and cd['sm']['prot'] and cd['sm']['rows'] and len(cd['ev']) > 5)
         k0 = pg.evaluate('()=>__app.KBLIB.length')
-        pg.click('#wp [data-sdcard]')
+        pg.click('#wp [data-tabcard]')
         pg.wait_for_selector('dialog.tgdlg[open]', timeout=15000)
         check('Add card…: a dialog with the two cards (map, scheme)', pg.locator('dialog.tgdlg[open] .tgcard').count() == 2)
         pg.click('dialog.tgdlg[open] .tgcard[data-kind=sch]'); pg.click('dialog.tgdlg[open] [data-a=ok]')

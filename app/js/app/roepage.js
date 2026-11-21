@@ -299,10 +299,14 @@ let GUARD = false;
 function leaveGuard() {
   if (GUARD) return;
   GUARD = true;
+  // Add card at the right of the tabs of the Squadron page (shown on the ROE / SOP tab)
+  document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('#sqroekb')) addCards();
+  });
   document.addEventListener(
     'click',
     e => {
-      const t = e.target.closest && e.target.closest('.tab[data-t], #sqtabs button, #sqroe [data-a=back]');
+      const t = e.target.closest && e.target.closest('.tab[data-t], #sqtabs button[data-tab], #sqroe [data-a=back]');
       if (!t || !R.box || !R.box.offsetParent || !dirty() || R.leaving) return;
       if (t.matches('[data-t=sq]') || t.dataset.tab == 'roe') return;
       e.preventDefault();
@@ -491,7 +495,7 @@ function render0(box) {
       warn.length
         ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
         : ''
-    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
+    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
     'other',
@@ -522,6 +526,31 @@ function writeCard() {
   markMan();
   draw();
   R.wrote = key(R.sel);
+}
+// the ROE / SOP cards, in both looks, for Add all cards of the Kneeboard (none when nothing is chosen; pages.js registers it)
+export async function roeAllCards() {
+  const c = document.createElement('canvas');
+  c.width = CARD_W;
+  c.height = CARD_H;
+  const seen = R.box && ST.CURK === R.flightKey, // the page was opened on this flight: its choices, else those of the datacard
+    plan = roeCardPlan(seen ? R.sel : flightSel(), c.getContext('2d'));
+  if (!plan.length) return [];
+  const c0 = seen && R.pick && !dirty() && chipOf(R.pick),
+    sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '';
+  const mk = p => {
+    const k = document.createElement('canvas');
+    k.width = CARD_W;
+    k.height = CARD_H;
+    roeCardDraw(p, k.getContext('2d'), sub);
+    return k;
+  };
+  return plan.map(p => ({
+    name: p.title + (sub ? ' · ' + sub : ''),
+    label: p.title,
+    c: mk(p),
+    alt: otherLook(() => mk(p)),
+    dark: cardDark(),
+  }));
 }
 // Add card: the whole text on Kneeboard cards (two when one is not enough: ROE and SOP apart, the pilot is told first)
 async function addCards() {

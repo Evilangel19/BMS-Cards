@@ -89,7 +89,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
-import { roeDraw } from './roepage.js';
+import { roeDraw, roeAllCards } from './roepage.js';
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
@@ -820,6 +820,9 @@ function makeHarmTab() {
       pg.refresh();
     },
     sub: () => cur(),
+    // Add card of the Weapons tabs: the card of the SEAD or DEAD page shown
+    addCard: b =>
+      pg && pg.addCard ? pg.addCard(b) : appToast('No card for this page: choose a SEAD or a DEAD flight.', true),
   };
 }
 
@@ -850,6 +853,12 @@ export async function init9() {
   deadPage = createDeadPage(deadDeps());
   harmTab = makeHarmTab();
   ST.tgPage = createTargetPage(tgtDeps());
+  // Add all cards (Kneeboard): the cards of these pages, in the order of the window
+  KBX.src.sead = () => seadPage.allCards();
+  KBX.src.dead = () => deadPage.allCards();
+  KBX.src.atk = () => (ST.wpPage ? ST.wpPage.allCards() : []);
+  KBX.src.tgt = () => ST.tgPage.allCards();
+  KBX.src.roe = roeAllCards;
   // the desktop program takes the files dropped on its window: a picture dropped on Weapons > Target is its screenshot
   if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));
   ST.wpPage = createWeaponsPage({

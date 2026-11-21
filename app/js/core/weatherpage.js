@@ -188,7 +188,7 @@ export function createWeatherPage(deps) {
     prOf(W);
     cur = { W, lv, fl };
     const fd = deps.fillState ? deps.fillState() : null;
-    const tabs = `<div class="wtabs" id="wxtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
+    const tabs = `<div class="wtabs" id="wxtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}${fl ? '<button type="button" class="btn wtcard" data-wxcard title="Kneeboard cards of the weather of the flight: SIGWX, RADAR or WIND, chosen on their pictures">Add card</button>' : ''}</div>`;
     const fillBtn =
       fl && deps.fill
         ? `<button type="button" class="btn ${fd && fd.diff ? 'bl' : 'g'}${fd && !fd.diff ? ' nil' : ''}" data-fill title="Write ATIS, TAF and runways of the flight again from the weather maps of the right hours (fields you typed by hand are replaced). Dimmed when the datacard already holds them.">Fill datacard (ATIS, TAF, runways)</button>`
@@ -227,10 +227,7 @@ export function createWeatherPage(deps) {
           })()
         : '<p class="hint">No flight selected.</p>';
     const al = alofts(s, W);
-    const cardBtn = fl
-      ? `<button type="button" class="btn" data-wxcard title="Kneeboard cards of the weather of the flight: SIGWX, RADAR or WIND, chosen on their pictures">Add card</button>`
-      : '';
-    root.innerHTML = `${tabs}<div class="wxtop"><span class="hint" id="wxtop">${topText(s)}</span><span style="flex:1"></span>${cardBtn}${fillBtn}</div>
+    root.innerHTML = `${tabs}<div class="wxtop"><span class="hint" id="wxtop">${topText(s)}</span><span style="flex:1"></span>${fillBtn}</div>
 <div class="wxg"><div class="wxl"><div class="wcard"><h3 id="wxh">Map · ${MODES.find(m => m[0] == st.mode)[1]}</h3><div class="wxmapbox" id="wxbox"></div><div class="wxleg" id="wxleg">${legend(st.mode, W, lv)}</div><div class="hint wxinfo" id="wxinfo">Move over the map for the data of a cell. Scroll to zoom, drag to move.</div></div></div>
 <div class="wxr"><div class="wcard"><h3>Airbases</h3>${bases}</div><div class="wcard"><h3>Along the route</h3>${rte}</div><div class="wcard"><h3>Winds aloft${al.tg ? ' · ' + esc(((fl.labels && fl.labels[fl.wps.indexOf(al.tg)]) || 'target') + ' (STPT ' + (fl.wps.indexOf(al.tg) + 1) + ')') : ''}</h3><div id="wxal">${al.html}</div><div class="hint wxnote">Layers at 0, 3, 6, 9, 12, 18, 24, 30, 40 and 50 thousand feet. Direction is where the wind comes from.</div></div></div></div>`;
     // the panel sits on the map (like the filters of the Map page): the map is put in the box first, the panel over it
@@ -574,7 +571,29 @@ export function createWeatherPage(deps) {
       };
     wirePanel();
   }
+  // every weather card (SIGWX, RADAR, WIND), in both looks, for Add all cards of the Kneeboard: [{name, label, c, alt, dark}]
+  async function allCards() {
+    const fl = deps.flight();
+    if (!fl) return [];
+    const D = await cardData(fl);
+    if (!D) return [];
+    const mk = k => {
+      const c = document.createElement('canvas');
+      c.width = WXC_W;
+      c.height = WXC_H;
+      drawWxCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, k);
+      return c;
+    };
+    return KINDS.map(([k, l, pre]) => ({
+      name: pre + (fl.title || '') + ' · ' + l,
+      label: 'Weather · ' + l,
+      c: mk(k),
+      alt: otherLook(() => mk(k)),
+      dark: cardDark(),
+    }));
+  }
   return {
+    allCards,
     render: () => {
       if (!deps.root.isConnected || deps.root.closest('.hide')) return;
       draw();

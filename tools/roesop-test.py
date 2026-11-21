@@ -128,7 +128,7 @@ try:
         # Add card: the whole text on a Kneeboard card
         pg.click(B + '.rpk[data-r=ws][data-v=tight]'); pg.select_option(B + '.rpr[data-t=dep] select', 'combat'); pg.wait_for_timeout(150)
         n0 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
-        pg.click(B + '[data-a=kb]'); pg.wait_for_timeout(800)
+        pg.click('#sqroekb'); pg.wait_for_timeout(800)
         kb = pg.evaluate("async()=>{const k=await import('/app/js/app/kneeboard.js');return k.KBLIB.slice(-1).map(i=>i.name)}")
         n1 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
         check('Add card puts one ROE / SOP card on the Kneeboard %s' % kb, n1 == n0 + 1 and kb and kb[0].startswith('ROE / SOP'))

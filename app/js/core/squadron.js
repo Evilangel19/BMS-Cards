@@ -3218,6 +3218,8 @@ export function createSquadronPage(deps) {
     const t = TABS.some(x => x[0] == DB.tab) ? DB.tab : 'members';
     root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t));
     root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t));
+    const kb = root.querySelector('#sqroekb'); // Add card of the ROE / SOP tab (roepage.js does it)
+    if (kb) kb.hidden = t != 'roe';
     if (t == 'missions') drawSaved();
     // the Briefing borrows the map of the Map page only while it is on screen
     if (brief) {
@@ -3601,7 +3603,7 @@ export function createSquadronPage(deps) {
   };
   function build() {
     root.innerHTML = `<div class="sqw">
-<div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+<div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" id="sqroekb" hidden title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button></div>
 <div class="sqpane" data-pane="roe"><div id="sqroe"></div></div>
 <div class="sqpane sqmem" data-pane="members">
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>

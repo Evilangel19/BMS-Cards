@@ -675,3 +675,18 @@ dialog[open]::backdrop {
 .flb div i.wz {
   color: #ffb347;
 }
+/* Kneeboard: Send card in blue; the look of the chosen card, a square with the sun or the moon */
+#kn .btn.g.bl {
+  background: #1d5f99;
+  color: #fff;
+  border-color: #3a8fd6;
+}
+#kn .btn.g.bl:hover {
+  background: #2574b8;
+}
+#kn #kblk {
+  width: 34px;
+  padding: 0;
+  font-size: 16px;
+  text-align: center;
+}

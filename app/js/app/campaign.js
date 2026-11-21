@@ -15,7 +15,7 @@ import { parseIff } from '../parsers/iff.js';
 import { parseTwx } from '../parsers/twx.js';
 import { fmapDrift } from '../parsers/fmap.js';
 import { coastRegion } from '../core/mapconst.js';
-import { kbAddPic } from './kneeboard.js';
+import { kbAddPic, KBX } from './kneeboard.js';
 import { terrain, heightsOf } from './gamefiles.js';
 import { FT_KM } from '../core/mapdtc.js';
 import basemap from '../data/basemap.js';
@@ -504,6 +504,7 @@ export async function loadTwx(file) {
 // run 14: statements that run when the program starts (in the order of the original file)
 export async function init14() {
   WXS = new Map();
+  KBX.src.wx = () => (wxPage ? wxPage.allCards() : []); // Add all cards (Kneeboard)
   wxPage = createWeatherPage({
     root: $('wx'),
     esc,

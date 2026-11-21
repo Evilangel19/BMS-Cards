@@ -1979,7 +1979,7 @@ export function createTargetPage(deps) {
     page = 'g';
     segSet('page', 'g');
     q('.tgcropbar').hidden = false;
-    q('.tgmainbar').hidden = true;
+    q('.tgdc').disabled = true;
     appear(q('.tgcropbar'));
     q('.tgcropn').textContent =
       CROP.name + ' format (' + CROP.dim + '): drag the frame; the wheel or the slider changes its size.';
@@ -1992,7 +1992,7 @@ export function createTargetPage(deps) {
     const c = { u: CROP.u, v: CROP.v, w: CROP.w, h: CROP.h };
     CROP = null;
     q('.tgcropbar').hidden = true;
-    q('.tgmainbar').hidden = false;
+    q('.tgdc').disabled = false;
     draw();
     if (!ok) return;
     const s = st();
@@ -2086,7 +2086,7 @@ export function createTargetPage(deps) {
       ['paper', 'Paper (BTG)'],
     ],
     PF.pst
-  )}</div>
+  )}<span class="tgsp"></span><button type="button" class="btn g tgpng" title="The page shown, as a PNG file">Save PNG</button></div>
    <div class="tgrow"><span class="hint">Labels</span>${seg(
      'lsty',
      [
@@ -2107,7 +2107,7 @@ export function createTargetPage(deps) {
      ['t', 'Target information'],
    ],
    page
- )}<span class="tglev" hidden></span><span class="tgdetb" hidden title="The aim points of the two detail pictures (Target information and its Details card)"><span class="hint">Details</span><select data-det="0" aria-label="Detail 1"></select><select data-det="1" aria-label="Detail 2"></select></span><span class="tgmapb" hidden><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></span><span class="tgsp"></span><span class="hint tginfo"></span></div>
+ )}<span class="tglev" hidden></span><span class="tgdetb" hidden title="The aim points of the two detail pictures (Target information and its Details card)"><span class="hint">Details</span><select data-det="0" aria-label="Detail 1"></select><select data-det="1" aria-label="Detail 2"></select></span><span class="tgmapb" hidden><button type="button" class="btn g tgpf" title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></span><span class="tgsp"></span><span class="hint tginfo"></span><button type="button" class="btn tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div>
   <div class="tgtb">${TOOLS.map(
     ([k, l]) =>
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
@@ -2116,9 +2116,7 @@ export function createTargetPage(deps) {
   )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}</span><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
   <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
-  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div>
-  <div class="tgbar tgmainbar"><span class="tgsp"></span>
-   <button type="button" class="btn g tgpng">Save PNG</button><button type="button" class="btn tgkb" title="The pages as Kneeboard cards: the free slots first, else among the unused cards">Add card</button><button type="button" class="btn tgdc" title="The picture takes the place of the map screenshot of the datacard">Put on datacard</button></div></div>`;
+  <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div></div>`;
     cv = root.querySelector('canvas');
     wire();
   }
@@ -2412,7 +2410,6 @@ export function createTargetPage(deps) {
         }, 500);
       }, 'image/png');
     };
-    q('.tgkb').onclick = () => addCards();
     q('.tgdc').onclick = () => {
       if (!pic()) return deps.toast && deps.toast('There is no picture yet.');
       cropStart();
@@ -3104,8 +3101,33 @@ export function createTargetPage(deps) {
     if (!TL.some(t => t.key == sel)) sel = TL.length ? TL[0].key : '';
   }
 
+  // the cards of the target chosen, in both looks, for Add all cards of the Kneeboard: [{name, label, c, alt, dark, off}] (Details off at first)
+  async function allCards(self) {
+    if (!built) await self.render();
+    const t = tgt();
+    if (!t) return [];
+    return [
+      ['g', 'Graphic'],
+      ['t', 'Target information'],
+      ['d', 'Details (positive ID)'],
+    ].map(([k, l]) => ({
+      name: 'Target · ' + t.name + ' · ' + l,
+      label: 'Target · ' + l,
+      c: card(k),
+      alt: otherLook(() => card(k)),
+      dark: cardDark(),
+      off: k == 'd',
+    }));
+  }
   return {
     root,
+    allCards() {
+      return allCards(this);
+    },
+    // Add card of the Weapons pages row: the pages of the target as Kneeboard cards
+    addCard() {
+      return built ? addCards() : undefined;
+    },
     async render() {
       if (!built) {
         build();

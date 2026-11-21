@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: Kneeboard: a ☀ / ☾ button for the look of one card (kept by the Light / Dark cards button) and Add all cards (every card of the flight, chosen on their pictures); Send card at the top.
+- Changed: one Add card a page, at the right of its tabs (Weapons, Weather, ROE / SOP); Target: Put on datacard at the top, Save PNG in Page.
+- Fixed: the departure airport was listed among the targets.
 - Fixed: the Light / Dark cards button did not switch the cards after a restart (their other look was not kept); the weather card profile went past the right edge.
 - Changed: card text plain weight again, at least 22 px; the cards keep a light and a dark look and the Light / Dark cards button switches those already on the kneeboard.
 - Changed: card text blacker and heavier (also Target and ROE / SOP cards); one Light / Dark cards button; a loading bar while the kneeboard is written.

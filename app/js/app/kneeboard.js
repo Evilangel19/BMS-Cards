@@ -57,7 +57,7 @@ export async function msfCards(dir) {
     if (it.other) {
       const af = fn.replace(/\.[^.]+$/, '') + '.other.png';
       await IO.writeBytes(joinPath(cd, af), new Uint8Array(await it.other.arrayBuffer()));
-      alts[fn] = { file: af, dark: !!it.dark };
+      alts[fn] = { file: af, dark: !!it.dark, fixed: !!it.fixed };
       keepOther.add(af);
     }
   }
@@ -115,6 +115,7 @@ export async function msfCardsLoad(dir, merge) {
           try {
             it.other = new Blob([await readBytes(joinPath(joinPath(dir, 'cards'), lk.file))], { type: 'image/png' });
             it.dark = !!lk.dark;
+            it.fixed = !!lk.fixed;
           } catch (e) {}
         lib.set(fn, it);
         KBLIB.push(it);
@@ -217,7 +218,7 @@ ST.KBG = null;
 export let KBTR = [];
 export let KBCARD = null; // the picture card chosen for "Send card…" (click a card: in a slot or among the unused ones)
 // hooks set by the squadron page (the modules cannot import each other): send(item) opens the choice of pilots
-export const KBX = { send: null, can: () => false };
+export const KBX = { send: null, can: () => false, src: {} }; // src: the cards of the pages for Add all cards (set by them)
 export let KBFIT = false;
 export const kbUsedKind = k => KBS.some(r => r.left.kind == k || r.right.kind == k);
 export const kbUsedItem = it =>
@@ -401,6 +402,106 @@ export async function kbAddPic(blob, name, alt, dark) {
   kbRender();
   return side ? { side, row } : null;
 }
+// ADD ALL CARDS: every card the pages can make for the flight (SEAD, DEAD, Attack, Weather, Target, ROE / SOP; not the documents), in both looks, shown in
+// a window to choose them on their pictures, then put into the free slots (else among the unused cards)
+const ALL_SRC = [
+  ['sead', 'SEAD'],
+  ['dead', 'DEAD'],
+  ['atk', 'Attack'],
+  ['wx', 'Weather'],
+  ['tgt', 'Target'],
+  ['roe', 'ROE / SOP'],
+];
+export async function kbAddAll() {
+  const L = [],
+    none = [],
+    bid = busyStart('Making the cards…', true);
+  try {
+    for (let i = 0; i < ALL_SRC.length; i++) {
+      const [k, l] = ALL_SRC[i],
+        f = KBX.src[k];
+      busySet(bid, (i / ALL_SRC.length) * 100, 'Making the cards: ' + l + '…');
+      await new Promise(r => setTimeout(r, 20));
+      let got = [];
+      try {
+        got = f ? (await f()) || [] : [];
+      } catch (e) {
+        got = [];
+      }
+      if (got.length) got.forEach(c => L.push({ ...c, src: l }));
+      else none.push(l);
+    }
+  } finally {
+    busyEnd(bid);
+  }
+  if (!L.length)
+    return alert(
+      'No card to make for this flight: open its pages first (Weapons, Weather, ROE / SOP) and choose what to plan.'
+    );
+  const on = L.map(c => !c.off),
+    d = document.createElement('dialog');
+  d.className = 'tgdlg kball';
+  d.innerHTML = `<h3>Add all cards to the Kneeboard</h3><p class="hint">The cards the program can make for this flight, ${cardDark() ? 'dark' : 'light'} as chosen (each keeps the other look too). Click a card to leave it out. They go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.${none.length ? ' Nothing to make for: ' + none.join(', ') + '.' : ''}</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
+  document.body.append(d);
+  const cnt = () => {
+    const n = on.filter(Boolean).length,
+      b = d.querySelector('[data-a=ok]');
+    b.textContent = n ? `Add ${n} card${n > 1 ? 's' : ''}` : 'Add';
+    b.classList.toggle('nil', !n);
+  };
+  L.forEach((c, i) => {
+    const it = document.createElement('button');
+    it.type = 'button';
+    it.className = 'tgcard' + (on[i] ? ' on' : '');
+    const th = document.createElement('canvas');
+    th.width = 200;
+    th.height = 300;
+    th.getContext('2d').drawImage(c.c, 0, 0, 200, 300);
+    it.append(th);
+    const s = document.createElement('span');
+    s.textContent = c.label;
+    it.append(s);
+    it.onclick = () => {
+      on[i] = !on[i];
+      it.classList.toggle('on', on[i]);
+      cnt();
+    };
+    d.querySelector('.tgcards').append(it);
+  });
+  cnt();
+  const close = () => {
+    d.close();
+    d.remove();
+  };
+  d.querySelector('[data-a=no]').onclick = close;
+  d.addEventListener('cancel', e => {
+    e.preventDefault();
+    close();
+  });
+  d.querySelector('[data-a=ok]').onclick = async () => {
+    const pick = L.filter((c, i) => on[i]);
+    if (!pick.length) return;
+    close();
+    let slots = 0;
+    for (const c of pick) {
+      const b = await new Promise(r => c.c.toBlob(r, 'image/png')),
+        a = await new Promise(r => c.alt.toBlob(r, 'image/png'));
+      if (b && (await kbAddPic(b, c.name, a, c.dark))) slots++;
+    }
+    kbRender();
+    kbMemLater();
+    $('kbst').textContent =
+      pick.length +
+      ' card' +
+      (pick.length > 1 ? 's' : '') +
+      ' added: ' +
+      slots +
+      ' into free slots' +
+      (pick.length > slots ? ', ' + (pick.length - slots) + ' among the unused cards' : '') +
+      '.';
+  };
+  d.showModal();
+}
 // a card with two looks takes the other one (its picture, its small copy)
 async function kbSwapLook(it) {
   const o = it.other;
@@ -421,7 +522,7 @@ async function kbSwapLook(it) {
 export async function kbLook(dark) {
   let n = 0;
   for (const it of KBLIB)
-    if (it.other && !!it.dark != !!dark) {
+    if (it.other && !it.fixed && !!it.dark != !!dark) {
       await kbSwapLook(it);
       n++;
     }
@@ -722,9 +823,9 @@ export function kbRender(keepMenu) {
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
- <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP): light or dark. The cards already on the kneeboard keep theirs until they are added again.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
+ <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program, then switch it between light and dark">☀</button><button class="btn g" id="kball" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): chosen on their pictures, then put into the Kneeboard">＋ Add all cards…</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP): light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
- <div class="kbx"><button class="btn g gn nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button>${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
+ <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
   const pickCard = c => {
     KBCARD = c && c.kind == 'pic' && c.item ? c.item : null;
@@ -735,6 +836,23 @@ export function kbRender(keepMenu) {
       const c = t.dataset.i !== undefined ? KBTR[+t.dataset.i] : t.dataset.s ? KBS[+t.dataset.r][t.dataset.s] : null;
       t.classList.toggle('csel', !!(KBCARD && c && c.kind == 'pic' && c.item === KBCARD));
     });
+    const lk = $('kblk');
+    if (lk) {
+      const two = !!(KBCARD && KBCARD.other);
+      lk.classList.toggle('nil', !two);
+      lk.textContent = two && KBCARD.dark ? '☾' : '☀';
+      lk.title = !KBCARD
+        ? 'Click a card made by the program, then switch it between light and dark'
+        : !two
+          ? '"' + KBCARD.name + '" has one look only (an imported page, a map, or a card made before 1.3.0-beta.48)'
+          : '"' +
+            KBCARD.name +
+            '": ' +
+            (KBCARD.dark ? 'dark' : 'light') +
+            '. Press for ' +
+            (KBCARD.dark ? 'light' : 'dark') +
+            ' (this card only; the Light / Dark cards button then leaves it as it is)';
+    }
     const b = $('kbsend');
     if (b) {
       b.classList.toggle('nil', !KBCARD || !KBX.can()); // dimmed, not disabled: a click says what is missing
@@ -747,6 +865,18 @@ export function kbRender(keepMenu) {
   };
   if (KBCARD && !KBLIB.includes(KBCARD)) KBCARD = null;
   kbMarkCard();
+  // the look of the chosen card only: kept when the general button switches the others
+  if ($('kblk'))
+    $('kblk').onclick = async () => {
+      if (!KBCARD) return alert('Click a card first (in a slot or among the unused cards).');
+      if (!KBCARD.other)
+        return alert('"' + KBCARD.name + '" has one look only: add it again from its page to have both.');
+      await kbSwapLook(KBCARD);
+      KBCARD.fixed = true;
+      kbMemLater();
+      kbRender();
+    };
+  if ($('kball')) $('kball').onclick = () => kbAddAll();
   if ($('kbsend'))
     $('kbsend').onclick = () => {
       if (!KBCARD)

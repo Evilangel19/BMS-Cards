@@ -87,7 +87,7 @@ try:
         check('the state keeps the split for the mission file', s == {'split': True, 'who': 'elem', 'inMode': 'popup'})
         # the Attack kneeboard cards: one per role with the split, the role shown kept
         ac = pg.evaluate("()=>__app.wpPage.atkCards().map(d=>({role:d.role,other:!!d.other,rows:d.rows.length}))")
-        check('Attack cards: the Add card button, one card for the lead and one for the element %s' % ac, pg.locator('[data-atkcard]').count() == 1 and len(ac) == 2 and ac[0]['role'] != ac[1]['role'] and all(c['other'] and c['rows'] > 3 for c in ac) and who() == 'elem')
+        check('Attack cards: the Add card button, one card for the lead and one for the element %s' % ac, pg.locator('[data-tabcard]').count() == 1 and len(ac) == 2 and ac[0]['role'] != ac[1]['role'] and all(c['other'] and c['rows'] > 3 for c in ac) and who() == 'elem')
         pg.click('[data-mode=hadb]'); pg.wait_for_timeout(500)
         check('HADB has its own split', sb() == 'Split')
         pg.click('[data-split]'); pg.wait_for_timeout(600)

@@ -215,7 +215,7 @@ export function createSeadPage(deps) {
       <div class="wpr"><div class="wcard" id="sdsh"></div><div class="wcard" id="sdcv"></div><div id="sdpr"></div></div></div>
       <div class="sdbar"><span class="hint" id="sdnote"></span></div>`;
     // the buttons of the page at the top, in the bar of the HARM tab (harmTab puts them there)
-    acts.innerHTML = `<button type="button" class="btn g" data-sdtab title="Checks the HARM tables of the DTC against the threats of your seat: adds a missing one only after asking">HARM tables</button><button type="button" class="btn g" data-sdppt title="The threats of your seat as pre-planned threats of the DTC (the AUTO PPT of the Map page): an exact steerpoint for POS. Adds the missing ones after asking.">Auto PPT</button><button type="button" class="btn" data-sdcard title="A SEAD card for the Kneeboard: with the map or with the scheme">Add card</button>`;
+    acts.innerHTML = `<button type="button" class="btn g" data-sdtab title="Checks the HARM tables of the DTC against the threats of your seat: adds a missing one only after asking">HARM tables</button><button type="button" class="btn g" data-sdppt title="The threats of your seat as pre-planned threats of the DTC (the AUTO PPT of the Map page): an exact steerpoint for POS. Adds the missing ones after asking.">Auto PPT</button>`;
     wire();
   }
   function fill() {
@@ -941,7 +941,6 @@ export function createSeadPage(deps) {
       }
       if (c('[data-sdtab]')) return tables();
       if (c('[data-sdppt]')) return ppt();
-      if (c('[data-sdcard]')) return addCard(c('[data-sdcard]'));
     };
     root.onchange = e => {
       const t = e.target,
@@ -1302,9 +1301,27 @@ export function createSeadPage(deps) {
     d.showModal();
   }
 
+  // every card of this page, in both looks, for Add all cards of the Kneeboard: [{name, label, c, alt, dark}] (none when there is nothing to plan)
+  async function allCards() {
+    compute();
+    if (!P) return [];
+    const D = cardData();
+    if (!D.shots.length) return [];
+    const B = cardBox(D);
+    D.px = await snapPlan(B.w / B.h);
+    return KINDS.map(([k, l]) => ({
+      name: 'SEAD · ' + X.me.name + (k == 'sch' ? ' · scheme' : ''),
+      label: 'SEAD · ' + l,
+      c: drawCard(D, k),
+      alt: otherLook(() => drawCard(D, k)),
+      dark: cardDark(),
+    }));
+  }
   return {
     root,
     acts: () => acts,
+    allCards,
+    addCard: b => addCard(b), // Add card of the Weapons tabs
     // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;

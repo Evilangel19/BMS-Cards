@@ -523,7 +523,7 @@ textarea {
   margin: 0 0 12px;
   border-bottom: 1px solid var(--line);
 }
-.wtabs button {
+.wtabs button:not(.btn) {
   padding: 7px 16px;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -538,12 +538,17 @@ textarea {
     background-color 0.15s;
   border-radius: 6px 6px 0 0;
 }
-.wtabs button:hover {
+.wtabs button:not(.btn):hover {
   background: #ffffff0d;
 }
-.wtabs button.on {
+.wtabs button:not(.btn).on {
   color: #fff;
   border-bottom-color: #1f7a46;
+}
+/* Add card of a page, at the right of its tabs (Weapons, Weather, ROE / SOP) */
+.wtabs .wtcard {
+  margin: 0 0 5px auto;
+  align-self: center;
 }
 .wmapbox {
   position: relative;

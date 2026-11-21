@@ -100,7 +100,7 @@ try:
         oa = pg.inner_text('#ddoa')
         check('...the nav offset in the right column, from STPT 3: the anchor (OA1), its Add button, Write OA1', pg.locator('.wpr #ddoa .oab').count() == 1 and pg.locator('#ddoa [data-ddadd]').count() == 1 and 'Write OA1' in oa and 'type them on board' in oa and 'FROM STPT 3' in oa.upper())
         check('...the map: one anchor, the fighting wing, the SAM shooting at the hunter, the HARM of the killer and its impact, no cover (none chosen)', pg.locator('#ddmap .ddanc').count() == 1 and 'ANCHOR · OA1' in pg.inner_text('#ddmap') and 'HUNTER DEFENDS' in pg.inner_text('#ddmap') and 'KILLER MARKS' not in pg.inner_text('#ddmap') and 'FIGHTING WING' in pg.inner_text('#ddmap') and pg.locator('#ddmap .sdimp').count() == 2 and 'TOP COVER' not in pg.inner_text('#ddmap'))
-        check('the buttons at the top, in the bar of SEAD | DEAD, without dots: HARM tables, Auto PPT, Add card', pg.locator('#wp .hsub .hacts button').all_inner_texts() == ['HARM tables', 'Auto PPT', 'Add card'])
+        check('the buttons at the top, in the bar of SEAD | DEAD, without dots: HARM tables, Auto PPT (Add card at the right of the tabs)', pg.locator('#wp .hsub .hacts button').all_inner_texts() == ['HARM tables', 'Auto PPT'] and pg.locator('#wp .wtabs [data-tabcard]').count() == 1)
         if shots: pg.locator('#wp').screenshot(path=shots + '/dead-hk.png')
         msgs = []
         pg.on('dialog', lambda d: (msgs.append(d.message), d.accept()))
@@ -154,7 +154,7 @@ try:
         check('the scheme shown: the card with the map still gets the map picture, the scheme stays', px == '1' and pg.locator('#ddsch svg').is_visible() and not pg.locator('#ddmap').is_visible())
         pg.click('#wp [data-ddview=map]'); pg.wait_for_timeout(600)
         k0 = pg.evaluate('()=>__app.KBLIB.length')
-        pg.click('#wp [data-ddcard]')
+        pg.click('#wp [data-tabcard]')
         pg.wait_for_selector('dialog.tgdlg[open]', timeout=15000)
         check('Add card…: a dialog with the two cards (map, scheme)', pg.locator('dialog.tgdlg[open] .tgcard').count() == 2)
         pg.click('dialog.tgdlg[open] .tgcard[data-kind=sch]'); pg.click('dialog.tgdlg[open] [data-a=ok]')
