@@ -445,7 +445,13 @@ function tgtDeps() {
         return [];
       }
     },
-    info: () => ({ cs: F.cs || '', mis: F.mis || '', tot: String(F.d1 || '').split(' · ')[0], wpn: F.ag || '', tag: flightTag() }),
+    info: () => ({
+      cs: F.cs || '',
+      mis: F.mis || '',
+      tot: String(F.d1 || '').split(' · ')[0],
+      wpn: F.ag || '',
+      tag: flightTag(),
+    }),
     geoLL: (x, y) => {
       try {
         return ST.C ? CAM.geoLL(ST.C, x, y) : mFmtLL(...mToLL(x, y));
