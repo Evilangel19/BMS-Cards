@@ -28,7 +28,8 @@ const CHUNK = 6000; // cells per call of the reader
 export const FINE_N = 16, // the fine pass: FINE_N x FINE_N samples in a cell (1 km / 16 = 62.5 m)
   FINE_MARGIN = 2000, // ft: the most a cell may hide above its coarse highest
   FINE_CHUNK = 64; // cells per call of the reader in the fine pass
-// how much higher than its coarse highest a cell may be: twice the steepest step to its neighbours (a slope that goes on between two rows of samples), at most
+// how much higher than its coarse highest a cell may be: the steepest step to its neighbours (a slope that goes on for the half km between the row of samples and
+// the edge of the cell is half of it: twice that for safety), at most
 // FINE_MARGIN; flat ground hides nothing. A cell is read again whole when its coarse highest plus that could beat the highest found.
 const hidden = (cache, i, j) => {
   const h = hAt(cache, i, j);
@@ -43,12 +44,53 @@ const hidden = (cache, i, j) => {
     const g = hAt(cache, i + a, j + b);
     if (g !== null) d = Math.max(d, Math.abs(h - g));
   }
-  return Math.min(FINE_MARGIN, 2 * d);
+  return Math.min(FINE_MARGIN, d);
 };
-const mayBeat = (cache, i, j, top) => {
+// the most a cell may hold: its coarse highest and what its slope may hide
+const bound = (cache, i, j) => {
   const v = hAt(cache, i, j);
-  return v !== null && v + hidden(cache, i, j) > top;
+  return v === null ? -Infinity : v + hidden(cache, i, j);
 };
+const TOP_BATCH = 8; // cells read finely at a time at first, highest bound first (then twice as many each time, up to FINE_CHUNK)
+/**
+ * The fine pass of groups of cells (the legs and the whole route; the bins of an airbase), highest bound first: the cells are read whole a batch at a time, and
+ * it stops as soon as no cell left may beat the highest found of its group (branch and bound): on most ground a handful of cells is read, in a few calls.
+ * groups: [{items: [{c: [i, j], ub}], top}] (top: the highest known; a cell may be in several groups). Returns false when there is no terrain data.
+ */
+async function topDown(elev, cache, groups) {
+  const fineOf = c => {
+    const f = cache.get('f' + key(c[0], c[1]));
+    return f === undefined ? undefined : f;
+  };
+  for (const g of groups)
+    for (const it of g.items) {
+      const f = fineOf(it.c);
+      if (f !== undefined && f !== null && f > g.top) g.top = f;
+    }
+  let batch = TOP_BATCH;
+  for (;;) {
+    const want = new Map(); // key -> {c, ub}: the cells not read finely that may still beat the top of one of their groups
+    for (const g of groups)
+      for (const it of g.items)
+        if (it.ub > g.top && fineOf(it.c) === undefined) {
+          const k = key(it.c[0], it.c[1]),
+            w = want.get(k);
+          if (!w || w.ub < it.ub) want.set(k, it);
+        }
+    if (!want.size) return true;
+    const part = [...want.values()]
+      .sort((a, b) => b.ub - a.ub)
+      .slice(0, batch)
+      .map(it => it.c);
+    batch = Math.min(batch * 2, FINE_CHUNK);
+    if (!(await fineCells(elev, part, cache))) return false;
+    for (const g of groups)
+      for (const it of g.items) {
+        const v = best(cache, it.c[0], it.c[1]);
+        if (v !== null && v > g.top) g.top = v;
+      }
+  }
+}
 
 // up to the next 100 ft (a tiny tolerance keeps 2,300.0000001 at 2,300)
 export const up100 = v => Math.ceil(v / 100 - 1e-6) * 100;
@@ -175,18 +217,17 @@ export async function routeMsa(elev, route, opt) {
   }
   const all = [...innerAll.values(), ...[...outer.values()].filter(c => !innerAll.has(key(c[0], c[1])))];
   if (!(await loadCells(elev, all, cache, opt && opt.progress))) return null;
-  // the fine pass: the cells of each leg near its highest; the cells of the whole route near the highest of all (an outer cell stands for the 2 km around it,
-  // so its neighbours are read too)
+  // the fine pass, highest first: for each leg, then for the whole route (an outer cell stands for the 2 km around it, so its neighbours are read too)
   const hiOf = cells => cells.reduce((m, [i, j]) => Math.max(m, hAt(cache, i, j) ?? -Infinity), -Infinity),
-    fine = [];
-  inner.forEach(cells => {
-    const m = hiOf(cells);
-    if (m > -Infinity) for (const c of cells) if (mayBeat(cache, c[0], c[1], m)) fine.push(c);
-  });
-  const m0 = Math.max(hiOf([...innerAll.values()]), hiOf([...outer.values()])),
     outerFine = [];
+  const groups = [];
+  for (const cells of inner) {
+    const m = hiOf(cells);
+    if (m > -Infinity) groups.push({ items: cells.map(c => ({ c, ub: bound(cache, c[0], c[1]) })), top: m });
+  }
+  const m0 = Math.max(hiOf([...innerAll.values()]), hiOf([...outer.values()]));
   if (m0 > -Infinity) {
-    for (const [i, j] of innerAll.values()) if (mayBeat(cache, i, j, m0)) fine.push([i, j]);
+    const items = [...innerAll.values()].map(c => ({ c, ub: bound(cache, c[0], c[1]) }));
     // an outer cell is read one in four (2 km apart): its own step is to the next one read, 2 cells away
     for (const [i, j] of outer.values()) {
       const v = hAt(cache, i, j);
@@ -201,11 +242,16 @@ export async function routeMsa(elev, route, opt) {
         const g = hAt(cache, i + a, j + b);
         if (g !== null) d = Math.max(d, Math.abs(v - g));
       }
-      if (v + Math.min(FINE_MARGIN, 2 * d) > m0)
-        for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) outerFine.push([i + di, j + dj]);
+      const ub = v + Math.min(FINE_MARGIN, d);
+      for (let di = -1; di <= 1; di++)
+        for (let dj = -1; dj <= 1; dj++) {
+          outerFine.push([i + di, j + dj]);
+          items.push({ c: [i + di, j + dj], ub });
+        }
     }
+    groups.push({ items, top: m0 });
   }
-  if (!(await fineCells(elev, fine.concat(outerFine), cache))) return null;
+  if (!(await topDown(elev, cache, groups))) return null;
   let maxAll = -Infinity,
     got = 0;
   const legs = [null];
@@ -283,14 +329,18 @@ export async function baseBins(elev, c, c0, opt) {
     if (b < 0) for (let q = 0; q < NB; q++) hi[q] = Math.max(hi[q], v);
     else hi[b] = Math.max(hi[b], v);
   }
-  const fine = cells.filter(([i, j]) => {
-    const b = binOf(i, j);
-    if (b >= 0) return mayBeat(cache, i, j, hi[b]);
-    let lo = Infinity; // the cell of the point counts for every bin: it matters if it may beat the lowest of them
-    for (let q = 0; q < NB; q++) lo = Math.min(lo, hi[q]);
-    return mayBeat(cache, i, j, lo);
-  });
-  if (!(await fineCells(elev, fine, cache))) return null;
+  // the fine pass of each bin, highest first (the cells of the point count for every bin)
+  const byBin = Array.from({ length: NB }, () => []),
+    mid = [];
+  for (const [i, j] of cells) {
+    const b = binOf(i, j),
+      it = { c: [i, j], ub: bound(cache, i, j) };
+    if (b < 0) mid.push(it);
+    else byBin[b].push(it);
+  }
+  const groups = [];
+  for (let q = 0; q < NB; q++) if (hi[q] > -Infinity) groups.push({ items: byBin[q].concat(mid), top: hi[q] });
+  if (!(await topDown(elev, cache, groups))) return null;
   const out = new Array(NB).fill(Math.max(0, c0 || 0));
   let got = 0;
   for (const [i, j] of cells) {
