@@ -17,7 +17,7 @@ import { parseDtc } from '../parsers/dtc.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { $, IO, appToast, enc8, esc, jclone } from './base.js';
-import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
+import { DTCTEXT, S, addSection, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
 import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage } from './pages.js';
@@ -386,17 +386,22 @@ function askBlock(g, diff, warns, dtcName, author) {
     o.id = 'msfgrp';
     o.style.cssText =
       'position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
+    const miss = diff.missing || [];
     o.innerHTML = `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">DTC data of the mission${author && author.callsign ? ' · from ' + esc(author.callsign) : ''}</h3>
  <div style="margin-bottom:8px">Applied to your open DTC <b>${esc(dtcName || '')}</b>: ${esc(g.label)}. These data replace yours so the points of the two DTCs never mix; the rest of your DTC (MFD, EWS, radio, Link 16...) is not touched.</div>
  <div class="hint" style="margin-bottom:8px">${diff.change} lines change · ${diff.add} new · ${diff.clear} of yours emptied · ${diff.same} already equal</div>
  ${warns.map(w => `<div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ ${esc(w)}</div>`).join('')}
+ ${miss.length ? `<label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0;padding:6px 9px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" data-add checked style="width:auto;margin-top:2px"><span><b>Add the missing sections</b> ${esc(miss.map(x => '[' + x + ']').join(', '))}: your DTC does not have them yet (a new DTC), they are added with the values of the mission (${diff.lost} lines). Off: those lines are not applied.</span></label>` : ''}
  <div class="hint" style="margin-top:8px">It stays in the program until you write the DTC (Write button of the DTC page): nothing in BMS changes before that.</div>
  <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Do not apply</button><button class="btn g gn" data-ok>Apply to my DTC</button></div></div>`;
     const done = v => {
       o.remove();
       res(v);
     };
-    o.querySelector('[data-ok]').onclick = () => done(true);
+    o.querySelector('[data-ok]').onclick = () => {
+      const a = /** @type {HTMLInputElement|null} */ (o.querySelector('[data-add]'));
+      done({ add: !!(a && a.checked) });
+    };
     o.querySelector('[data-x]').onclick = () => done(false);
     document.body.append(o);
   });
@@ -488,21 +493,21 @@ async function msfShared(d) {
         cs +
         '.ini" for you, so this may not be the DTC used in the game.'
     );
-  if (diff.missing.length)
-    warns.push(
-      'Your DTC has no section ' +
-        diff.missing.map(x => '[' + x + ']').join(', ') +
-        ': ' +
-        diff.lost +
-        ' lines of the mission cannot be applied. This DTC may not be compatible with the mission.'
-    );
   if (diff.add > 0)
     warns.push(
       diff.add +
         ' lines of the mission do not exist in your DTC (a different DTC layout or version?) and will be added. The mission may not be compatible with this DTC.'
     );
-  if (!(await askBlock(g, diff, warns, ST.name, d.author))) return false;
-  const r = PJ.applyShare((a, b, c) => S(a, b, c), groups, [g.id], cur);
+  const ans = await askBlock(g, diff, warns, ST.name, d.author);
+  if (!ans) return false;
+  // the sections the DTC does not have yet (a new DTC, without those WDP adds): made, so the lines of the mission go in
+  if (ans.add) diff.missing.forEach(s => addSection(s));
+  const r = PJ.applyShare(
+    (a, b, c) => S(a, b, c),
+    groups,
+    [g.id],
+    ans.add ? lines.map(l => ({ s: l.s, k: l.k, v: l.v })) : cur
+  );
   dtcReloaded();
   dtcBtns();
   $('fn').textContent = ST.name + ' · mission applied (' + r.n + ' lines)';

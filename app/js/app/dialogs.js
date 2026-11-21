@@ -3,16 +3,17 @@
   const Q = [];
   let busy = false;
   const anim = () => !document.documentElement.classList.contains('noanim');
-  function show(kind, msg) {
+  // lb: the words of the buttons {ok, no} (OK / Cancel)
+  function show(kind, msg, lb) {
     return new Promise(res => {
-      Q.push({ kind, msg: String(msg), res });
+      Q.push({ kind, msg: String(msg), res, lb: lb || {} });
       next();
     });
   }
   function next() {
     if (busy || !Q.length) return;
     busy = true;
-    const { kind, msg, res } = Q.shift();
+    const { kind, msg, res, lb } = Q.shift();
     const d = document.createElement('dialog');
     d.className = 'msg';
     d.innerHTML =
@@ -22,6 +23,8 @@
       (kind == 'confirm' ? '<button class="btn g" data-no type="button">Cancel</button>' : '') +
       '</div>';
     d.querySelector('.mt').textContent = msg;
+    if (lb.ok) d.querySelector('[data-ok]').textContent = lb.ok;
+    if (lb.no && d.querySelector('[data-no]')) d.querySelector('[data-no]').textContent = lb.no;
     document.body.append(d);
     d.showModal();
     const ok = d.querySelector('[data-ok]');
@@ -79,5 +82,5 @@
   window.alert = msg => {
     show('alert', msg);
   };
-  window.confirm = msg => show('confirm', msg);
+  window.confirm = (msg, lb) => show('confirm', msg, lb);
 })();

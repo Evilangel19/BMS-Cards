@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: with the animations off in Windows the Kneeboard cards could not be dragged: the program now asks at start whether to have the animations.
+- Fixed: a mission applied to a new DTC without the sections WDP adds (NAV OFFSETS, ICP, Laser, FCC) lost those lines: they can now be added.
 - Added: the BMS training missions (.trn) in the TE menu, now "Select a TE or Training".
 - Added: training missions open their own DTC, protected unless Settings > General > Edit training DTCs is on.
 - Changed: documents, pictures and maps on the Kneeboard say No dark version available.

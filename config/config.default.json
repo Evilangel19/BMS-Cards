@@ -16,6 +16,7 @@
     "wxTaf": "TGT",
     "checkUpdates": true,
     "oneMapShot": false,
+    "osMotion": "",
     "editTraining": false
   },
   "kneeboard": {

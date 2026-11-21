@@ -32,9 +32,12 @@ export function rememberLast(k, v) {
     /* none */
   }
 }
+// Windows asks for reduced motion (its animations turned off)
+export const osNoMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches);
+// the animations (and the dragging of the Kneeboard cards): the switch of Settings > General; Windows without animations turns them off unless the pilot
+// said yes at start (ui.osMotion 'on'; 'off' = said no)
 export const animOn = () =>
-  (!ST.CFG.ui || ST.CFG.ui.animations !== false) &&
-  !(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches);
+  (!ST.CFG.ui || ST.CFG.ui.animations !== false) && (!osNoMotion() || (ST.CFG.ui && ST.CFG.ui.osMotion === 'on'));
 export const applyAnim = () => document.documentElement.classList.toggle('noanim', !animOn());
 // Expand animation: grow and fade in the given elements (same 150 ms as collapse).
 export function expand(els) {

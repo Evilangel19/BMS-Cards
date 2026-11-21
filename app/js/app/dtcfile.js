@@ -52,6 +52,11 @@ export const G = (s, k, d = '') => {
   const l = L(s, k);
   return l ? l.v : d;
 };
+// a section the DTC does not have yet (a new DTC, without the sections WDP adds: NAV OFFSETS, ICP, Laser, FCC_…), made at the end of the file
+export function addSection(s) {
+  if (lines.some(l => l.s == s)) return;
+  lines.push({ s, raw: '[' + s + ']', dirty: 0 });
+}
 export function S(s, k, v) {
   let l = L(s, k);
   if (!l) {

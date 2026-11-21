@@ -14,7 +14,7 @@ import {
 } from '../platform/desktop.js';
 import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
-import { $, applyAnim, esc } from './base.js';
+import { $, animOn, applyAnim, esc, osNoMotion } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
 import { verCheck } from './ready.js';
 import { kbDir, kbMemLoad, kbRender, kbToneSample } from './kneeboard.js';
@@ -190,8 +190,8 @@ export async function openSettings() {
     sw(
       'anim',
       'Animations',
-      'Short transitions (ignored when the system asks for reduced motion)',
-      ui.animations !== false
+      'Short transitions, and dragging the cards on the Kneeboard (on wins over the animations turned off in Windows)',
+      animOn()
     ) +
     sw(
       'upd',
@@ -505,6 +505,8 @@ export async function openSettings() {
     n.ui = {
       ...(n.ui || {}),
       animations: v.sw.anim,
+      // on with Windows without animations: the program has them anyway; off: off, whatever Windows says
+      osMotion: v.sw.anim && osNoMotion() ? 'on' : (n.ui || {}).osMotion || '',
       showMfd34: v.sw.mfd,
       autoLoad: v.sw.autoLoad,
       oneMapShot: v.sw.oneShot,
@@ -761,6 +763,24 @@ async function configBlocked(r) {
     alert('config.json could not be written: ' + ((e && e.message) || e));
   }
 }
+// Windows has its animations turned off: asked once whether the program has them (they also allow dragging the Kneeboard cards); the answer is kept
+async function askMotion() {
+  const u = ST.CFG.ui || (ST.CFG.ui = {});
+  if (!osNoMotion() || u.osMotion || u.animations === false) return;
+  if (navigator.webdriver && !(/** @type {any} */ (window).__askMotion)) return; // the tests run without animations, unasked (tools/motion-test.py asks)
+  const yes = await confirm(
+    'Do you want the animations?\n\nWindows has them turned off. In BMS Cards they also allow dragging the cards on the Kneeboard. You can change it later in Settings > General > Animations.',
+    { ok: 'Yes', no: 'No' }
+  );
+  u.osMotion = yes ? 'on' : 'off';
+  applyAnim();
+  try {
+    await saveConfig(ST.CFG);
+  } catch (e) {
+    /* asked again next time */
+  }
+  if (yes && document.querySelector('#kn:not(.hide)')) kbRender();
+}
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
@@ -768,6 +788,7 @@ export async function init18() {
     .then(async r => {
       ST.CFG = r.config;
       applyAnim();
+      await askMotion();
       if (r.blocked) await configBlocked(r);
       else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
       kbMemLoad();
