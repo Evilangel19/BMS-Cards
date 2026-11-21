@@ -57,11 +57,16 @@ export async function terrain() {
 }
 // Heights (feet) of points {n, e} (BMS feet) of the terrain t (what terrain() gives). A row of the file holding two or more of the points is read whole, several rows at a
 // time with the file opened once, and kept for the next question (the next flight, airbase or radar of the same ground); a lone point is a small read.
-export const heightsOf = (t, pts) =>
-  heightsAt((o, l) => readRange(t.path, o, l), t.spec, pts, {
-    rows: t.rows,
-    readMany: sp => readRanges(t.path, sp),
-  });
+// fine: the small squares of the fine pass of the MSA (core/msa.js): short pieces of the rows, not whole rows kept
+export const heightsOf = (t, pts, fine) =>
+  heightsAt(
+    (o, l) => readRange(t.path, o, l),
+    t.spec,
+    pts,
+    fine
+      ? { readMany: sp => readRanges(t.path, sp), gap: 1024 }
+      : { rows: t.rows, readMany: sp => readRanges(t.path, sp) }
+  );
 export let misMemo = null;
 export const misLoad = () =>
   misMemo ||

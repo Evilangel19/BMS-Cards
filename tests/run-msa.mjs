@@ -195,6 +195,45 @@ ck('airbase MSA = highest + 1,000 ft', ifrMsa(3150) === 4200);
   await baseBins(async pts => (rd++, pts.map(() => 100)), { n: 3000, e: 2000 }, 0, { cache: cch });
   ck('baseBins: an airbase on the same ground reads only the cells that are new', rd === 3 && cch.size < 7000);
 }
+// the fine pass: a narrow peak between two rows of the coarse samples (they read one line per km) is found; only the cells near the top are read again
+{
+  const pk = { e: 10.3 * CELL, n: 10.42 * CELL };
+  const hill = p =>
+    200 +
+    Math.max(0, 2500 - Math.hypot(p.e - 10 * CELL, p.n - 10 * CELL) / 3) +
+    (Math.hypot(p.e - pk.e, p.n - pk.n) < 90 ? 1500 : 0);
+  let finePts = 0,
+    coarsePts = 0;
+  const el = async (pts, fine) => {
+    if (fine) finePts += pts.length;
+    else coarsePts += pts.length;
+    return pts.map(hill);
+  };
+  const top = Math.max(...[0, 1, 2, 3, 4].map(d => hill({ e: pk.e + d, n: pk.n })));
+  const coarseOnly = await loadCells(el, [[10, 10]], new Map());
+  const r = await routeMsa(el, [
+    { n: 0, e: 0 },
+    { n: 20 * CELL, e: 20 * CELL },
+  ]);
+  ck(
+    'route: the peak between the rows of samples is in the MSA of the leg (' + r.legs[1] + ' for ' + top + ')',
+    coarseOnly && r.legs[1] === vfrMsa(top) && r.maxFt >= top - 1
+  );
+  const bb2 = await baseBins(el, { n: 0, e: 0 }, 0);
+  ck('airbase: the peak is in its bin (' + Math.max(...bb2) + ')', Math.max(...bb2) >= top - 1);
+  ck(
+    'the fine pass reads a small part of the cells again (' +
+      finePts / 256 +
+      ' cells of ' +
+      Math.round(coarsePts / 4) +
+      ')',
+    finePts > 0 && finePts / 256 < coarsePts / 4 / 4
+  );
+  // flat ground hides nothing: nothing is read again
+  let f2 = 0;
+  await baseBins(async (pts, fine) => ((f2 += fine ? pts.length : 0), pts.map(() => 300)), { n: 0, e: 0 }, 0);
+  ck('flat ground: no fine pass', f2 === 0);
+}
 ck(
   'inbound bearing: reciprocal of the edge, magnetic = true - variation',
   inbound(90, 0) === 270 && inbound(350, 0) === 170 && inbound(90, 8) === 262 && inbound(0, -8) === 188

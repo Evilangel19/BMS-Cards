@@ -451,8 +451,9 @@ export function parseTheaterTxt(text) {
     mapPx: n('map size in pixels'),
     lat: n('center latitude'),
     lon: n('center longitude'),
+    proj: t['projection string'] || '', // +proj=tmerc ... (rules/geo.js setGeo)
   };
-  return r.lat != null && r.lon != null ? r : null;
+  return (r.lat != null && r.lon != null) || /\+proj=tmerc/i.test(r.proj) ? r : null;
 }
 
 const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);

@@ -196,7 +196,7 @@ async function readGameData(reloadTheaters, stage = () => {}) {
             ST.TH.name +
             ' not found (or without the centre of the theater): the positions on the map are those of Korea, so they will be wrong.'
           : '';
-      if (g) setGeo(g.lat, g.lon);
+      if (g) setGeo(g.lat, g.lon, g.proj, g.sizeKm);
       else setGeo();
       ST.THGEO = g;
       const gk = g ? g.lat + ',' + g.lon : 'k';

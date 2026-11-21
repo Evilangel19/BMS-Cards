@@ -99,6 +99,30 @@ ok(
   theaterDirs('TheaterDefinition\\Korea.tdf', parseTdf('name KTO')).base.length === 0 &&
     theaterDirs('Korea.tdf', parseTdf('name KTO')).base.length === 0
 );
+// the Projection string of Theater.txt (BMS 4.38): the same places as from the centre (its y_0 is written to 6 digits: a few metres), a theater of
+// another size or scale follows its own string, a Theater.txt with only the string is read
+const KTO = '+proj=tmerc +lon_0=127.5 +ellps=WGS84 +k=0.9996 +units=m +x_0=512000 +y_0=-3.74929e+06';
+setGeo(38.5, 127.5);
+const c1 = toLL(300, 700);
+setGeo(38.5, 127.5, KTO, 1024);
+const c2 = toLL(300, 700),
+  m = (a, b) => Math.hypot((a[0] - b[0]) * 111000, (a[1] - b[1]) * 111000 * Math.cos((a[0] * Math.PI) / 180));
+ok('KTO projection string: the places of the centre within 5 m (' + m(c1, c2).toFixed(1) + ' m)', m(c1, c2) < 5);
+ok('...and back (fromLL)', near(fromLL(...c2)[0], 300, 1e-6) && near(fromLL(...c2)[1], 700, 1e-6));
+setGeo(NaN, NaN, '+proj=tmerc +lon_0=20 +ellps=WGS84 +k=1 +units=m +x_0=1024000 +y_0=-4000000', 2048);
+const big = toLL(1024, 1024);
+ok(
+  'a 2048 km theater with its own string: its middle on lon_0, the bounds cover 2048 km',
+  near(big[1], 20, 1e-6) && theaterBounds()[1][1] - theaterBounds()[0][1] > 20
+);
+ok(
+  'Theater.txt with only the projection string is read',
+  !!parseTheaterTxt('Theater name=x\nProjection string=' + KTO)
+);
+ok(
+  'a projection that is not tmerc is ignored (the centre is used)',
+  (setGeo(38.5, 127.5, '+proj=lcc +lon_0=1'), near(toLL(512, 512)[1], 127.5, 1e-9))
+);
 setGeo();
 ok('back to Korea', near(toLL(512, 512)[1], 127.5, 1e-6));
 console.log(bad ? `${bad} of ${n} theater checks failed` : `OK - ${n} theater checks`);

@@ -119,11 +119,12 @@ export const theaterBounds = () => {
       [32, 121],
       [43.5, 133.5],
     ];
-  const c = [
+  const S = g.sizeKm || 1024,
+    c = [
       [0, 0],
-      [0, 1024],
-      [1024, 0],
-      [1024, 1024],
+      [0, S],
+      [S, 0],
+      [S, S],
     ].map(([x, y]) => toLL(x, y)),
     la = c.map(q => q[0]),
     lo = c.map(q => q[1]);

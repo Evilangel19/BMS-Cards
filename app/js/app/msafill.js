@@ -9,12 +9,12 @@ import { ST } from './state.js';
 import { F, FD } from './datacard.js';
 import { MFD, draw } from './cardview.js';
 
-async function elev0(pts) {
+async function elev0(pts, fine) {
   const t = await terrain();
-  return t ? heightsOf(t, pts) : null;
+  return t ? heightsOf(t, pts, fine) : null;
 }
 export const MSA_IO = { elev: elev0 }; // (replaceable by the tests)
-const elev = pts => MSA_IO.elev(pts);
+const elev = (pts, fine) => MSA_IO.elev(pts, fine);
 const th = () => (ST.TH && ST.TH.name) || '';
 const ROUTES = new Map(),
   BASES = new Map(),
