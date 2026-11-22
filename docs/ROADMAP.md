@@ -46,6 +46,7 @@ This file says what the program does today, how far each part has been checked, 
 - The Squadron with more pilots than three: packages and flights edited at the same moment, templates, a card sent over the link, dragging on every PC.
 - Other theaters with more campaigns; the aircraft of those theaters.
 - Before the merge of 1.3: the animation of the map when it fits what an AUTO wrote (some seem to be missing).
+- Before the merge of 1.3: Weapons > Target, Add card dimmed when it cannot write a card (no target, no picture).
 
 ## Assumptions made when reading BMS files
 

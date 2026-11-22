@@ -151,6 +151,11 @@ export function createTargetPage(deps) {
     pend = null,
     framing = false,
     built = false;
+  // PICTURES: entries with no place (a screenshot to recognise an aircraft in an A-A mission...): only the Screenshot and Map views, the Graphic card
+  // without coordinates; PIC_C, where the map opens for them (the first point of the flight)
+  const PICS = [];
+  let PICN = 0,
+    PIC_C = { x: 512, y: 512 };
   const PICKS = [],
     HIDE = new Set(), // the points taken out of the list (the target of the flight, a route steerpoint): only hidden
     ST = {},
@@ -163,7 +168,7 @@ export function createTargetPage(deps) {
     return (
       ST[t.key] ||
       (ST[t.key] = {
-        view: t.objId != null ? 'plan' : 'map',
+        view: t.pic ? 'shot' : t.objId != null ? 'plan' : 'map',
         shot: null,
         map: null,
         ann: { plan: [], map: [], shot: [] },
@@ -1378,7 +1383,7 @@ export function createTargetPage(deps) {
     x.font = '700 21px ' + FONT;
     x.fillText(fit((s && s.fac) || '', 770), 16, 50);
     x.font = '13px ' + FONT;
-    if (t) {
+    if (t && !t.pic) {
       const elv = t.dmpis.find(d => d.altFt) ? t.dmpis.find(d => d.altFt).altFt + ' FT MSL' : '—',
         F = [
           [
@@ -1906,22 +1911,29 @@ export function createTargetPage(deps) {
     x.fillText(fit((s && s.fac) || '', CW - 32), 16, 52);
     if (!t) return;
     const elv = t.dmpis.find(d => d.altFt),
-      rows = [
-        [
-          ['TGT ID', t.objId != null ? 'OBJ ' + t.objId : t.label],
-          ['FUNCTION', t.type >= 0 && OBJ_TYPES[t.type] ? String(OBJ_TYPES[t.type]).toUpperCase() : '—'],
-          ['STATUS', f && f.pct != null ? f.pct + '%' : '—'],
-        ],
-        [
-          ['COORDS', deps.geoLL ? deps.geoLL(t.x, t.y) : ''],
-          ['ELEV', elv ? elv.altFt + ' FT MSL' : '—'],
-        ],
-        [
-          ['STPT', t.refs.join(', ') || '—'],
-          ['SOURCE', !s ? '—' : s.view == 'shot' ? 'SCREENSHOT' : s.view == 'map' ? 'MAP' : 'OBJECTIVE FILES'],
-          ['', i.cs || ''],
-        ],
-      ];
+      rows = t.pic
+        ? [
+            [
+              ['SOURCE', !s ? '—' : s.view == 'map' ? 'MAP' : 'SCREENSHOT'],
+              ['', i.cs || ''],
+            ],
+          ]
+        : [
+            [
+              ['TGT ID', t.objId != null ? 'OBJ ' + t.objId : t.label],
+              ['FUNCTION', t.type >= 0 && OBJ_TYPES[t.type] ? String(OBJ_TYPES[t.type]).toUpperCase() : '—'],
+              ['STATUS', f && f.pct != null ? f.pct + '%' : '—'],
+            ],
+            [
+              ['COORDS', deps.geoLL ? deps.geoLL(t.x, t.y) : ''],
+              ['ELEV', elv ? elv.altFt + ' FT MSL' : '—'],
+            ],
+            [
+              ['STPT', t.refs.join(', ') || '—'],
+              ['SOURCE', !s ? '—' : s.view == 'shot' ? 'SCREENSHOT' : s.view == 'map' ? 'MAP' : 'OBJECTIVE FILES'],
+              ['', i.cs || ''],
+            ],
+          ];
     x.font = '13px ' + FONT;
     rows.forEach((row, k) => {
       let xx = 16;
@@ -2092,15 +2104,16 @@ export function createTargetPage(deps) {
       CARDDK = cardDark();
       const p = P();
       if (kind == 'g') {
-        cardHdr('BASIC TARGET GRAPHIC');
-        IMG = { x: 0, y: 160, w: CW, h: 560 };
+        const pic = !!(tgt() && tgt().pic);
+        cardHdr(pic ? 'PICTURE' : 'BASIC TARGET GRAPHIC');
+        IMG = { x: 0, y: 160, w: CW, h: pic ? CH - 160 - 44 : 560 }; // a picture fills the card: no DMPI
         CARDM = true;
         picture();
         CARDM = false;
         x.strokeStyle = p.line;
         x.lineWidth = PF.pst == 'prog' ? 1 : 2;
         x.strokeRect(IMG.x, IMG.y, IMG.w, IMG.h);
-        boxes(732, { x0: 6, w: CW - 6, cols: 3 });
+        if (!pic) boxes(732, { x0: 6, w: CW - 6, cols: 3 });
       } else if (kind == 't') {
         cardHdr('TARGET INFORMATION');
         textPage({
@@ -2234,7 +2247,7 @@ export function createTargetPage(deps) {
     built = true;
     penFont();
     root.innerHTML = `<div class="tgleft">
-  <div class="wcard"><h3>Target <span class="tgh">DTC and flight</span></h3><div class="tglist"></div><button type="button" class="btn g tgadd">＋ Add target…</button></div>
+  <div class="wcard"><h3>Target <span class="tgh">DTC and flight</span></h3><div class="tglist"></div><div class="tgrow"><button type="button" class="btn g tgadd">＋ Add target…</button><button type="button" class="btn g tgpic" title="A picture with no place: a screenshot or a picture of the map (an aircraft to recognise in an A-A mission, a formation...), its Graphic card without coordinates">＋ Picture</button></div></div>
   <div class="wcard"><h3>Background</h3>${seg('view', VIEWS, 'plan')}
    <div class="tgsec" data-sec="plan"><div class="tgrow"><span class="hint">Zoom</span><span class="seg tgzoom"><button type="button" data-z="-" title="Zoom out">−</button><button type="button" data-z="0" class="tgzk" title="All the objective">all</button><button type="button" data-z="+" title="Zoom in">+</button></span><span class="hint">or the wheel on the picture</span></div>
     <div class="tgrow"><span class="hint">Turn</span><span class="seg tgrot"><button type="button" data-r="-15" title="Turn the plan 15° to the left">↺ 15°</button><button type="button" data-r="0" title="North at the top">N up</button><button type="button" data-r="+15" title="Turn the plan 15° to the right">↻ 15°</button><button type="button" data-r="atk" title="The attack heading at the top">Attack up</button></span><span class="hint tgrotv">North up</span></div><p class="hint">The objective from the BMS files: the right positions, the buildings as symbols.</p></div>
@@ -2422,6 +2435,12 @@ export function createTargetPage(deps) {
       const t = TL.find(z => z.dmpis.some(d => Math.hypot(d.x - p.x, d.y - p.y) < 0.01));
       if (t) selT(t.key);
     };
+    q('.tgpic').onclick = async () => {
+      const k = 'pic:' + ++PICN;
+      PICS.push({ key: k, label: 'PICTURE', name: 'PICTURE ' + PICN, pic: true, kind: 'pic' });
+      await loadTargets();
+      selT(k);
+    };
     q('.tgnames').onclick = () => {
       PF.names = !PF.names;
       q('.tgnames').classList.toggle('on', PF.names);
@@ -2521,6 +2540,10 @@ export function createTargetPage(deps) {
     q('.tgfac').oninput = e => {
       const s = st();
       if (s) s.fac = e.target.value;
+      if (tgt() && tgt().pic) {
+        const r = q('.tgrowt.on span'); // the name of a picture is its title: the list follows it
+        if (r && r.firstChild) r.firstChild.textContent = s.fac;
+      }
       draw();
     };
     q('.tgremt').oninput = e => {
@@ -2919,12 +2942,14 @@ export function createTargetPage(deps) {
     if (!tgt()) return;
     await nearLoad();
     const d = document.createElement('dialog'),
-      K = [
-        ['g', 'Graphic'],
-        ['t', 'Target information'],
-        ['d', 'Details (positive ID)'],
-        ['s', 'Smart'],
-      ],
+      K = tgt().pic
+        ? [['g', 'Picture']]
+        : [
+            ['g', 'Graphic'],
+            ['t', 'Target information'],
+            ['d', 'Details (positive ID)'],
+            ['s', 'Smart'],
+          ],
       on = { g: true, t: true, d: true, s: true };
     d.className = 'tgdlg';
     d.innerHTML = `<h3>Add cards to the Kneeboard</h3><p class="hint">Each page becomes a card. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
@@ -3054,6 +3079,7 @@ export function createTargetPage(deps) {
   }
   function tlist() {
     const L = q('.tglist');
+    const name = t => (t.pic && ST[t.key] && ST[t.key].fac) || t.name;
     if (!TL.length) {
       L.innerHTML =
         '<p class="hint">No target. The TGT steerpoints and the weapon targets of the DTC, the target of the flight and the points added here show in this list.</p>';
@@ -3061,13 +3087,15 @@ export function createTargetPage(deps) {
     }
     L.innerHTML = TL.map(
       t =>
-        `<div role="button" tabindex="0" class="tgrowt${t.key == sel ? ' on' : ''}" data-k="${esc(t.key)}"><b>${esc(t.label)}</b><span>${esc(t.name)}<small>${esc(
-          [
-            t.dmpis.length ? t.dmpis.length + ' DMPI' : '',
-            t.objId != null && t.type >= 0 && OBJ_TYPES[t.type] ? OBJ_TYPES[t.type] : '',
-          ]
-            .filter(Boolean)
-            .join(' · ') || 'point'
+        `<div role="button" tabindex="0" class="tgrowt${t.key == sel ? ' on' : ''}" data-k="${esc(t.key)}"><b>${esc(t.label)}</b><span>${esc(name(t))}<small>${esc(
+          t.pic
+            ? 'no place: a screenshot or the map'
+            : [
+                t.dmpis.length ? t.dmpis.length + ' DMPI' : '',
+                t.objId != null && t.type >= 0 && OBJ_TYPES[t.type] ? OBJ_TYPES[t.type] : '',
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'point'
         )}</small></span><button type="button" class="tgx" title="${esc(rmTitle(t))}">×</button></div>`
     ).join('');
     L.querySelectorAll('[data-k]').forEach(b => {
@@ -3088,15 +3116,29 @@ export function createTargetPage(deps) {
   // the flight, a route steerpoint and a picked point are only taken out of this list
   const inDtc = d => d && (d.kind == 'prec' || d.kind == 'wpn');
   const rmTitle = t =>
-    t.dmpis.some(inDtc)
-      ? 'Remove: ' +
-        t.dmpis
-          .filter(inDtc)
-          .map(d => d.short)
-          .join(', ') +
-        ' deleted from the DTC'
-      : 'Remove from this list';
+    t.pic
+      ? 'Remove this picture'
+      : t.dmpis.some(inDtc)
+        ? 'Remove: ' +
+          t.dmpis
+            .filter(inDtc)
+            .map(d => d.short)
+            .join(', ') +
+          ' deleted from the DTC'
+        : 'Remove from this list';
   async function removeTarget(t) {
+    if (t.pic) {
+      if (
+        deps.confirm &&
+        !(await deps.confirm('Remove ' + ((ST[t.key] && ST[t.key].fac) || t.name) + ' and its picture?'))
+      )
+        return;
+      const i = PICS.findIndex(z => z.key == t.key);
+      if (i >= 0) PICS.splice(i, 1);
+      delete ST[t.key];
+      await loadTargets();
+      return selT(sel);
+    }
     const del = t.dmpis.filter(inDtc),
       msg = del.length
         ? `Remove ${t.name}? ${del.map(d => d.ref).join(', ')} will be deleted from the DTC (and from the map).` +
@@ -3144,6 +3186,7 @@ export function createTargetPage(deps) {
       t = tgt();
     q('.tgfac').value = s ? s.fac : '';
     q('.tgremt').value = s ? s.rem : '';
+    qa('[data-seg=view] [data-v=plan]').forEach(b => (b.disabled = !!(t && t.pic))); // a picture has no objective
     fillUI();
     if (t) loadPlan(t);
     if (s) setView(s.view);
@@ -3283,9 +3326,11 @@ export function createTargetPage(deps) {
     } catch (e) {}
     OBJS = r.objs || [];
     const all = [...(r.points || []), ...PICKS].filter(p => !HIDE.has(pid(p)));
+    if ((r.points || [])[0]) PIC_C = { x: r.points[0].x, y: r.points[0].y };
     TL = groupTargets(all, OBJS);
     // the points of each target (the flight one is not an aim point)
     TL.forEach(t => (t.pts = all.filter(p => p.kind == 'flight' && Math.hypot(p.x - t.x, p.y - t.y) < 3.2)));
+    TL.push(...PICS.map(q => ({ ...q, x: PIC_C.x, y: PIC_C.y, dmpis: [], refs: [], pts: [], objId: null, type: -1 })));
     if (!TL.some(t => t.key == sel)) sel = TL.length ? TL[0].key : '';
   }
 
@@ -3295,6 +3340,12 @@ export function createTargetPage(deps) {
     const t = tgt();
     if (!t) return [];
     await nearLoad();
+    if (t.pic) {
+      const nm = (st() && st().fac) || t.name;
+      return [
+        { name: 'Picture · ' + nm, label: 'Picture', c: card('g'), alt: otherLook(() => card('g')), dark: cardDark() },
+      ];
+    }
     return [
       ['g', 'Graphic'],
       ['t', 'Target information'],
@@ -3312,7 +3363,7 @@ export function createTargetPage(deps) {
     root,
     // the data of the Smart Target card (null before the page was built or without a target): the combined Smart cards take their target from it
     // (not built here: building the page takes the map of the page shown)
-    smart: () => (built && tgt() ? smartData() : null),
+    smart: () => (built && tgt() && !tgt().pic ? smartData() : null),
     allCards() {
       return allCards(this);
     },
