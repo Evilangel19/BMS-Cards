@@ -1,5 +1,5 @@
 // @ts-check
-// Target picture (Weapons > Target): the rules without the page. The place of a picture on the ground, the targets made from the DTC points and the
+// Target picture (A-G > Target): the rules without the page. The place of a picture on the ground, the targets made from the DTC points and the
 // objectives, the threats near a target, the kind of a building from its name, the plan of an objective and the filters of a picture.
 // Ground positions are campaign km (x = east, y = north), like the rest of the program; a picture point is (u, v), 0..1 from its top left corner.
 

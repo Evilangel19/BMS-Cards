@@ -61,7 +61,7 @@ function applyDTC0(fl) {
     F[`wp${n}_rp`] = String(+k('Release_Pulse') + 1);
     F[`wp${n}_spc`] = String(Math.round(+k('Release_Spacing')));
   });
-  // the attack data of the card (Delivery section) are built again from the DTC and the Weapons page every time: what is no longer there (offsets cleared, another attack) must not stay on the card; values typed by hand (MANK) are kept
+  // the attack data of the card (Delivery section) are built again from the DTC and the A-G page every time: what is no longer there (offsets cleared, another attack) must not stay on the card; values typed by hand (MANK) are kept
   [
     'dmode',
     'dlab',
@@ -76,7 +76,7 @@ function applyDTC0(fl) {
       return [n.brg, n.rng, n.elev].some(x => +x);
     },
     modesel = (g('NAV OFFSETS', 'Modesel') || '').toUpperCase(),
-    // the mode of the Delivery section: the DTC's (when it holds offsets of it) or the one of the attack applied on the Weapons page
+    // the mode of the Delivery section: the DTC's (when it holds offsets of it) or the one of the attack applied on the A-G page
     ms2 =
       (modesel === 'VRP' || modesel === 'VIP') && (held(modesel) || held(modesel + 'PUP'))
         ? modesel
@@ -92,7 +92,7 @@ function applyDTC0(fl) {
     };
     fill(ms2, 'dv');
     fill(ms2 + 'PUP', 'dp');
-    // attack data of the Weapons page (written by its Apply): label, OA1 / OA2 rows of the steerpoint and the profile numbers
+    // attack data of the A-G page (written by its Apply): label, OA1 / OA2 rows of the steerpoint and the profile numbers
     const wc = wc0,
       n4 = navRow(g('NAV OFFSETS', ms2)).stpt || (wc && wc.stpt) || 0; // a loft needs no VRP row: the steerpoint is the one of the attack
     if (wc && String(wc.ref).toUpperCase() === ms2) {

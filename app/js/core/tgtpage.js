@@ -1,4 +1,4 @@
-// Weapons > Target: a target picture in the style of a Basic Target Graphic. Page 1 (graphic): the picture of the target (the plan of the objective, a
+// A-G > Target: a target picture in the style of a Basic Target Graphic. Page 1 (graphic): the picture of the target (the plan of the objective, a
 // picture of the Map page or a pasted screenshot) with the BTG symbols drawn on it, the DMPI boxes under it; page 2 (target information): the text and
 // the detail pictures for the positive identification. "Fill from the datacard" draws the DMPIs (DTC), the attack (attack planner, else the flight plan),
 // the SAM rings and the enemy units (campaign). The pages go to the Kneeboard as cards (2:3) or onto the datacard in place of the map screenshot.
@@ -707,7 +707,7 @@ export function createTargetPage(deps) {
           R.ehdg
         );
     }
-    // the impacts of the stick, as on the map of the Weapons page: red dots, the lethal radius around the first and the last, the CBU footprints
+    // the impacts of the stick, as on the map of the A-G page: red dots, the lethal radius around the first and the last, the CBU footprints
     if (R && R.src == 'attack' && sh.imp && g) {
       const k = pxPerKm(),
         ring = (q, rad, c, dash, fill) => {
@@ -2465,7 +2465,7 @@ export function createTargetPage(deps) {
           } else planTurn(k == '0' ? 0 : r + +k);
         })
     );
-    // Map filters of the horizontal envelope of the Weapons page, for the map lent here (the points of the map are never edited here: the tab is for drawing)
+    // Map filters of the horizontal envelope of the A-G page, for the map lent here (the points of the map are never edited here: the tab is for drawing)
     const pf = q('.tgpf'),
       PLAB = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'];
     pf.onclick = () => (pf.textContent = PLAB[deps.cyclePlan ? deps.cyclePlan() : 0]);
@@ -3316,7 +3316,7 @@ export function createTargetPage(deps) {
     allCards() {
       return allCards(this);
     },
-    // Add card of the Weapons pages row: the pages of the target as Kneeboard cards
+    // Add card of the A-G pages row: the pages of the target as Kneeboard cards
     addCard() {
       return built ? addCards() : undefined;
     },

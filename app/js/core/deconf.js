@@ -1,6 +1,6 @@
 // @ts-check
 // Deconfliction of two attacks of one flight (lead and element, or lead and wingman). Pure functions, no DOM. A general estimate, not BMS code:
-// - the path of each attack is the drawing of the Weapons page up to the release (phases in feet, north / east), then straight on and out on the egress
+// - the path of each attack is the drawing of the A-G page up to the release (phases in feet, north / east), then straight on and out on the egress
 //   heading, with an altitude per phase (ingress altitude, apex, release altitude, egress altitude) and a time from the release (negative before it) at
 //   the ground speed;
 // - the fragments of the bombs of an attack fill, from the first impact to the last impact plus the time they keep falling, a cylinder around the first

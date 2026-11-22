@@ -1,5 +1,5 @@
 // Offsets placed on the map: for a route steerpoint (1-24) the position of each reference point (OA1, OA2, VRP, VRP PUP, VIP, VIP PUP) in north / east feet,
-// and optionally its terrain elevation (ft MSL, editable). The Map page places them, the Weapons page shows them and writes them with Apply.
+// and optionally its terrain elevation (ft MSL, editable). The Map page places them, the A-G page shows them and writes them with Apply.
 // Every steerpoint remembers where it was (`at`): when it moves or another flight is picked, its offsets are ignored (a point stays where it was placed, not where its number goes).
 export const OFF_KEYS = [
   ['oa1', 'OA1'],

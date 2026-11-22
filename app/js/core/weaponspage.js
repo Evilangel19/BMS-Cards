@@ -1,4 +1,4 @@
-// Weapons page: pop-up calculator (map of the attack, side profile, sliders, results, NAV OFFSETS). The maths is in popup.js.
+// A-G page: pop-up calculator (map of the attack, side profile, sliders, results, NAV OFFSETS). The maths is in popup.js.
 // deps: {root, esc, G, S, lines, route, points, changed, confirm, alert, ll(n, e) -> [lat, lon], attach(el) -> {L, map}, detach()}  (route() -> steerpoints [{n, x: north ft, y: east ft, alt, t}])
 import { otherLook, cardDark } from './cardink.js';
 import D0 from '../data/index.js';
@@ -3742,7 +3742,7 @@ export function createWeaponsPage(deps) {
       draw(true);
     },
     state: () => st,
-    // the horizontal drawing of an attack page (popup, hadb, toss) on the target steerpoint nearest to a point (x, y km: Weapons > HARM > DEAD, its SAM),
+    // the horizontal drawing of an attack page (popup, hadb, toss) on the target steerpoint nearest to a point (x, y km: A-G > HARM > DEAD, its SAM),
     // with the settings of that page, in km: {label, segs [{k, name, col, dash, pts}], marks [{x, y, l, col}]} | {error} | null (no steerpoint within
     // 10 nm). The page is left as it was (its mode, its target, its result)
     planLines: (mode, x, y) => {
@@ -3780,7 +3780,7 @@ export function createWeaponsPage(deps) {
         ctx = c0;
       }
     },
-    // the target steerpoint nearest to a point (x, y km; Weapons > HARM > DEAD: its SAM), chosen for the attack pages; null when none is within 10 nm
+    // the target steerpoint nearest to a point (x, y km; A-G > HARM > DEAD: its SAM), chosen for the attack pages; null when none is within 10 nm
     aimAt: (x, y) => {
       const T = gather().T,
         d = q => Math.hypot(q.e / FT_KM - x, q.n / FT_KM - y) / 1.852,

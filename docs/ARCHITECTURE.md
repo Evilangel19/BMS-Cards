@@ -72,6 +72,29 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 - **The card of the datacard** (`app/cardview.js`, `freeLayout` / `freeDraw`): a rule too long wraps at a space or right after "+" or "/", the size goes down half a pixel at a time (14 to 11 px) and the lines get closer before the text gets smaller. **The kneeboard card** (`app/roecard.js`): one card when everything fits, else two at most (ROE and SOP in one flow, the text smaller down to 0.6; what still does not fit is cut and the page says so).
 - Tests: `tests/run-roesop.mjs`, `tools/roesop-test.py`.
 
+## A-A (DCA, OCA) and the names in the code
+
+The tabs were renamed in 1.3 (Weapons is **A-G**, BVR is **A-A**, with **DCA**, **OCA** and **Timeline** under it; DCA was called FAOR in the first betas).
+Only what the pilot reads changed. The names in the code, in the files the program writes and in the browser storage stayed, so that the missions, the
+preferences and the tests of before still work. Use this table to find a page in the code:
+
+| Shown | In the code |
+| --- | --- |
+| A-G tab | `data-t="wp"`, `<section id="wp">`, `ST.wpPage` (`core/weaponspage.js`), body class `onwp`, mission field `weapons.wp`, the HARM tab `weapons.harm` / `sead` / `dead` |
+| A-A tab | `data-t="ms"`, `<section id="ms">`, body class `onms`; its tabs `#bvrtabs` (`data-bsub`), `ST.bvrPage` (render / leave), `ST.bvrGo(key)` (open a tab from another page), the tab shown `localStorage['aasub']` (init13 in `app/pages.js`) |
+| A-A > DCA | tab key `faor`, `faorPage` (`core/faorpage.js`, root `#fapage`), the geometry `core/faor.js`, `faorCtx` / `faorDeps` in `app/pages.js`, map layer `fa` (Display > DCA), mission field `weapons.faor`, `sessionStorage['dca1']`, `localStorage['faorcardkinds']`, body class `onfaor` (DCA or OCA shown) |
+| A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
+| A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
+| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA and OCA: an OCA block has `pos`, `lead`, `ta`), `cleanFaor` / `faorLines` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
+
+- **One plan, three drawings** (`core/aakit.js`): a page of A-A describes its plan once as a list of shapes in km (`spec()`: poly, ring, dot, label, arrow, each
+  with an `ink` for the Smart card) and the same list is drawn on the Leaflet map (`drawLeaflet`: the page and Display > DCA / OCA), in the pixels of the
+  picture of the map for the classic card (`snapMap` + `toPx`, `core/aacard.js`) and in ink on the Smart card (`toInk`, `core/smartaa.js`; the module `aa`
+  of the Smart mission card, `core/smartcombo.js`). `addCards` / `allOf` are the Add card window and Add all cards of both pages.
+- **DTC lines**: `autoAA` in `core/mapview.js` (DCA: the FEZ, COMMIT / STOP, the HARDWALL, F-15 SIT line 8 FEZ; OCA: the track and the target area, SIT
+  line 9 MISC); the lines written by a page are remembered under `AU['dca:...']` / `AU['oca:...']` and replaced when the page writes again.
+- Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`.
+
 ## Docs page
 
 `app/js/core/docspage.js` (`createDocsPage(deps)`, the PDF reading is handed in as `deps.pdf`). The viewer shows one page at a time, or (switch **Scroll**, off at the first start, remembered in `localStorage['bmsdocscroll']`) all the pages one below the other: a slot for every page (sized from the page; the sizes of the pages after the first are read in the background and the place in the document is kept), a page is drawn only while it is near the view and freed when it is far (a serial queue, at most 36 million pixels per page); the page in view is the current page (number box, arrows, thumbnail), so "Add page to cards" adds that one; the zoom applies to all the pages; the arrows, the thumbnails and the number box scroll to the page (smooth only with the animations on). **All pages** asks first above `ALL_WARN` (20) pages, then adds them with a strip under the toolbar (where it is, a bar, Cancel); opening another document stops the run. The thumbnails stay when the view is drawn again. Tests: `tools/docs-test.py` (with `SHOTS=<folder>` it saves screenshots).

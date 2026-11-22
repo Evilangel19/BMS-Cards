@@ -1,0 +1,176 @@
+// A-A > OCA (core/oca.js): the kinds, the defaults of the NATO manual, the position of the fighter on the package, the corridor of the sweep, the checks,
+// the A-A block of the ROE and the DTC lines. A made-up package (km of a theater, times in ms), no BMS file.
+import {
+  KM_NM,
+  ocaKind,
+  ocaDefaults,
+  cleanOca,
+  modeOf,
+  posCode,
+  pkgWindow,
+  fighterAt,
+  track,
+  corridor,
+  ocaChecks,
+  ocaRoe,
+  ocaDtcLines,
+} from '../app/js/core/oca.js';
+import { faorLines, cleanFaor } from '../app/js/core/faor.js';
+import { cleanSel, roeText, fullText, emptySel } from '../app/js/core/roesop.js';
+let bad = 0,
+  n = 0;
+const ok = (m, c) => {
+  n++;
+  if (!c) {
+    bad++;
+    console.log('FAIL', m);
+  }
+};
+const near = (a, b, t = 0.5) => Math.abs(a - b) <= t;
+// the strikers: north at 480 kt (8 NM a minute), push at 09:00 from y 300, target at 09:10 (80 NM north), egress east
+const T0 = 9 * 3600000,
+  K = KM_NM,
+  R = [
+    { x: 500, y: 200, z: -2500, arr: T0 - 10 * 60000, dep: T0 - 10 * 60000, act: 1, n: 1 },
+    { x: 500, y: 300, z: -2500, arr: T0, dep: T0, act: 2, n: 2 },
+    { x: 500, y: 300 + 40 * K, z: -2500, arr: T0 + 5 * 60000, dep: T0 + 5 * 60000, act: 0, n: 3 },
+    { x: 500, y: 300 + 80 * K, z: -2500, arr: T0 + 10 * 60000, dep: T0 + 10 * 60000, act: 17, n: 4 },
+    { x: 500 + 40 * K, y: 300 + 80 * K, z: -2500, arr: T0 + 15 * 60000, dep: T0 + 15 * 60000, act: 0, n: 5 },
+    { x: 500 + 80 * K, y: 300 + 80 * K, z: -2500, arr: T0 + 20 * 60000, dep: T0 + 20 * 60000, act: 0, n: 6 },
+  ];
+ok(
+  'kinds: SWEEP, ESCORT; not RESCORT or STRIKE',
+  ocaKind('sweep') == 'SWEEP' && ocaKind('ESCORT') == 'ESCORT' && !ocaKind('RESCORT') && !ocaKind('STRIKE')
+);
+const sw = ocaDefaults('SWEEP', '', null, 25000),
+  det = ocaDefaults('ESCORT', 'det', null, 25000),
+  emb = ocaDefaults('ESCORT', 'emb', null, 25000);
+ok(
+  'SWEEP: 3 min ahead, COMMIT 40, WPN FREE, target area 30 NM',
+  sw.lead == 3 && sw.commit == 40 && sw.wpn == 'free' && sw.ta == 30
+);
+ok(
+  'detached escort: 1 min, COMMIT 30, TIGHT, the block over the package',
+  det.lead == 1 && det.commit == 30 && det.wpn == 'tight' && det.alt[0] == 27000
+);
+ok('embedded escort: with the package, at its side', emb.lead == 0 && emb.side == 1 && emb.off == 1);
+ok(
+  'a planned lead that fits the mode is the default (sweep 4.2 -> 4)',
+  ocaDefaults('SWEEP', '', 4.2, 0).lead == 4 && ocaDefaults('SWEEP', '', 1, 0).lead == 3
+);
+ok(
+  'a saved state put back in range',
+  cleanOca({ lead: 99, side: 7, wpn: 'x', esc: 'zz' }, 'ESCORT', null, 0).lead == 10 &&
+    cleanOca({ side: 7 }, 'ESCORT', null, 0).side == 0 &&
+    cleanOca({ esc: 'zz' }, 'ESCORT', null, 0).esc == 'det'
+);
+ok(
+  'the position codes of the NATO manual',
+  posCode('sweep', 0, 0) == 'FS-1A' &&
+    posCode('det', -1, 5) == 'FS-2B' &&
+    posCode('emb', 1, 1) == 'FS-3C' &&
+    posCode('det', 1, 0) == 'FS-2A'
+);
+const Wn = pkgWindow(R, 4);
+ok(
+  'the window: from the push to two steerpoints after the target',
+  Wn.t0 == T0 && Wn.t1 == T0 + 20 * 60000 && Wn.pts.length == 5
+);
+// the fighter 3 min ahead on the route, then 3 min ahead and 10 NM to the right
+let s = { ...sw, side: 0, off: 0 };
+let p = fighterAt(R, s, T0);
+ok(
+  '3 min ahead of the package at the push: 24 NM north of it ' + ((p.y - 300) / K).toFixed(1),
+  near((p.y - 300) / K, 24, 0.1) && near(p.x, 500, 0.01)
+);
+p = fighterAt(R, { ...s, side: 1, off: 10 }, T0);
+ok('10 NM right of the route (heading north: to the east)', near((p.x - 500) / K, 10, 0.01));
+p = fighterAt(R, { ...s, side: -1, off: 10 }, T0);
+ok('10 NM left: to the west', near((p.x - 500) / K, -10, 0.01));
+const T = track(R, s, Wn.t0, Wn.t1);
+ok(
+  'the track ends with the route (no point past the last steerpoint)',
+  T.length > 10 && T[T.length - 1].t <= Wn.t1 - 3 * 60000
+);
+const C = corridor(T, 20);
+ok(
+  'the corridor: 20 NM wide around the track',
+  C.length > 4 && near(Math.abs(C[0].x - C[C.length - 1].x) / K, 20, 0.01)
+);
+// the checks
+const chk = (o, re) =>
+  ocaChecks({ kind: 'SWEEP', s: { ...sw }, track: T, sams: [], ...o }).some(w => w[1] && re.test(w[0]));
+ok(
+  'a sweep under 2 min and within 10 NM is an escort',
+  chk({ s: { ...sw, lead: 1 } }, /a detached escort, not a sweep/)
+);
+ok('a sweep 1 min ahead but 12 NM aside is fine', !chk({ s: { ...sw, lead: 1, off: 12, side: 1 } }, /not a sweep/));
+ok(
+  'an escort 2 min ahead is a sweep',
+  ocaChecks({ kind: 'ESCORT', s: { ...det, lead: 2 }, track: T }).some(w =>
+    /a sweep, the package is left alone/.test(w[0])
+  )
+);
+ok(
+  'COMMIT 45 for a sweep, 35 for a detached escort: over the manual',
+  chk({ s: { ...sw, commit: 45 } }, /over 40 NM for a sweep/) &&
+    ocaChecks({ kind: 'ESCORT', s: { ...det, commit: 35 }, track: T }).some(w =>
+      /over 30 NM for a detached escort/.test(w[0])
+    )
+);
+ok('COMMIT under the DOR', chk({ dor: 42 }, /COMMIT 40 NM < DOR 42/));
+ok(
+  'embedded escort at night',
+  ocaChecks({ kind: 'ESCORT', s: { ...emb, night: true }, track: T }).some(w => /no close escort/.test(w[0]))
+);
+ok(
+  'a SAM ring on the track, with the time',
+  chk(
+    { sams: [{ x: 500, y: 300 + 60 * K, r: 15 * K, name: 'SA-6' }], hm: t => String(Math.round((t - T0) / 60000)) },
+    /^SA-6: inside its ring at \d+/
+  )
+);
+ok(
+  'a clean sweep: no red',
+  ocaChecks({ kind: 'SWEEP', s: sw, track: T, sams: [], dor: 30, idOk: true, bingo: true }).filter(w => w[1]).length ==
+    0
+);
+ok(
+  'the flight plan leads by 1 min more than the page: a note',
+  ocaChecks({ kind: 'SWEEP', s: sw, track: T, planned: 4.5 }).some(w => !w[1] && /Flight plan: lead 4.5 min/.test(w[0]))
+);
+ok(
+  'modes',
+  modeOf('SWEEP', {}) == 'sweep' && modeOf('ESCORT', { esc: 'emb' }) == 'emb' && modeOf('ESCORT', {}) == 'det'
+);
+// the ROE block
+const b = cleanFaor(ocaRoe(sw, 'SWEEP', 'FS-1A'));
+ok('the block keeps the lead, the position and the target area', b.lead == 3 && b.pos == 'FS-1A' && b.ta == 30);
+ok(
+  'its lines',
+  faorLines(b, false).join('|') ==
+    'WPN FREE|COMMIT 40NM|LEAD 3MIN FS-1A|STOP 30NM FROM PKG|BLOCK FL250-350|TGT AREA 30NM'
+);
+ok('escort lines', faorLines(cleanFaor(ocaRoe(det, 'ESCORT', 'FS-2A')), false).includes('STAY WITH THE PACKAGE'));
+const sel = cleanSel({
+  ...emptySel(),
+  roe: { ws: 'tight', id: [], commit: 'n20', abort: [], extra: [], restr: [] },
+  faor: b,
+});
+ok('the ROE box: WPN FREE and COMMIT 40NM in place of the chosen ones', roeText(sel) == 'WPN FREE\nCOMMIT 40NM');
+ok('the ROE card: the A-A · SWEEP block', fullText(sel).roe[0][0] == 'A-A · SWEEP');
+// the DTC lines
+const L = ocaDtcLines(T, { x: 500, y: 300 + 80 * K }, sw);
+ok(
+  'DTC: the track in 6 points, the target area a closed pentagon',
+  L.track.length == 6 &&
+    L.area.length == 6 &&
+    near(L.area[0].x, L.area[5].x, 1e-9) &&
+    near(Math.hypot(L.area[1].x - 500, L.area[1].y - 300 - 80 * K) / K, 30, 0.01)
+);
+
+if (bad) {
+  console.log(`${bad} of ${n} OCA checks FAILED`);
+  process.exit(1);
+}
+console.log(`OK - ${n} OCA checks`);

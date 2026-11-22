@@ -13,7 +13,7 @@ const GROUND = /^(SA-|Patriot$|Hawk$|Nike$|CrotaleNG$|RIM-|CATM|UNUSED)/i;
 const MODES = [
   ['harm', 'HARM'],
   ['bvr', 'BVR / MAR'],
-]; // deps.only keeps one of them (the HARM lives on the Weapons page, the BVR on the Missiles page)
+]; // deps.only keeps one of them (the HARM lives on the A-G page, the BVR on the Missiles page)
 const fmt = (v, d = 0) =>
   Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, ' ');
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
@@ -27,7 +27,7 @@ const SL = {
   aspect: ['Aspect', '°', 0, 180, 5],
   offNose: ['Emitter off the nose', '°', -180, 180, 5],
 };
-// the BVR page shows its speeds in knots (true airspeed) or in Mach, one unit for each card, and keeps the values in the unit shown: speed field -> its altitude field
+// A-A > Timeline shows its speeds in knots (true airspeed) or in Mach, one unit for each card, and keeps the values in the unit shown: speed field -> its altitude field
 const SPEED = { speed: 'alt', tgtSpeed: 'tgtAlt' };
 // the speed of the timeline in each unit: min, max, step, decimals
 const TLS = { mach: [0.3, 2, 0.05, 2], kt: [150, 1300, 10, 0] };
@@ -68,7 +68,7 @@ export function createMissilesPage(deps) {
       shotPct: 100,
       tgtSize: 'fighter',
     },
-    sliders: 1, // the Sliders switch of the BVR page: sliders (1) or number boxes (0)
+    sliders: 1, // the Sliders switch of A-A > Timeline: sliders (1) or number boxes (0)
     tl: {
       std: { alt: STD.alt, spd: STD.mach, tNotch: STD.tNotch, tRecommit: STD.tRecommit }, // yours; the speed is in the unit u
       sel: 0,
@@ -78,7 +78,7 @@ export function createMissilesPage(deps) {
       open: [false, false, false, false], // the rows that show the altitude and speed of their enemy
       u: 'mach', // the unit of the speeds of the timeline
     },
-    map: { on: true, op: 80 }, // the map layer under the horizontal envelope, as on the Weapons page
+    map: { on: true, op: 80 }, // the map layer under the horizontal envelope, as on the A-G page
   };
   // the timeline of an older page or mission file: the speed was std.mach and a row had no missile menu
   // (a state that has no unit was written with the speeds in Mach for the timeline and in knots for the Shot card; one without the missile menus or the
@@ -128,7 +128,7 @@ export function createMissilesPage(deps) {
         : null;
     });
     t.open = [0, 1, 2, 3].map(i => arr(t.open)[i] === true);
-    // the HARM card (the Weapons page keeps it) and what the two pages share
+    // the HARM card (the A-G page keeps it) and what the two pages share
     const h = st.harm && typeof st.harm == 'object' ? st.harm : {},
       mp = st.map && typeof st.map == 'object' ? st.map : {};
     st.harm = {
@@ -183,7 +183,7 @@ export function createMissilesPage(deps) {
     } catch (e) {
       /* none */
     }
-    // deps.prefs: the page is remembered from one session to the next (the BVR page: the classes, their missiles and conditions, the units); a mission opened still wins
+    // deps.prefs: the page is remembered from one session to the next (A-A > Timeline: the classes, their missiles and conditions, the units); a mission opened still wins
     if (deps.prefs)
       try {
         deps.prefs.save({ ...st, mode: undefined });
@@ -552,7 +552,7 @@ export function createMissilesPage(deps) {
       .map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(mslName(n))}</option>`)
       .join('')}</select>`;
   }
-  // the unit of the speeds and the Sliders switch (as on the EWS page), at the right of the title of a card of the BVR page
+  // the unit of the speeds and the Sliders switch (as on the EWS page), at the right of the title of a card of A-A > Timeline
   const hdrCtl = w =>
     `<span class="wctl"><span class="seg">${[
       ['kt', 'kt'],

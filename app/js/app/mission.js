@@ -20,7 +20,7 @@ import { $, IO, appToast, enc8, esc, jclone } from './base.js';
 import { DTCTEXT, S, addSection, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
-import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage, faorPage } from './pages.js';
+import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage, faorPage, ocaPage } from './pages.js';
 import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
@@ -87,7 +87,7 @@ export async function wxUnpack(t) {
     s = new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'));
   return new Uint8Array(await new Response(s).arrayBuffer());
 }
-// the weapons data (Weapons page, HARM and BVR pages): an attack profile travels with the mission
+// the weapons data (A-G page, HARM and A-A pages): an attack profile travels with the mission
 export function msfWeapons() {
   try {
     return {
@@ -97,6 +97,7 @@ export function msfWeapons() {
       dead: jclone(deadPage.state()),
       bvr: jclone(ST.msPage.state()),
       faor: faorPage ? jclone(faorPage.state()) : null,
+      oca: ocaPage ? jclone(ocaPage.state()) : null,
     };
   } catch (e) {
     return null;
@@ -442,7 +443,7 @@ function askNoDtc(author) {
       'position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
     o.innerHTML = `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">No DTC is open${author && author.callsign ? ' · mission from ' + esc(author.callsign) : ''}</h3>
  <div style="margin-bottom:8px">The mission brings its DTC data (steerpoints, targets, PPT, lines, weapon targets, nav offsets, bomb profiles, laser codes, Bingo / Alow): they go into <b>your own DTC</b>, and no DTC is open. ${esc(why)}</div>
- <div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ Without a DTC the mission opens without them: the map, the Weapons page and the Data Cartridge do not show the points of the mission.</div>
+ <div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ Without a DTC the mission opens without them: the map, the A-G page and the Data Cartridge do not show the points of the mission.</div>
  <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px;flex-wrap:wrap"><button class="btn g" data-x>Cancel</button><button class="btn g" data-skip>Open without the DTC data</button><button class="btn g gn" data-ok>Open my DTC…</button></div></div>`;
     const done = v => {
       removeEventListener('keydown', esc0, true);
@@ -690,6 +691,7 @@ export async function msfLoad(text, file) {
         w.dead && deadPage.setState(w.dead);
         w.bvr && ST.msPage.setState(w.bvr);
         w.faor && faorPage && faorPage.setState(w.faor);
+        w.oca && ocaPage && ocaPage.setState(w.oca);
       } catch (e) {}
     }
     const d = p.datacard;
@@ -792,6 +794,7 @@ export function msfRestore(s) {
     s.weapons && s.weapons.dead && deadPage.setState(s.weapons.dead);
     s.weapons && s.weapons.bvr && ST.msPage.setState(s.weapons.bvr);
     s.weapons && s.weapons.faor && faorPage && faorPage.setState(s.weapons.faor);
+    s.weapons && s.weapons.oca && ocaPage && ocaPage.setState(s.weapons.oca);
   } catch (e) {}
   try {
     view();
@@ -803,7 +806,7 @@ export function msfRestore(s) {
 export let MSFSIG = '';
 export const dtcDirty = () => lines.some(l => l.dirty);
 // the values of the DTC (not the 'edited' marks, which a Save DTC clears: saving the file is not a change of the mission)
-// what a mission holds besides the datacard and the DTC: Weapons, HARM and BVR pages, tanker tracks, the map picture
+// what a mission holds besides the datacard and the DTC: Weapons, HARM and A-A pages, tanker tracks, the map picture
 export const extraSig = () => {
   try {
     const w = msfWeapons();

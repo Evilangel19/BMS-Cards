@@ -3,13 +3,13 @@
 // under a module that changes with the task: the attack (Pop-up, HADB, TOSS: its key numbers and its side profile), the SEAD (the timeline of the SAMs),
 // the DEAD (the plan around the SAM and the events). The weather is checked against the module: the highest point of the attack, or the cruise level,
 // against the clouds over the target.
-// C: {title, right, key, mod: {kind: 'attack', side, line} | {kind: 'sead', sead} | {kind: 'dead', dead} | {kind: 'faor', plan, lines}, tgt (the data of the Smart Target card) | null,
+// C: {title, right, key, mod: {kind: 'attack', side, line} | {kind: 'sead', sead} | {kind: 'dead', dead} | {kind: 'aa', plan, lines}, tgt (the data of the Smart Target card) | null,
 //     sam {name, text} (SEAD / DEAD: the SAM in place of the target), wx (wxAtTarget) | null, windAlt, check {alt, label}, roe (the data of the Smart ROE /
 //     SOP card) | null, last [line, red line]}
 import { scFrame, scKey, scSec, scEnd, scText, scLine, scSide, scTri, scArrow, scRing, wrap } from './smartcard.js';
 import { seadTimeline, deadPlanView, scHhmm } from './smartsead.js';
 import { KSIZE } from './tgtdraw.js';
-import { faorPlanView } from './smartbvr.js';
+import { aaPlanView } from './smartaa.js';
 
 const RED = '#cc0000';
 
@@ -26,9 +26,9 @@ export function drawSmartCombined(x, C) {
   } else if (M.kind == 'sead') {
     seadTimeline(x, M.sead, 146, 'HARM TIMELINE', 4, 100);
     if (M.line) scText(x, 12, 326, 11, M.line);
-  } else if (M.kind == 'faor') {
-    scSec(x, 146, M.label || 'FAOR');
-    faorPlanView(x, M.plan, [12, 160, 250, 160]);
+  } else if (M.kind == 'aa') {
+    scSec(x, 146, M.label || 'A-A');
+    aaPlanView(x, M.plan, [12, 160, 250, 160]);
     (M.lines || []).slice(0, 10).forEach((t, i) => {
       const [s, red] = Array.isArray(t) ? t : [t, false];
       scText(x, 272, 176 + i * 15, 11, String(s), { c: red ? RED : undefined, w: i ? 400 : 700 });

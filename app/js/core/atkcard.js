@@ -1,7 +1,7 @@
 // @ts-check
 // The Attack card of the Kneeboard (1600 x 2400, light): one card per role (the whole flight, or the lead and the element / wingman of a split flight).
 // The plan of the attack (the other role thin and grey), its side profile with the fragments and the MRA, its parameters, the spacing after the lead,
-// the safety, the NAV OFFSETS written to the DTC. Pure drawing on a 2D context; the data come ready from the Weapons page.
+// the safety, the NAV OFFSETS written to the DTC. Pure drawing on a 2D context; the data come ready from the A-G page.
 // D: {role, roleCol, title, kind, target, bomb, segs: [[phase, [{n, e}...]]...], marks: [[{n, e}, label]...], target0 {n, e}, other: [[{n, e}...]...],
 //     prof: {segs: [[phase, [[x, alt]...]]...], marks: [[[x, alt], label]...], domes: [[[x, z]...]...], odomes: [[[x, z]...]...], mra, hot: [[[x, alt]...]...]},
 //     rows: [[label, value]...], spacing: {head, value, by, text, col} | null, safety: [[text, col]...], offsets: [[label, brg, rng, elev]...], notes: [...]}

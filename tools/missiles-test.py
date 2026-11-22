@@ -18,7 +18,7 @@ try:
         pg.evaluate("t=>__app.parse(t)", ini); pg.wait_for_timeout(300)
         pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(600)
         check('DTC Reset / Save / Copy are hidden on this tab', not pg.is_visible('#save') and not pg.is_visible('#saveow'))
-        check('Missiles tab is the BVR page only (the HARM moved to Weapons)', pg.is_visible('#ms') and pg.locator('#ms .wtabs').count() == 0 and pg.locator('#ms select[data-pick=msl]').count() == 1)
+        check('A-A > Timeline is the BVR page only (the HARM moved to A-G)', pg.is_visible('#ms') and pg.locator('#bvrtl .wtabs').count() == 0 and pg.locator('#ms select[data-pick=msl]').count() == 1)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500); pg.click('#wp [data-mode=harm]'); pg.wait_for_timeout(700)
         check('Weapons tab has Pop-up, HADB, TOSS and HARM; the Apply button is hidden on HARM', pg.locator('#wp .wtabs button').all_inner_texts() == ['Pop-up', 'HADB', 'TOSS', 'HARM'] and not pg.is_visible('#wpapply'))
         has_ppt = pg.locator('select[data-pick=em] option').count() > 0 and 'no PPT' not in pg.locator('select[data-pick=em] option').first.inner_text()

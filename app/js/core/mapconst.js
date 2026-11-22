@@ -91,7 +91,8 @@ export const MAP_LAYERS = [
   ['msa', 'MSA and ERAA', false, 'Display'],
   ['da', 'Pop-up/HADB/TOSS', false, 'Display'],
   ['hm', 'HARM', false, 'Display'],
-  ['fa', 'FAOR', false, 'Display'],
+  ['fa', 'DCA', false, 'Display'],
+  ['oc', 'OCA', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
@@ -163,7 +164,7 @@ export const SHOTS = {
   dc: { w: 564, h: 752, out: 1128 },
   kb: { w: 1024, h: 2048, out: 1024 },
   tg: { w: 1080, h: 520, out: 1620 },
-}; // tg: the picture of Weapons > Target
+}; // tg: the picture of A-G > Target
 
 let LEAF = null;
 export function loadLeaflet() {

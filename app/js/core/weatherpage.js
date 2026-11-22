@@ -1,4 +1,4 @@
-// Weather page: the weather map (.fmap) of the hour chosen on the time slider drawn over the Leaflet map of the Map page (the Weapons page borrows it the same way: not editable, no buttons,
+// Weather page: the weather map (.fmap) of the hour chosen on the time slider drawn over the Leaflet map of the Map page (the A-G page borrows it the same way: not editable, no buttons,
 // zoom and drag as usual), with the route of the selected flight and its airbases from the Map layers. The tabs above the map (Weather, Wind, Temperature, Pressure, Clouds, Visibility) choose
 // the filter drawn over it. The wind of the map is shown, as barbs, only in the Wind filter, at the layer chosen in the "Time & altitude" panel of the map (the 10 layers of the BMS manual,
 // 0-50,000 ft); by default the layer nearest to the altitude of the flight plan. Cards on the right: airbases with ATIS, weather along the route, winds aloft.

@@ -4,7 +4,7 @@
 //   search radar, so the SAM radiates and the HARM finds it; the impact must come while the flight is on the arc;
 // - Hunter-Killer (location unknown): both to their anchors outside the WEZ; the hunter flies the arc to bait the SAM, defends (ECM, chaff, notch) and
 //   goes back to its anchor; the killer marks the SAM (HAD, TGP), then attacks from its anchor while the cover flies an arc on the other side;
-// - Bombs / Maverick (no HARM): the attack is planned on the Weapons pages; here the checks.
+// - Bombs / Maverick (no HARM): the attack is planned on the A-G pages; here the checks.
 // The orbit: 'R' with the SAM on the right (clockwise round it), 'L' on the left. The roles per seat: shooter, hunter, killer, cover.
 import { timed, posAt, taskOf } from './sead.js';
 

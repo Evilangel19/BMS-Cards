@@ -312,12 +312,43 @@ export function cleanFaor(f) {
     hw: String(f.hw || '')
       .replace(/[\r\n]/g, ' ')
       .slice(0, 24),
+    // OCA (core/oca.js): the lead on the package (min), the position code, the target area (NM)
+    ...(f.pos != null
+      ? {
+          lead: Math.round(clamp(+f.lead || 0, 0, 30) * 2) / 2,
+          pos: String(f.pos)
+            .replace(/[^A-Z0-9-]/gi, '')
+            .slice(0, 6),
+          ta: n(f.ta, 0, 100),
+        }
+      : {}),
   };
 }
+const isOca = f => f.pos != null;
 // its lines: short (the card, the ROE box) or long (the ROE page, the ROE card)
 export function faorLines(f, long) {
   if (!f) return [];
   const W = f.wpn.toUpperCase();
+  if (isOca(f)) {
+    const sw = f.kind == 'SWEEP';
+    return long
+      ? [
+          'Weapons ' + W,
+          'Commit: hostile group within ' + f.commit + ' NM',
+          'Position ' + f.pos + ', ' + f.lead + ' min ahead of the package',
+          'No pursuit beyond ' + f.stop + ' NM from the package',
+          'Altitude block ' + altBlock(f.alt),
+          sw ? 'Clear the air ' + f.ta + ' NM around the target' : 'Stay between the threat and the package',
+        ]
+      : [
+          'WPN ' + W,
+          'COMMIT ' + f.commit + 'NM',
+          'LEAD ' + f.lead + 'MIN ' + f.pos,
+          'STOP ' + f.stop + 'NM FROM PKG',
+          'BLOCK ' + altBlock(f.alt),
+          sw ? 'TGT AREA ' + f.ta + 'NM' : 'STAY WITH THE PACKAGE',
+        ];
+  }
   return long
     ? [
         'Weapons ' + W + ' inside the FEZ',

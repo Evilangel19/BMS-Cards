@@ -1,6 +1,6 @@
-"""BVR > FAOR (1.3.0-beta.72) in the browser on a made-up CAP flight: the BVR tabs (FAOR first, Timeline second), the sliders and the checks, the FAOR block
-written to the ROE, the Smart BVR and Smart mission cards in both looks. No BMS file.
-Usage: python3 tools/faor-test.py [folder for the pictures]"""
+"""A-A > DCA (1.3.0-beta.72, renamed in beta.75) in the browser on a made-up CAP flight: the A-A tabs (DCA, OCA, Timeline), the sliders and the checks,
+the A-A block written to the ROE, the DTC lines, the classic, Smart DCA and Smart mission cards. No BMS file.
+Usage: python3 tools/dca-test.py [folder for the pictures]"""
 import os, subprocess, sys, time, base64, json
 HERE = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(HERE)
 sys.path.insert(0, HERE); import dialogs
@@ -33,15 +33,15 @@ try:
         dialogs.install(pg)
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:%d/app/index.html' % PORT); pg.wait_for_timeout(1500)
-        pg.evaluate("()=>localStorage.removeItem('bvrsub')")
+        pg.evaluate("()=>localStorage.removeItem('aasub')")
         pg.evaluate(SETUP)
         pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(1500)
-        check('the BVR tab: FAOR first, Timeline second', pg.locator('#bvrtabs [data-bsub]').all_inner_texts() == ['FAOR', 'Timeline'])
-        check('FAOR is shown first, its Add card button visible', pg.locator('#fapage').is_visible() and pg.locator('#bvrtl').is_hidden() and pg.locator('#bvrtabs [data-bcard]').is_visible())
+        check('the A-A tab: DCA, OCA, Timeline', pg.locator('#bvrtabs [data-bsub]').all_inner_texts() == ['DCA', 'OCA', 'Timeline'] and pg.locator('button.tab[data-t=ms]').inner_text().strip() == 'A-A' and pg.locator('button.tab[data-t=wp]').inner_text().strip() == 'A-G')
+        check('DCA is shown first, its Add card button visible', pg.locator('#fapage').is_visible() and pg.locator('#bvrtl').is_hidden() and pg.locator('#bvrtabs [data-bcard]').is_visible())
         check('the page: callsign and kind, the sliders', 'Falcon 1 · BARCAP' in pg.locator('#fafl h3').text_content() and pg.locator('#fapage input[type=range]').count() == 9)
         g = pg.evaluate("()=>{const G=__app.faorPage.geo();return {brg:G.brg,leg:G.leg}}")
         check('the threat axis square to the CAP leg, toward the enemy: %.0f' % g['brg'], abs(g['brg']) < 1 or abs(g['brg'] - 360) < 1)
-        check('the FAOR block written to the ROE of the flight %s' % pg.evaluate("()=>JSON.stringify(__FA.roe)"), pg.evaluate("()=>!!__FA.roe && __FA.roe.wpn=='tight' && __FA.roe.commit==40 && __FA.roe.hw=='Viper 2'"))
+        check('the A-A block written to the ROE of the flight %s' % pg.evaluate("()=>JSON.stringify(__FA.roe)"), pg.evaluate("()=>!!__FA.roe && __FA.roe.wpn=='tight' && __FA.roe.commit==40 && __FA.roe.hw=='Viper 2'"))
         w = pg.locator('#fawn').inner_text()
         check('the hardwall with Viper 2 in red: %s' % w.replace('\n', ' | '), 'HARDWALL with Viper 2' in w and pg.locator('#fawn .wbad').count() >= 1)
         # a slider moved and released: the ROE follows
@@ -52,7 +52,7 @@ try:
         pg.click('#fapage [data-fareset]'); pg.wait_for_timeout(400)
         check('Reset profile: COMMIT 40, TIGHT again', pg.evaluate("()=>__FA.roe.commit") == 40 and pg.evaluate("()=>__FA.roe.wpn") == 'tight')
         sm = pg.evaluate("()=>{const D=__app.faorPage.smart();return {t:D.title,k:D.key.map(k=>k[0]),b:D.blocks.map(b=>b[0])}}")
-        check('the Smart BVR data %s' % sm, sm['t'] == 'BVR · FAOR · BARCAP' and sm['k'][:3] == ['AXIS', 'FEZ', 'ALT'] and sm['b'] == ['FEZ', 'ID / BUGOUT', 'LINES', 'CALLS'])
+        check('the Smart DCA data %s' % sm, sm['t'] == 'A-A · DCA · BARCAP' and sm['k'][:3] == ['AXIS', 'FEZ', 'ALT'] and sm['b'] == ['FEZ', 'ID / BUGOUT', 'LINES', 'CALLS'])
         r = pg.evaluate("""async () => {
           const K = await import('/app/js/core/cardink.js'), a = await __app.faorPage.cardCanvas('smart'), c = await __app.faorPage.cardCanvas('combo'), d = K.otherLook(() => a);
           const px = (cv, x, y) => Array.from(cv.getContext('2d').getImageData(x, y, 1, 1).data.slice(0, 3));
@@ -60,7 +60,7 @@ try:
           const m = await __app.faorPage.cardCanvas('map');
           return { size: [a.width, a.height], bg: px(a, 800, 2390), reds: reds(a), png: [a.toDataURL(), c.toDataURL(), m.toDataURL()], msize: [m.width, m.height], mdark: px(m, 800, 1200), mid: px(m, 60, 2380) };
         }""")
-        check('the Smart BVR card: 1600 x 2400, white page', r['size'] == [1600, 2400] and min(r['bg']) > 240)
+        check('the Smart DCA card: 1600 x 2400, white page', r['size'] == [1600, 2400] and min(r['bg']) > 240)
         check('the limits in red on it (STOP, HARDWALL, the threat) %d' % r['reds'], r['reds'] > 200)
         check('the Smart mission card drawn', len(r['png'][1]) > 20000)
         check('the classic card with the map: 1600 x 2400, the picture of the map in its middle %s' % r['mdark'], r['msize'] == [1600, 2400] and max(r['mdark']) < 120 and min(r['mid']) > 200)
@@ -70,14 +70,14 @@ try:
                 open(os.path.join(OUT, 'faor_%s.png' % n), 'wb').write(base64.b64decode(r['png'][i].split(',')[1]))
         # Add card: the window offers the classic card with the map first
         pg.click('#bvrtabs [data-bcard]'); pg.wait_for_timeout(4000)
-        check('Add card: With the map (chosen), Smart BVR, Smart mission', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['With the map', 'Smart BVR', 'Smart mission'] and pg.locator('dialog.tgdlg .tgcard.on').count() >= 1)
+        check('Add card: With the map (chosen), Smart DCA, Smart mission', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['With the map', 'Smart DCA', 'Smart mission'] and pg.locator('dialog.tgdlg .tgcard.on').count() >= 1)
         pg.click('dialog.tgdlg [data-a=no]'); pg.wait_for_timeout(300)
         # the Timeline tab: the BVR timeline as before, remembered
         pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(1200)
         check('Timeline: the timeline page, the FAOR hidden, no Add card', pg.locator('#bvrtl #mstl').count() == 1 and pg.locator('#fapage').is_hidden() and pg.locator('#bvrtabs [data-bcard]').is_hidden())
-        check('the tab chosen is kept', pg.evaluate("()=>localStorage.getItem('bvrsub')") == 'tl')
+        check('the tab chosen is kept', pg.evaluate("()=>localStorage.getItem('aasub')") == 'tl')
         pg.click('#bvrtabs [data-bsub=faor]'); pg.wait_for_timeout(600)
-        check('back to FAOR', pg.locator('#fapage').is_visible())
+        check('back to DCA', pg.locator('#fapage').is_visible())
         # DTC lines: an F-16 (LINE1 used): the FEZ, COMMIT / STOP and the HARDWALL in LINE2-4; again: the same lines replaced
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(400)
         pg.click('#bvrtabs [data-bsub=faor]'); pg.wait_for_timeout(300)
@@ -94,7 +94,7 @@ try:
         check('F-15: SIT line 8 (FEZ) holds the three parts, 5 + 4 + 2 points %d' % n8, n8 == 11 and used('lineSTPT_', 6, 18) == 0)
         pg.evaluate("()=>{window.__sitOn=false}")
         # the Map page: Display > FAOR, off by default
-        check('Map, Display > FAOR: off by default', pg.evaluate("()=>!__app.mapV.state().on.fa"))
+        check('Map, Display > DCA and OCA: off by default', pg.evaluate("()=>!__app.mapV.state().on.fa && !__app.mapV.state().on.oc"))
         check('no page errors %s' % errs[:3], not errs)
         b.close()
 finally:

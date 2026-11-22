@@ -1011,13 +1011,6 @@ export function cleanSel(s) {
   o.faor = cleanFaor(s.faor);
   return o;
 }
-const joinLines = (a, b) => {
-  const L = a ? a.split('\n') : [];
-  (b ? b.split('\n') : []).forEach(l => {
-    if (l.trim() && !L.includes(l)) L.push(l);
-  });
-  return L.join('\n');
-};
 // the short text of a SOP topic: the option, or what was typed for it
 export function sopShort(topic, v) {
   if (!v) return '';
@@ -1248,7 +1241,7 @@ export function fullText(sel) {
   const s = cleanSel(sel),
     roe = [],
     sop = [];
-  if (s.faor) roe.push(['FAOR' + (s.faor.kind ? ' · ' + s.faor.kind : ''), faorLines(s.faor, true)]);
+  if (s.faor) roe.push(['A-A' + (s.faor.kind ? ' · ' + s.faor.kind : ''), faorLines(s.faor, true)]);
   ROE.forEach(([id, lab, k, , opts]) => {
     if (s.faor && (id == 'ws' || id == 'commit')) return; // in the FAOR block
     const L = (k == 'many' ? s.roe[id] : s.roe[id] ? [s.roe[id]] : [])

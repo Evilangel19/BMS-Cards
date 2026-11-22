@@ -1,4 +1,4 @@
-// Weapons > HARM > SEAD: the HARM shots of a SEAD flight that protect the other flights of its package. The maths is in sead.js (the rings of the map, the
+// A-G > HARM > SEAD: the HARM shots of a SEAD flight that protect the other flights of its package. The maths is in sead.js (the rings of the map, the
 // times of the flight plans, 9 nm/min where a steerpoint has no time, all the HARMs of the flight spread over the time inside the rings, ingress first,
 // POS to a steerpoint or HAD at the SAM); the range, the time of flight and the max range of each shot come from the HARM model of the Single shot page
 // (airmissile.js harmShot). The page: the package and the flights it protects, the threats on their routes (ALIC, place in the HARM tables), the
@@ -1476,7 +1476,7 @@ export function createSeadPage(deps) {
     acts: () => acts,
     allCards,
     addCard: b => addCard(b), // Add card of the Weapons tabs
-    // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
+    // shown again (the A-G page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;
       draw(false);

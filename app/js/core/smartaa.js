@@ -1,9 +1,10 @@
 // @ts-check
-// The Smart BVR card of the FAOR page (core/smartcard.js look): the key numbers, the plan of the FAOR (the FEZ on the threat axis, the CAP points, the
-// COMMIT and STOP lines, the HARDWALL, the bullseye), then the FEZ, the lines, the ID and BUGOUT of the ROE and the calls in short blocks.
-// D: {title, right, key, plan: FP, blocks: [[head, [lines]]], foot, last, lastRed}
-// FP (km of the theater, x east, y north): {box [4 pts], cap [pts], commit [2 pts], stop [2 pts], hw {a, b, name} | null, bull {x, y} | null, be (text when
-// the bullseye is off the plan), brg (threat axis, deg true), axis (its text as the pilot reads it: magnetic), front {x, y} (the middle of the threat edge), stn (NM: the station ring), legend}
+// The Smart A-A cards (core/smartcard.js look) of A-A > DCA and A-A > OCA: the key numbers, a plan, then short blocks in two columns.
+// D: {title, right, key, plan: P, blocks: [[head, [lines]]], foot, last, lastRed}
+// P, a plan in km of the theater (x east, y north), drawn north up:
+//   view [pts] (the points the view is fitted to; else every point of polys), polys [{pts, w, dash, red, grey, fill, close, round}],
+//   rings [{c, r (km), w, dash, red, grey}], dots [{p, k: 'dot' | 'sq' | 'tri', label, bold}], arrow {from, to, label} (red), labels [{p, t, red, bold, s, at}],
+//   bull {x, y} | null (drawn when near the view), be (its text when it is off the plan), legend
 import {
   scFrame,
   scKey,
@@ -20,6 +21,7 @@ import {
 } from './smartcard.js';
 
 const RED = '#cc0000',
+  GREY = '#999999',
   KM_NM = 1.852;
 
 // a view of km points in a box (north up, one scale)
@@ -42,11 +44,12 @@ function view(pts, box, pad = 0.1) {
   return { X: x => bx + bw / 2 + (x - cx) * sc, Y: y => by + bh / 2 - (y - cy) * sc, sc };
 }
 
-/** the plan of the FAOR in a box [x, y, w, h] (units of the card) */
-export function faorPlanView(x, P, box) {
-  const near = P.bull && P.box.some(p => Math.hypot(p.x - P.bull.x, p.y - P.bull.y) < 90 * KM_NM),
-    pts = [...P.box, ...P.cap, ...P.commit, ...P.stop, ...(P.hw ? [P.hw.a, P.hw.b] : []), ...(near ? [P.bull] : [])],
-    V = view(pts, box),
+/** a plan in a box [x, y, w, h] (units of the card) */
+export function aaPlanView(x, P, box) {
+  const polys = P.polys || [],
+    base = P.view && P.view.length ? P.view : polys.flatMap(q => q.pts),
+    near = P.bull && base.some(p => Math.hypot(p.x - P.bull.x, p.y - P.bull.y) < 90 * KM_NM),
+    V = view([...base, ...(near ? [P.bull] : [])], box),
     Q = p => [V.X(p.x), V.Y(p.y)],
     L = labeller(x),
     lb = [box[0] + 2, box[1] + 2, box[0] + box[2] - 2, box[1] + box[3] - 2];
@@ -59,29 +62,55 @@ export function faorPlanView(x, P, box) {
   x.beginPath();
   x.rect(box[0], box[1], box[2], box[3]);
   x.clip();
-  // the station: a ring of P.stn NM around each CAP point
-  P.cap.forEach(p => scRing(x, V.X(p.x), V.Y(p.y), P.stn * KM_NM * V.sc, { c: '#999999', w: 1, dash: [2, 4] }));
-  // the FEZ
-  scLine(x, P.box.map(Q), { close: true, w: 2, fill: 'rgba(0,0,0,0.05)' });
-  scLine(x, P.commit.map(Q), { w: 1.5, dash: [7, 4] });
-  scLine(x, P.stop.map(Q), { w: 2, c: RED });
-  if (P.hw) scLine(x, [Q(P.hw.a), Q(P.hw.b)], { w: 2.5, dash: [8, 5] });
-  // the CAP points and the racetrack between them
-  const C = P.cap.map(Q);
-  if (C.length > 1) scLine(x, C, { w: 5, c: '#bbbbbb', cap: 'round' });
-  C.forEach(([a, b]) => {
-    scDot(x, a, b, 4.5, '#222222');
+  const col = o => (o.red ? RED : o.grey ? GREY : undefined);
+  (P.rings || []).forEach(r =>
+    scRing(x, V.X(r.c.x), V.Y(r.c.y), r.r * V.sc, { c: col(r), w: r.w || 1, dash: r.dash || [] })
+  );
+  polys.forEach(q =>
+    scLine(x, q.pts.map(Q), {
+      w: q.w || 1.5,
+      dash: q.dash || [],
+      c: col(q) || (q.round ? '#bbbbbb' : undefined),
+      close: !!q.close,
+      fill: q.fill,
+      cap: q.round ? 'round' : undefined,
+    })
+  );
+  let tip = null;
+  if (P.arrow) {
+    const f = Q(P.arrow.from),
+      t = Q(P.arrow.to);
+    scLine(x, [f, t], { w: 1.5, c: RED });
+    scArrow(x, t[0], t[1], Math.atan2(t[1] - f[1], t[0] - f[0]), 8);
+    L.block(t[0], t[1], 6);
+    tip = t;
+  }
+  (P.dots || []).forEach(d => {
+    const [a, b] = Q(d.p);
+    if (d.k == 'sq')
+      scLine(
+        x,
+        [
+          [a - 5, b - 5],
+          [a + 5, b - 5],
+          [a + 5, b + 5],
+          [a - 5, b + 5],
+        ],
+        { close: true, fill: '#666666', w: 0 }
+      );
+    else if (d.k == 'tri')
+      scLine(
+        x,
+        [
+          [a, b - 7],
+          [a + 6, b + 5],
+          [a - 6, b + 5],
+        ],
+        { close: true, fill: '#222222', w: 0 }
+      );
+    else scDot(x, a, b, 4.5, '#222222');
     L.block(a, b, 7);
   });
-  // the threat axis: an arrow out of the threat edge
-  const r = (P.brg * Math.PI) / 180,
-    f = Q(P.front),
-    len = 34,
-    t = [f[0] + Math.sin(r) * len, f[1] - Math.cos(r) * len];
-  scLine(x, [f, t], { w: 1.5, c: RED });
-  scArrow(x, t[0], t[1], Math.atan2(t[1] - f[1], t[0] - f[0]), 8);
-  L.block(t[0], t[1], 6);
-  // the bullseye
   if (near) {
     const [a, b] = Q(P.bull);
     scRing(x, a, b, 6, { w: 1.5 });
@@ -104,29 +133,12 @@ export function faorPlanView(x, P, box) {
     L.block(a, b, 9);
     L.put(a, b, 'BE', { s: 11, w: 700, box: lb, r: 10 });
   }
-  // the labels
   const lab = (p, t, o = {}) => L.put(p[0], p[1], t, { s: 11, box: lb, ...o });
-  C.forEach((c, i) => lab(c, 'CAP' + (C.length > 1 ? i + 1 : ''), { w: 700 }));
-  lab(t, 'THREAT ' + (P.axis || String(Math.round(P.brg) % 360).padStart(3, '0')) + '°', { c: RED, w: 700 });
-  lab(Q(P.commit[1]), 'COMMIT' + (P.wpn ? ' · ' + P.wpn : ''));
-  lab(Q(P.stop[0]), 'STOP' + (P.drop ? ' · DROP ' + P.drop : ''), {
-    c: RED,
-    w: 700,
-    at: [
-      [6, -7],
-      [6, 15],
-    ],
-  });
-  if (P.stnTxt && C.length)
-    lab(C[C.length - 1], 'ON STN ' + P.stnTxt, {
-      s: 10,
-      at: [
-        [-30, 20],
-        [-30, -12],
-        [10, 20],
-      ],
-    });
-  if (P.hw) lab([(V.X(P.hw.a.x) + V.X(P.hw.b.x)) / 2, (V.Y(P.hw.a.y) + V.Y(P.hw.b.y)) / 2], 'HARDWALL ' + P.hw.name);
+  (P.dots || []).forEach(d => d.label && lab(Q(d.p), d.label, { w: d.bold ? 700 : 400 }));
+  if (tip && P.arrow.label) lab(tip, P.arrow.label, { c: RED, w: 700 });
+  (P.labels || []).forEach(l =>
+    lab(Q(l.p), l.t, { c: l.red ? RED : undefined, w: l.bold ? 700 : 400, s: l.s || 11, at: l.at })
+  );
   x.restore();
   if (!near && P.be) scText(x, box[0] + 4, box[1] + box[3] - 6, 11, P.be, { c: '#444444' });
   scLine(
@@ -168,11 +180,11 @@ function blocks(x, B, y0, yMax) {
 }
 
 /** @param {CanvasRenderingContext2D} x */
-export function drawSmartFaor(x, D) {
+export function drawSmartAA(x, D) {
   scFrame(x, D.title, D.right);
   scKey(x, D.key);
-  scSec(x, 146, 'FAOR');
-  faorPlanView(x, D.plan, [12, 160, 436, 262]);
+  scSec(x, 146, D.planLabel || 'PLAN');
+  aaPlanView(x, D.plan, [12, 160, 436, 262]);
   if (D.plan.legend) scText(x, 14, 436, 10, D.plan.legend, { c: '#555555' });
   scSec(x, 442);
   blocks(x, D.blocks, 460, 594);

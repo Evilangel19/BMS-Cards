@@ -45,6 +45,9 @@ import {
   allyOf,
 } from '../core/mapdata.js';
 import { createFaorPage } from '../core/faorpage.js';
+import { createOcaPage } from '../core/ocapage.js';
+import { ocaKind } from '../core/oca.js';
+import { timed } from '../core/sead.js';
 import { capKind } from '../core/faor.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
@@ -98,16 +101,17 @@ import { roeDraw, roeAllCards, roeSmartNow, roeOfFlight, roeFaorSet } from './ro
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
-const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the Weapons page
+const OFFS = createOffsets(); // offsets placed on the Map page (route steerpoints 1-24), shown and written by the A-G page
 export let harmRoot;
 export let harmPage;
-export let seadPage; // Weapons > HARM > SEAD
-export let deadPage; // Weapons > HARM > DEAD
-export let harmTab; // the HARM tab of the Weapons page: SEAD or Single shot
+export let seadPage; // A-G > HARM > SEAD
+export let deadPage; // A-G > HARM > DEAD
+export let harmTab; // the HARM tab of the A-G page: SEAD or Single shot
 // Squadron page: the pilot is read from the logbook (User\Config\*.lbk), the mission of the leader goes to the pilots peer to peer
 export let sqPage;
 export let pfPage;
-export let faorPage; // BVR > FAOR
+export let faorPage; // A-A > DCA (the FAOR)
+export let ocaPage; // A-A > OCA
 
 // run 6: statements that run when the program starts (in the order of the original file)
 export async function init6() {
@@ -129,8 +133,10 @@ export async function init6() {
     },
     // Display > HARM: the drawing of the HARM page of the flight (SEAD plan, DEAD tactic, else Single shot) in the group of the map
     harm: o => (seadPage.usable() ? seadPage : deadPage.usable() ? deadPage : harmPage).overlay(o),
-    // Display > FAOR: the FAOR of the CAP flight (BVR > FAOR)
+    // Display > FAOR: the FAOR of the CAP flight (A-A > DCA)
     faor: o => (faorPage ? faorPage.overlay(o) : false),
+    // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
+    oca: o => (ocaPage ? ocaPage.overlay(o) : false),
     attack: () => {
       const a = ST.wpPage && ST.wpPage.spec && ST.wpPage.spec();
       if (!a) return null;
@@ -289,7 +295,7 @@ export async function init6() {
   });
 }
 
-// Weapons > Target: the target picture (core/tgtpage.js) reads the DTC, the campaign, the objective files, the attack planner and the Map page through these
+// A-G > Target: the target picture (core/tgtpage.js) reads the DTC, the campaign, the objective files, the attack planner and the Map page through these
 const curFlight = () => {
   try {
     const x = ST.C && ST.CL.length && ST.CL[+$('fsel').value || 0];
@@ -562,7 +568,7 @@ function tgtDeps() {
   };
 }
 
-// ---- Weapons > HARM > SEAD: the package of the flight chosen in the datacard, the SAMs of the map, the HARMs of the loadout, the DTC
+// ---- A-G > HARM > SEAD: the package of the flight chosen in the datacard, the SAMs of the map, the HARMs of the loadout, the DTC
 const isSeadM = m => /^SEAD/.test(String(m || ''));
 function seadCtx() {
   if (!ST.C) return { ok: false, why: 'Open a campaign: SEAD plans the HARM shots of a SEAD flight of its ATO.' };
@@ -674,7 +680,7 @@ function seadDeps() {
     kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
   };
 }
-// ---- Weapons > HARM > DEAD: the SAM of the task of a DEAD flight (its target, else the enemy SAMs near the task steerpoint), the HARMs of the loadout
+// ---- A-G > HARM > DEAD: the SAM of the task of a DEAD flight (its target, else the enemy SAMs near the task steerpoint), the HARMs of the loadout
 const isDeadM = m => /^DEAD/.test(String(m || ''));
 function deadCtx() {
   if (!ST.C)
@@ -757,7 +763,7 @@ function deadDeps() {
     pptTypes: () => mapV.otherPpt(),
     // the lines of a Weapons attack page (popup, hadb, toss) on the target steerpoint nearest to the SAM (pt), drawn on the DEAD map
     planLines: (m, pt) => (ST.wpPage && ST.wpPage.planLines ? ST.wpPage.planLines(m, pt.x, pt.y) : null),
-    // a Weapons page of the attack (Pop-up, HADB, TOSS), its target the steerpoint nearest to the SAM (pt): the target chosen (or null), then the tab
+    // a A-G page of the attack (Pop-up, HADB, TOSS), its target the steerpoint nearest to the SAM (pt): the target chosen (or null), then the tab
     openMode: (m, pt) => {
       const a = pt && ST.wpPage && ST.wpPage.aimAt ? ST.wpPage.aimAt(pt.x, pt.y) : null,
         b = document.querySelector('#wp .wtabs [data-mode="' + m + '"]');
@@ -925,7 +931,7 @@ async function smartRefs(b) {
 }
 
 // the fixed base of the combined Smart cards: the target of the Target page, the weather of the flight, its ROE / SOP (each null when it has none)
-// ---- BVR > FAOR: the CAP flight chosen (its CAP steerpoints, the enemy airbases, the other CAP flights of its side, the targets of its package)
+// ---- A-A > DCA: the CAP flight chosen (its CAP steerpoints, the enemy airbases, the other CAP flights of its side, the targets of its package)
 const ACT_B = [0, 1, 2, 3, 4, 7, 8],
   ACT_ATK = [14, 15, 16, 17, 19];
 const capPts = f => {
@@ -985,19 +991,6 @@ function faorCtx() {
         .slice(0, 1)
         .map(q => ({ x: q.w.x, y: q.w.y, name: z.callsign + ' STPT ' + q.n }))
     );
-  let aa = '';
-  try {
-    const g = CAM.loadGroups(e.f)[0];
-    aa = g
-      ? g.ids
-          .map((id, k) => [D.wn[id] || '', g.cn[k] || 0])
-          .filter(([n, c]) => c && AA.test(n))
-          .map(([n, c]) => c + '× ' + n)
-          .join(' · ')
-      : '';
-  } catch (er) {
-    aa = '';
-  }
   return {
     ok: true,
     me: {
@@ -1018,7 +1011,81 @@ function faorCtx() {
     targets,
     joker: F.joker || '',
     bingo: F.bingo || '',
-    aa,
+    aa: aaLoad(e.f),
+  };
+}
+// the air-to-air missiles of the loadout of the flight (the first group), as text
+function aaLoad(f) {
+  try {
+    const g = CAM.loadGroups(f)[0],
+      D = ST.C.D;
+    return g
+      ? g.ids
+          .map((id, k) => [D.wn[id] || '', g.cn[k] || 0])
+          .filter(([n, c]) => c && AA.test(n))
+          .map(([n, c]) => c + '× ' + n)
+          .join(' · ')
+      : '';
+  } catch (er) {
+    return '';
+  }
+}
+// ---- A-A > OCA: the SWEEP or ESCORT flight chosen, the flights it protects (the ones of its package with an attack steerpoint, else the others but the
+// air-to-air and support ones), the enemy SAMs
+const SUPPORT = /AIR REFUEL|AEW|ELINT|EWS|RECCE|AIRLIFT|AIRMOBILE|CSAR|PATROL/;
+function ocaCtx() {
+  if (!ST.C) return { ok: false, why: 'Open a campaign: OCA plans the SWEEP and ESCORT flights of its ATO.' };
+  const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+    e = x && ATOL.find(z => z.f === x.f);
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  const kind = ocaKind(e.mission);
+  if (!kind)
+    return { ok: false, why: e.callsign + ' flies ' + e.mission + ': OCA plans the SWEEP and ESCORT flights.' };
+  const others = ATOL.filter(
+      z => z.f !== e.f && z.pkg == e.pkg && !capKind(z.mission) && !ocaKind(z.mission) && !SUPPORT.test(z.mission)
+    ),
+    withTgt = others
+      .map(z => {
+        const w = timed(z.f.wps),
+          t = w.find(p => ACT_ATK.includes(p.act));
+        return { name: z.callsign, w, tgt: t ? { x: t.x, y: t.y, n: t.n, t: t.arr } : null };
+      })
+      .filter(f => f.w.length > 1),
+    prot = withTgt.some(f => f.tgt) ? withTgt.filter(f => f.tgt) : withTgt;
+  if (!prot.length) return { ok: false, why: e.callsign + ': no flight to protect in package ' + e.pkgNo + '.' };
+  const main = [...prot].filter(f => f.tgt).sort((a, b) => a.tgt.t - b.tgt.t)[0];
+  if (!main) return { ok: false, why: 'No flight of package ' + e.pkgNo + ' has a target steerpoint with a time.' };
+  let sams = [];
+  try {
+    sams = mapUnits(ST.C, e.team)
+      .filter(m => m.sam && m.hostile && !m.noFcr)
+      .map(m => ({ x: m.u.x, y: m.u.y, r: mapV.samRng ? mapV.samRng(m.name, m.rng) : m.rng, name: m.name }))
+      .filter(m => m.r > 0);
+  } catch (er) {
+    sams = [];
+  }
+  const C = ST.C;
+  return {
+    ok: true,
+    me: {
+      key: String(e.f.id.n),
+      name: e.callsign,
+      mission: e.mission,
+      kind,
+      n: e.n,
+      ac: e.ac,
+      pkgNo: e.pkgNo,
+      team: e.team,
+      tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
+      w: timed(e.f.wps),
+    },
+    prot,
+    main,
+    sams,
+    bull: C.bull ? { x: C.bull.x, y: C.bull.y } : null,
+    joker: F.joker || '',
+    bingo: F.bingo || '',
+    aa: aaLoad(e.f),
   };
 }
 function faorDeps() {
@@ -1037,7 +1104,7 @@ function faorDeps() {
     dtcLines: async (L, name) => {
       if (!lines.length) return { msg: 'Open a DTC first: the lines are added to it.', bad: true };
       await mapV.ensure();
-      return mapV.autoFaor(L, name);
+      return mapV.autoAA(L, name);
     },
     timeline: () => (ST.msPage && ST.msPage.rowsReady ? ST.msPage.rowsReady() : []),
     combo: () => comboBase(),
@@ -1161,7 +1228,7 @@ export async function init9() {
     return ST.tgPage.allCards();
   };
   KBX.src.roe = roeAllCards;
-  // the desktop program takes the files dropped on its window: a picture dropped on Weapons > Target is its screenshot
+  // the desktop program takes the files dropped on its window: a picture dropped on A-G > Target is its screenshot
   if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));
   ST.wpPage = createWeaponsPage({
     offs: OFFS,
@@ -1476,30 +1543,34 @@ export async function init11() {
 
 // run 13: statements that run when the program starts (in the order of the original file)
 export async function init13() {
-  // BVR: two pages under tabs, as the Weapons page: FAOR (the area of a CAP flight) and Timeline (the BVR timeline of the datacard); the last one shown comes back
+  // A-A (the tab ms): three pages under tabs, as A-G: DCA (the FAOR of a CAP flight; internal key 'faor'), OCA (SWEEP, ESCORT) and Timeline (the BVR
+  // timeline of the datacard); the last one shown comes back. ARCHITECTURE.md lists the internal names that stayed.
   const host = $('ms'),
     tlRoot = document.createElement('div');
   tlRoot.id = 'bvrtl';
   faorPage = createFaorPage(faorDeps());
+  ocaPage = createOcaPage({ ...faorDeps(), ctx: ocaCtx, msa: null });
   const SUBS = [
-      ['faor', 'FAOR'],
+      ['faor', 'DCA'],
+      ['oca', 'OCA'],
       ['tl', 'Timeline'],
     ],
-    page = k => (k == 'faor' ? faorPage : ST.msPage),
-    rootOf = k => (k == 'faor' ? faorPage.root : tlRoot);
+    page = k => (k == 'faor' ? faorPage : k == 'oca' ? ocaPage : ST.msPage),
+    rootOf = k => (k == 'faor' ? faorPage.root : k == 'oca' ? ocaPage.root : tlRoot);
   let sub = 'faor';
   try {
-    if (localStorage.getItem('bvrsub') == 'tl') sub = 'tl';
+    const v = localStorage.getItem('aasub');
+    if (v == 'tl' || v == 'oca') sub = v;
   } catch (e) {
     /* none */
   }
-  host.innerHTML = `<div class="wtabs" role="tablist" id="bvrtabs">${SUBS.map(([k, l]) => `<button type="button" role="tab" data-bsub="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-bcard title="Kneeboard cards of the FAOR: Smart BVR, Smart mission">Add card</button></div>`;
-  host.append(faorPage.root, tlRoot);
+  host.innerHTML = `<div class="wtabs" role="tablist" id="bvrtabs">${SUBS.map(([k, l]) => `<button type="button" role="tab" data-bsub="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-bcard title="Kneeboard cards of the page shown: with the map, Smart, Smart mission">Add card</button></div>`;
+  host.append(faorPage.root, ocaPage.root, tlRoot);
   const show = () => {
     host.querySelectorAll('[data-bsub]').forEach(b => b.classList.toggle('on', b.dataset.bsub == sub));
     SUBS.forEach(([k]) => rootOf(k).classList.toggle('hide', k != sub));
-    host.querySelector('[data-bcard]').hidden = sub != 'faor';
-    document.body.classList.toggle('onfaor', sub == 'faor');
+    host.querySelector('[data-bcard]').hidden = sub == 'tl';
+    document.body.classList.toggle('onfaor', sub != 'tl');
   };
   ST.bvrPage = {
     render: () => {
@@ -1508,12 +1579,13 @@ export async function init13() {
     },
     leave: () => {
       faorPage.leave();
+      ocaPage.leave();
       ST.msPage.leave();
       document.body.classList.remove('onfaor');
     },
     sub: () => sub,
   };
-  // another page (the ROE / SOP: Edit in FAOR) opens BVR on one of its tabs
+  // another page (the ROE / SOP: Edit in DCA / OCA) opens A-A on one of its tabs
   ST.bvrGo = k => {
     if (k != sub) page(sub).leave();
     sub = k;
@@ -1528,28 +1600,30 @@ export async function init13() {
       page(sub).leave();
       sub = b.dataset.bsub;
       try {
-        localStorage.setItem('bvrsub', sub);
+        localStorage.setItem('aasub', sub);
       } catch (er) {
         /* none */
       }
       ST.bvrPage.render();
     }
     const c = /** @type {HTMLButtonElement|null} */ (t.closest('[data-bcard]'));
-    if (c) faorPage.addCard(c);
+    if (c && sub != 'tl') page(sub).addCard(c);
   });
   show();
-  // Add all cards: the classic card takes the picture of the page's map, so the page is shown while it is made, then BVR as it was
-  KBX.src.faor = async () => {
-    if (!faorPage.usable()) return [];
+  // Add all cards: the classic cards take the picture of the page's map, so the page is shown while they are made, then A-A as it was
+  const allOn = k => async () => {
+    if (!page(k).usable()) return [];
     const s0 = sub;
-    ST.bvrGo('faor');
+    ST.bvrGo(k);
     await new Promise(r => setTimeout(r, 1200));
     try {
-      return await faorPage.allCards();
+      return await page(k).allCards();
     } finally {
-      if (s0 != 'faor') ST.bvrGo(s0);
+      if (s0 != k) ST.bvrGo(s0);
     }
   };
+  KBX.src.faor = allOn('faor');
+  KBX.src.oca = allOn('oca');
   ST.msPage = createMissilesPage({
     fillBvr: rows => bvrCells(rows).forEach(([k, v]) => setField(k, v)),
     bvrSame: rows => bvrCells(rows).every(([k, v]) => (F[k] || '') === v),

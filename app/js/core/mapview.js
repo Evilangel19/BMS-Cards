@@ -159,7 +159,7 @@ export function createMap(host, deps) {
     return BASES.sat;
   };
   const baseDef = k => (k == 'sat' ? satDef() : BASES[k]);
-  // the filters a Weapons page chose with its Map filters button (PLANMODE, below) are not the Map page's: what is kept is the Map page's (PLANSAVE)
+  // the filters a A-G page chose with its Map filters button (PLANMODE, below) are not the Map page's: what is kept is the Map page's (PLANSAVE)
   let PLANSAVE = null,
     PLANMODE = 0,
     LENTMODE = 0;
@@ -184,7 +184,7 @@ export function createMap(host, deps) {
   let home = null,
     away = null,
     MO = null;
-  /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
+  /* the A-G page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
   let LEVWAS = false, // the LEVELS menu was open when another page borrowed it
     LEVW = null; // the LEVELS menu while it is lent
   function levelsBack() {
@@ -204,9 +204,9 @@ export function createMap(host, deps) {
     MIRROR.forEach(k => away.classList.toggle(k, host.classList.contains(k)));
     for (const n of host.style) if (n.startsWith('--')) away.style.setProperty(n, host.style.getPropertyValue(n));
   }
-  // the DTC points can be dragged on the Map page; on the Weapons pages only after "Edit points"
+  // the DTC points can be dragged on the Map page; on the A-G pages only after "Edit points"
   let EDIT = true,
-    WEDIT = false; // WEDIT: the choice of the user for the Weapons pages ("Edit points"), kept while the pages are redrawn
+    WEDIT = false; // WEDIT: the choice of the user for the A-G pages ("Edit points"), kept while the pages are redrawn
   const ro = w => {
     if (!EDIT)
       w.querySelectorAll('input,select,button').forEach(x => {
@@ -373,7 +373,7 @@ export function createMap(host, deps) {
     });
     map.createPane('coastP').style.zIndex = 250;
     map.createPane('planP').style.zIndex = 450;
-    map.createPane('atkP').style.zIndex = 460; // the attack of the Weapons page (pop-up line ...): above the flight plan
+    map.createPane('atkP').style.zIndex = 460; // the attack of the A-G page (pop-up line ...): above the flight plan
     CR = L.canvas({ pane: 'coastP' });
     PR = L.canvas({ pane: 'planP' });
     map.createPane('planM').style.zIndex = 452;
@@ -459,7 +459,7 @@ export function createMap(host, deps) {
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
     map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
-    map.on('zoomend', () => st.on.fa && !away && faorDraw());
+    map.on('zoomend', () => (st.on.fa || st.on.oc) && !away && faorDraw());
     zc();
     host.addEventListener(
       'click',
@@ -521,7 +521,14 @@ export function createMap(host, deps) {
     uf: ['Friendly units', 'Friendly units · JTAC only'],
     sj: 'Only the JTAC of the flight',
   };
-  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS', hm: 'HARM', fa: 'FAOR' };
+  const DSPTXT = {
+    rc: 'Enemy radar coverage',
+    msa: 'MSA and ERAA',
+    da: 'Pop-up/HADB/TOSS',
+    hm: 'HARM',
+    fa: 'DCA',
+    oc: 'OCA',
+  };
   // the details of the filters, in the tooltips (the rows stay on one line)
   const TIP = {
     nav: 'VOR and TACAN stations',
@@ -536,9 +543,10 @@ export function createMap(host, deps) {
     fs: 'Only support flights: tankers, AWACS, JSTARS...',
     fe: 'Only the enemy flights your side has spotted',
     rc: 'Approximate coverage of the enemy radars at the chosen altitude',
-    da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss)',
-    hm: 'The drawing of Weapons > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
-    fa: 'The FAOR of the selected CAP flight (BVR > FAOR): the FEZ, COMMIT, STOP and the HARDWALL',
+    da: 'The attack worked out on the A-G page: the lines of each phase and the marks (pop-up, HADB, toss)',
+    hm: 'The drawing of A-G > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
+    fa: 'The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT, STOP and the HARDWALL',
+    oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the corridor, COMMIT, STOP and the target area',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -832,7 +840,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['fa', DSPTXT.fa])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -1071,7 +1079,7 @@ export function createMap(host, deps) {
     refilter();
     return PLANMODE;
   }
-  // the map back on the Map page: its own filters again (the choice of the Weapons pages kept for when they borrow it again); borrowed: that choice again
+  // the map back on the Map page: its own filters again (the choice of the A-G pages kept for when they borrow it again); borrowed: that choice again
   function planHome() {
     LENTMODE = PLANMODE;
     while (PLANMODE) cyclePlan();
@@ -1584,7 +1592,7 @@ export function createMap(host, deps) {
           : 'The SAMs crossing the flight plan are already in the DTC.'
       );
   }
-  // the AUTO PPT for a list of SAMs chosen elsewhere (Weapons > HARM > SEAD: the threats assigned): each one not in the DTC yet in a free PPT slot; the
+  // the AUTO PPT for a list of SAMs chosen elsewhere (A-G > HARM > SEAD: the threats assigned): each one not in the DTC yet in a free PPT slot; the
   // SAM threats already there stay. list: [{x, y (km), rng (km), name}]. The message of what was done.
   function autoPptFor(list) {
     const P = deps.dtc && deps.dtc.points();
@@ -1630,7 +1638,7 @@ export function createMap(host, deps) {
       bad: !!full,
     };
   }
-  // one point as a PPT with no threat ring (Weapons > HARM > DEAD: an anchor): {x, y (km), name (a type of the threat list), label}. The message of what was done.
+  // one point as a PPT with no threat ring (A-G > HARM > DEAD: an anchor): {x, y (km), name (a type of the threat list), label}. The message of what was done.
   function addPpt(m) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return { msg: 'Open a DTC first: the point is added to it.', bad: true };
@@ -1912,57 +1920,70 @@ export function createMap(host, deps) {
     dtc();
     toast(lnName(line) + ': bullseye L (' + lnRange(line, slot, 3) + ') added to the DTC.');
   }
-  // FAOR (BVR > FAOR): the FEZ (5 points), COMMIT / STOP (4) and the HARDWALL (2) as lines of the DTC. F-16: a whole LINE each, the lines written here
-  // before taken back first; F-15: the SIT line 8 (FEZ), the parts with a break between them. -> {msg, bad} or null (not wanted)
-  async function autoFaor(Fz, name) {
+  // A-A (DCA, OCA): the lines of the plan of a page into the DTC. Fz: {parts [[key, label, pts]], sit (the SIT line of the F-15), sitName, key}.
+  // F-16: a whole LINE each part, the lines written before by the same page taken back first; F-15: the SIT line given, the parts with a break between
+  // them. -> {msg, bad} or null (not wanted)
+  async function autoAA(Fz, name) {
     let P = deps.dtc && deps.dtc.points();
     if (!P) return { msg: 'Open a DTC first: the lines are added to it.', bad: true };
-    const parts = [
-      ['fez', 'FEZ', Fz.fez],
-      ['cs', 'COMMIT / STOP', Fz.cs],
-      ...(Fz.hw ? [['hw', 'HARDWALL', Fz.hw]] : []),
-    ];
+    const parts = Fz.parts,
+      K = Fz.key,
+      n8 = Fz.sit;
     if (parts.some(([, , q]) => q.some(p => p.x < 0 || p.x > 1024 || p.y < 0 || p.y > 1024)))
-      return { msg: 'The FAOR reaches outside the theater.', bad: true };
+      return { msg: 'The plan reaches outside the theater.', bad: true };
     if (sitOn()) {
-      const { a, len } = lineSpec(8),
+      const { a, len } = lineSpec(n8),
         seq = [];
       parts.forEach(([, , q], k) => {
         if (k) seq.push(null);
         q.forEach(p => seq.push(p));
       });
+      if (seq.length > len) return { msg: 'The plan has more points than a SIT line (' + len + ').', bad: true };
       if (
-        lnUsed(P, 8) &&
-        !auUsed('faor:sit') &&
-        !(await confirm('SIT line 8 (FEZ) already has points: replace them with the FAOR?'))
+        lnUsed(P, n8) &&
+        !auUsed(K + ':sit') &&
+        !(await confirm(
+          'SIT line ' + n8 + ' (' + lnName(n8) + ') already has points: replace them with the plan of ' + name + '?'
+        ))
       )
         return null;
       addStop();
-      const have = new Set(lnPts(P, 8).map(q => q.slot));
+      const have = new Set(lnPts(P, n8).map(q => q.slot));
       for (let k = 0; k < len; k++) {
         const p = seq[k];
         if (p) deps.dtc.set('sit', a + k, { x: p.x, y: p.y });
         else if (have.has(a + k)) deps.dtc.clear('sit', a + k);
       }
-      if (deps.dtc.setMeta) deps.dtc.setMeta(8, { name: 'FEZ' });
-      AU['faor:sit'] = { line: 8, x: seq[0].x, y: seq[0].y };
+      if (deps.dtc.setMeta) deps.dtc.setMeta(n8, { name: Fz.sitName });
+      AU[K + ':sit'] = { line: n8, x: seq[0].x, y: seq[0].y };
       showLayer('ds');
       sync();
       dtc();
       return {
-        msg: 'SIT line 8 (FEZ): the FAOR of ' + name + ' (' + parts.map(z => z[1]).join(', ') + ') added to the DTC.',
+        msg:
+          'SIT line ' +
+          n8 +
+          ' (' +
+          Fz.sitName +
+          '): ' +
+          name +
+          ' (' +
+          parts.map(z => z[1]).join(', ') +
+          ') added to the DTC.',
       };
     }
     addStop();
-    // the lines of an earlier FAOR are emptied first, so that the new one takes their place
-    parts.forEach(([k]) => {
-      const r = AU['faor:' + k];
-      if (r && auLine(P, r)) {
-        const { g, a, len } = lineSpec(r.line);
-        for (let i = a; i < a + len; i++) deps.dtc.clear(g, i);
-      }
-      delete AU['faor:' + k];
-    });
+    // the lines written before by this page are emptied first, so that the new plan takes their place
+    Object.keys(AU)
+      .filter(k => k.startsWith(K + ':') && k != K + ':sit')
+      .forEach(k => {
+        const r = AU[k];
+        if (r && auLine(P, r)) {
+          const { g, a, len } = lineSpec(r.line);
+          for (let i = a; i < a + len; i++) deps.dtc.clear(g, i);
+        }
+        delete AU[k];
+      });
     const done = [],
       miss = [];
     for (const [k, lab, q] of parts) {
@@ -1973,16 +1994,15 @@ export function createMap(host, deps) {
         continue;
       }
       q.forEach((p, i) => deps.dtc.set(wl.g, wl.slot + i, { x: p.x, y: p.y, altFt: 0 }));
-      AU['faor:' + k] = { line: wl.n, x: q[0].x, y: q[0].y };
+      AU[K + ':' + k] = { line: wl.n, x: q[0].x, y: q[0].y };
       done.push(lnName(wl.n) + ' ' + lab);
     }
     showLayer(GROUPS.line.layer);
     sync();
     dtc();
-    if (!done.length) return { msg: 'No empty LINE left: each part of the FAOR needs a whole LINE.', bad: true };
+    if (!done.length) return { msg: 'No empty LINE left: each part of the plan needs a whole LINE.', bad: true };
     return {
       msg:
-        'FAOR of ' +
         name +
         ' added to the DTC: ' +
         done.join(', ') +
@@ -2753,10 +2773,12 @@ export function createMap(host, deps) {
       HMON = !!st.on.hm;
       harmDraw();
     }
-    if (!!st.on.fa !== FAON) {
-      FAON = !!st.on.fa;
-      faorDraw();
-    }
+    ['fa', 'oc'].forEach(k => {
+      if (!!st.on[k] !== AAON[k]) {
+        AAON[k] = !!st.on[k];
+        aaDraw(k);
+      }
+    });
     objDraw();
     radarCov();
     msaDraw();
@@ -3353,7 +3375,7 @@ export function createMap(host, deps) {
       } else o.mk.setOpacity(0);
     });
   }
-  // ---- offsets of a route steerpoint (1-24), placed on the map: OA1, OA2, VRP, VRP PUP, VIP, VIP PUP (deps.offs; the Weapons page shows and writes them) ----
+  // ---- offsets of a route steerpoint (1-24), placed on the map: OA1, OA2, VRP, VRP PUP, VIP, VIP PUP (deps.offs; the A-G page shows and writes them) ----
   let OFFR = [],
     OFFP = null,
     OFFRE = 0; // OFFR: the route steerpoints of the picked flight; OFFP: the point waiting for a click {n, at, key, mk}; OFFRE: steerpoint whose panel opens again after a placement
@@ -3362,7 +3384,7 @@ export function createMap(host, deps) {
     return { n: y * FT_KM, e: x * FT_KM };
   };
   const posLL = q => toLL(q.e / FT_KM, q.n / FT_KM);
-  // the points follow the store whoever changes it (the Weapons page: Clear offsets)
+  // the points follow the store whoever changes it (the A-G page: Clear offsets)
   if (deps.offs)
     deps.offs.onChange(() => {
       try {
@@ -3937,27 +3959,33 @@ export function createMap(host, deps) {
   // page draws it itself while it has the map. Drawn again at every zoom (the texts of DEAD are placed for the scale); the last call wins.
   let HMN = 0,
     HMON = false;
-  // Display > FAOR: the FAOR page draws the FAOR of the flight in a group given to it (deps.faor), as the HARM page does
-  let FAN = 0,
-    FAON = false;
-  function faorDraw() {
-    const n = ++FAN;
-    if (!G.fa) return;
-    G.fa.clearLayers();
-    if (away || !deps.faor || !st.on.fa) return;
+  // Display > DCA and OCA: the pages of A-A draw the plan of the flight in a group given to them (deps.faor, deps.oca), as the HARM page does
+  const AAN = { fa: 0, oc: 0 },
+    AAON = { fa: false, oc: false },
+    AADEP = { fa: 'faor', oc: 'oca' };
+  function aaDraw(k) {
+    const n = ++AAN[k],
+      dep = deps[AADEP[k]];
+    if (!G[k]) return;
+    G[k].clearLayers();
+    if (away || !dep || !st.on[k]) return;
     const g = window.L.layerGroup();
-    new Promise(r => r(deps.faor({ L: window.L, map, WL: g })))
+    new Promise(r => r(dep({ L: window.L, map, WL: g })))
       .then(ok => {
-        if (n !== FAN || away) return;
-        G.fa.clearLayers();
+        if (n !== AAN[k] || away) return;
+        G[k].clearLayers();
         if (ok)
           g.getLayers().forEach(l => {
             g.removeLayer(l);
-            G.fa.addLayer(l);
+            G[k].addLayer(l);
           });
       })
       .catch(() => {});
   }
+  const faorDraw = () => {
+    aaDraw('fa');
+    aaDraw('oc');
+  };
   function harmDraw() {
     const n = ++HMN;
     if (!G.hm) return;
@@ -3976,7 +4004,7 @@ export function createMap(host, deps) {
       })
       .catch(() => {});
   }
-  // the attack worked out on the Weapons page (deps.attack(): lines per phase and marks as [lat, lon]); the Weapons page draws it itself while it has the map
+  // the attack worked out on the A-G page (deps.attack(): lines per phase and marks as [lat, lon]); the A-G page draws it itself while it has the map
   function attackDraw() {
     const A = !away && deps.attack && deps.attack();
     if (!A) return;
@@ -5041,7 +5069,7 @@ export function createMap(host, deps) {
         });
       const to =
         shotK == 'tg'
-          ? 'the target picture (Weapons > Target)'
+          ? 'the target picture (A-G > Target)'
           : shotK == 'kb'
             ? 'the kneeboard cards'
             : deps.mdcShot && deps.mdcShot()
@@ -5364,7 +5392,7 @@ export function createMap(host, deps) {
       if (map) dtcInfo();
     },
     autoPptFor: list => autoPptFor(list),
-    autoFaor: (Fz, name) => autoFaor(Fz, name),
+    autoAA: (Fz, name) => autoAA(Fz, name),
     addPpt: m => addPpt(m),
     isSamPpt: n => !(PPT.length > 0) || isSamPpt(n),
     samRng: (name, rng) => samRng(name, rng),
@@ -5394,9 +5422,11 @@ export function createMap(host, deps) {
                 ? 'Front line (AUTO)'
                 : k.startsWith('tk:')
                   ? 'Tanker ' + k.slice(3)
-                  : k.startsWith('faor:')
-                    ? 'FAOR (AUTO)'
-                    : k;
+                  : k.startsWith('dca:')
+                    ? 'DCA (AUTO)'
+                    : k.startsWith('oca:')
+                      ? 'OCA (AUTO)'
+                      : k;
       });
       dtcLines({ line: P.line.filter(p => !p.empty) }).forEach(run => {
         const tk = (PREF.tanks || []).find(
@@ -5410,7 +5440,7 @@ export function createMap(host, deps) {
     shotTake,
     shotStop,
     snap,
-    // the LEVELS menu (base map and layers) lent to another page (Weapons > Target): moved into el, then back
+    // the LEVELS menu (base map and layers) lent to another page (A-G > Target): moved into el, then back
     // (the menu comes closed; if it was open on the Map page it opens again there)
     // (kept in LEVW while it is away: $ only finds what is in the map page or in the page that borrows the map)
     levelsTo: el => {
@@ -5455,9 +5485,9 @@ export function createMap(host, deps) {
     objectsOn: () => OBJ_LAYERS.every(([t]) => st.on['o' + t]),
     count: k => (map && G[k] && map.hasLayer(G[k]) ? G[k].getLayers().length : 0),
     overlay: () => OV,
-    // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the Weapons page as a background
-    // the Weapons page borrows the Leaflet map (with the layer and flight plan chosen here) and gives it back with detach()
-    // view: the page does not edit anything (the Weather page): the points cannot be moved whatever the choice made on the Weapons pages
+    // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the A-G page as a background
+    // the A-G page borrows the Leaflet map (with the layer and flight plan chosen here) and gives it back with detach()
+    // view: the page does not edit anything (the Weather page): the points cannot be moved whatever the choice made on the A-G pages
     async attach(el, view) {
       if (!map) {
         try {

@@ -204,7 +204,7 @@ ok(
 const ft = fullText(sel);
 ok(
   'the ROE card: a FAOR block first, without the weapons status and commit of the menu',
-  ft.roe[0][0] == 'FAOR · BARCAP' &&
+  ft.roe[0][0] == 'A-A · BARCAP' &&
     ft.roe[0][1].length == faorLines(fa, true).length &&
     !ft.roe.some(r => /Weapons status|Commit/.test(r[0]))
 );

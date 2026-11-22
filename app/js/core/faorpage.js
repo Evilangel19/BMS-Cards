@@ -1,10 +1,11 @@
 // @ts-check
-// BVR > FAOR: the Fighter Area Of Responsibility of a CAP flight (BARCAP, CAP, AMBUSHCAP, TARCAP, DCA, HAVCAP, RESCAP; core/faor.js). The FEZ on the
-// threat axis (from the two CAP steerpoints, on the side of the enemy airbases), its lines and its altitude block, with sliders that start from the
-// profile of the kind of mission and stop at the minimums of BMS; the warnings in red. The FAOR block of the ROE of the flight follows the page (deps.roeSet),
-// the Map page draws it (Display > FAOR), its lines go into the DTC (deps.dtcLines), its cards go to the Kneeboard (Smart BVR, Smart mission).
-// deps: {esc, toast, ctx () -> X, attach, detach, toLL, cyclePlan, planMode, msa (km polygon) -> Promise<ft | null>, roeGet () -> sel, roeSet (faor),
-//        dtcLines ({fez, cs, hw}, name) -> {msg, bad}, timeline () -> Promise<rows>, combo () -> Promise<base>, kbAdd, snap (scale) -> the picture of the map}
+// A-A > DCA: the Fighter Area Of Responsibility of a CAP flight (BARCAP, CAP, AMBUSHCAP, TARCAP, DCA, HAVCAP, RESCAP; core/faor.js). The FEZ on the
+// threat axis (from the two CAP steerpoints, on the side of the nearest enemy), its lines and its altitude block, with sliders that start from the
+// profile of the kind of mission and stop at the minimums of BMS; the warnings in red. The A-A block of the ROE of the flight follows the page (deps.roeSet),
+// the Map page draws it (Display > DCA), its lines go into the DTC (deps.dtcLines), its cards go to the Kneeboard (with the map, Smart DCA, Smart mission).
+// The plan is one list of shapes (spec), drawn on the map, on the classic card and on the Smart card (core/aakit.js).
+// deps: {esc, toast, ctx () -> X, attach, detach, toLL, cyclePlan, planMode, msa (km polygon) -> Promise<ft | null>, roeGet () -> sel, roeSet (block),
+//        dtcLines ({parts, sit, sitName, key}, name) -> {msg, bad}, timeline () -> Promise<rows>, combo () -> Promise<base>, kbAdd, snap (scale)}
 // X: {ok, why, me {key, name, mission, kind, n, ac, pkgNo, tag}, cap [{x, y, n, arr, dep}], enemy [{x, y, name}], bull {x, y} | null, mates [{name, anchor}],
 //     targets [{x, y, name}], joker, bingo, aa (the A-A loadout, text)}
 import {
@@ -30,25 +31,19 @@ import {
   distNm,
 } from './faor.js';
 import { mapKeep } from './mapkeep.js';
-import { otherLook, cardDark } from './cardink.js';
-import { pickAll } from './tgdlg.js';
 import { SC_W, SC_H } from './smartcard.js';
-import { drawSmartFaor } from './smartbvr.js';
+import { drawSmartAA } from './smartaa.js';
 import { drawSmartCombined } from './smartcombo.js';
 import { wxAtTarget } from './smartwx.js';
 import { toMag } from './magvar.js';
-import { drawFaorCard, faorBox, FAC_W, FAC_H } from './faorcard.js';
+import { drawAACard, aaBox, AAC_W, AAC_H } from './aacard.js';
 import { busyRun } from './busy.js';
+import { h3, hm, drawLeaflet, toPx, toInk, snapMap, addCards, allOf } from './aakit.js';
 
-const h3 = d => String(Math.round(((d % 360) + 360) % 360) || 360).padStart(3, '0');
-const hm = t => {
-  const m = Math.floor((t || 0) / 60000);
-  return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
-};
 const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ffffff', cap: '#4cc38a', mate: '#9aa8b8' };
 const KINDS = [
   ['map', 'With the map'],
-  ['smart', 'Smart BVR'],
+  ['smart', 'Smart DCA'],
   ['combo', 'Smart mission'],
 ];
 
@@ -71,14 +66,14 @@ export function createFaorPage(deps) {
     fitKey = '',
     shown = false;
   try {
-    const o = JSON.parse(sessionStorage.getItem('faor1') || 'null');
+    const o = JSON.parse(sessionStorage.getItem('dca1') || 'null');
     if (o && typeof o == 'object' && o.f && typeof o.f == 'object') st = o;
   } catch (e) {
     /* none */
   }
   const save = () => {
     try {
-      sessionStorage.setItem('faor1', JSON.stringify(st));
+      sessionStorage.setItem('dca1', JSON.stringify(st));
     } catch (e) {
       /* none */
     }
@@ -189,7 +184,7 @@ export function createFaorPage(deps) {
   };
   function build() {
     if (!X || !X.ok) {
-      root.innerHTML = `<div class="wcard sdnone fx"><h3>FAOR</h3><p class="hint">${esc(X ? X.why : 'Open a campaign and choose a CAP flight.')}</p><p class="hint">The FAOR is planned for the CAP flights: BARCAP, CAP, AMBUSHCAP, TARCAP, DCA, HAVCAP and RESCAP. Choose one in the ATO.</p></div>`;
+      root.innerHTML = `<div class="wcard sdnone fx"><h3>DCA</h3><p class="hint">${esc(X ? X.why : 'Open a campaign and choose a CAP flight.')}</p><p class="hint">The FAOR is planned for the CAP flights: BARCAP, CAP, AMBUSHCAP, TARCAP, DCA, HAVCAP and RESCAP. Choose one in the ATO.</p></div>`;
       return;
     }
     const L = limits(X.me.kind, planned());
@@ -258,7 +253,7 @@ export function createFaorPage(deps) {
       id = roe && roe.roe.id.length ? roe.roe.id.join(' + ').toUpperCase() : 'none',
       bo = roe && roe.roe.abort.length ? roe.roe.abort.join(' / ').toUpperCase() : 'none';
     q('#faroe').innerHTML =
-      `<h3>ROE · FAOR block</h3><div class="hint">${faorLines(fa, false).map(esc).join(' · ')}</div><div class="kv">${kv('ID', esc(id), id == 'none' && S.wpn == 'free' ? 'wbad' : '')}${kv('BUGOUT', esc(bo))}</div><p class="hint wnote">Written in the ROE of the flight (Squadron > ROE / SOP): its weapons control and commit win over those of the preset.</p>`;
+      `<h3>ROE · A-A block</h3><div class="hint">${faorLines(fa, false).map(esc).join(' · ')}</div><div class="kv">${kv('ID', esc(id), id == 'none' && S.wpn == 'free' ? 'wbad' : '')}${kv('BUGOUT', esc(bo))}</div><p class="hint wnote">Written in the ROE of the flight (Squadron > ROE / SOP): its weapons control and commit win over those of the preset.</p>`;
     legend();
   }
   function legend() {
@@ -304,56 +299,85 @@ export function createFaorPage(deps) {
       /* none */
     }
   }
-  // the FAOR in a Leaflet group: the page's map, or the Map page (Display > FAOR)
-  function layers(L, map, WL) {
-    const RN = map._faR,
-      ll = p => deps.toLL(p.x, p.y),
-      line = (pts, o) => L.polyline(pts.map(ll), { renderer: RN, interactive: false, ...o }).addTo(WL),
-      tag = (p, t, c) =>
-        L.marker(ll(p), {
-          icon: L.divIcon({ className: 'sdtag', html: `<span style="color:${c}">${esc(t)}</span>`, iconSize: [0, 0] }),
-          interactive: false,
-          keyboard: false,
-        }).addTo(WL);
-    L.polygon(G.box.map(ll), {
-      renderer: RN,
-      interactive: false,
-      color: COL.fez,
-      weight: 2,
-      fillColor: COL.fez,
-      fillOpacity: 0.1,
-    }).addTo(WL);
-    X.cap.forEach(p =>
-      L.circle(ll(p), {
-        renderer: RN,
-        interactive: false,
-        radius: STN_NM * KM_NM * 1000,
-        color: COL.cap,
-        weight: 1,
-        dashArray: '3 5',
-        fill: false,
-      }).addTo(WL)
-    );
-    if (X.cap.length > 1) line(X.cap, { color: COL.cap, weight: 4, opacity: 0.8 });
-    line(G.commit, { color: COL.commit, weight: 2, dashArray: '8 6' });
-    line(G.stop, { color: COL.stop, weight: 2.5 });
-    tag(G.commit[1], 'COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(), COL.commit);
-    tag(G.stop[1], 'STOP ' + S.stop + ' · DROP ' + S.drop, COL.stop);
-    if (HW) {
-      line([HW.a, HW.b], { color: COL.hw, weight: 2.5, dashArray: '10 7' });
-      tag(HW.b, 'HARDWALL ' + HW.name, COL.hw);
-    }
-    // the time on station, at the last CAP point
+  // THE PLAN, one list of shapes (core/aakit.js) for the map, the classic card and the Smart card
+  function spec() {
     const c0 = X.cap[0],
-      c1 = X.cap[X.cap.length - 1];
-    tag(c1, 'ON STN ' + (c0.arr ? hm(c0.arr) + '-' + hm(c1.dep || c1.arr) + ' · ' : '') + S.stn + ' min', COL.cap);
-    const f = G.at(0, G.front),
-      t = G.at(0, G.front + Math.max(8, S.d / 3));
-    line([G.anchor, t], { color: COL.stop, weight: 1, dashArray: '2 4' });
-    tag(t, 'THREAT ' + h3(toMag(G.brg)) + '°', COL.stop);
-    tag(f, 'FEZ ' + altBlock(S.alt), COL.fez);
-    return [...G.box, ...G.commit, ...G.stop, ...(HW ? [HW.a, HW.b] : []), t].map(ll);
+      c1 = X.cap[X.cap.length - 1],
+      f = G.at(0, G.front),
+      t = G.at(0, G.front + Math.max(8, S.d / 3)),
+      stn = 'ON STN ' + (c0.arr ? hm(c0.arr) + '-' + hm(c1.dep || c1.arr) + ' · ' : '') + S.stn + ' min';
+    return [
+      ...X.cap.map(p => ({ t: 'ring', c: p, r: STN_NM * KM_NM, col: COL.cap, dash: [3, 5], ink: { dash: [2, 4] } })),
+      { t: 'poly', pts: G.box, close: true, fill: true, col: COL.fez, w: 2, ink: { w: 2, fill: 'rgba(0,0,0,0.05)' } },
+      ...(X.cap.length > 1
+        ? [{ t: 'poly', pts: X.cap, col: COL.cap, w: 4, fit: false, ink: { w: 5, round: true } }]
+        : []),
+      { t: 'poly', pts: G.commit, col: COL.commit, w: 2, dash: [8, 6], ink: { dash: [7, 4] } },
+      { t: 'poly', pts: G.stop, col: COL.stop, w: 2.5, ink: { w: 2, red: true } },
+      ...(HW
+        ? [
+            { t: 'poly', pts: [HW.a, HW.b], col: COL.hw, w: 2.5, dash: [10, 7], ink: { w: 2.5, dash: [8, 5] } },
+            {
+              t: 'label',
+              p: HW.b,
+              text: 'HARDWALL ' + HW.name,
+              col: COL.hw,
+              ink: { text: 'HARDWALL ' + String(HW.name).toUpperCase() },
+            },
+          ]
+        : []),
+      ...X.cap.map((p, i) => ({
+        t: 'dot',
+        p,
+        col: COL.cap,
+        ink: { label: 'CAP' + (X.cap.length > 1 ? i + 1 : ''), bold: true },
+      })),
+      { t: 'arrow', from: G.anchor, to: t, text: 'THREAT ' + h3(toMag(G.brg)) + '°', col: COL.stop },
+      {
+        t: 'label',
+        p: G.commit[1],
+        text: 'COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(),
+        col: COL.commit,
+        ink: {
+          p: G.commit[0],
+          at: [
+            [6, -7],
+            [6, 15],
+          ],
+        },
+      },
+      {
+        t: 'label',
+        p: G.stop[1],
+        text: 'STOP ' + S.stop + ' · DROP ' + S.drop,
+        col: COL.stop,
+        ink: {
+          p: G.stop[0],
+          red: true,
+          bold: true,
+          at: [
+            [6, -7],
+            [6, 15],
+          ],
+        },
+      },
+      {
+        t: 'label',
+        p: c1,
+        text: stn,
+        col: COL.cap,
+        ink: {
+          at: [
+            [-30, 20],
+            [-30, -12],
+            [10, 20],
+          ],
+        },
+      },
+      { t: 'label', p: f, text: 'FEZ ' + altBlock(S.alt), col: COL.fez, ink: false },
+    ];
   }
+  const layers = (L, map, WL) => drawLeaflet(L, map._faR, WL, deps.toLL, spec(), esc);
   function paint() {
     if (!X || !X.ok) return;
     if (!M) {
@@ -454,31 +478,26 @@ export function createFaorPage(deps) {
   }
   async function dtc() {
     if (!deps.dtcLines) return;
-    const r = await deps.dtcLines(faorDtcLines(G, HW), X.me.name);
+    const L = faorDtcLines(G, HW),
+      r = await deps.dtcLines(
+        {
+          parts: [['fez', 'FEZ', L.fez], ['cs', 'COMMIT / STOP', L.cs], ...(L.hw ? [['hw', 'HARDWALL', L.hw]] : [])],
+          sit: 8,
+          sitName: 'FEZ',
+          key: 'dca',
+        },
+        X.me.name
+      );
     if (r && r.msg) deps.toast(r.msg, !!r.bad);
   }
 
   // ---- the cards
   function planData() {
-    const c0 = X.cap[0],
-      c1 = X.cap[X.cap.length - 1];
-    return {
-      box: G.box,
-      cap: X.cap,
-      commit: G.commit,
-      stop: G.stop,
-      hw: HW ? { a: HW.a, b: HW.b, name: String(HW.name).toUpperCase() } : null,
+    return toInk(spec(), {
       bull: X.bull,
       be: X.bull ? 'BE ' + h3(toMag(bearing(X.bull, G.anchor))) + '/' + Math.round(distNm(X.bull, G.anchor)) : '',
-      brg: G.brg,
-      axis: h3(toMag(G.brg)),
-      front: G.at(0, G.front),
-      stn: STN_NM,
       legend: 'COMMIT, HARDWALL dashed · STOP red · rings ' + STN_NM + ' NM: station',
-      wpn: S.wpn.toUpperCase(),
-      drop: S.drop,
-      stnTxt: c0 && c0.arr ? hm(c0.arr) + '-' + hm(c1.dep || c1.arr) : S.stn + ' min',
-    };
+    });
   }
   function smartData() {
     const me = X.me,
@@ -489,7 +508,8 @@ export function createFaorPage(deps) {
       id = roe && roe.roe.id.length ? roe.roe.id.map(v => v.toUpperCase()).join(' + ') : '',
       bo = roe && roe.roe.abort.length ? roe.roe.abort.map(v => v.toUpperCase()).join(' / ') : '';
     return {
-      title: 'BVR · FAOR · ' + me.kind,
+      title: 'A-A · DCA · ' + me.kind,
+      planLabel: 'FAOR',
       right: me.tag || me.name.toUpperCase(),
       key: [
         ['AXIS', h3(toMag(G.brg)) + '°'],
@@ -550,7 +570,8 @@ export function createFaorPage(deps) {
       bo = roe && roe.roe.abort.length ? roe.roe.abort.map(v => v.toUpperCase()).join(' / ') : 'none',
       cs = me.name.toUpperCase();
     return {
-      kind: me.kind,
+      head: 'A-A · DCA · ' + me.kind,
+      rowsHead: 'FEZ · ROE',
       title: me.name + ' · ' + me.n + '× ' + me.ac,
       sub: 'PKG ' + me.pkgNo + ' · CAP STPT ' + X.cap.map(p => p.n).join(' · ') + ' · ANCHOR ' + be(G.anchor),
       box: [
@@ -585,7 +606,7 @@ export function createFaorPage(deps) {
       px: null,
     };
   }
-  // the map for the card: the page's map (opened out of sight when the page is not shown), the view as the pilot left it, the FAOR in its pixels
+  // the map for the card: the page's map (opened out of sight when the page is not shown), the view as the pilot left it, the plan in its pixels
   async function snapPlan(AR) {
     if (!deps.snap) return null;
     let keep = !!M;
@@ -597,70 +618,10 @@ export function createFaorPage(deps) {
     }
     M.map.invalidateSize();
     paint();
-    const { L, map, WL } = M,
-      ll = p => deps.toLL(p.x, p.y),
-      t = G.at(0, G.front + Math.max(8, S.d / 3)),
-      pts = [...G.box, ...G.commit, ...G.stop, ...(HW ? [HW.a, HW.b] : []), t],
-      el = map.getContainer(),
-      cw = el.clientWidth,
-      ch = el.clientHeight,
-      bw = Math.min(cw, ch * AR),
-      bh = bw / AR,
-      ox = (cw - bw) / 2,
-      oy = (ch - bh) / 2,
-      c0 = map.getCenter(),
-      z0 = map.getZoom();
-    WL.remove();
-    try {
-      if (!keep)
-        map.fitBounds(L.latLngBounds(pts.map(ll)), {
-          paddingTopLeft: [ox + 20, oy + 20],
-          paddingBottomRight: [ox + 20, oy + 20],
-          animate: false,
-        });
-      await new Promise(r => setTimeout(r, keep ? 600 : 1200));
-      const shot = await deps.snap(2);
-      if (!shot) return null;
-      const k = shot.canvas.width / cw,
-        px = p => {
-          const q = map.latLngToContainerPoint(ll(p));
-          return [(q.x - ox) * k, (q.y - oy) * k];
-        },
-        a = px(G.anchor),
-        b = px(G.at(0, 10)),
-        nm = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10,
-        crop = document.createElement('canvas');
-      crop.width = Math.round(bw * k);
-      crop.height = Math.round(bh * k);
-      crop.getContext('2d').drawImage(shot.canvas, -ox * k, -oy * k);
-      const c0p = X.cap[0],
-        c1p = X.cap[X.cap.length - 1];
-      return {
-        img: crop,
-        coast: shot.coast,
-        nm,
-        fez: G.box.map(px),
-        commit: G.commit.map(px),
-        stop: G.stop.map(px),
-        hw: HW ? [px(HW.a), px(HW.b)] : null,
-        hwName: HW ? HW.name : '',
-        cap: X.cap.map(px),
-        stn: STN_NM * nm,
-        threat: [px(G.anchor), px(t)],
-        labels: {
-          threat: 'THREAT ' + h3(toMag(G.brg)) + '°',
-          commit: 'COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(),
-          stop: 'STOP ' + S.stop + ' · DROP ' + S.drop,
-          fez: 'FEZ ' + altBlock(S.alt),
-          stn: 'ON STN ' + (c0p.arr ? hm(c0p.arr) + '-' + hm(c1p.dep || c1p.arr) + ' · ' : '') + S.stn + ' min',
-        },
-      };
-    } catch (e) {
-      return null;
-    } finally {
-      WL.addTo(map);
-      map.setView(c0, z0, { animate: false });
-    }
+    const S0 = spec(),
+      fitPts = [...G.box, ...G.commit, ...G.stop, ...(HW ? [HW.a, HW.b] : [])],
+      p = await snapMap(M, deps, fitPts, AR, keep, [G.anchor, G.at(0, 10)]);
+    return p ? { img: p.img, coast: p.coast, nm: p.nm, ...toPx(S0, p.px, p.nm) } : null;
   }
   let CL = null; // the classic card data with its picture, made before the window opens
   let COMBO = null;
@@ -691,8 +652,8 @@ export function createFaorPage(deps) {
       right: D.right,
       key: D.key,
       mod: {
-        kind: 'faor',
-        label: 'FAOR · THREAT ' + h3(toMag(G.brg)) + '°',
+        kind: 'aa',
+        label: 'DCA · FAOR · THREAT ' + h3(toMag(G.brg)) + '°',
         plan: D.plan,
         lines: [
           'FEZ ' + S.w + '×' + S.d + ' NM',
@@ -722,14 +683,14 @@ export function createFaorPage(deps) {
     c.height = SC_H;
     const x = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
     if (k == 'map') {
-      c.width = FAC_W;
-      c.height = FAC_H;
-      drawFaorCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), CL || classicData());
+      c.width = AAC_W;
+      c.height = AAC_H;
+      drawAACard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), CL || classicData());
     } else if (k == 'combo') drawSmartCombined(x, comboData());
-    else drawSmartFaor(x, smartData());
+    else drawSmartAA(x, smartData());
     return c;
   }
-  const cardName = k => (k == 'map' ? 'FAOR · ' : k == 'combo' ? 'Smart · Mission · ' : 'Smart · BVR · ') + X.me.name;
+  const cardName = k => (k == 'map' ? 'DCA · ' : k == 'combo' ? 'Smart · Mission · ' : 'Smart · DCA · ') + X.me.name;
   async function ready(pic = true) {
     await tlLoad();
     compute();
@@ -737,9 +698,9 @@ export function createFaorPage(deps) {
     await comboLoad();
     CL = classicData();
     if (pic) {
-      const B = faorBox(CL);
+      const B = aaBox(CL);
       try {
-        CL.px = await busyRun('Preparing the FAOR cards…', () => snapPlan(B.w / B.h));
+        CL.px = await busyRun('Preparing the DCA cards…', () => snapPlan(B.w / B.h));
       } catch (e) {
         CL.px = null;
       }
@@ -750,92 +711,16 @@ export function createFaorPage(deps) {
     if (!deps.kbAdd) return;
     if (btn) btn.disabled = true;
     try {
-      if (!(await ready())) return deps.toast('FAOR card: ' + (X ? X.why : 'no CAP flight'), true);
+      if (!(await ready())) return deps.toast('DCA card: ' + (X ? X.why : 'no CAP flight'), true);
     } finally {
       if (btn) btn.disabled = false;
     }
-    const C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(k)])),
-      on = {};
-    let pre = ['map'];
-    try {
-      const v = JSON.parse(localStorage.getItem('faorcardkinds') || 'null');
-      if (Array.isArray(v) && v.length) pre = v.filter(k => C[k]);
-    } catch (e) {
-      /* none */
-    }
-    pre.forEach(k => (on[k] = true));
-    const d = document.createElement('dialog');
-    d.className = 'tgdlg';
-    d.innerHTML = `<h3>Add FAOR cards to the Kneeboard</h3><p class="hint">With the map: the picture of the map of the page with the FAOR, the FEZ, the ROE and the calls. Smart BVR: the FAOR, its lines and the calls. Smart mission: the FAOR over the weather and the ROE / SOP. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
-    document.body.append(d);
-    const cnt = () => {
-      const n = KINDS.filter(([k]) => on[k]).length,
-        b = d.querySelector('[data-a=ok]');
-      b.textContent = n ? `Add ${n} card${n > 1 ? 's' : ''}` : 'Add';
-      b.classList.toggle('nil', !n);
-    };
-    KINDS.forEach(([k, l]) => {
-      const it = document.createElement('button');
-      it.type = 'button';
-      it.className = 'tgcard' + (on[k] ? ' on' : '');
-      it.dataset.kind = k;
-      const th = document.createElement('canvas');
-      th.width = 300;
-      th.height = 450;
-      th.getContext('2d').drawImage(C[k], 0, 0, 300, 450);
-      it.append(th);
-      const sp = document.createElement('span');
-      sp.textContent = l;
-      it.append(sp);
-      it.onclick = () => {
-        on[k] = !on[k];
-        it.classList.toggle('on', on[k]);
-        cnt();
-      };
-      d.querySelector('.tgcards').append(it);
-    });
-    cnt();
-    const close = () => {
-      d.close();
-      setTimeout(() => d.remove(), 200);
-    };
-    pickAll(d);
-    d.querySelector('[data-a=no]').onclick = close;
-    d.addEventListener('cancel', e => {
-      e.preventDefault();
-      close();
-    });
-    d.querySelector('[data-a=ok]').onclick = async () => {
-      const L = KINDS.filter(([k]) => on[k]);
-      if (!L.length) return;
-      try {
-        localStorage.setItem('faorcardkinds', JSON.stringify(L.map(x => x[0])));
-      } catch (e) {
-        /* none */
-      }
-      close();
-      const out = [];
-      for (const [k] of L) {
-        const blob = await new Promise(r => C[k].toBlob(r, 'image/png'));
-        if (!blob) continue;
-        const alt = await new Promise(r => otherLook(() => drawCard(k)).toBlob(r, 'image/png'));
-        const at = await deps.kbAdd(blob, cardName(k), alt, cardDark());
-        out.push(at ? 'the ' + at.side + ' column, card ' + (at.row + 1) : 'among the unused cards');
-      }
-      deps.toast('FAOR card' + (out.length > 1 ? 's' : '') + ' added to the Kneeboard: ' + out.join('; ') + '.');
-    };
-    d.showModal();
+    await addCards(deps, KINDS, drawCard, cardName, 'Add DCA cards to the Kneeboard', 'faorcardkinds', ['map']);
   }
   // every card of the page, in both looks, for Add all cards of the Kneeboard (none without a CAP flight)
   async function allCards() {
     if (!(await ready())) return [];
-    return KINDS.map(([k, l]) => ({
-      name: cardName(k),
-      label: 'FAOR · ' + l,
-      c: drawCard(k),
-      alt: otherLook(() => drawCard(k)),
-      dark: cardDark(),
-    }));
+    return allOf(KINDS, drawCard, cardName, 'DCA');
   }
 
   return {

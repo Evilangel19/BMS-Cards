@@ -1,13 +1,13 @@
 // @ts-check
-// The FAOR card of the Kneeboard (1600 x 2400), in the look of the other cards of the program (DEAD, SEAD): the kind and the flight, four boxes (the threat
-// axis, COMMIT with the weapons control, STOP with DROP, the time on station), the warnings of the page, the picture of the map of the page with the FAOR
-// drawn on it, the FEZ and the ROE in two columns, the calls.
-// D: {kind, title, sub, box [[label, big, small, red] x4], warn [text], rows [[label, value, red]], calls [text], px (the map picture and the FAOR in its
-//     pixels: {img, coast, nm (px per NM), fez, commit, stop, hw, hwName, cap, stn (px), threat [a, b], labels {commit, stop, fez, stn, threat}}) | null}
+// The A-A cards of the Kneeboard (1600 x 2400: A-A > DCA, A-A > OCA), in the look of the other cards of the program (DEAD, SEAD): the kind and the flight,
+// four boxes, the warnings of the page, the picture of the map of the page with the plan drawn on it, two columns of label / value, the calls.
+// D: {head, title, sub, box [[label, big, small, red] x4], warn [text], rowsHead, rows [[label, value, red]], calls [text], px | null}
+// px, the map picture and the plan in its pixels: {img, coast, nm (px per NM), rings [{c, r, col, w, dash}], polys [{pts, col, w, dash, close, fill}],
+//     dots [{p, col, k: 'dot' | 'sq' | 'tri'}], labels [{p, t, col}]}
 import { kbPx, inkCard } from './cardink.js';
 
-export const FAC_W = 1600,
-  FAC_H = 2400;
+export const AAC_W = 1600,
+  AAC_H = 2400;
 const BG = '#f4f6f8',
   TX = '#111827',
   MU = '#3f4856',
@@ -16,21 +16,20 @@ const BG = '#f4f6f8',
   BAD = '#b91c1c',
   HD = '#374151',
   F = 'system-ui, Segoe UI, sans-serif';
-const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ffffff', cap: '#4cc38a' };
 const TOP = 190;
 const rowsH = D => 50 + Math.ceil(D.rows.length / 2) * 40;
 const callsH = D => 70 + D.calls.length * 38;
 /** the box of the map: under the boxes and the warnings, over the FEZ and the calls */
-export function faorBox(D) {
+export function aaBox(D) {
   const y = TOP + 210 + Math.min(3, D.warn.length) * 66 + 10,
-    bottom = FAC_H - 56 - 20 - callsH(D) - rowsH(D) - 20;
-  return { x: 40, y, w: FAC_W - 80, h: Math.max(300, bottom - y) };
+    bottom = AAC_H - 56 - 20 - callsH(D) - rowsH(D) - 20;
+  return { x: 40, y, w: AAC_W - 80, h: Math.max(300, bottom - y) };
 }
 /** @param {CanvasRenderingContext2D} x */
-export function drawFaorCard(x, D) {
+export function drawAACard(x, D) {
   inkCard(x);
-  const W = FAC_W,
-    H = FAC_H,
+  const W = AAC_W,
+    H = AAC_H,
     font = (w, s) => (x.font = w + ' ' + kbPx(s) + 'px ' + F),
     text = (t, X, Y, c = TX, a = 'left') => {
       x.fillStyle = c;
@@ -48,7 +47,7 @@ export function drawFaorCard(x, D) {
   x.fillStyle = '#e3e8ee';
   x.fillRect(0, 0, W, 170);
   font('700', 30);
-  text('FAOR · ' + D.kind, 40, 56, '#1d4ed8');
+  text(D.head, 40, 56, '#1d4ed8');
   text('BMS CARDS', W - 40, 56, AC, 'right');
   font('700', 48);
   fitText(D.title, 40, 116, W - 80);
@@ -88,14 +87,14 @@ export function drawFaorCard(x, D) {
     y += 66;
   });
   // the map (its picture is dark already: left as it is in the dark look)
-  const B = faorBox(D);
+  const B = aaBox(D);
   /** @type {any} */ (x).__raw = true;
   map(x, D, B.x, B.y, B.w, B.h);
   /** @type {any} */ (x).__raw = false;
   // the FEZ and the ROE: two columns of label / value
   y = B.y + B.h + 20;
   font('700', 26);
-  text('FEZ · ROE', 40, y + 30, HD);
+  text(D.rowsHead || '', 40, y + 30, HD);
   y += 50;
   const half = Math.ceil(D.rows.length / 2),
     colX = [40, W / 2 + 10];
@@ -164,30 +163,30 @@ function map(x, D, PX, PY, PW, PH) {
         x.stroke();
         x.setLineDash([]);
       };
-    // the station rings, the FEZ, the lines
-    p.cap.forEach(c => {
-      const [a, b] = Q(c);
-      x.setLineDash([6, 10]);
-      x.lineWidth = 2.5;
-      x.strokeStyle = COL.cap;
+    (p.rings || []).forEach(r => {
+      const [a, b] = Q(r.c);
+      x.setLineDash(r.dash || []);
+      x.lineWidth = r.w || 2.5;
+      x.strokeStyle = r.col;
       x.beginPath();
-      x.arc(a, b, p.stn * s, 0, 7);
+      x.arc(a, b, r.r * s, 0, 7);
       x.stroke();
       x.setLineDash([]);
     });
-    path(p.fez, COL.fez, 4, [], true, 'rgba(74,163,255,.12)');
-    path(p.commit, COL.commit, 4, [18, 12]);
-    path(p.stop, COL.stop, 5, []);
-    if (p.hw) path(p.hw, COL.hw, 4, [20, 14]);
-    if (p.cap.length > 1) path(p.cap, COL.cap, 8, []);
-    path(p.threat, COL.stop, 2.5, [4, 8]);
-    p.cap.forEach(c => {
-      const [a, b] = Q(c);
-      x.fillStyle = COL.cap;
+    (p.polys || []).forEach(q => path(q.pts, q.col, q.w || 4, q.dash || [], !!q.close, q.fill));
+    (p.dots || []).forEach(d => {
+      const [a, b] = Q(d.p);
+      x.fillStyle = d.col;
       x.strokeStyle = '#000';
       x.lineWidth = 3;
       x.beginPath();
-      x.arc(a, b, 11, 0, 7);
+      if (d.k == 'sq') x.rect(a - 10, b - 10, 20, 20);
+      else if (d.k == 'tri') {
+        x.moveTo(a, b - 14);
+        x.lineTo(a + 12, b + 9);
+        x.lineTo(a - 12, b + 9);
+        x.closePath();
+      } else x.arc(a, b, 11, 0, 7);
       x.fill();
       x.stroke();
     });
@@ -209,13 +208,7 @@ function map(x, D, PX, PY, PW, PH) {
         placed.push([X, Y - 26, w]);
         tag(x, t, X, Y, col);
       };
-    const L = p.labels || {};
-    put(p.threat && p.threat[1], L.threat, COL.stop);
-    put(p.commit[1], L.commit, COL.commit);
-    put(p.stop[1], L.stop, COL.stop);
-    put(p.fez[3], L.fez, COL.fez);
-    if (p.hw) put(p.hw[1], 'HARDWALL ' + (p.hwName || ''), COL.hw);
-    put(p.cap[p.cap.length - 1], L.stn, COL.cap);
+    (p.labels || []).forEach(l => put(l.p, l.t, l.col));
     if (p.nm > 0) {
       const Ls = 10 * p.nm * s;
       x.fillStyle = 'rgba(0,0,0,.6)';
@@ -241,7 +234,7 @@ function map(x, D, PX, PY, PW, PH) {
     x.font = '500 ' + kbPx(28) + 'px ' + F;
     x.fillStyle = '#cbd5e1';
     x.textAlign = 'center';
-    x.fillText('No map picture: show the map on the FAOR page first.', PX + PW / 2, PY + PH / 2);
+    x.fillText('No map picture: show the map of the page first.', PX + PW / 2, PY + PH / 2);
   }
   x.restore();
   x.strokeStyle = LN;

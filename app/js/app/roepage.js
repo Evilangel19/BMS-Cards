@@ -409,10 +409,10 @@ function render0(box) {
     'roe',
     'ROE',
     `one rule a line on the card · ${BOX_MAX} lines at most`,
-    `${fa ? `<div class="rpfa"><div class="rpt rg">FAOR${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by the FAOR page</small><button type="button" class="btn g" data-a="faor" title="BVR > FAOR: the page that writes this block">Edit in FAOR</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
+    `${fa ? `<div class="rpfa"><div class="rpt rg">A-A · ${esc(fa.pos != null ? 'OCA' : 'DCA')}${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by A-A &gt; ${fa.pos != null ? 'OCA' : 'DCA'}</small><button type="button" class="btn g" data-a="faor" title="The page that writes this block">Edit in ${fa.pos != null ? 'OCA' : 'DCA'}</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
       ([id, lab, kind, , opts]) =>
         fa && (id == 'ws' || id == 'commit')
-          ? `<div class="rpt rg">${esc(lab)}<small>set by the FAOR</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
+          ? `<div class="rpt rg">${esc(lab)}<small>set by A-A</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
           : `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
     ).join(
       ''
@@ -895,7 +895,7 @@ function wire(box) {
     }
     if (!a) return;
     const act = a.dataset.a;
-    if (act == 'faor') return ST.bvrGo && ST.bvrGo('faor');
+    if (act == 'faor') return ST.bvrGo && ST.bvrGo(R.sel.faor && R.sel.faor.pos != null ? 'oca' : 'faor');
     if (act == 'clear') {
       setSel(emptySel(), false);
       return render();

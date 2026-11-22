@@ -1,4 +1,4 @@
-// Weapons > HARM > DEAD: destroy the SAM of a DEAD flight (BMS Training Manual 28.4-28.5). The geometry is in dead.js; the HARM range and time of flight
+// A-G > HARM > DEAD: destroy the SAM of a DEAD flight (BMS Training Manual 28.4-28.5). The geometry is in dead.js; the HARM range and time of flight
 // come from the HARM model (airmissile.js harmShot) with the missile of the HARM page. The page: the target (its rings, its radars, the location known or
 // not, one fire control radar on each launcher), the tactic (HARM standoff, Hunter-Killer, Bombs / Maverick) and the orbit side, the roles of the
 // seats, the altitude of the flight (the blocks of the manual), the map or the scheme, the steps, the shot or the attack, the nav offsets of the anchors
@@ -510,8 +510,8 @@ export function createDeadPage(deps) {
         : ''
     }`;
   }
-  // the attack lines of a Weapons page (Bombs / Maverick), on the target steerpoint nearest to the SAM: worked out once for the attack, the SAM and
-  // the settings of that page (refresh: the Weapons page may have changed)
+  // the attack lines of a A-G page (Bombs / Maverick), on the target steerpoint nearest to the SAM: worked out once for the attack, the SAM and
+  // the settings of that page (refresh: the A-G page may have changed)
   let AL = null,
     ALk = '';
   function atkLines() {
@@ -540,7 +540,7 @@ export function createDeadPage(deps) {
             ': ' +
             esc(a.error) +
             '</span>'
-          : esc(ATKN[st.atk]) + ' on ' + esc(a.label) + ', with the settings of its Weapons page (change them there).'
+          : esc(ATKN[st.atk]) + ' on ' + esc(a.label) + ', with the settings of its A-G page (change them there).'
     }</p>`;
   }
   // the PPT types BMS knows (Ppt.ini) that are not SAMs: an anchor added as one of them
@@ -1969,14 +1969,14 @@ export function createDeadPage(deps) {
     acts: () => acts,
     allCards,
     addCard: b => addCard(b), // Add card of the Weapons tabs
-    // shown again (the Weapons page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
+    // shown again (the A-G page draws its tab again at many changes): the page and its map stay, so the zoom chosen stays
     render: () => {
       shown = true;
       ALk = '';
       draw(false);
     },
     refresh: () => {
-      ALk = ''; // the Weapons page may have changed: its attack lines again
+      ALk = ''; // the A-G page may have changed: its attack lines again
       if (shown) draw(false);
     },
     leave: () => {
