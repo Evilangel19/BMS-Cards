@@ -380,7 +380,7 @@ export function createOcaPage(deps) {
               'PLAN LEAD',
               pl == null ? 'no steerpoint near the target' : (pl >= 0 ? '+' : '') + Math.round(pl * 2) / 2 + ' min'
             )
-      }</div><div class="wbtns"><button class="btn g" type="button" data-ocdtc title="The sweep area (its outline, two lines) or, for an escort, the area of the target at the TOT (a box open on the side of arrival, touching the STOP and COMMIT circles), as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>`;
+      }</div><div class="wbtns"><button class="btn g" type="button" data-ocdtc title="The sweep area (its outline, two lines) or, for an escort, the area of the target at the TOT (a box open on the side of arrival, touching the STOP and COMMIT circles, its sides bent back to the push), as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>`;
     const sn = q('#ocsun'),
       su = sun();
     if (sn)
@@ -590,7 +590,7 @@ export function createOcaPage(deps) {
     compute();
     if (!X || !X.ok) return { msg: 'OCA: ' + (X ? X.why : 'no SWEEP or ESCORT flight'), bad: true };
     if (!deps.dtcLines) return null;
-    const parts = ocaDtcLines(T, X.main.w, X.main.tgt, S, mode() == 'sweep');
+    const parts = ocaDtcLines(T, X.main.w, X.main.tgt, S, mode() == 'sweep', WIN.t0);
     if (!parts.length) return { msg: 'OCA: nothing to write as lines.', bad: true };
     return deps.dtcLines(
       {

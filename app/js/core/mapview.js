@@ -117,6 +117,13 @@ export function createMap(host, deps) {
   const OBJ_ALL = OBJ_LAYERS.concat(PLACE_LAYERS); // objectives and places: all drawn by objDraw
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
+  // the look the pilot gave the map of a mission: labels moved along their route (lbl: key -> {i, f}) and the colours of the flights of the package
+  // (col: flight id -> RRGGBB); kept with the preferences and with the mission (style / setStyle)
+  const mstyOk = o => ({
+    lbl: o && o.lbl && typeof o.lbl == 'object' ? o.lbl : {},
+    col: o && o.col && typeof o.col == 'object' ? o.col : {},
+  });
+  let MSTY = mstyOk(PREF.msty);
   const migrate = o => {
     const r = Object.assign({}, o);
     OBJ_ALL.forEach(([t]) => {
@@ -142,7 +149,9 @@ export function createMap(host, deps) {
     filOpen: !!PREF.filOpen,
   });
   st = mkSt();
+  let DRY = false; // an AUTO run for its preview (autoPreview): the DTC is a copy, the helpers do nothing
   const persist = () => {
+    if (DRY) return;
     store.set(PREF);
     if (deps.savePrefs) deps.savePrefs(PREF);
   };
@@ -465,6 +474,11 @@ export function createMap(host, deps) {
       'click',
       e => {
         const d = e.target.closest && e.target.closest('.flb div[data-lb]');
+        if (d && Date.now() - LDRAG < 350) {
+          e.stopPropagation(); // the end of a drag of the label
+          e.preventDefault();
+          return;
+        }
         if (d && LBP[d.dataset.lb]) {
           e.stopPropagation();
           e.preventDefault();
@@ -651,6 +665,7 @@ export function createMap(host, deps) {
     clrLabel();
   }
   function setLayers(keys, on) {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     keys.forEach(k => {
       st.on[k] = on;
       const c = host.querySelector(`input[data-k=${k}]`);
@@ -1236,6 +1251,20 @@ export function createMap(host, deps) {
     };
     $('mpdfront').onclick = autoFront;
     $('mpdcoast').onclick = autoCoast;
+    // the pointer on an AUTO: what it would write, on the map (autoPreview)
+    [
+      ['mpdppt', autoPpt],
+      ['mpdbull', autoBull],
+      ['mpdfront', autoFront],
+      ['mpdcoast', autoCoast],
+      ['mpdfez', () => (deps.aaAuto ? deps.aaAuto() : null)],
+    ].forEach(([id, run]) => {
+      const b = $(id);
+      if (!b) return;
+      b.addEventListener('mouseenter', () => autoPreview(run));
+      b.addEventListener('mouseleave', autoUnpreview);
+      b.addEventListener('click', autoUnpreview);
+    });
     // hamburgers: a button is replaced by its sub-buttons (150 ms fade); opening one closes the others; a leaf button, or a click on an empty spot of the map, closes them all
     // keep a panel clear of the DTC function buttons at the bottom and of the top of the map: shift it up, or let it scroll
     const tankPlace = p => {
@@ -1444,6 +1473,7 @@ export function createMap(host, deps) {
     return len.map(l => l / 1.852);
   }
   const showLayer = k => {
+    if (DRY) return;
     if (!st.on[k]) {
       st.on[k] = true;
       save();
@@ -1475,6 +1505,119 @@ export function createMap(host, deps) {
       );
     return auLine(P, r);
   };
+  // ---- THE PREVIEW OF AN AUTO: the pointer on its button runs it on a copy of the DTC (deps.dtc swapped for the time of the run, the helpers silent,
+  // AU and the tanker labels put back) and draws what it would write, dashed and faint; a line or a threat it would replace blinks red
+  let AUP = 0; // the preview in course (a newer one, or leaving the button, makes it go)
+  async function autoPreview(run) {
+    const real = deps.dtc,
+      P0 = real && real.points();
+    autoUnpreview();
+    if (!P0 || !map) return;
+    const my = ++AUP,
+      V = JSON.parse(JSON.stringify(P0)),
+      W = [],
+      at = (g, s) => V[g].find(p => p.slot == s);
+    deps.dtc = {
+      ...real,
+      points: () => V,
+      set: (g, s, v) => {
+        let p = at(g, s);
+        const was = !!p && !p.empty;
+        if (!p) V[g].push((p = { group: g, slot: s }));
+        if (was) W.push({ g, s, old: { ...p } });
+        Object.assign(p, v, { empty: false });
+        W.push({ g, s, p: { ...p } });
+      },
+      clear: (g, s) => {
+        const p = at(g, s);
+        if (p && !p.empty) {
+          W.push({ g, s, old: { ...p } });
+          p.empty = true;
+        }
+      },
+      setMeta: () => {},
+    };
+    const au = JSON.stringify(AU),
+      tk = JSON.stringify(PREF.tanks || null),
+      cf = window.confirm;
+    DRY = true;
+    window.confirm = /** @type {any} */ (async () => true); // the questions of the AUTOs: yes, to see what would be written
+    try {
+      await run();
+    } catch (e) {
+      /* nothing to show */
+    } finally {
+      DRY = false;
+      window.confirm = cf;
+      deps.dtc = real;
+      Object.keys(AU).forEach(k => delete AU[k]);
+      Object.assign(AU, JSON.parse(au));
+      if (JSON.parse(tk)) PREF.tanks = JSON.parse(tk);
+      else delete PREF.tanks;
+    }
+    if (my != AUP || !W.length) return;
+    const L = window.L;
+    if (!G.au) G.au = L.layerGroup().addTo(map);
+    if (!map._auR) map._auR = L.svg({ padding: 0.5 }); // SVG (the map draws on canvas): the blinking is a CSS animation
+    const ll = p => toLL(p.x, p.y),
+      key = (g, s) => (g == 'ppt' ? 'p' + s : g + ':' + (g == 'sit' ? Math.floor(s / SIT_LEN) : lineOf(s))),
+      novel = new Map(),
+      gone = new Map();
+    W.forEach(w => {
+      const k = key(w.g, w.s);
+      if (w.p) (novel.get(k) || novel.set(k, []).get(k)).push(w.p);
+      if (w.old && !(w.p && w.old.x == w.p.x && w.old.y == w.p.y)) (gone.get(k) || gone.set(k, []).get(k)).push(w.old);
+    });
+    const draw = (pts, cls, color) => {
+      const q = [...new Map(pts.map(p => [p.slot, p])).values()].sort((a, b) => a.slot - b.slot);
+      if (q[0] && q[0].group == 'ppt')
+        q.forEach(p => {
+          L.circle(ll(p), {
+            radius: Math.max(1500, (p.rngNm || 0) * 1852),
+            color,
+            weight: 2,
+            dashArray: '6 5',
+            fill: false,
+            className: cls,
+            interactive: false,
+            renderer: map._auR,
+          }).addTo(G.au);
+          L.circleMarker(ll(p), {
+            radius: 4,
+            color,
+            weight: 2,
+            fill: false,
+            className: cls,
+            interactive: false,
+            renderer: map._auR,
+          }).addTo(G.au);
+        });
+      else if (q.length > 1)
+        L.polyline(q.map(ll), {
+          color,
+          weight: 3,
+          dashArray: '8 6',
+          className: cls,
+          interactive: false,
+          renderer: map._auR,
+        }).addTo(G.au);
+      else if (q.length)
+        L.circleMarker(ll(q[0]), {
+          radius: 4,
+          color,
+          weight: 2,
+          className: cls,
+          interactive: false,
+          renderer: map._auR,
+        }).addTo(G.au);
+    };
+    gone.forEach(pts => draw(pts, 'aublink', '#ef4444'));
+    novel.forEach(pts => draw(pts, 'auprev', pts[0] && pts[0].group == 'ppt' ? pal.dtc.ppt : pal.dtc.line));
+  }
+  function autoUnpreview() {
+    AUP++;
+    if (G.au) G.au.clearLayers();
+  }
   function autoRefresh() {
     // the delete buttons are red only when there is something to delete
     const P0 = deps.dtc && deps.dtc.points(),
@@ -1766,13 +1909,15 @@ export function createMap(host, deps) {
           ? 'No tanker (AIR REFUEL) on station during the selected flight.'
           : 'No tanker (AIR REFUEL) of your side in this campaign.') +
         '</span>';
-    w.querySelectorAll('[data-tk]').forEach(
-      b =>
-        (b.onclick = () => {
-          tankAdd(TK[+b.dataset.tk][1]);
-          foldAll();
-        })
-    );
+    w.querySelectorAll('[data-tk]').forEach(b => {
+      b.onclick = () => {
+        autoUnpreview();
+        tankAdd(TK[+b.dataset.tk][1]);
+        foldAll();
+      };
+      b.addEventListener('mouseenter', () => autoPreview(() => tankAdd(TK[+b.dataset.tk][1])));
+      b.addEventListener('mouseleave', autoUnpreview);
+    });
     autoRefresh();
   }
   // the track goes straight into an empty LINE as a closed rectangle (10 NM wide) laid on the two FUEL waypoints, with its label (no editing, unlike the rectangle tool)
@@ -2777,6 +2922,7 @@ export function createMap(host, deps) {
     return ro(d);
   }
   function sync() {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     unitVis();
     host.classList.toggle('names', !!st.on.names);
     const nb = $('mpnm');
@@ -3332,7 +3478,10 @@ export function createMap(host, deps) {
       ll,
       `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}${wzLine(f)}`,
       '',
-      0
+      0,
+      null,
+      null,
+      { key: 'f:' + info.cs }
     );
     placeLabels();
     msaDraw();
@@ -3353,15 +3502,17 @@ export function createMap(host, deps) {
   // a label drawn again (a switch of the map draws the plan again: the WEZ line, a layer) does not pop in again: a label taken away a moment ago and
   // put back is known by its kind and its first bold text (the callsign)
   const LBGONE = new Map();
-  function label(group, route, html, cls, k, list, pick) {
+  // o: {key, sty}: key, a label the pilot can drag along its route (the flight, a tanker track): it stays where it is let go (MSTY.lbl, kept with the
+  // mission), a double click gives it back to placeLabels(); sty, CSS variables of the box (the colour of a flight of the package)
+  function label(group, route, html, cls, k, list, pick, o = {}) {
     const L = window.L,
       at = route.length > 1 ? [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2] : route[0];
     const lk = cls + '|' + (String(html).match(/<b>.*?<\/b>/) || [html])[0],
       still = Date.now() - (LBGONE.get(lk) || 0) < 400;
     const mk = L.marker(at, {
       icon: L.divIcon({
-        className: 'flb ' + cls + (still ? ' still' : ''),
-        html: `<div style="--o:${k * 34}px"${pick ? ` data-lb="${++LBN}"` : ''}>${html}</div>`,
+        className: 'flb ' + cls + (still ? ' still' : '') + (o.key ? ' drg' : ''),
+        html: `<div style="--o:${k * 34}px${o.sty ? ';' + o.sty : ''}"${pick ? ` data-lb="${++LBN}"` : ''}${o.key ? ' title="Drag along the route to move it; double click: back to its place"' : ''}>${html}</div>`,
         iconSize: [0, 0],
       }),
       interactive: false,
@@ -3370,13 +3521,87 @@ export function createMap(host, deps) {
     }).addTo(group);
     mk.on('remove', () => LBGONE.set(lk, Date.now()));
     if (pick) LBP[LBN] = pick;
-    (list || LBL).push({ mk, r: route });
+    const it = { mk, r: route, key: o.key || '' };
+    (list || LBL).push(it);
+    if (o.key) {
+      const wire = () => {
+        const el = mk.getElement() && mk.getElement().querySelector('div');
+        if (el) labelDrag(it, el);
+      };
+      mk.on('add', wire); // the element is made again each time the layer comes back
+      wire();
+    }
+  }
+  // the point of a route nearest to a point of the screen: {ll, i (the leg), f (along it, 0-1)}
+  function onRoute(r, pt) {
+    let best = null;
+    for (let i = 0; i < r.length - 1; i++) {
+      const a = map.latLngToContainerPoint(r[i]),
+        b = map.latLngToContainerPoint(r[i + 1]),
+        vx = b.x - a.x,
+        vy = b.y - a.y,
+        L2 = vx * vx + vy * vy,
+        f = L2 ? Math.max(0, Math.min(1, ((pt.x - a.x) * vx + (pt.y - a.y) * vy) / L2)) : 0,
+        d = Math.hypot(pt.x - a.x - f * vx, pt.y - a.y - f * vy);
+      if (!best || d < best.d) best = { d, i, f };
+    }
+    return best ? { i: best.i, f: best.f, ll: anchorLL(r, best) } : null;
+  }
+  const anchorLL = (r, a) => [
+    r[a.i][0] + (r[a.i + 1][0] - r[a.i][0]) * a.f,
+    r[a.i][1] + (r[a.i + 1][1] - r[a.i][1]) * a.f,
+  ];
+  let LDRAG = 0; // the time a label was let go: the click that follows the drag does not open it
+  function labelDrag(o, el) {
+    el.addEventListener('pointerdown', ev => {
+      if (ev.button || o.r.length < 2) return;
+      ev.stopPropagation();
+      const sx = ev.clientX,
+        sy = ev.clientY;
+      let moved = false,
+        a = null;
+      map.dragging.disable();
+      const mv = e => {
+        if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 4) return;
+        moved = true;
+        el.classList.add('grab');
+        a = onRoute(o.r, map.mouseEventToContainerPoint(e));
+        if (a) o.mk.setLatLng(a.ll);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', mv);
+        window.removeEventListener('pointerup', up);
+        map.dragging.enable();
+        el.classList.remove('grab');
+        if (!moved || !a) return;
+        LDRAG = Date.now();
+        MSTY.lbl[o.key] = { i: a.i, f: Math.round(a.f * 1e4) / 1e4 };
+        PREF.msty = MSTY;
+        persist();
+      };
+      window.addEventListener('pointermove', mv);
+      window.addEventListener('pointerup', up);
+    });
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (!MSTY.lbl[o.key]) return;
+      delete MSTY.lbl[o.key];
+      PREF.msty = MSTY;
+      persist();
+      placeLabels();
+    });
   }
   function placeLabels() {
     if (!map || (!LBL.length && !TLB.length)) return;
     const sz = map.getSize(),
       c = { x: sz.x / 2, y: sz.y / 2 };
     LBL.concat(TLB).forEach(o => {
+      const an = o.key && MSTY.lbl[o.key];
+      if (an && an.i >= 0 && an.i < o.r.length - 1) {
+        o.mk.setLatLng(anchorLL(o.r, an)); // moved by the pilot: it stays there
+        o.mk.setOpacity(1);
+        return;
+      }
       let best = null,
         bd = Infinity;
       const cand = o.r.length > 1 ? o.r.slice(1).map((q, i) => [(o.r[i][0] + q[0]) / 2, (o.r[i][1] + q[1]) / 2]) : o.r;
@@ -3584,12 +3809,14 @@ export function createMap(host, deps) {
   }
 
   // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
+  const fid = m => m.id.n + ':' + m.id.c;
   function member(C, m, k) {
     const L = window.L,
       r = flightRoute(C, m),
       info = deps.flightInfo(m),
       pick = ev => EDIT && mateOpen(m, ev && ev.latlng),
-      ll = r.map(p => p.ll);
+      ll = r.map(p => p.ll),
+      cc = /^[0-9A-F]{6}$/i.test(MSTY.col[fid(m)] || '') ? '#' + MSTY.col[fid(m)] : null; // the colour the pilot gave it
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
     (li > 0 && li < r.length - 1
@@ -3601,9 +3828,9 @@ export function createMap(host, deps) {
     ).forEach(([pl, dash]) =>
       L.polyline(pl, {
         renderer: PR,
-        color: pal.mate,
-        weight: 1.8,
-        opacity: 0.75,
+        color: cc || pal.mate,
+        weight: cc ? 2.2 : 1.8,
+        opacity: cc ? 0.9 : 0.75,
         dashArray: dash,
         interactive: false,
       }).addTo(G.pk)
@@ -3618,7 +3845,7 @@ export function createMap(host, deps) {
       L.marker(p.ll, {
         icon: L.divIcon({
           className: 'wps dim',
-          html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`,
+          html: `<span${cc ? ` style="--mate:${cc}"` : ''}><svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b></span>`,
           iconSize: [18, 18],
         }),
         zIndexOffset: 400,
@@ -3628,13 +3855,20 @@ export function createMap(host, deps) {
         .bindTooltip(deps.esc(info.text) + '<br>Steerpoint ' + p.n, { direction: 'top', offset: [0, -6] })
         .addTo(G.pk);
     });
-    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, ev =>
-      mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0])
+    label(
+      G.pk,
+      ll,
+      `<b>${deps.esc(info.cs)}</b>`,
+      'm clk',
+      k,
+      null,
+      ev => mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0]),
+      cc ? { sty: '--plan:' + cc + ';--mate:' + cc } : {}
     );
   }
   // a flight of the package is clicked: with the editing on a small window offers to select it or to add it to the Link 16 files of the DTC; otherwise it is just selected
   function mateOpen(m, at) {
-    if (!EDIT || !deps.l16 || !at) {
+    if (!EDIT || !at) {
       if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
       return;
     }
@@ -3659,21 +3893,45 @@ export function createMap(host, deps) {
     const w = document.createElement('div'),
       info = deps.flightInfo(m),
       A = deps.l16,
-      d = A.mate(m),
+      d = A ? A.mate(m) : null,
       esc = deps.esc,
       parts = String(info.text).split(' · '),
       pick = { start: null }; // the slot chosen in the menu (null: the first free)
     w.className = 'dtp';
     const home = () => {
-      const can = A.can(),
-        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [];
+      const can = A ? A.can() : { ok: false, why: 'Link 16 is not available here' },
+        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [],
+        cur = MSTY.col[fid(m)] || '';
       w.innerHTML = `<div><b>${esc(parts[0])}</b></div><div class="hint" style="min-height:0">${esc(parts.slice(1).join(' · '))}</div>${
         in2.length
           ? `<div class="hint" style="min-height:0">Link 16: ${in2.map(z => 'file ' + z[0] + ' · slot ' + rangeText(z[1])).join(' · ')}</div>`
           : ''
       }<div class="bar bar3" style="margin:6px 0 0"><button class="btn g" type="button" data-a="sel" title="Load this flight on the Datacard">Select flight</button><button class="btn g" type="button" data-a="l16"${
         d ? '' : ' disabled'
-      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>`;
+      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div><div class="bar" style="margin:6px 0 0;align-items:center;gap:6px"><span class="hint" style="min-height:0;margin:0">Colour</span><button class="btn g" type="button" data-a="col" title="The colour of this flight on the map and on its pictures (kept with the mission)" style="min-width:34px;padding:4px 8px;background:${cur ? '#' + cur : 'transparent'}">${cur ? '&nbsp;' : 'Pick'}</button><button class="btn g" type="button" data-a="cold"${cur ? '' : ' disabled'} title="The colour of the map palette again">Default</button></div><div class="sitpk" data-a="colpk" hidden></div>`;
+      const setCol = h => {
+        if (h) MSTY.col[fid(m)] = h.toUpperCase();
+        else delete MSTY.col[fid(m)];
+        PREF.msty = MSTY;
+        persist();
+        refresh();
+      };
+      const cb = w.querySelector('[data-a=col]'),
+        cw = /** @type {HTMLElement} */ (w.querySelector('[data-a=colpk]'));
+      let PK = null;
+      cb.onclick = () => {
+        cw.hidden = !cw.hidden;
+        if (!PK && !cw.hidden)
+          PK = colorPicker(cw, cur || 'FFFFFF', {
+            live: h => (cb.style.background = '#' + h),
+            pick: h => setCol(h),
+          });
+        grown();
+      };
+      w.querySelector('[data-a=cold]').onclick = later(() => {
+        map.closePopup();
+        setCol('');
+      });
       w.querySelector('[data-a=sel]').onclick = later(() => {
         map.closePopup();
         if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
@@ -3901,6 +4159,7 @@ export function createMap(host, deps) {
     `${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
   // after a change (a point or a whole line deleted ...) an unfinished line is recalculated: the highlighted point and the Done button follow
   function dtc() {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     const am = addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? addM : null;
     try {
       dtc0();
@@ -4166,7 +4425,8 @@ export function createMap(host, deps) {
               f = C && C.units.find(u => u.kind == 'flight' && u.wps && deps.flightInfo(u).cs == tk.cs);
             if (!f || !deps.selectFlight || deps.selectFlight(f) === false)
               toast('That flight cannot be selected.', true);
-          }
+          },
+          { key: 'tk:' + tk.cs }
         );
       if (run.pts.length > 1) {
         // an F-15: the colour, the dash and the name of the SIT line (dimmed when it is not shown on the SIT)
@@ -4857,6 +5117,7 @@ export function createMap(host, deps) {
   // notices: informational ones sit at the bottom of the map, danger ones (a refusal and its reason) are red in the middle; both fade by themselves
   let toastA = null;
   function toast(msg, warn) {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     const t = $('mptoast');
     if (!t) return;
     clearTimeout(toastT);
@@ -5528,6 +5789,14 @@ export function createMap(host, deps) {
       map.invalidateSize();
       refresh();
       return { L: window.L, map };
+    },
+    // the labels moved by the pilot and the colours of the flights of the package, kept with the mission
+    style: () => JSON.parse(JSON.stringify(MSTY)),
+    setStyle: o => {
+      MSTY = mstyOk(o && typeof o == 'object' ? JSON.parse(JSON.stringify(o)) : null);
+      PREF.msty = MSTY;
+      persist();
+      if (map) refresh();
     },
     // the labels of the tanker tracks are kept with the mission (they belong to the DTC lines drawn from the tanker list)
     tanks: () => (PREF.tanks || []).slice(),

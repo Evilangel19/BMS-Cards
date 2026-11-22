@@ -244,6 +244,22 @@ ok(
       [40, -40],
     ].every((q, i) => near((E[0][2][i].x - 500) / K, q[0], 0.5) && near((E[0][2][i].y - 300 - 80 * K) / K, q[1], 0.5))
 );
+{
+  // pushed 60 NM south of the target: the sides go on to two points abeam of the push, 40 NM each side
+  const B = ocaDtcLines(
+      T,
+      W0,
+      TG,
+      { ...det, lead: 0, side: 0, off: 0, stop: 30, commit: 40 },
+      false,
+      600000 * (20 / 80)
+    ),
+    q = B[0][2].map(p => [Math.round((p.x - 500) / K), Math.round((p.y - 300 - 80 * K) / K)]);
+  ok(
+    'DTC, escort with the push: 6 points, the sides bent back to it ' + JSON.stringify(q),
+    q.length == 6 && q[0][0] == -40 && q[0][1] == -60 && q[5][0] == 40 && q[5][1] == -60 && q[1][1] == -40
+  );
+}
 const LS = ocaDtcLines(T, W0, null, { ...sw, w: 20 }, true),
   SA = sweepArea(T, 20),
   ring = LS.length == 2 ? [...LS[0][2], ...LS[1][2].slice(1, 5)] : [];

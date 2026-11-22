@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Added: on the Map, the label of the flight and of the tanker tracks can be dragged along its route (double click: back to its place); the other flights of the package can have a colour of their own (click one of them with the editing on, Colour); the pointer on an AUTO button previews what it will write, and what it would replace blinks red. The labels moved and the colours are kept with the mission.
+- Changed: the escort lines of A-A > OCA bend back to the push point.
 - Fixed: in a TE every faction is open: choose one in the ATO (or a flight of it) and it becomes yours, its flights load on the datacard and the map shows the flights of every side (a TE has nothing spotted). Campaigns are unchanged. Settings > Other factions says when a squadron keeps the other factions hidden.
 - Changed: the A-A and A-G blocks of the ROE are on the datacard (WPN, COMMIT and the main rule of the A-A page; the release minimum, the abort speed, PID and the calls of the A-G pages), never cut; the blocks no longer repeat weapons and tactics (HARM mode, DEAD tactic, OCA position, stern conversion), which are on the pages and the cards.
 - Changed: the OCA sweep area is one outline around the track instead of a box for each leg, and the DTC lines follow it: a sweep writes the outline of its area (two lines, one each side), an escort a box open on the side of arrival around the target, touching the STOP and COMMIT circles; no track line (the steerpoints show it); AUTO > FEZ of the DTC editing writes the lines of the A-A page of the flight (DCA, QRA or OCA).

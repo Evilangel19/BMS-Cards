@@ -285,9 +285,9 @@ export function ocaRoe(s, kind, code, altf) {
 
 // THE LINES OF THE DTC (a LINE holds 6 points). No track: the steerpoints of the flight show it already.
 // SWEEP: the outline of the sweep area as two open lines of 6 points, one each side, meeting at the ends (10 vertices around the area, none inside it).
-// ESCORT: the box of the target area at the TOT, open on the side the package comes from (a U: 4 points): the sides touch the STOP circle of the
-// package and the COMMIT circle of the escort, along the heading of the package into the target.
-export function ocaDtcLines(T, W, tgt, s, sweep) {
+// ESCORT: the box of the target area at the TOT, open on the side the package comes from: the sides touch the STOP circle of the package and the
+// COMMIT circle of the escort, along the heading of the package into the target, and bend back to the push (push: its time), 6 points.
+export function ocaDtcLines(T, W, tgt, s, sweep, push) {
   if (sweep) {
     const V = sweepRing(T, s.w, 10);
     if (V.length < 10) return [];
@@ -314,8 +314,15 @@ export function ocaDtcLines(T, W, tgt, s, sweep) {
     far = Math.max(...C.map(q => a(q) + q.r)),
     left = Math.min(...C.map(q => b(q) - q.r)),
     right = Math.max(...C.map(q => b(q) + q.r)),
-    P = (x, y) => ({ x: tgt.x + u.x * x + n.x * y, y: tgt.y + u.y * x + n.y * y });
-  return [['box', 'ESCORT AREA', [P(near, left), P(far, left), P(far, right), P(near, right)]]];
+    P = (x, y) => ({ x: tgt.x + u.x * x + n.x * y, y: tgt.y + u.y * x + n.y * y }),
+    U = [P(near, left), P(far, left), P(far, right), P(near, right)],
+    // the sides bent back to the push: the push point moved out to each side by the same width, square to the heading of the package there
+    pp = push != null ? posAt(W, push) : null;
+  if (!pp || (pp.x - tgt.x) * u.x + (pp.y - tgt.y) * u.y > near - 1) return [['box', 'ESCORT AREA', U]];
+  const hp = (pp.hdg * Math.PI) / 180,
+    np = { x: Math.cos(hp), y: -Math.sin(hp) },
+    side = d => ({ x: pp.x + np.x * d, y: pp.y + np.y * d });
+  return [['box', 'ESCORT AREA', [side(left), ...U, side(right)]]];
 }
 // the sweep area as k vertices (closed ring, no repeated point): the outline simplified by area (Visvalingam), then each edge moved out by as much
 // as the area passes it, the vertices where the moved edges meet: nothing of the area outside, the edges close to it

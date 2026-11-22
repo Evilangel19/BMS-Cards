@@ -28,6 +28,10 @@
     },
     "format": "string",
     "mapshot": "string",
+    "mapstyle": {
+     "col": "object",
+     "lbl": "object"
+    },
     "minReader": "string",
     "name": "string",
     "package": {

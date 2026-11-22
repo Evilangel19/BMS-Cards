@@ -712,3 +712,46 @@ dialog[open]::backdrop {
   color: var(--mu, #8b98a8);
   font-size: 13px;
 }
+/* a label the pilot can drag along its route (the flight, a tanker track) */
+.flb.drg div {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+.flb.drg div.grab {
+  cursor: grabbing;
+  animation: none;
+}
+/* a flight of the package in the colour the pilot gave it (the popup of the flight, Colour): also on the BMS palette of the map */
+.wps.dim > span {
+  display: contents;
+}
+:is(#mpbody, .mpx).game .wps.dim > span[style] .wpi {
+  fill: var(--mate);
+}
+:is(#mpbody, .mpx).game .flb.m div[style*='--mate'] {
+  border-color: var(--mate);
+}
+:is(#mpbody, .mpx).game .flb.m div[style*='--mate'] b {
+  color: var(--mate);
+}
+/* the preview of an AUTO of the DTC editing (the pointer on its button): what it would write, faint; what it would replace, blinking red */
+.auprev {
+  opacity: 0.75;
+}
+.aublink {
+  animation: aublink 0.7s steps(2, jump-none) infinite alternate;
+}
+@keyframes aublink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.15;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aublink {
+    animation: none;
+  }
+}

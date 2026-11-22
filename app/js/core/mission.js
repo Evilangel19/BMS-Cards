@@ -335,6 +335,7 @@ export function buildMission({
   weather = null,
   aircraft = null,
   tanks = null,
+  mapstyle = null,
   weapons = null,
   mapshot = null,
   created = null,
@@ -358,6 +359,7 @@ export function buildMission({
     weather,
     aircraft,
     tanks,
+    mapstyle,
     weapons,
     mapshot,
   };
@@ -464,6 +466,7 @@ export function missionShapeError(o) {
       if (x[k] != null && !isObj(x[k])) return 'weapons.' + k + ' is not an object';
   }
   if (o.tanks != null && !Array.isArray(o.tanks)) return 'tanks is not a list';
+  if (o.mapstyle != null && !isObj(o.mapstyle)) return 'mapstyle is not an object';
   if (o.mapshot != null && !(typeof o.mapshot == 'string' && /^data:image\/(png|jpeg);base64,/.test(o.mapshot)))
     return 'mapshot is not a picture';
   if (o.aircraft != null && !isObj(o.aircraft)) return 'aircraft is not an object';

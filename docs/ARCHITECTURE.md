@@ -72,6 +72,15 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 - **The card of the datacard** (`app/cardview.js`, `freeLayout` / `freeDraw`): a rule too long wraps at a space or right after "+" or "/", the size goes down half a pixel at a time (14 to 11 px) and the lines get closer before the text gets smaller. **The kneeboard card** (`app/roecard.js`): one card when everything fits, else two at most (ROE and SOP in one flow, the text smaller down to 0.6; what still does not fit is cut and the page says so).
 - Tests: `tests/run-roesop.mjs`, `tools/roesop-test.py`.
 
+## Map: labels, colours, AUTO preview
+
+- **Labels** (`label()` in `core/mapview.js`): `placeLabels()` puts each on the leg nearest the centre of the view; one with a `key` (`f:<callsign>` the
+  flight, `tk:<callsign>` a tanker track) can be dragged along its route and stays there (`MSTY.lbl`: leg and fraction); double click forgets it.
+- **Colours of the package** (`MSTY.col`: flight id `n:c` -> RRGGBB), from the popup of a flight of the package (editing on).
+- `MSTY` is kept in the preferences of the map and in the mission (`mapstyle`; `mapV.style()` / `setStyle()`).
+- **The preview of an AUTO** (`autoPreview(run)`): the same function as the button, on a copy of the DTC; the helpers that draw, say or keep return
+  at once while `DRY`; what it wrote is drawn on `G.au` (an SVG renderer: the map is on canvas), what it replaces blinks.
+
 ## Factions
 
 - `PLAYER` (`app/ato.js`) is the side of the player, from the player squadron of the campaign; `ST.VIEW` the side looked at. Another side can be read

@@ -193,6 +193,7 @@ export async function msfBuild() {
     weather: await wxBuild(x.f),
     aircraft,
     tanks: mapV.tanks(),
+    mapstyle: mapV.style(),
     weapons: msfWeapons(),
     mapshot: ST.MAPSHOT ? ST.MAPSHOT.toDataURL('image/png') : null,
   });
@@ -648,6 +649,7 @@ export async function msfLoad(text, file) {
     ST.WX = wxNow;
     try {
       mapV.setTanks(Array.isArray(p.tanks) ? p.tanks : []);
+      mapV.setStyle(p.mapstyle || null);
     } catch (e) {}
     let i = ST.CL.findIndex(x => x.f.id.n + ':' + x.f.id.c == p.datacard.flight);
     if (i < 0) i = 0;
@@ -758,6 +760,7 @@ export function msfSnapshot() {
   s.html = { fsel: $('fsel').innerHTML, sel: $('fsel').value, cinfo: $('cinfo').textContent, fn: $('fn').textContent };
   try {
     s.tanks = jclone(mapV.tanks());
+    s.mapstyle = mapV.style();
   } catch (e) {
     s.tanks = [];
   }
@@ -785,6 +788,7 @@ export function msfRestore(s) {
   dtcBtns();
   try {
     mapV.setTanks(s.tanks);
+    mapV.setStyle(s.mapstyle || null);
   } catch (e) {}
   try {
     if (mapV.isReady()) mapV.refreshDtc();
@@ -814,7 +818,7 @@ export const extraSig = () => {
   try {
     const w = msfWeapons();
     if (w && w.wp) delete w.wp.fz; // read back from the DTC by the page when it opens: the DTC lines already count
-    return JSON.stringify([w, mapV.tanks(), ST.MAPSHOT ? [ST.MAPSHOT.width, ST.MAPSHOT.height] : 0]);
+    return JSON.stringify([w, mapV.tanks(), mapV.style(), ST.MAPSHOT ? [ST.MAPSHOT.width, ST.MAPSHOT.height] : 0]);
   } catch (e) {
     return '';
   }
