@@ -101,8 +101,10 @@ preferences and the tests of before still work. Use this table to find a page in
 - The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page of the
   flight: DCA / QRA or OCA); the lines a page wrote before are replaced only after asking.
 - **The sweep area** of OCA (`sweepArea`): one outline at w / 2 from the track, traced with marching squares on a grid of the distance to it (not a box
-  per leg: short legs and turns made overlapping boxes). In the DTC (LINE2, 6 points) the sweep area goes as 5 vertices around it (`enclose`:
-  the convex hull, then the greedy enclosing pentagon), an escort its target area the same way.
+  per leg: short legs and turns made overlapping boxes). **The DTC lines of OCA** (`ocaDtcLines`, a LINE holds 6 points;
+  no track, the steerpoints show it): a sweep its area as two open lines of 6 points, one each side, meeting at the ends (`sweepRing`: Visvalingam
+  to 10 vertices, each edge moved out by as much as the area passes it, a miter limit of w); an escort a U open on the side of arrival around the
+  target at the TOT, its sides touching the STOP circle of the package and the COMMIT circle of the escort.
 - **The ROE blocks have no weapon and no tactic** (the HARM mode, the DEAD tactic, the OCA position and lead, the stern conversion of the QRA are on the
   pages, the cards and the datacard already). **In the datacard box** (`roeText`): the A-A block gives WPN, COMMIT and one line (`faorBox`), the A-G
   block its lines (`agBox`); they are never cut: `blockSet` passes the choice through `capSel`, so the last choices of the lists make room.

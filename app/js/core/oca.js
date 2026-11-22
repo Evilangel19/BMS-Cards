@@ -283,61 +283,95 @@ export function ocaRoe(s, kind, code, altf) {
   };
 }
 
-/** a polygon as k vertices around it (a LINE of the DTC holds 6 points: 5 and the first again): its convex hull, then, edge by edge, the edge whose
- * removal adds the least area is taken out by meeting its two neighbours (the greedy enclosing k-gon): every point of the polygon stays inside */
-export function enclose(A, k) {
-  const P = [...A].sort((a, b) => a.x - b.x || a.y - b.y),
-    cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x),
-    half = Q =>
-      Q.reduce((h, p) => {
-        while (h.length > 1 && cr(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
-        h.push(p);
-        return h;
-      }, []);
-  if (P.length < 3) return P;
-  let H = [...half(P).slice(0, -1), ...half([...P].reverse()).slice(0, -1)]; // counter-clockwise
-  while (H.length > k) {
-    const n = H.length;
-    let best = null;
-    for (let i = 0; i < n; i++) {
-      const a = H[(i - 1 + n) % n],
-        b = H[i],
-        c = H[(i + 1) % n],
-        d = H[(i + 2) % n],
-        u = { x: b.x - a.x, y: b.y - a.y },
-        v = { x: c.x - d.x, y: c.y - d.y },
-        den = u.x * v.y - u.y * v.x;
-      if (Math.abs(den) < 1e-12) continue; // parallel neighbours: they never meet
-      const t = ((d.x - a.x) * v.y - (d.y - a.y) * v.x) / den,
-        X = { x: a.x + u.x * t, y: a.y + u.y * t },
-        w = (X.x - d.x) * v.x + (X.y - d.y) * v.y;
-      if (t <= 1 || w <= 0) continue; // they meet behind the edge
-      const add = Math.abs(cr(b, X, c)) / 2;
-      if (!best || add < best.add) best = { i, X, add };
-    }
-    if (!best) break;
-    H = [...H.slice(0, best.i), best.X, ...H.slice(best.i + 2)];
-    if (best.i == n - 1) H = [best.X, ...H.slice(1, -1)]; // the edge from the last vertex to the first
+// THE LINES OF THE DTC (a LINE holds 6 points). No track: the steerpoints of the flight show it already.
+// SWEEP: the outline of the sweep area as two open lines of 6 points, one each side, meeting at the ends (10 vertices around the area, none inside it).
+// ESCORT: the box of the target area at the TOT, open on the side the package comes from (a U: 4 points): the sides touch the STOP circle of the
+// package and the COMMIT circle of the escort, along the heading of the package into the target.
+export function ocaDtcLines(T, W, tgt, s, sweep) {
+  if (sweep) {
+    const V = sweepRing(T, s.w, 10);
+    if (V.length < 10) return [];
+    const k = V.reduce(
+        (b, p, i) => (Math.hypot(p.x - T[0].x, p.y - T[0].y) < Math.hypot(V[b].x - T[0].x, V[b].y - T[0].y) ? i : b),
+        0
+      ),
+      at = i => ({ x: V[(k + i) % 10].x, y: V[(k + i) % 10].y });
+    return [
+      ['sw1', 'SWEEP AREA', [0, 1, 2, 3, 4, 5].map(at)],
+      ['sw2', 'SWEEP AREA', [5, 6, 7, 8, 9, 10].map(at)],
+    ];
   }
-  return H;
+  if (!tgt) return [];
+  const pk = posAt(W, tgt.t) || { ...tgt, hdg: 0 },
+    fp = fighterAt(W, s, tgt.t),
+    h = (pk.hdg * Math.PI) / 180,
+    u = { x: Math.sin(h), y: Math.cos(h) }, // ahead
+    n = { x: Math.cos(h), y: -Math.sin(h) }, // right
+    C = [{ c: pk, r: s.stop * KM_NM }, ...(fp ? [{ c: fp, r: s.commit * KM_NM }] : [])],
+    a = q => (q.c.x - tgt.x) * u.x + (q.c.y - tgt.y) * u.y,
+    b = q => (q.c.x - tgt.x) * n.x + (q.c.y - tgt.y) * n.y,
+    near = Math.min(...C.map(q => a(q) - q.r)),
+    far = Math.max(...C.map(q => a(q) + q.r)),
+    left = Math.min(...C.map(q => b(q) - q.r)),
+    right = Math.max(...C.map(q => b(q) + q.r)),
+    P = (x, y) => ({ x: tgt.x + u.x * x + n.x * y, y: tgt.y + u.y * x + n.y * y });
+  return [['box', 'ESCORT AREA', [P(near, left), P(far, left), P(far, right), P(near, right)]]];
 }
-
-// THE LINES OF THE DTC: the track of the fighter (6 points at most); a sweep its sweep area, an escort the target area, as 5 vertices around it,
-// closed (6 points)
-export function ocaDtcLines(T, tgt, s, sweep) {
-  const n = Math.min(6, T.length),
-    tr = n > 1 ? Array.from({ length: n }, (_, i) => T[Math.round((i * (T.length - 1)) / (n - 1))]) : [],
-    r = s.ta * KM_NM,
-    ring =
-      !sweep && tgt
-        ? Array.from({ length: 36 }, (_, i) => ({
-            x: tgt.x + Math.sin(i / 5.73) * r,
-            y: tgt.y + Math.cos(i / 5.73) * r,
-          }))
-        : null,
-    E = sweep ? (T.length ? enclose(sweepArea(T, s.w), 5) : []) : ring ? enclose(ring, 5) : [];
-  return {
-    track: tr.map(p => ({ x: p.x, y: p.y })),
-    area: E.length > 2 ? [...E, E[0]].map(p => ({ x: p.x, y: p.y })) : null,
-  };
+// the sweep area as k vertices (closed ring, no repeated point): the outline simplified by area (Visvalingam), then each edge moved out by as much
+// as the area passes it, the vertices where the moved edges meet: nothing of the area outside, the edges close to it
+export function sweepRing(T, w, k) {
+  const A = sweepArea(T, w),
+    m = A.length;
+  if (m < k) return [];
+  const I = simplify(A, k),
+    sa = A.reduce((t, p, i) => t + p.x * A[(i + 1) % m].y - A[(i + 1) % m].x * p.y, 0) > 0 ? 1 : -1, // counter-clockwise: outside on the right
+    L = I.map((a, e) => {
+      const b = I[(e + 1) % k],
+        P = A[a],
+        Q = A[b],
+        dx = Q.x - P.x,
+        dy = Q.y - P.y,
+        len = Math.hypot(dx, dy) || 1,
+        n = { x: (sa * dy) / len, y: (-sa * dx) / len };
+      let push = 0;
+      for (let q = a; q != b; q = (q + 1) % m) push = Math.max(push, (A[q].x - P.x) * n.x + (A[q].y - P.y) * n.y);
+      return { p: { x: P.x + n.x * push, y: P.y + n.y * push }, d: { x: dx / len, y: dy / len }, n, push };
+    });
+  return L.map((e, i) => {
+    const f = L[(i - 1 + k) % k],
+      den = f.d.x * e.d.y - f.d.y * e.d.x;
+    if (Math.abs(den) < 0.26) {
+      // nearly straight on (under 15°): the vertex moved out by the larger push
+      const v = A[I[i]],
+        g = Math.max(f.push, e.push),
+        nx = f.n.x + e.n.x,
+        ny = f.n.y + e.n.y,
+        l = Math.hypot(nx, ny) || 1;
+      return { x: v.x + (nx / l) * g, y: v.y + (ny / l) * g };
+    }
+    const t = ((e.p.x - f.p.x) * e.d.y - (e.p.y - f.p.y) * e.d.x) / den,
+      X = { x: f.p.x + f.d.x * t, y: f.p.y + f.d.y * t },
+      v = A[I[i]],
+      far = Math.hypot(X.x - v.x, X.y - v.y),
+      lim = w * KM_NM; // a sharp turn: no spike, at most w from the area (the miter limit of the drawings)
+    return far <= lim ? X : { x: v.x + ((X.x - v.x) * lim) / far, y: v.y + ((X.y - v.y) * lim) / far };
+  });
+}
+// Visvalingam: the indices of the k points of the ring that keep the most of its area
+function simplify(R, k) {
+  const V = R.map((p, i) => i),
+    tri = (a, b, c) => Math.abs((R[b].x - R[a].x) * (R[c].y - R[a].y) - (R[b].y - R[a].y) * (R[c].x - R[a].x)) / 2;
+  while (V.length > k) {
+    let m = 0,
+      best = Infinity;
+    for (let i = 0; i < V.length; i++) {
+      const t = tri(V[(i - 1 + V.length) % V.length], V[i], V[(i + 1) % V.length]);
+      if (t < best) {
+        best = t;
+        m = i;
+      }
+    }
+    V.splice(m, 1);
+  }
+  return V;
 }

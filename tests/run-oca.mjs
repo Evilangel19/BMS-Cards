@@ -11,7 +11,6 @@ import {
   fighterAt,
   track,
   sweepArea,
-  enclose,
   ocaChecks,
   ocaRoe,
   ocaDtcLines,
@@ -226,37 +225,39 @@ const inPoly = (c, C) => {
     if (C[i].y > c.y != C[k].y > c.y && c.x < ((C[k].x - C[i].x) * (c.y - C[i].y)) / (C[k].y - C[i].y) + C[i].x) r = !r;
   return r;
 };
-const L = ocaDtcLines(T, { x: 500, y: 300 + 80 * K }, sw, false);
+// the package of the test: south to north, at the target (500, 300 + 80 NM) at 09:10
+const W0 = [
+    { x: 500, y: 300, arr: 0, t: 0 },
+    { x: 500, y: 300 + 80 * K, arr: 600000, t: 600000 },
+  ],
+  TG = { x: 500, y: 300 + 80 * K, t: 600000 },
+  E = ocaDtcLines(T, W0, TG, { ...det, lead: 0, side: 0, off: 0, stop: 30, commit: 40 }, false);
 ok(
-  'DTC, escort: the track in 6 points, the target area 5 points around its circle, closed',
-  L.track.length == 6 &&
-    L.area.length == 6 &&
-    near(L.area[0].x, L.area[5].x, 1e-9) &&
-    L.area.slice(0, 5).every(p => Math.hypot(p.x - 500, p.y - 300 - 80 * K) / K >= 30)
-);
-const LS = ocaDtcLines(T, null, { ...sw, w: 20 }, true),
-  SA = sweepArea(T, 20);
-ok(
-  'DTC, sweep: the sweep area as 5 points, closed, the whole area inside it',
-  LS.area.length == 6 &&
-    near(LS.area[0].y, LS.area[5].y, 1e-9) &&
-    SA.every(
-      p =>
-        inPoly(p, LS.area.slice(0, 5)) ||
-        Math.min(...LS.area.slice(0, 5).map((q, i, A) => dSeg(p, q, A[(i + 1) % 5]))) < 0.01
-    )
-);
-ok(
-  'enclose: a square stays itself',
-  enclose(
+  'DTC, escort: one line, a U of 4 points open to the south (the arrival), its sides touching the circles (COMMIT 40 here) ' +
+    JSON.stringify(E.map(z => z[2].map(p => [Math.round((p.x - 500) / K), Math.round((p.y - 300 - 80 * K) / K)]))),
+  E.length == 1 &&
+    E[0][2].length == 4 &&
     [
-      { x: 0, y: 0 },
-      { x: 1, y: 0 },
-      { x: 1, y: 1 },
-      { x: 0, y: 1 },
-    ],
-    5
-  ).length == 4
+      [-40, -40],
+      [-40, 40],
+      [40, 40],
+      [40, -40],
+    ].every((q, i) => near((E[0][2][i].x - 500) / K, q[0], 0.5) && near((E[0][2][i].y - 300 - 80 * K) / K, q[1], 0.5))
+);
+const LS = ocaDtcLines(T, W0, null, { ...sw, w: 20 }, true),
+  SA = sweepArea(T, 20),
+  ring = LS.length == 2 ? [...LS[0][2], ...LS[1][2].slice(1, 5)] : [];
+ok(
+  'DTC, sweep: two lines of 6 points that meet at the ends, no track',
+  LS.length == 2 &&
+    LS.every(z => z[2].length == 6) &&
+    near(LS[0][2][5].x, LS[1][2][0].x, 1e-9) &&
+    near(LS[1][2][5].y, LS[0][2][0].y, 1e-9)
+);
+ok(
+  'DTC, sweep: the whole sweep area inside the 10 points, none of them far out (under 6 NM from it)',
+  SA.every(p => inPoly(p, ring) || Math.min(...ring.map((q, i) => dSeg(p, q, ring[(i + 1) % ring.length]))) < 0.1) &&
+    ring.every(p => Math.min(...SA.map(q => Math.hypot(p.x - q.x, p.y - q.y))) / K < 6)
 );
 
 if (bad) {

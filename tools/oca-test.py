@@ -81,7 +81,7 @@ try:
         pg.click('#ocpage [data-ocdtc]'); pg.wait_for_timeout(1500)
         used = lambda a: pg.evaluate("a=>{let k=0;for(let i=a;i<a+6;i++){const l=__app.lines.find(l=>l.k=='lineSTPT_'+i);if(l&&!/^0\\.000000, 0\\.000000/.test(l.v))k++}return k}", a)
         cnt = [used(6 * i) for i in range(4)]
-        check('DTC: LINE1 the track (6), LINE2 the target area (6) %s' % cnt, cnt == [6, 6, 0, 0])
+        check('DTC: LINE1 and LINE2 the two sides of the sweep area (6 each) %s' % cnt, cnt == [6, 6, 0, 0])
         # an ESCORT: detached first, then embedded at night
         pg.evaluate(SETUP, 'ESCORT'); pg.evaluate("()=>__app.ocaPage.setState({f:{}})"); pg.click('#bvrtabs [data-bsub=faor]'); pg.wait_for_timeout(300); pg.click('#bvrtabs [data-bsub=oca]'); pg.wait_for_timeout(800)
         q = P()
