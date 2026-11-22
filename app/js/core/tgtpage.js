@@ -1940,6 +1940,38 @@ export function createTargetPage(deps) {
   }
   // the cards are always in the Paper (BTG) layout (the Style of the page is for the screen, the PNG and the datacard): light, or dark (bands dark with
   // light text) as the look of the cards
+  // the places and objectives within 2 km of the target (not the target itself): the 3 nearest, read before the Smart card is drawn
+  let NEAR = { key: '', list: [] };
+  async function nearLoad() {
+    const t = tgt();
+    if (!t || !deps.refs) return;
+    if (NEAR.key == t.key) return;
+    try {
+      const L =
+        (await deps.refs({
+          e0: (t.x - 2) * FT_KM,
+          e1: (t.x + 2) * FT_KM,
+          n0: (t.y - 2) * FT_KM,
+          n1: (t.y + 2) * FT_KM,
+        })) || [];
+      NEAR = {
+        key: t.key,
+        list: L.filter(r => r.k != 'unit' && r.k != 'sam')
+          .map(r => ({
+            x: r.e / FT_KM,
+            y: r.n / FT_KM,
+            k: r.k,
+            label: r.label,
+            km: Math.hypot(r.e / FT_KM - t.x, r.n / FT_KM - t.y),
+          }))
+          .filter(r => r.km > 0.2 && r.km <= 2)
+          .sort((a, b) => a.km - b.km)
+          .slice(0, 3),
+      };
+    } catch (e) {
+      NEAR = { key: t.key, list: [] };
+    }
+  }
   // the Smart card of the target (core/smarttgt.js): the numbers of the target, a sketch of its buildings and DMPIs, the components, the remarks
   function smartData() {
     const t = tgt(),
@@ -1985,6 +2017,12 @@ export function createTargetPage(deps) {
       ...(D0 && PF.show.unit
         ? D0.units.slice(0, 2).map(z => String(z.name).toUpperCase() + ' ' + z.nm.toFixed(1) + ' NM')
         : []),
+      ...(NEAR.key == t.key
+        ? NEAR.list.map(r => {
+            const b = Math.round(toMag((Math.atan2(r.x - t.x, r.y - t.y) * 180) / Math.PI + 360)) % 360 || 360;
+            return 'NEAR ' + r.label + ' ' + r.km.toFixed(1) + ' KM ' + String(b).padStart(3, '0') + '°';
+          })
+        : []),
     ];
     return {
       title: 'TARGET' + (t.refs.length ? ' · ' + t.refs[0] : ''),
@@ -2024,6 +2062,7 @@ export function createTargetPage(deps) {
           ? D0.units.map(z => ({ x: z.x, y: z.y, name: z.name, nm: z.nm, brg: z.brg }))
           : [],
       imp: s && s.auto && PF.show.imp && R && R.imp ? R.imp : [],
+      near: NEAR.key == t.key ? NEAR.list : [],
       hdg: hdgT != null ? hdg : null,
       hdgTrue: hdgT,
       comps,
@@ -2876,8 +2915,9 @@ export function createTargetPage(deps) {
     }
   }
   // Kneeboard cards: a small window with the three cards to choose
-  function addCards() {
+  async function addCards() {
     if (!tgt()) return;
+    await nearLoad();
     const d = document.createElement('dialog'),
       K = [
         ['g', 'Graphic'],
@@ -3254,6 +3294,7 @@ export function createTargetPage(deps) {
     if (!built) await self.render();
     const t = tgt();
     if (!t) return [];
+    await nearLoad();
     return [
       ['g', 'Graphic'],
       ['t', 'Target information'],

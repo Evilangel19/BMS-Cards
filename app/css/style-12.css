@@ -1498,3 +1498,15 @@
 .tgp .tgsth.dk {
   color: #9fb4d8;
 }
+/* Add all cards of the Kneeboard: its two choices (Classic, Smart) */
+#kballk {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 6px;
+}
+#kballk[hidden] {
+  display: none;
+}
+#kballk.kbapp {
+  animation: tgapp 0.22s ease-out;
+}

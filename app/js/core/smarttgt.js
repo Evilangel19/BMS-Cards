@@ -119,6 +119,16 @@ export function drawSmartTarget(x, D) {
       edges.push([a, b, String(u.name).toUpperCase()]);
     } else edge(u.x, u.y, String(u.name).toUpperCase() + ' ' + u.nm.toFixed(1) + ' NM');
   });
+  // the places and objectives near it (ICAO symbols), inside the view
+  const nearL = [];
+  (D.near || []).forEach(r => {
+    const a = PX(r.x),
+      b = PY(r.y);
+    if (!inBox(a, b, 12)) return;
+    refSymbol(x, r.k, a, b);
+    L.block(a, b, 10);
+    nearL.push([a, b, r.label]);
+  });
   D.dmpis.forEach(d => {
     scTri(x, PX(d.x), PY(d.y), 8);
     L.block(PX(d.x), PY(d.y), 9);
@@ -146,6 +156,7 @@ export function drawSmartTarget(x, D) {
       L.put(PX(d.x), PY(d.y), String(d.n), { s: 15, w: 700, c: '#cc0000', box, r: 10 }) ||
       L.put(PX(d.x), PY(d.y), String(d.n), { s: 15, w: 700, c: '#cc0000', r: 10, force: true })
   );
+  nearL.forEach(([a, b, t]) => L.put(a, b, t, { s: 11, box, r: 12 }));
   edges.forEach(([a, b, t]) => L.put(a, b, t, { s: 11, c: '#cc0000', box, r: 11 }));
   x.restore();
   scLine(

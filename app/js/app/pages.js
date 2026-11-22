@@ -445,6 +445,7 @@ function tgtDeps() {
         return [];
       }
     },
+    refs: box => smartRefs(box), // the places and objectives near the target, for its Smart card
     info: () => ({
       cs: F.cs || '',
       mis: F.mis || '',

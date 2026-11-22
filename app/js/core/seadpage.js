@@ -1249,7 +1249,12 @@ export function createSeadPage(deps) {
         gaps: [...r.gaps.map(g => [g.t0, g.t1]), ...(r.pre ? [[r.pre.t0, r.pre.t1]] : [])],
         marks: r.shots
           .filter(z => !st.skip[z.id])
-          .map(z => ({ t: lt(z), label: '#' + (z.seat + 1) + ' ' + pm(lt(z)), late: !!z.launch.off })),
+          .map(z => ({
+            t: lt(z),
+            label: '#' + (z.seat + 1) + ' ' + pm(lt(z)),
+            late: !!z.launch.off,
+            mine: X.seat != null && z.seat == X.seat,
+          })),
       })),
       plan: {
         sams: R.map(r => ({ x: r.sam.x, y: r.sam.y, r: r.sam.rng, name: r.sam.name })),
@@ -1288,6 +1293,7 @@ export function createSeadPage(deps) {
               pm(z.imp) +
               (off ? '  LATE' : ''),
             off,
+            X.seat != null && z.seat == X.seat,
           ];
         }),
       last: 'PROTECTS ' + prot.map(f => String(f.name).toUpperCase()).join(', '),

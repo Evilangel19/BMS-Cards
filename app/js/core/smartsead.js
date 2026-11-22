@@ -145,14 +145,16 @@ export function seadTimeline(x, D, top, label = 'HARM TIMELINE', maxRows = 6, ro
       )
     );
     // the launches over the row, their times above it; one that would touch the one before goes under the row
-    let end = -1e9;
+    let end = -1e9,
+      endU = -1e9;
     r.marks
       .slice()
       .sort((a, b) => a.t - b.t)
       .forEach(m => {
         const a = TX(m.t),
           w = scWidth(x, 10, m.label),
-          under = a + 5 < end;
+          under = a + 5 < end,
+          skip = under && a + 5 < endU; // no room above nor under: the time is in the table
         scLine(
           x,
           [
@@ -162,8 +164,13 @@ export function seadTimeline(x, D, top, label = 'HARM TIMELINE', maxRows = 6, ro
           ],
           { close: true, fill: m.late ? RED : '#222222', w: 0 }
         );
-        scText(x, a + 5, under ? y + bh + 10 : y - 1, 10, m.label, { c: m.late ? RED : undefined });
-        if (!under) end = a + 5 + w + 4;
+        if (skip) return;
+        scText(x, a + 5, under ? y + bh + 10 : y - 1, 10, m.label, {
+          c: m.late ? RED : undefined,
+          w: m.mine ? 700 : 400,
+        });
+        if (under) endU = a + 5 + w + 4;
+        else end = a + 5 + w + 4;
       });
   });
   if (D.rows.length > rows.length)
@@ -195,9 +202,11 @@ export function drawSmartSead(x, D) {
   scKey(x, D.key);
   const ly = seadTimeline(x, D, 146) - 10;
   // ---- the plan
-  const py = ly + 18;
+  const py = ly + 18,
+    nT = Math.min(8, D.table.length), // up to eight launches: the plan gives them its room
+    tTop = Math.min(602, 690 - 42 - Math.max(4, nT) * 13);
   scSec(x, py, 'PLAN');
-  const box = [12, py + 22, 436, 596 - (py + 22)],
+  const box = [12, py + 22, 436, tTop - 6 - (py + 22)],
     P = D.plan,
     all = [
       ...P.sams.flatMap(s => [
@@ -243,13 +252,28 @@ export function drawSmartSead(x, D) {
   x.restore();
   frameBox(x, box);
   scale(x, box, V.sc);
-  scText(x, 14, 598, 10, P.legend || '', { c: '#555555' });
+  scText(x, 14, tTop - 4, 10, P.legend || '', { c: '#555555' });
   // ---- the launches
-  scSec(x, 602);
-  scText(x, 12, 616, 11, 'SEAT  L TIME    SAM    BRG   RNG  IMPACT', { c: '#666666', w: 700 });
-  const T = D.table.slice(0, 4);
-  T.forEach(([t, red], i) => scText(x, 12, 632 + i * 13, 12, t, { c: red ? RED : undefined }));
-  if (D.table.length > 4) scText(x, 448, 616, 10, '+' + (D.table.length - 4) + ' more', { c: '#777777', al: 'right' });
+  scSec(x, tTop);
+  scText(x, 12, tTop + 14, 11, 'SEAT  L TIME    SAM    BRG   RNG  IMPACT', { c: '#666666', w: 700 });
+  // your launches in bold on a grey band
+  D.table.slice(0, nT).forEach(([t, red, mine], i) => {
+    const y = tTop + 30 + i * 13;
+    if (mine)
+      scLine(
+        x,
+        [
+          [8, y - 10],
+          [452, y - 10],
+          [452, y + 3],
+          [8, y + 3],
+        ],
+        { close: true, fill: '#e2e2e2', w: 0 }
+      );
+    scText(x, 12, y, 12, t + (mine ? '  \u25C0 YOU' : ''), { c: red ? RED : undefined, w: mine ? 700 : 400 });
+  });
+  if (D.table.length > nT)
+    scText(x, 448, tTop + 14, 10, '+' + (D.table.length - nT) + ' more', { c: '#777777', al: 'right' });
   scText(x, 12, 686, 10, D.last || '', { c: '#555555' });
   scEnd(x);
 }

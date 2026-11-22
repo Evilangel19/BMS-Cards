@@ -36,18 +36,22 @@ export function drawSmartCombined(x, C) {
     });
     if (M.line) scText(x, 12, 328, 11, M.line);
   }
-  // ---- the target (or the SAM)
+  // ---- the target (or the SAM), then the weather over it at its right; without a target (the Target page not opened yet) the weather takes the width
   scSec(x, 334);
-  scLine(
-    x,
-    [
-      [230, 334],
-      [230, 500],
-    ],
-    { w: 1 }
-  );
-  const T = C.tgt;
-  scText(x, 12, 350, 12, C.sam ? 'TARGET SAM' : 'TARGET', { w: 700 });
+  const T = C.tgt,
+    wide = !C.sam && !T,
+    WX = wide ? 12 : 242;
+  if (!wide) {
+    scLine(
+      x,
+      [
+        [230, 334],
+        [230, 500],
+      ],
+      { w: 1 }
+    );
+    scText(x, 12, 350, 12, C.sam ? 'TARGET SAM' : 'TARGET', { w: 700 });
+  }
   if (C.sam) {
     scText(x, 12, 368, 12, C.sam.name);
     (C.sam.text || []).slice(0, 2).forEach((t, i) => scText(x, 12, 384 + i * 16, 11, t, { c: '#444444' }));
@@ -66,25 +70,27 @@ export function drawSmartCombined(x, C) {
       { c: '#444444' }
     );
     sketch(x, T, [12, 406, 212, 90]);
-  } else scText(x, 12, 370, 12, 'Target page not opened yet', { c: '#888888' });
-  // ---- the weather over the target
+  }
   const W = C.wx;
-  scText(x, 242, 350, 12, 'WEATHER AT TGT', { w: 700 });
+  scText(x, WX, 350, 12, 'WEATHER AT TGT', { w: 700 });
   if (W) {
-    [
-      ['CLOUD', W.cloud, 242, 370],
-      [C.windLabel || 'WIND', W.wind, 342, 370],
-      ['0 °C', W.z0, 242, 410],
-      ['QNH', W.qnh, 342, 410],
-    ].forEach(([l, v, a, b]) => {
-      scText(x, +a, +b, 10, String(l), { c: '#666666', w: 700 });
-      scText(x, +a, +b + 18, 15, String(v), { w: 700 });
+    const cells = [
+      ['CLOUD', W.cloud],
+      [C.windLabel || 'WIND', W.wind],
+      ['0 °C', W.z0],
+      ['QNH', W.qnh],
+    ];
+    cells.forEach(([l, v], i) => {
+      const a = wide ? 12 + i * 111 : 242 + (i % 2) * 100,
+        b = wide ? 370 : 370 + Math.floor(i / 2) * 40;
+      scText(x, a, b, 10, String(l), { c: '#666666', w: 700 });
+      scText(x, a, b + 18, 15, String(v), { w: 700 });
     });
-    wrap(x, W.taf || '', 11, 204)
-      .slice(0, 2)
-      .forEach((l, i) => scText(x, 242, 452 + i * 14, 11, l.trim()));
-    if (C.check) scText(x, 242, 492, 12, C.check.label, { c: C.check.bad ? RED : undefined, w: 700 });
-  } else scText(x, 242, 370, 12, 'no weather data', { c: '#888888' });
+    wrap(x, W.taf || '', wide ? 13 : 11, wide ? 432 : 204)
+      .slice(0, wide ? 4 : 2)
+      .forEach((l, i) => scText(x, WX, (wide ? 414 : 452) + i * (wide ? 16 : 14), wide ? 13 : 11, l.trim()));
+    if (C.check) scText(x, WX, 492, 12, C.check.label, { c: C.check.bad ? RED : undefined, w: 700 });
+  } else scText(x, WX, 370, 12, 'no weather data', { c: '#888888' });
   // ---- the ROE / SOP
   scSec(x, 500, 'ROE / SOP');
   const R = C.roe;

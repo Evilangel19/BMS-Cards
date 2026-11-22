@@ -497,7 +497,7 @@ const ALL_SRC = [
   ['tgt', 'Target'],
   ['roe', 'ROE / SOP'],
 ];
-export async function kbAddAll() {
+export async function kbAddAll(kind = 'classic') {
   const L = [],
     none = [],
     bid = busyStart('Making the cards…', true),
@@ -519,6 +519,7 @@ export async function kbAddAll() {
       } catch (e) {
         got = [];
       }
+      got = got.filter(c => /^Smart\b/.test(String(c.name || '')) == (kind == 'smart'));
       if (got.length) got.forEach(c => L.push({ ...c, src: l }));
       else none.push(l);
     }
@@ -542,7 +543,7 @@ export async function kbAddAll() {
   const on = L.map(c => !c.off),
     d = document.createElement('dialog');
   d.className = 'tgdlg kball';
-  d.innerHTML = `<h3>Add all cards to the Kneeboard</h3><p class="hint">The cards the program can make for this flight, ${cardDark() ? 'dark' : 'light'} as chosen (each keeps the other look too). Click a card to leave it out. They go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.${none.length ? ' Nothing to make for: ' + none.join(', ') + '.' : ''}</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
+  d.innerHTML = `<h3>Add all ${kind == 'smart' ? 'Smart' : 'classic'} cards to the Kneeboard</h3><p class="hint">The cards the program can make for this flight, ${cardDark() ? 'dark' : 'light'} as chosen (each keeps the other look too). Click a card to leave it out. They go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.${none.length ? ' Nothing to make for: ' + none.join(', ') + '.' : ''}</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
   document.body.append(d);
   const cnt = () => {
     const n = on.filter(Boolean).length,
@@ -941,7 +942,7 @@ export function kbRender(keepMenu) {
  div.kbtr canvas.kbt{width:72px;height:108px}.kbtw{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-start;justify-content:center}#kbtray{margin-top:14px;padding:10px;border:2px solid transparent;border-radius:8px;background:#ffffff08}#kbtrash{width:76px;height:112px;border:2px dashed var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:30px;color:var(--mu);transition:background-color .15s,border-color .15s}
  .dropping .kbm{outline:2px dashed #3ddc84;outline-offset:6px;border-radius:8px}.kbm{text-align:center}.kbx{display:flex;gap:14px;align-items:center;justify-content:center;margin-top:10px;flex-wrap:wrap}#kbpv{display:block;margin:0 auto;width:100%;max-width:640px;height:auto;background:#fff;border:1px solid var(--line);aspect-ratio:1/1}
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
- <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program or a datacard page, then switch it between light and dark">☀</button><button class="btn g" id="kball" style="margin-left:auto" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): chosen on their pictures, then put into the Kneeboard">＋ Add all cards…</button><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP) and of the datacard pages: light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
+ <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program or a datacard page, then switch it between light and dark">☀</button><span id="kballw" style="margin-left:auto"><button class="btn g" id="kball" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): first Classic or Smart, then chosen on their pictures and put into the Kneeboard">＋ Add all cards…</button><span id="kballk" hidden><button class="btn g" data-kball="classic" title="The cards of the pages, as before">Classic</button><button class="btn g" data-kball="smart" title="The Smart cards: the look of a smart card, and the mission cards">Smart</button></span></span><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP) and of the datacard pages: light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
  <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
@@ -1012,7 +1013,30 @@ export function kbRender(keepMenu) {
       kbMemLater();
       kbRender();
     };
-  if ($('kball')) $('kball').onclick = () => kbAddAll();
+  // Add all cards: two choices open under it (Classic, Smart); a click elsewhere closes them
+  if ($('kball')) {
+    const k = $('kballk'),
+      shut = () => (k.hidden = true);
+    $('kball').onclick = e => {
+      e.stopPropagation();
+      k.hidden = !k.hidden;
+      if (!k.hidden && animOn()) {
+        k.classList.remove('kbapp');
+        void k.offsetWidth;
+        k.classList.add('kbapp');
+      }
+    };
+    k.querySelectorAll('[data-kball]').forEach(b => {
+      /** @type {HTMLElement} */ (b).onclick = e => {
+        e.stopPropagation();
+        shut();
+        kbAddAll(/** @type {HTMLElement} */ (b).dataset.kball);
+      };
+    });
+    document.addEventListener('click', e => {
+      if (!k.hidden && !(/** @type {HTMLElement} */ (e.target).closest('#kballw'))) shut();
+    });
+  }
   if ($('kbsend'))
     $('kbsend').onclick = () => {
       if (!KBCARD || KBCARD.dc)

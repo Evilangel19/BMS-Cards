@@ -1803,7 +1803,7 @@ export function createDeadPage(deps) {
     }
   }
   function comboData() {
-    const D = smartData(),
+    const D = inPair(X.seat != null ? X.seat : 0, smartData), // the pair of the player chosen (a 4-ship: its element may fly its own plan)
       B = COMBO || {},
       cruise = Math.max(0, ...X.me.f.wps.map(w => Math.abs(w.z || 0) * 10)),
       fl = 'FL' + String(Math.round(cruise / 1000) * 10).padStart(3, '0'),
@@ -1852,7 +1852,11 @@ export function createDeadPage(deps) {
     c.width = DDC_W;
     c.height = DDC_H;
     if (kind == 'combo') drawSmartCombined(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), comboData());
-    else if (kind == 'smart') drawSmartDead(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), smartData());
+    else if (kind == 'smart')
+      drawSmartDead(
+        /** @type {CanvasRenderingContext2D} */ (c.getContext('2d')),
+        inPair(X.seat != null ? X.seat : 0, smartData)
+      );
     else drawDeadCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), D, kind);
     return c;
   }
