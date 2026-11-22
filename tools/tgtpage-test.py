@@ -218,6 +218,11 @@ try:
         pg.click('#wp [data-tabcard]'); pg.wait_for_timeout(600)
         check('...Add card gives one card, the Picture', pg.locator('.tgdlg .tgcard').count() == 1 and 'Picture' in pg.inner_text('.tgdlg .tgcard'))
         pg.click('.tgdlg [data-a=no]'); pg.wait_for_timeout(300)
+        pg.evaluate("""()=>new Promise(r=>{const c=document.createElement('canvas');c.width=900;c.height=600;const g=c.getContext('2d');g.fillStyle='#a52';g.fillRect(0,0,900,600);
+          c.toBlob(b=>{const dt=new DataTransfer();dt.items.add(new File([b],'p.png',{type:'image/png'}));document.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true}));setTimeout(r,500)})})""")
+        pg.wait_for_timeout(4500)  # the toast of the earlier Put on datacard
+        pg.evaluate('()=>{window.__ms0=__app.ST.MAPSHOT}'); pg.click('.tgp .tgdc'); pg.wait_for_timeout(300); pg.click('.tgp .tgcropok'); pg.wait_for_timeout(400)
+        check('...Put on datacard: the picture becomes the map screenshot of the datacard (saved with the mission)', pg.evaluate("()=>window.__ms0!==__app.ST.MAPSHOT&&!!__app.ST.MAPSHOT"))
         pg.once('dialog', lambda d: d.accept())
         pg.click('.tgp .tgrowt .tgx'); pg.wait_for_timeout(400)
         check('...its × removes it', T('t.list().length') == 0)

@@ -4,7 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
-- Added: Weapons > Target, ＋ Picture: a screenshot with no target (an aircraft to know in A-A, a view of the area), named as you like, with the Screenshot and Map views and the drawing tools; Add card makes one Picture card. Kept for the session, as the other Target pictures.
+- Added: Weapons > Target, ＋ Picture: a screenshot with no target (an aircraft to know in A-A, a view of the area), named as you like, with the Screenshot and Map views and the drawing tools; Add card makes one Picture card; Put on datacard puts it on the datacard, which goes with the mission (the entry itself is kept for the session, as the other Target pictures).
 - Added: three AUTOs of the DTC editing: SAM FRIENDLY (the forward edge of the friendly SAM rings near the route, one LINE), ATTACK (from the A-G attack page: IP, PUP, apex, release, target, egress, and the run-in V, two LINEs) and NOE (the walls of the valley of the low part of the flight plan, where the terrain rises to the altitude of the leg, two LINEs; needs the terrain of the BMS folder).
 - Changed: SEAD and DEAD aim the HARM at the fire control radar of a SAM (ALIC 202 Fan Song for the SA-2, 203, 204, 205, 206, 210, 211 and 217 for the TELARs of the SA-11 and SA-17, 230 for the Hawk), as the HARM page of the DTC lists them with a T.
 - Fixed: the A-A and A-G blocks of the ROE are written as soon as a flight is chosen (no need to open its page) and the ROE page shows them when it is opened; only A-G missions get an A-G block. On the A-G pages the Edit points button sits on the left, Fit view and the map filters on the right (as on the A-A pages).
