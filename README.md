@@ -31,7 +31,8 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 
 ![The map with a flight plan and SAM rings](docs/img/map.png)
 ![The kneeboard organizer](docs/img/kneeboard.png)
-![The Weapons page](docs/img/weapons.png)
+![The Smart cards of a flight, added to the kneeboard](docs/img/smart-cards.png)
+![The A-G page: the HARM shots of a SEAD flight](docs/img/ag-sead.png)
 ![The Data Cartridge page](docs/img/dtc.png)
 
 ## More screenshots
