@@ -23,6 +23,7 @@ import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 import { createBriefing } from './briefing.js';
 import { roleOf } from './briefroom.js';
 import { cleanSqPresets, cleanCustom } from './roesop.js';
+import * as MX from './misindex.js';
 
 // ---------- logbook (.lbk) ----------
 // The file is XOR-ed with the text "Falcon is your Master" and chained with the previous encrypted byte (the first one with 0x58).
@@ -1607,7 +1608,7 @@ export function createSquadronPage(deps) {
       await navigator.clipboard.writeText(t);
       deps.toast && deps.toast('Copied.');
     } catch (e) {
-      deps.toast && deps.toast('Could not copy: select the text and copy it by hand.');
+      deps.toast && deps.toast('Could not copy: select the text and copy it by hand.', true);
     }
   };
   const ago = t => {
@@ -1649,7 +1650,7 @@ export function createSquadronPage(deps) {
     const r0 = recv[0];
     if (deps.saveReceived)
       deps
-        .saveReceived(m.text, m.name)
+        .saveReceived(m.text, m.name, from, sqName || '')
         .then(d => {
           if (d) {
             r0.saved = d;
@@ -2508,9 +2509,30 @@ export function createSquadronPage(deps) {
   }
 
   // ----- MISSIONS: the missions saved by this program (the received ones too); deleting removes the folder here, never the copies of the pilots who got it -----
-  const toastMsg = t => (deps.toast ? deps.toast(t, true) : say(t));
-  let savedBusy = false;
-  async function drawSaved() {
+  const toastMsg = (t, bad = true) => (deps.toast ? deps.toast(t, bad) : say(t));
+  // ----- SAVED MISSIONS: virtual folders (the index of the missions folder, core/misindex.js), search, groups; many missions: a hundred at a time -----
+  let savedBusy = false,
+    MS = [], // the missions (msfList)
+    MF = []; // the folders in tree order [{id, name, depth}]
+  const MV = {
+    group: 'folder',
+    folder: 'all',
+    q: '',
+    sel: new Set(),
+    open: new Set(),
+    lim: {},
+    edit: null,
+    last: null,
+    shut: new Set(), // the folders closed in the tree
+  };
+  const PAGE = 100;
+  const mAnim = el => {
+    if (!el || (deps.anim && !deps.anim())) return;
+    el.classList.remove('msapp');
+    void el.offsetWidth;
+    el.classList.add('msapp');
+  };
+  async function drawSaved(reload = true) {
     const box = $('#sqmis');
     if (!box || savedBusy) return;
     if (!deps.mission || !deps.mission.list) {
@@ -2519,63 +2541,420 @@ export function createSquadronPage(deps) {
     }
     savedBusy = true;
     try {
-      const list = await deps.mission.list();
-      // grouped by the day the mission was created (the list comes newest first)
-      const day = m => (m.created ? new Date(m.created).toLocaleDateString('en-CA') : 'Date not known');
-      let last = null;
-      box.innerHTML = list.length
-        ? list
-            .map(
-              (m, i) =>
-                (day(m) !== last
-                  ? `<div class="hint" style="margin:8px 0 2px"><b>${esc((last = day(m)))}</b></div>`
-                  : '') +
-                `<div class="sqm"><span><b>${esc(m.label)}</b></span><span><button class="btn g gn sm" data-open="${i}" title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del="${i}" title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`
-            )
-            .join('')
-        : '<div class="hint">No mission saved yet. Save one with Save mission, or receive one from a pilot.</div>';
-      box.querySelectorAll('[data-open]').forEach(
-        b =>
-          (b.onclick = async () => {
-            const m = list[+b.dataset.open];
-            try {
-              const ok = await deps.loadMission(await deps.mission.text(m.id));
-              toastMsg('Mission "' + m.label + '" ' + (ok === false ? 'not opened.' : 'loaded.'));
-            } catch (e) {
-              toastMsg('The mission could not be opened: ' + ((e && e.message) || e));
-            }
-          })
-      );
-      box.querySelectorAll('[data-del]').forEach(
-        b =>
-          (b.onclick = async () => {
-            const m = list[+b.dataset.del];
-            if (
-              !(await confirm(
-                'Delete the mission "' +
-                  m.label +
-                  '" from this computer?\n\nThe folder of the mission is removed. The pilots who received it keep their copy.'
-              ))
-            )
-              return;
-            try {
-              if (!(await deps.mission.remove(m.id)))
-                toastMsg(
-                  'The mission "' +
-                    m.label +
-                    '" could not be deleted (the folder is in use, or it is outside the "missions" folder).'
-                );
-            } catch (e) {
-              toastMsg('The mission could not be deleted: ' + ((e && e.message) || e));
-            }
-            drawSaved();
-          })
-      );
+      if (reload || !MS.length) {
+        if (!MS.length) box.innerHTML = '<div class="hint">Reading the missions…</div>';
+        MS = await deps.mission.list();
+        MF = deps.mission.folders ? await deps.mission.folders() : [];
+        const keys = new Set(MS.map(m => m.label));
+        [...MV.sel].forEach(k => !keys.has(k) && MV.sel.delete(k));
+        if (MV.folder != 'all' && MV.folder != '' && !MF.some(f => f.id == MV.folder)) MV.folder = 'all';
+      }
+      paintSaved(box);
     } catch (e) {
       box.innerHTML = '<div class="hint">The missions could not be listed: ' + esc((e && e.message) || e) + '</div>';
     } finally {
       savedBusy = false;
     }
+  }
+  // a colour for each campaign: green for the first one (by the date of its oldest mission), then the colours of the HARM tables
+  const CAMPC = ['#4cc38a', '#4aa3ff', '#f0b040', '#b07cff', '#f87171', '#22d3ee', '#f472b6', '#a3e635'];
+  const campKey = m => (m.meta && (m.meta.campaign || m.meta.theater)) || '';
+  function campColors(list) {
+    const first = new Map();
+    list.forEach(m => {
+      const k = campKey(m),
+        d = (m.meta && m.meta.created) || m.created || '9';
+      if (k && (!first.has(k) || d < first.get(k))) first.set(k, d);
+    });
+    const out = new Map();
+    [...first.entries()]
+      .sort((a, b) => (a[1] < b[1] ? -1 : a[1] > b[1] ? 1 : a[0].localeCompare(b[0])))
+      .forEach(([k], i) => out.set(k, CAMPC[i % CAMPC.length]));
+    return out;
+  }
+  const fname = id => (MF.find(f => f.id == id) || { name: '' }).name;
+  // a colour per folder (the colours of the HARM tables first), the folders inside one taking its colour
+  const FCOL = ['#4aa3ff', '#f0b040', '#b07cff', '#34d399', '#ff7a7a', '#22d3ee', '#f472b6', '#a3e635'];
+  const fcol = id => {
+    let top = -1;
+    for (const f of MF) {
+      if (!f.depth) top++;
+      if (f.id == id) return FCOL[Math.max(0, top) % FCOL.length];
+    }
+    return '#8b98a8';
+  };
+  const fico = id =>
+    `<svg class="msfi" viewBox="0 0 16 14" width="16" height="14" aria-hidden="true"><path d="M1 2.2c0-.6.4-1 1-1h3.6l1.5 1.6H14c.6 0 1 .4 1 1v8c0 .6-.4 1-1 1H2c-.6 0-1-.4-1-1z" fill="${fcol(id)}" stroke="rgba(0,0,0,.35)" stroke-width=".8"/></svg>`;
+  const mDate = m => (m.created ? new Date(m.created).toLocaleDateString('en-CA') : '');
+  function paintSaved(box) {
+    const q = MV.q.trim(),
+      inView = m =>
+        (MV.group != 'folder' || MV.folder == 'all' || (MV.folder == '' ? !m.folder : m.folder == MV.folder)) &&
+        MX.matches(m, q, fname(m.folder)),
+      L = MS.filter(inView),
+      camp = campColors(MS),
+      cnt = id => MS.filter(m => (id == '' ? !m.folder : m.folder == id)).length,
+      row = m => {
+        const me = m.meta || {},
+          sub = [
+            me.campaign || me.theater,
+            me.squadron || (m.squad ? 'from ' + m.squad : ''),
+            me.kind,
+            mDate(m),
+            m.from ? 'received from ' + m.from : '',
+          ].filter(Boolean),
+          fold =
+            MV.group != 'folder' || MV.folder == 'all'
+              ? m.folder
+                ? fico(m.folder) + ' ' + esc(fname(m.folder))
+                : ''
+              : '';
+        return `<div class="sqm msr${MV.sel.has(m.label) ? ' on' : ''}" data-k="${esc(m.label)}"><input type="checkbox" data-ck${MV.sel.has(m.label) ? ' checked' : ''} title="Select (Shift: a range)"><span><b style="color:${camp.get(campKey(m)) || 'inherit'}">${esc(m.label)}</b><em>${esc(sub.join(' · '))}${fold ? (sub.length ? ' · ' : '') + fold : ''}</em></span><span class="msbt"><button class="btn g gn sm" data-open title="Open this mission (the same as Load mission)">Load</button> <button class="btn g rd sm" data-del title="Delete this mission from this computer (the pilots who received it keep theirs)">Delete</button></span></div>`;
+      },
+      rows = (list, key) => {
+        const lim = MV.lim[key] || PAGE,
+          more = list.length - lim;
+        return (
+          list.slice(0, lim).map(row).join('') +
+          (more > 0
+            ? `<button class="btn g sm msmore" data-more="${esc(key)}">Show ${Math.min(PAGE, more)} more (${more} left)</button>`
+            : '')
+        );
+      };
+    let body;
+    if (!MS.length)
+      body = '<div class="hint">No mission saved yet. Save one with Save mission, or receive one from a pilot.</div>';
+    else if (MV.group == 'folder')
+      body = L.length
+        ? rows(L, 'f:' + MV.folder)
+        : '<div class="hint">No mission here' +
+          (q ? ' for this search' : '') +
+          '. Drag missions onto a folder to put them in it.</div>';
+    else {
+      const G = MX.groupBy(L, MV.group);
+      // the first group opens by itself once (when the grouping is chosen): then all can be closed
+      if (MV.auto != MV.group && G.length) {
+        MV.auto = MV.group;
+        MV.open.add(MV.group + ':' + G[0].key);
+      }
+      body = G.length
+        ? G.map(g => {
+            const k = MV.group + ':' + g.key,
+              op = MV.open.has(k);
+            return `<div class="msgrpb${op ? ' on' : ''}"><button type="button" class="msgh" data-grp="${esc(k)}"><i>${op ? '▾' : '▸'}</i> ${MV.group == 'campaign' && camp.get(g.key) ? `<i class="msdot" style="background:${camp.get(g.key)}"></i>` : ''}${esc(g.label)} <b>${g.items.length}</b></button>${op ? '<div class="msgb">' + rows(g.items, k) + '</div>' : ''}</div>`;
+          }).join('')
+        : '<div class="hint">No mission for this search.</div>';
+    }
+    // the folders: All, Unfiled, then the tree (a folder with folders inside opens and closes with its arrow)
+    const kids = i => i + 1 < MF.length && MF[i + 1].depth > MF[i].depth;
+    let hideBelow = 99;
+    const fItem = (id, nm, n, d, arr) =>
+        `<div class="msf${MV.folder === id ? ' on' : ''}" data-f="${esc(id)}" style="--d:${d}">${
+          MV.edit === id
+            ? `<input class="msfin" value="${esc(nm)}" maxlength="80"><button class="btn sm" data-fok>OK</button>`
+            : `<i class="msar"${arr ? ' data-tog' : ''}>${arr}</i><span>${id == 'all' ? '<i class="msdot all"></i>' : id == '' ? '<i class="msdot none"></i>' : fico(id)} ${esc(nm)}</span><b>${n}</b>${
+                id && id != 'all'
+                  ? '<button class="msfb" data-fsub title="A new folder inside this one">＋</button><button class="msfb" data-fren title="Rename">✎</button><button class="msfb" data-fdel title="Delete the folder (its missions go up one level)">×</button>'
+                  : ''
+              }`
+        }</div>`,
+      newItem = d =>
+        `<div class="msf" style="--d:${d}"><i class="msar"></i><input class="msfin" placeholder="Name of the folder" maxlength="80"><button class="btn sm" data-fok>OK</button></div>`;
+    const fl = MF.map((f, i) => {
+      if (f.depth > hideBelow) return '';
+      hideBelow = 99;
+      const k = kids(i),
+        shut = MV.shut.has(f.id);
+      if (k && shut) hideBelow = f.depth;
+      return (
+        fItem(f.id, f.name, cnt(f.id), f.depth, k ? (shut ? '▸' : '▾') : '') +
+        (MV.edit === 'in:' + f.id ? newItem(f.depth + 1) : '')
+      );
+    }).join('');
+    const tree =
+      MV.group == 'folder'
+        ? `<div class="mstree"><div class="msth"><span>Folders</span><button class="btn g sm" data-fnew title="A new folder (at the top; ＋ on a folder makes one inside it)">＋ New folder</button></div>${fItem('all', 'All missions', MS.length, 0, '')}${fItem('', 'Unfiled', cnt(''), 0, '')}${fl}${MV.edit === 'new' ? newItem(0) : ''}</div>`
+        : '';
+    const n = MV.sel.size,
+      allOn = L.length && L.every(m => MV.sel.has(m.label));
+    box.innerHTML = `<div class="msbar"><input type="search" class="msq" placeholder="Search: name, campaign, squadron, callsign, sender…" value="${esc(MV.q)}">
+      <span class="seg msgrp" title="How the list is put in order">${[
+        ['folder', 'Folders'],
+        ['campaign', 'Campaign'],
+        ['squadron', 'Squadron'],
+        ['date', 'Date'],
+      ]
+        .map(([k, l]) => `<button type="button" data-g="${k}" class="${MV.group == k ? 'on' : ''}">${l}</button>`)
+        .join('')}</span></div>
+      <div class="msbody${MV.group == 'folder' ? '' : ' nf'}">${tree}<div class="mscol"><div class="mshead"><label title="Select all the missions shown"><input type="checkbox" data-all${allOn ? ' checked' : ''}${L.length ? '' : ' disabled'}> ${
+        n ? '<b>' + n + ' selected</b>' : L.length + ' mission' + (L.length == 1 ? '' : 's') + (q ? ' found' : '')
+      }</label><span class="mssel"${n ? '' : ' hidden'}><select class="msto" title="Move the selected missions to a folder"><option value="-">Move to…</option><option value="">Unfiled</option>${MF.map(
+        f => `<option value="${esc(f.id)}">${'\u00a0\u00a0'.repeat(f.depth)}${esc(f.name)}</option>`
+      ).join(
+        ''
+      )}</select><button class="btn g rd sm" data-seldel>Delete</button><button class="btn g sm" data-selnone title="Clear the selection">✕</button></span></div><div class="mslist">${body}</div></div></div>
+      <div class="hint">${MS.length} mission${MS.length == 1 ? '' : 's'} · drag missions (or the selected ones) onto a folder. The folders are only in this list: the missions stay where they are on the disk.</div>`;
+    wireSaved(box, L);
+  }
+  function wireSaved(box, L) {
+    const redraw = () => paintSaved(box),
+      byK = k => MS.find(m => m.label == k);
+    const qi = box.querySelector('.msq');
+    qi.oninput = () => {
+      MV.q = qi.value;
+      MV.lim = {};
+      const p = qi.selectionStart;
+      redraw();
+      const n = box.querySelector('.msq');
+      n.focus();
+      n.setSelectionRange(p, p);
+    };
+    box.querySelectorAll('[data-g]').forEach(
+      b =>
+        (b.onclick = () => {
+          MV.group = b.dataset.g;
+          MV.open.clear();
+          MV.auto = '';
+          MV.lim = {};
+          redraw();
+          mAnim(box.querySelector('.mslist'));
+        })
+    );
+    box.querySelectorAll('[data-grp]').forEach(
+      b =>
+        (b.onclick = () => {
+          const k = b.dataset.grp;
+          MV.open.has(k) ? MV.open.delete(k) : MV.open.add(k);
+          redraw();
+          mAnim(box.querySelector(`[data-grp="${CSS.escape(k)}"] + .msgb`));
+        })
+    );
+    box.querySelectorAll('[data-more]').forEach(
+      b =>
+        (b.onclick = () => {
+          const k = b.dataset.more;
+          MV.lim[k] = (MV.lim[k] || PAGE) + PAGE;
+          redraw();
+        })
+    );
+    // the folders
+    box.querySelectorAll('.msf[data-f]').forEach(el => {
+      const id = el.dataset.f;
+      el.onclick = e => {
+        if (e.target.closest('button,input')) return;
+        MV.folder = id;
+        MV.lim = {};
+        redraw();
+        mAnim(box.querySelector('.mslist'));
+      };
+      const ren = el.querySelector('[data-fren]'),
+        del = el.querySelector('[data-fdel]');
+      if (ren)
+        ren.onclick = () => {
+          MV.edit = id;
+          redraw();
+        };
+      if (del)
+        del.onclick = async () => {
+          if (
+            !(await confirm(
+              'Delete the folder "' +
+                fname(id) +
+                '"?\n\nIts missions and folders go up one level. No mission is deleted.'
+            ))
+          )
+            return;
+          await deps.mission.folderDel(id);
+          if (MV.folder == id) MV.folder = 'all';
+          drawSaved();
+        };
+      const tog = el.querySelector('[data-tog]'),
+        sub = el.querySelector('[data-fsub]');
+      if (tog)
+        tog.onclick = e => {
+          e.stopPropagation();
+          MV.shut.has(id) ? MV.shut.delete(id) : MV.shut.add(id);
+          redraw();
+        };
+      if (sub)
+        sub.onclick = () => {
+          MV.shut.delete(id);
+          MV.edit = 'in:' + id;
+          redraw();
+        };
+      // a folder is dragged (with the pointer) onto another one
+      if (id && id != 'all')
+        el.onpointerdown = e => !e.target.closest('button,input,[data-tog]') && dragStart(e, { folder: id }, fname(id));
+    });
+    const fin = box.querySelector('.msfin');
+    if (fin) {
+      fin.focus();
+      fin.select();
+      const ok = async () => {
+        const v = fin.value.trim(),
+          ed = MV.edit;
+        MV.edit = null;
+        if (v) {
+          if (ed == 'new' || String(ed).startsWith('in:')) {
+            const nid = await deps.mission.folderAdd(v, ed == 'new' ? null : ed.slice(3));
+            if (nid) MV.folder = nid;
+          } else await deps.mission.folderRename(ed, v);
+        }
+        drawSaved();
+      };
+      box.querySelector('[data-fok]').onclick = ok;
+      fin.onkeydown = e => {
+        if (e.key == 'Enter') ok();
+        if (e.key == 'Escape') {
+          MV.edit = null;
+          redraw();
+        }
+      };
+    }
+    const nb = box.querySelector('[data-fnew]');
+    if (nb)
+      nb.onclick = () => {
+        MV.edit = 'new';
+        redraw();
+      };
+    // the missions: select, drag, open, delete
+    box.querySelectorAll('.msr').forEach(r => {
+      const k = r.dataset.k,
+        m = byK(k);
+      r.querySelector('[data-ck]').onclick = e => {
+        if (e.shiftKey && MV.last) {
+          const ks = L.map(x => x.label),
+            a = ks.indexOf(MV.last),
+            b = ks.indexOf(k);
+          if (a >= 0 && b >= 0) ks.slice(Math.min(a, b), Math.max(a, b) + 1).forEach(x => MV.sel.add(x));
+        } else if (MV.sel.has(k)) MV.sel.delete(k);
+        else MV.sel.add(k);
+        MV.last = k;
+        redraw();
+        mAnim(box.querySelector('.mssel'));
+      };
+      // dragged with the pointer (the desktop program takes the drag and drop of the window for the files): the selected ones, or this one
+      r.onpointerdown = e => {
+        if (e.button || e.target.closest('button,input')) return;
+        const keys = MV.sel.has(k) ? [...MV.sel] : [k];
+        dragStart(e, { keys }, keys.length > 1 ? keys.length + ' missions' : k);
+      };
+      r.querySelector('[data-open]').onclick = async () => {
+        try {
+          const ok = await deps.loadMission(await deps.mission.text(m.id));
+          toastMsg('Mission "' + m.label + '" ' + (ok === false ? 'not opened.' : 'loaded.'), ok === false);
+        } catch (e) {
+          toastMsg('The mission could not be opened: ' + ((e && e.message) || e));
+        }
+      };
+      r.querySelector('[data-del]').onclick = () => delMissions([m]);
+    });
+    const to = box.querySelector('.msto');
+    if (to)
+      to.onchange = async () => {
+        if (to.value == '-') return;
+        await deps.mission.move([...MV.sel], to.value || null);
+        MV.sel.clear();
+        drawSaved();
+      };
+    const sd = box.querySelector('[data-seldel]');
+    if (sd) sd.onclick = () => delMissions(MS.filter(m => MV.sel.has(m.label)));
+    const all = box.querySelector('[data-all]');
+    if (all)
+      all.onclick = () => {
+        const on = !L.every(m => MV.sel.has(m.label));
+        L.forEach(m => (on ? MV.sel.add(m.label) : MV.sel.delete(m.label)));
+        redraw();
+        mAnim(box.querySelector('.mssel'));
+      };
+    const sn = box.querySelector('[data-selnone]');
+    if (sn)
+      sn.onclick = () => {
+        MV.sel.clear();
+        redraw();
+      };
+  }
+  // drag with the pointer: a label follows it, the folder under it lights up; dropped there, the missions (or the folder) go into it
+  function dragStart(e, what, label) {
+    const x0 = e.clientX,
+      y0 = e.clientY,
+      box = $('#sqmis');
+    let gh = null,
+      over = null;
+    const under = ev => {
+      const el = document.elementFromPoint(ev.clientX, ev.clientY),
+        f = el && el.closest && el.closest('#sqmis .msf[data-f]');
+      return f && f.dataset.f != 'all' && !(what.folder && f.dataset.f == what.folder) ? f : null;
+    };
+    const move = ev => {
+      if (!gh) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+        gh = document.createElement('div');
+        gh.className = 'msghost';
+        gh.innerHTML = (what.folder ? fico(what.folder) + ' ' : '') + esc(label);
+        document.body.append(gh);
+        box.classList.add('msdrag');
+      }
+      gh.style.left = ev.clientX + 12 + 'px';
+      gh.style.top = ev.clientY + 10 + 'px';
+      const f = under(ev);
+      if (f !== over) {
+        if (over) over.classList.remove('hot');
+        over = f;
+        if (over) over.classList.add('hot');
+      }
+    };
+    const up = async ev => {
+      removeEventListener('pointermove', move);
+      removeEventListener('pointerup', up);
+      removeEventListener('pointercancel', up);
+      if (!gh) return;
+      gh.remove();
+      box.classList.remove('msdrag');
+      const f = under(ev);
+      if (over) over.classList.remove('hot');
+      if (!f) return;
+      const to = f.dataset.f || null;
+      if (what.keys) {
+        await deps.mission.move(what.keys, to);
+        MV.sel.clear();
+      } else if (what.folder) await deps.mission.folderMove(what.folder, to);
+      drawSaved();
+    };
+    addEventListener('pointermove', move);
+    addEventListener('pointerup', up);
+    addEventListener('pointercancel', up);
+  }
+  async function delMissions(list) {
+    if (!list.length) return;
+    const one = list.length == 1;
+    if (
+      !(await confirm(
+        (one ? 'Delete the mission "' + list[0].label + '"' : 'Delete ' + list.length + ' missions') +
+          ' from this computer?\n\nThe folder' +
+          (one ? ' of the mission is' : 's of the missions are') +
+          ' removed. The pilots who received ' +
+          (one ? 'it keep their copy.' : 'them keep their copies.')
+      ))
+    )
+      return;
+    let bad = 0;
+    for (const m of list) {
+      try {
+        if (!(await deps.mission.remove(m.id))) bad++;
+      } catch (e) {
+        bad++;
+      }
+      MV.sel.delete(m.label);
+    }
+    if (bad)
+      toastMsg(
+        bad +
+          ' mission' +
+          (bad == 1 ? '' : 's') +
+          ' could not be deleted (the folder is in use, or it is outside the "missions" folder).'
+      );
+    drawSaved();
   }
 
   // ----- MEMBERS: the squadron of the player in the campaign -----
@@ -2839,6 +3218,8 @@ export function createSquadronPage(deps) {
     const t = TABS.some(x => x[0] == DB.tab) ? DB.tab : 'members';
     root.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab == t));
     root.querySelectorAll('.sqpane').forEach(x => x.classList.toggle('hide', x.dataset.pane != t));
+    const kb = root.querySelector('#sqroekb'); // Add card of the ROE / SOP tab (roepage.js does it)
+    if (kb) kb.hidden = t != 'roe';
     if (t == 'missions') drawSaved();
     // the Briefing borrows the map of the Map page only while it is on screen
     if (brief) {
@@ -2958,7 +3339,7 @@ export function createSquadronPage(deps) {
     const to = nameOfIn(q)(q.mc);
     if (!(await confirm('Leave "' + q.name + '" and hand the command to ' + to + '?'))) return;
     const r = orgAct(q, { t: 'leave' });
-    if (!r.ok) return deps.toast ? deps.toast(r.error) : say(r.error);
+    if (!r.ok) return deps.toast ? deps.toast(r.error, true) : say(r.error);
     setTimeout(() => leave(q, 'You left ' + q.name + ': ' + to + ' is the commander now.'), 600);
   };
 
@@ -3222,7 +3603,7 @@ export function createSquadronPage(deps) {
   };
   function build() {
     root.innerHTML = `<div class="sqw">
-<div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}</div>
+<div class="wtabs" role="tablist" id="sqtabs">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" id="sqroekb" hidden title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button></div>
 <div class="sqpane" data-pane="roe"><div id="sqroe"></div></div>
 <div class="sqpane sqmem" data-pane="members">
 <div class="sqside"><div class="sqc"><h3>Pilot roster <small id="sqcount"></small></h3><input id="sqfind" class="sqfind" type="search" placeholder="Search pilot…" autocomplete="off"><div id="sqlist"></div></div></div>
@@ -3233,7 +3614,7 @@ export function createSquadronPage(deps) {
 </div>
 </div><div class="sqpane" data-pane="org"><div id="sqorg" class="sqorg"></div>
 </div><div class="sqpane" data-pane="brief"><div id="sqbrief" class="sqbrief"></div>
-</div><div class="sqpane" data-pane="missions"><div class="sqtwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
+</div><div class="sqpane" data-pane="missions"><div class="sqtwo mstwo"><div class="sqc"><h3>Saved missions <small>the folder of the missions of this program</small></h3><div id="sqmis"></div></div>
 <div class="sqc"><h3>Received missions</h3><div id="sqrecv"></div></div></div>
 </div><div class="sqpane" data-pane="me">
 <div class="sqc"><h3>My pilot</h3><div class="pil"><div class="pilav"><span id="sqavbox"></span><div><button class="btn g" id="sqavb">Avatar…</button> <button class="btn g" id="sqavx">Remove</button></div></div><div id="sqpilot" class="pilmain"></div><div class="sqhr"><select id="sqlbk" style="display:none"></select><button class="btn g" id="sqopen">Open logbook…</button><label class="sqlb">Callsign in the squadrons <input id="sqcs" maxlength="12" placeholder="callsign"></label></div></div><input type="file" id="sqavfile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqlogofile" accept="image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" hidden><input type="file" id="sqfile" accept=".lbk" hidden></div>
@@ -3259,7 +3640,7 @@ export function createSquadronPage(deps) {
     wireLost($('#sqlost'), {
       act: a => orgAct(cur(), a),
       tryAct: a => orgTry(cur(), a),
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });
     const og = $('#sqorg');
@@ -3294,7 +3675,7 @@ export function createSquadronPage(deps) {
               if (!b) return;
               if (b.dataset.to) {
                 const r = orgAct(cur(), { t: 'cmd', uid: b.dataset.to });
-                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+                if (!r.ok) deps.toast ? deps.toast(r.error, true) : say(r.error);
               }
               if (b.dataset.to || 'x' in b.dataset) close();
             };
@@ -3337,7 +3718,7 @@ export function createSquadronPage(deps) {
                 if (!(await confirm('Replace the packages and flights with this template?'))) return;
                 const t = list[+d.use],
                   r = orgAct(q, (qq, actor, ctx) => orgFromTemplate(qq, actor, t, ctx));
-                if (!r.ok) deps.toast ? deps.toast(r.error) : say(r.error);
+                if (!r.ok) deps.toast ? deps.toast(r.error, true) : say(r.error);
                 close();
               } else if (d.del != null) {
                 list.splice(+d.del, 1);
@@ -3351,7 +3732,7 @@ export function createSquadronPage(deps) {
         );
       },
       leave: () => leaveHandover(),
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
       confirm: t => Promise.resolve(confirm(t)),
     });
     og.addEventListener('focusout', () => setTimeout(() => orgPending && drawOrg(), 80));
@@ -3553,11 +3934,12 @@ export function createSquadronPage(deps) {
       attach: el => (B.attach ? B.attach(el) : Promise.resolve(null)),
       detach: () => B.detach && B.detach(),
       shot: o => B.shot && B.shot(o),
+      copy: o => B.copy && B.copy(o),
       mission: () => (B.mission ? B.mission() : ''),
       theater: () => (B.theater ? B.theater() : ''),
       wide: b => B.wide && B.wide(b),
       wx: B.wx || null,
-      toast: t => (deps.toast ? deps.toast(t) : say(t)),
+      toast: (t, bad) => (deps.toast ? deps.toast(t, bad) : say(t)),
     });
   }
   // the saved squadrons, rosters and settings; the swarms start as soon as they are known
@@ -3623,6 +4005,11 @@ export function createSquadronPage(deps) {
     received: () => recv,
     sendCard,
     canSendCard: () => !!cur(),
+    // the name of the online squadron of the player (the chosen one), '' in none
+    current: () => {
+      const q = cur();
+      return q ? q.name || '' : '';
+    },
     // 'owner': created a squadron (the commander); 'member': is in squadrons made by others; 'none': in no squadron
     role: () => (DB.squads.some(owns) ? 'owner' : DB.squads.length ? 'member' : 'none'),
     rosterOf,

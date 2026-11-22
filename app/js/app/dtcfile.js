@@ -52,10 +52,20 @@ export const G = (s, k, d = '') => {
   const l = L(s, k);
   return l ? l.v : d;
 };
+// a section the DTC does not have yet (a new DTC, without the sections WDP adds: NAV OFFSETS, ICP, Laser, FCC_…), made at the end of the file
+export function addSection(s) {
+  if (lines.some(l => l.s == s)) return;
+  lines.push({ s, raw: '[' + s + ']', dirty: 0 });
+}
 export function S(s, k, v) {
   let l = L(s, k);
   if (!l) {
     let i = lines.map(x => x.s).lastIndexOf(s);
+    // the F-15 SIT lines (BMS 4.38.2): their section is made at the end of the file when the DTC has none yet
+    if (i < 0 && s == 'F15_SIT_LINES' && lines.length) {
+      lines.push({ s, raw: '[' + s + ']', dirty: 0 });
+      i = lines.length - 1;
+    }
     if (i < 0) return;
     l = { k, s, raw: '' };
     lines.splice(i + 1, 0, l);
@@ -149,6 +159,30 @@ export const openDtc = async f => {
     draw();
   }
 };
+// no DTC open any more (the DTC of a TE / training mission closed when another one is chosen): the program as at start, without a DTC
+export function closeDtc() {
+  MERGED = [];
+  parse('');
+  lines = [];
+  ST.DTCF = null;
+  ST.name = '';
+  try {
+    if (ST.CFG && ST.CFG.ui) ST.CFG.ui.lastDtc = ''; // not opened again at start
+  } catch (e) {
+    /* none */
+  }
+  $('fn').textContent = 'No file open (BMS User\\Config folder)';
+  if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
+  else {
+    applyDTC();
+    buildForm();
+    draw();
+  }
+  dtcBtns();
+  try {
+    if (mapV.isReady()) mapV.refreshDtc();
+  } catch (e) {}
+}
 export const dtcOut = () => lines.map(l => (l.dirty ? l.k + '=' + l.v : l.raw)).join('\r\n') + '\r\n';
 // Undo every change since the file was opened or last saved: edited lines get their original value back, lines added by an edit are dropped
 export async function dtcRevert() {
@@ -168,6 +202,14 @@ export async function dtcRevert() {
   dtcReloaded();
   if ($('fn')) $('fn').textContent = ST.name;
 }
+// a file read back as text (UTF-8, else Latin-1, as a DTC is read)
+const oldText = b => {
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(b);
+  } catch (e) {
+    return new TextDecoder('latin1').decode(b);
+  }
+};
 // Write the changes into the open file itself. The first time, the original is kept in the program folder (backup\\dtc), never in the BMS folder.
 // BMS reads the DTC of a campaign from <campaign name>.ini (Autosave.ini is written only when the campaign itself is the Autosave one, never otherwise): those files are written the way BMS writes them (campaignIni: [MISSION] title and the [STPT] data only, like the files BMS writes for a campaign and for a Tactical Engagement)
 export async function dtcCampaignFiles() {
@@ -256,10 +298,22 @@ export function syncRoute() {
   due.forEach(([k, v]) => S('STPT', k, v));
   return due.length > 0;
 }
+// the DTC of a TE or a training mission: an .ini with a .tac or .trn of the same name next to it (BMS loads it for that mission, not the callsign.ini)
+async function trainingIni(p) {
+  if (!p || !/\.ini$/i.test(p)) return false;
+  try {
+    return (await IO.fileExists(p.replace(/\.ini$/i, '.trn'))) || (await IO.fileExists(p.replace(/\.ini$/i, '.tac')));
+  } catch (e) {
+    return false;
+  }
+}
 export async function dtcOverwrite() {
-  if (!lines.length) return alert('Open a DTC file first.');
+  if (!lines.length) return alert('Open a DTC file first.', 'bad');
   if (!ST.DTCF || !ST.DTCF.path)
-    return alert('The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.');
+    return alert(
+      'The location of this file is not known: set the DTC folder (or the BMS install folder) in Settings.',
+      'bad'
+    );
   syncRoute();
   if (!lines.some(l => l.dirty) && !MERGED.length) return;
   let extra = [];
@@ -274,17 +328,43 @@ export async function dtcOverwrite() {
     disk = null;
   }
   const outside = !!(disk && ST.DTCF.orig && !sameBytes(disk, ST.DTCF.orig));
+  // the DTC of a training mission (an .ini next to a .tac of the same name): preset by the mission, written only with Settings > General > Edit training DTCs
+  const edit = !!(ST.CFG.ui && ST.CFG.ui.editTraining),
+    trSelf = await trainingIni(ST.DTCF.path),
+    trExtra = [];
+  for (const f of extra) if (await trainingIni(f)) trExtra.push(f);
+  if (trSelf && !edit)
+    return alert(
+      'This is the DTC of a TE or training mission:\n' +
+        ST.DTCF.path +
+        '\n\nIt is preset by the mission and protected, so its values are not lost: nothing was written. To change it, turn on Settings > General > Edit TE and training DTCs.',
+      'bad'
+    );
+  if (!edit) extra = extra.filter(f => !trExtra.includes(f));
+  const trWarn =
+    edit && (trSelf || trExtra.length)
+      ? '⚠ TE / TRAINING MISSION: ' +
+        (trSelf ? 'this file is' : 'the campaign file ' + trExtra.join(', ') + ' is') +
+        ' the DTC preset by the mission. Writing changes it (the original is kept once in backup\\dtc).\n\n'
+      : '';
+  const trSkip =
+    !edit && trExtra.length
+      ? '\n\nNot written (the DTC of the TE / training mission, protected: Settings > General > Edit TE and training DTCs):\n' +
+        trExtra.join('\n')
+      : '';
   if (
     !(await confirm(
-      (outside
-        ? '⚠ This file is not the one opened here any more: it was changed outside BMS Cards (by BMS, or another program), or the DTC comes from a mission. Writing replaces it with the DTC shown here, and the changes made outside are lost.\n\n'
-        : '') +
+      trWarn +
+        (outside
+          ? '⚠ This file is not the one opened here any more: it was changed outside BMS Cards (by BMS, or another program), or the DTC comes from a mission. Writing replaces it with the DTC shown here, and the changes made outside are lost.\n\n'
+          : '') +
         'Overwrite this file with your changes?\n\n' +
         ST.DTCF.path +
         (extra.length
           ? '\n\nThe steerpoints, PPT, lines and weapon targets are also written, as BMS keeps them, to the campaign files BMS loads in the game:\n' +
             extra.join('\n')
           : '') +
+        trSkip +
         '\n\nThe originals are kept once in the program folder (backup\\dtc), not in the BMS folder.'
     ))
   )
@@ -310,7 +390,8 @@ export async function dtcOverwrite() {
                 .split(/[\\/]/)
                 .pop()
                 .replace(/\.ini$/i, ''),
-              lines
+              lines,
+              old ? oldText(old) : ''
             )
           )
         );
@@ -332,7 +413,8 @@ export async function dtcOverwrite() {
       alert(
         'The DTC was saved, but these campaign files could NOT be written:\n\n' +
           failed.join('\n') +
-          '\n\nThe changes are still marked as not saved: fix the problem (file in use? folder not writable?) and press Write again.'
+          '\n\nThe changes are still marked as not saved: fix the problem (file in use? folder not writable?) and press Write again.',
+        'bad'
       );
     else
       appToast(
@@ -344,7 +426,7 @@ export async function dtcOverwrite() {
       if (mapV.isReady()) mapV.refreshDtc();
     } catch (e) {}
   } catch (e) {
-    alert('Could not write the file: ' + ((e && e.message) || e));
+    alert('Could not write the file: ' + ((e && e.message) || e), 'bad');
   }
 }
 

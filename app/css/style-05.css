@@ -234,6 +234,15 @@
 #mpdtcb i {
   font-style: normal;
 }
+/* no DTC open: the DTC button of the map in red */
+#mpdtcb.nodtc {
+  background: #8f1d1d;
+  color: #fff;
+  border-color: #c43434;
+}
+#mpdtcb.nodtc:hover {
+  background: #b02525;
+}
 #mpshots {
   position: absolute;
   right: 10px;
@@ -674,4 +683,93 @@ dialog[open]::backdrop {
 }
 .flb div i.wz {
   color: #ffb347;
+}
+/* Kneeboard: Send card in blue; the look of the chosen card, a square with the sun or the moon */
+#kn .btn.g.bl {
+  background: #1d5f99;
+  color: #fff;
+  border-color: #3a8fd6;
+}
+#kn .btn.g.bl:hover {
+  background: #2574b8;
+}
+#kn #kblk {
+  width: 34px;
+  padding: 0;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* Add all cards: the pages with a map make their cards on screen, behind this cover */
+#kbcover {
+  position: fixed;
+  inset: 0;
+  z-index: 99990;
+  background: var(--bg, #0b0f14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--mu, #8b98a8);
+  font-size: 13px;
+}
+/* a label the pilot can drag along its route (the flight, a tanker track) */
+.flb.drg div {
+  pointer-events: auto;
+  cursor: grab;
+  touch-action: none;
+}
+.flb.drg div.grab {
+  cursor: grabbing;
+  animation: none;
+}
+/* a flight in the colour the pilot gave it (the selected one from its label, one of the package from its popup): also on the BMS palette of the map */
+.wps > span {
+  display: contents;
+}
+:is(#mpbody, .mpx).game .wps:not(.dim) > span[style] .wpi {
+  fill: var(--plan);
+}
+:is(#mpbody, .mpx).game .wps.dim > span[style] .wpi {
+  fill: var(--mate);
+}
+:is(#mpbody, .mpx).game .flb.m div[style*='--mate'] {
+  border-color: var(--mate);
+}
+:is(#mpbody, .mpx).game .flb.m div[style*='--mate'] b {
+  color: var(--mate);
+}
+/* the preview of an AUTO of the DTC editing (the pointer on its button): what it would write, faint; what it would replace, blinking red */
+.auprev {
+  opacity: 0.75;
+}
+.aublink {
+  animation: aublink 0.7s steps(2, jump-none) infinite alternate;
+}
+@keyframes aublink {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0.15;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aublink {
+    animation: none;
+  }
+}
+/* the Fit switch next to "Automatic lines" (the look of Names and Clear filters) */
+.fly .fh.fhrow {
+  display: flex;
+  align-items: center;
+}
+#mpdfit {
+  padding: 2px 8px;
+  font-size: 11px;
+  margin: 0 0 0 auto;
+  text-transform: none;
+  letter-spacing: 0;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }

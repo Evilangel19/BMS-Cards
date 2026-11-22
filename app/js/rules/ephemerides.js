@@ -6,6 +6,40 @@ const setBase = s => {
   const m = /^(\d{4})-(\d\d)-(\d\d)$/.exec(s || '');
   BASE = m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
 };
+const RAD = Math.PI / 180,
+  rv0 = x => ((x % 360) + 360) % 360;
+const sunP = d => {
+  const R = RAD,
+    rv = rv0;
+  const w = 282.9404 + 4.70935e-5 * d,
+    e = 0.016709 - 1.151e-9 * d,
+    M = rv(356.047 + 0.9856002585 * d),
+    ob = 23.4393 - 3.563e-7 * d;
+  let E = M + (e / R) * Math.sin(M * R) * (1 + e * Math.cos(M * R));
+  const x = Math.cos(E * R) - e,
+    y = Math.sin(E * R) * Math.sqrt(1 - e * e),
+    v = Math.atan2(y, x) / R,
+    r = Math.hypot(x, y),
+    lo = (v + w) * R,
+    xs = r * Math.cos(lo),
+    ys = r * Math.sin(lo);
+  return {
+    ra: Math.atan2(ys * Math.cos(ob * R), xs),
+    dec: Math.atan2(ys * Math.sin(ob * R), Math.hypot(xs, ys * Math.cos(ob * R))),
+    lon: rv(v + w),
+  };
+};
+// the height of the Sun (degrees) at campaign km x, y at a time of the campaign (ms from its start, UTC); null without the date of the campaign (Datacard, D1)
+function sunAlt(x, y, ms) {
+  if (BASE === null || !isFinite(ms)) return null;
+  const t = BASE + ms,
+    [lat, lon] = tmInv((x - 512) * 1000, (y - 512) * 1000),
+    jd = t / 864e5 + 2440587.5,
+    p = sunP(jd - 2451543.5),
+    gm = rv0(280.46061837 + 360.98564736629 * (jd - 2451545)),
+    H = (gm + lon) * RAD - p.ra;
+  return Math.asin(Math.sin(lat * RAD) * Math.sin(p.dec) + Math.cos(lat * RAD) * Math.cos(p.dec) * Math.cos(H)) / RAD;
+}
 function ephem(C, f) {
   if (BASE === null || !C || !f) return '';
   const B = [0, 1, 2, 3, 4, 7, 8],
@@ -20,25 +54,6 @@ function ephem(C, f) {
     lon = ll[1],
     R = Math.PI / 180,
     rv = x => ((x % 360) + 360) % 360;
-  const sunP = d => {
-    const w = 282.9404 + 4.70935e-5 * d,
-      e = 0.016709 - 1.151e-9 * d,
-      M = rv(356.047 + 0.9856002585 * d),
-      ob = 23.4393 - 3.563e-7 * d;
-    let E = M + (e / R) * Math.sin(M * R) * (1 + e * Math.cos(M * R));
-    const x = Math.cos(E * R) - e,
-      y = Math.sin(E * R) * Math.sqrt(1 - e * e),
-      v = Math.atan2(y, x) / R,
-      r = Math.hypot(x, y),
-      lo = (v + w) * R,
-      xs = r * Math.cos(lo),
-      ys = r * Math.sin(lo);
-    return {
-      ra: Math.atan2(ys * Math.cos(ob * R), xs),
-      dec: Math.atan2(ys * Math.sin(ob * R), Math.hypot(xs, ys * Math.cos(ob * R))),
-      lon: rv(v + w),
-    };
-  };
   const moonP = d => {
     const N = rv(125.1228 - 0.0529538083 * d),
       i = 5.1454,
@@ -147,4 +162,4 @@ const dayOfMonth = ms => {
   const d = Math.floor((ms || 0) / 864e5);
   return BASE === null ? d + 1 : new Date(BASE + d * 864e5).getUTCDate();
 };
-export { setBase, ephem, dayOfMonth };
+export { setBase, ephem, dayOfMonth, sunAlt };

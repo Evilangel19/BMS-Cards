@@ -128,10 +128,13 @@ try:
         # Add card: the whole text on a Kneeboard card
         pg.click(B + '.rpk[data-r=ws][data-v=tight]'); pg.select_option(B + '.rpr[data-t=dep] select', 'combat'); pg.wait_for_timeout(150)
         n0 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
-        pg.click(B + '[data-a=kb]'); pg.wait_for_timeout(800)
-        kb = pg.evaluate("async()=>{const k=await import('/app/js/app/kneeboard.js');return k.KBLIB.slice(-1).map(i=>i.name)}")
+        pg.click('#sqroekb'); pg.wait_for_selector('.tgdlg .tgcard', timeout=10000); pg.wait_for_timeout(300)
+        labs = pg.locator('.tgdlg .tgcard span').all_inner_texts()
+        check('Add card: the classic card and the Smart card to choose from %s' % labs, labs == ['ROE / SOP', 'Smart · ROE / SOP'])
+        pg.click('.tgdlg [data-a=ok]'); pg.wait_for_timeout(1200)
+        kb = pg.evaluate("async()=>{const k=await import('/app/js/app/kneeboard.js');return k.KBLIB.slice(-2).map(i=>i.name)}")
         n1 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
-        check('Add card puts one ROE / SOP card on the Kneeboard %s' % kb, n1 == n0 + 1 and kb and kb[0].startswith('ROE / SOP'))
+        check('...both put on the Kneeboard %s' % kb, n1 == n0 + 2 and kb[0].startswith('ROE / SOP') and kb[1].startswith('Smart · ROE / SOP'))
         plan = pg.evaluate("""async()=>{const rc=await import('/app/js/app/roecard.js'),rs=await import('/app/js/core/roesop.js');const x=document.createElement('canvas').getContext('2d');
           const s={roe:{ws:'tight',id:['awacs','l16','two'],commit:'n40',abort:['bingo','winch','spike'],extra:['mez','pid','lines','fox']},sop:{}};
           rs.topicsAll().forEach(t=>s.sop[t[0]]={o:t[3][0][0],c:false});return rc.roeCardPlan(s,x).map(c=>c.title)}""")

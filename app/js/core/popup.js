@@ -334,11 +334,11 @@ export function computePopup(target, ref, inp) {
     action = vrp;
   // egress heading: straight on along the attack heading, or turned left / right by egressAngle after the release
   const egressHdg = egressHeading(v, attack);
-  // OA2 (second offset aim point): off, on the target itself at zero elevation, or out along the egress heading
+  // OA2 (second offset aim point): off, on the target itself at zero elevation, or out along the egress heading from the release point
   // impact points of the stick along the attack line, fuze data
   const impacts = stickImpacts(target, attack, v, pulses, stickLen, gsFps);
   const oa2 =
-    v.oa2Mode === 'target' ? { ...target } : v.oa2Mode === 'egress' ? project(target, egressHdg, v.egressRange) : null;
+    v.oa2Mode === 'target' ? { ...target } : v.oa2Mode === 'egress' ? project(release, egressHdg, v.egressRange) : null;
   const fuze = fuzeData(fall, v);
   // OA2 elevation: zero on the target, the egress altitude out along the egress
   const oa2Alt = v.oa2Mode === 'egress' ? v.egressAltitude : 0;

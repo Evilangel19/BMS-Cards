@@ -4,7 +4,7 @@ import { groupPackages } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, FD, XD, dEl, CYC, buildForm } from './datacard.js';
 import { $, esc } from './base.js';
-import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch } from './ato.js';
+import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch, teSide } from './ato.js';
 import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
@@ -15,6 +15,7 @@ import { perfFill, bvrAuto } from './perf.js';
 import { msaFill } from './msafill.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 import { seatCheck, seatEnter } from './seat.js';
+import { setMagRef } from '../core/magvar.js';
 
 // Manual datacard changes are kept per flight (OVR: flight id -> {field: value}); they are the difference from the automatic fill (AUTO) and are put back when the flight is selected again
 export const fkey = f => (f && f.campId != null ? String(f.campId) : null);
@@ -78,11 +79,18 @@ export function apply(i, mode) {
   ST.MAPSHOT = null;
   ST.XBASE = undefined; // the other data of the mission (Weapons, HARM, BVR, tankers, map picture) start again from here
   ST.ATOSEL = ST.CL[i] && ST.CL[i].f;
+  if (ST.ATOSEL) teSide(ST.ATOSEL.owner);
   if (ST.ATOSEL && ST.ATOSEL.owner == PLAYER) {
     ATOOPEN.add(ST.ATOSEL.pkg.n);
     const pg = groupPackages(ATOL.filter(z => z.pkg == ST.ATOSEL.pkg.n))[0];
     if (pg) ATOCAT.add(pg.cat);
     ST.VIEW = PLAYER;
+  }
+  {
+    // the magnetic variation of the pages without a place of their own (attack, SEAD, DEAD, Target headings): the middle of the route of the flight
+    const w = ((ST.CL[i] && ST.CL[i].f && ST.CL[i].f.wps) || []).filter(p => isFinite(p.x) && isFinite(p.y));
+    if (w.length) setMagRef(w.reduce((a, p) => a + p.x, 0) / w.length, w.reduce((a, p) => a + p.y, 0) / w.length);
+    else setMagRef();
   }
   FD.forEach(d => (F[d.k] = ''));
   XD.forEach(k => (F[k] = ''));
@@ -167,7 +175,19 @@ export function apply(i, mode) {
   wxPrep(i);
   msaFill(i);
   bvrAuto(i);
+  if (ST.roeBlocks) ST.roeBlocks(); // the A-A or A-G block of the ROE, from the page of the mission (app/pages.js)
   roeRefresh(); // the page ROE / SOP shows this flight
+}
+// the flight the player chose in the campaign (a seat of it taken by a player, saved in the campaign file), else the next flight of the player's squadron
+// (the first to take off from the campaign time on, else its first one); null: none (a random flight of the player's faction)
+export function playerFlight() {
+  const C = ST.C,
+    L = ST.CL.map((x, i) => ({ i, f: x.f, t: (x.f.wps[0] && x.f.wps[0].arr) || 0 }));
+  const p = L.find(x => x.f.pslots && x.f.pslots.some(v => v != 255));
+  if (p) return { i: p.i, seat: p.f.pslots.findIndex(v => v != 255) };
+  const sq = L.filter(x => C.playerSq && x.f.sqd && x.f.sqd.n == C.playerSq).sort((a, b) => a.t - b.t),
+    nx = sq.find(x => !C.now || x.t >= C.now) || sq[0];
+  return nx ? { i: nx.i, seat: -1 } : null;
 }
 export const pick = () => {
   const all = ST.CL.map((_, i) => i),
@@ -201,7 +221,8 @@ export async function loadCam(file, stale) {
 async function loadCam0(file, stale) {
   if (!CAM.D.ct.length)
     return alert(
-      'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.'
+      'The game data is missing: set the BMS install folder in Settings. The program reads the entity table, the objects and the names from your Falcon BMS installation.',
+      'bad'
     );
   let C;
   try {
@@ -219,7 +240,8 @@ async function loadCam0(file, stale) {
           ? '\n\nThe selected theater is "' +
             (ST.TH ? ST.TH.name : '?') +
             '": a campaign of another theater cannot be read with its tables. Choose the right theater in the theater menu and open the campaign again.'
-          : '')
+          : ''),
+      'bad'
     );
   }
   await loadBaseOwners(C);
@@ -234,18 +256,21 @@ async function loadCam0(file, stale) {
         BMS_TESTED +
         '): some data may be read wrongly. Check the flight data against the game, or look for a newer BMS Cards.'
     );
-  if (!ST.CL.length) return alert('No flight with a datacard found in this campaign.');
+  if (!ST.CL.length) return alert('No flight with a datacard found in this campaign.', 'bad');
   $('fsel').innerHTML = ST.CL.map((x, i) => `<option value="${i}">${esc(x.label)}</option>`).join('');
   const pk = () => {
     const m = pick();
     return m[Math.floor(Math.random() * m.length)];
   };
-  const i = pk();
+  const pf = playerFlight(),
+    i = pf ? pf.i : pk();
   $('fsel').value = i;
   atoSearch();
   apply(i);
   atoCloseState();
   atoSearch();
+  // the seat the player took in the campaign, when it is not the lead's (the lead's is the default) and no seat was chosen by hand
+  if (pf && pf.seat > 0 && !ST.SEAT.set && ST.pickSeat) ST.pickSeat(pf.seat);
 }
 
 // The loadout follows the pilot seat: the group of aircraft that holds the aircraft of the seat (the leader's group when no seat is chosen). force = the pilot pressed a round button

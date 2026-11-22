@@ -117,15 +117,21 @@ ck(
 {
   const mk = o => P.parseMission(JSON.stringify({ format: P.MISSION_FORMAT, version: 1, ...o }));
   ck(
-    'a mission with a wrong shape is refused: edits, weather, weapons, tanks, map picture',
+    'a mission with a wrong shape is refused: edits, weather, weapons, tanks, map style, map picture',
     mk({ dtc: { original: 'x', edits: 'x' } }).error &&
       mk({ dtc: { original: 'x', edits: [{ s: 1 }] } }).error &&
       mk({ weather: { fmap: 5 } }).error &&
       mk({ weapons: { wp: [] } }).error &&
       mk({ tanks: {} }).error &&
+      mk({ mapstyle: [] }).error &&
       mk({ mapshot: 'javascript:1' }).error &&
-      !mk({ dtc: { original: 'x', edits: [] }, weapons: { wp: {} }, tanks: [], mapshot: 'data:image/png;base64,AA' })
-        .error
+      !mk({
+        dtc: { original: 'x', edits: [] },
+        weapons: { wp: {} },
+        tanks: [],
+        mapstyle: { lbl: {}, col: {} },
+        mapshot: 'data:image/png;base64,AA',
+      }).error
   );
 }
 {

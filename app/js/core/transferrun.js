@@ -493,8 +493,10 @@ export async function runImport(o) {
             'kb',
             'Kneeboard',
             'done',
-            (pics.length ? plural(pics.length, 'card picture') + ' and the page layout' : 'The page layout') +
-              ' imported.'
+            // the other look of a card (….other.png) is the same card: not counted
+            (pics.filter(f => !/\.other\.png$/i.test(f.path)).length
+              ? plural(pics.filter(f => !/\.other\.png$/i.test(f.path)).length, 'card picture') + ' and the page layout'
+              : 'The page layout') + ' imported.'
           );
         }
       } catch (e) {

@@ -83,11 +83,16 @@ export const MAP_LAYERS = [
   ['dp', 'Precision targets (STPT ' + STPT_RANGE.prec + ')', true, 'DTC steerpoints'],
   ['dq', 'Pre-planned (STPT ' + STPT_RANGE.ppt + ')', true, 'DTC steerpoints'],
   ['dl', 'Geo lines (LINE1-4, STPT ' + STPT_RANGE.line + ')', true, 'DTC steerpoints'],
+  ['ds', 'SIT lines 6-12 (F-15)', true, 'DTC steerpoints'],
+  ['dn', 'Rectangle sides (NM)', true, 'DTC steerpoints'],
   ['fe', 'Enemy flights', true, 'In flight'],
   ['ff', 'Friendly flights', true, 'In flight'],
   ['rc', 'Enemy radar coverage', false, 'Display'],
   ['msa', 'MSA and ERAA', false, 'Display'],
-  ['da', 'Pop-up/HADB/TOSS/HARM', true, 'Display'],
+  ['da', 'Pop-up/HADB/TOSS', false, 'Display'],
+  ['hm', 'HARM', false, 'Display'],
+  ['fa', 'DCA', false, 'Display'],
+  ['oc', 'OCA', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
@@ -155,7 +160,11 @@ export const PAL = {
 };
 // size of the screenshot area: the empty space of the datacard (page 2 bottom left of the 2048 px card) or one kneeboard card
 // kinds: dc = datacard (564 x 752 px), kb = kneeboard card (a page of 1024 x 2048). out = width of the saved picture.
-export const SHOTS = { dc: { w: 564, h: 752, out: 1128 }, kb: { w: 1024, h: 2048, out: 1024 } };
+export const SHOTS = {
+  dc: { w: 564, h: 752, out: 1128 },
+  kb: { w: 1024, h: 2048, out: 1024 },
+  tg: { w: 1080, h: 520, out: 1620 },
+}; // tg: the picture of A-G > Target
 
 let LEAF = null;
 export function loadLeaflet() {

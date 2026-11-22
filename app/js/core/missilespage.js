@@ -1,9 +1,11 @@
 // Missiles page: HARM shot at a threat (POS / HAS) with the map, and radar missile range against aspect (BVR). The maths is in airmissile.js, the numbers come
 // from the BMS Misdata tables (missiledata.js; three missiles are built in). deps: {root, esc, points(), ll(n, e), attach(el), detach(), missiles() -> {name: data}}
 import D0 from '../data/index.js';
+import { mapKeep } from './mapkeep.js';
 import { timeline, CLASSES, STD, mslName, toKt, toMach } from './bvrtimeline.js';
 import { bvrShot, harmShot, marShot, HARM_SUB, NM } from './airmissile.js';
 import { bearing, project } from './popup.js';
+import { toMag } from './magvar.js';
 
 const FT_KM = 3280.84;
 // surface-to-air missiles (they have a radar seeker too) and the inert training rounds are not air-to-air shots
@@ -11,7 +13,7 @@ const GROUND = /^(SA-|Patriot$|Hawk$|Nike$|CrotaleNG$|RIM-|CATM|UNUSED)/i;
 const MODES = [
   ['harm', 'HARM'],
   ['bvr', 'BVR / MAR'],
-]; // deps.only keeps one of them (the HARM lives on the Weapons page, the BVR on the Missiles page)
+]; // deps.only keeps one of them (the HARM lives on the A-G page, the BVR on the Missiles page)
 const fmt = (v, d = 0) =>
   Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, ' ');
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
@@ -25,7 +27,7 @@ const SL = {
   aspect: ['Aspect', '°', 0, 180, 5],
   offNose: ['Emitter off the nose', '°', -180, 180, 5],
 };
-// the BVR page shows its speeds in knots (true airspeed) or in Mach, one unit for each card, and keeps the values in the unit shown: speed field -> its altitude field
+// A-A > Timeline shows its speeds in knots (true airspeed) or in Mach, one unit for each card, and keeps the values in the unit shown: speed field -> its altitude field
 const SPEED = { speed: 'alt', tgtSpeed: 'tgtAlt' };
 // the speed of the timeline in each unit: min, max, step, decimals
 const TLS = { mach: [0.3, 2, 0.05, 2], kt: [150, 1300, 10, 0] };
@@ -66,7 +68,7 @@ export function createMissilesPage(deps) {
       shotPct: 100,
       tgtSize: 'fighter',
     },
-    sliders: 1, // the Sliders switch of the BVR page: sliders (1) or number boxes (0)
+    sliders: 1, // the Sliders switch of A-A > Timeline: sliders (1) or number boxes (0)
     tl: {
       std: { alt: STD.alt, spd: STD.mach, tNotch: STD.tNotch, tRecommit: STD.tRecommit }, // yours; the speed is in the unit u
       sel: 0,
@@ -76,7 +78,7 @@ export function createMissilesPage(deps) {
       open: [false, false, false, false], // the rows that show the altitude and speed of their enemy
       u: 'mach', // the unit of the speeds of the timeline
     },
-    map: { on: true, op: 80 }, // the map layer under the horizontal envelope, as on the Weapons page
+    map: { on: true, op: 80 }, // the map layer under the horizontal envelope, as on the A-G page
   };
   // the timeline of an older page or mission file: the speed was std.mach and a row had no missile menu
   // (a state that has no unit was written with the speeds in Mach for the timeline and in knots for the Shot card; one without the missile menus or the
@@ -126,7 +128,7 @@ export function createMissilesPage(deps) {
         : null;
     });
     t.open = [0, 1, 2, 3].map(i => arr(t.open)[i] === true);
-    // the HARM card (the Weapons page keeps it) and what the two pages share
+    // the HARM card (the A-G page keeps it) and what the two pages share
     const h = st.harm && typeof st.harm == 'object' ? st.harm : {},
       mp = st.map && typeof st.map == 'object' ? st.map : {};
     st.harm = {
@@ -181,7 +183,7 @@ export function createMissilesPage(deps) {
     } catch (e) {
       /* none */
     }
-    // deps.prefs: the page is remembered from one session to the next (the BVR page: the classes, their missiles and conditions, the units); a mission opened still wins
+    // deps.prefs: the page is remembered from one session to the next (A-A > Timeline: the classes, their missiles and conditions, the units); a mission opened still wins
     if (deps.prefs)
       try {
         deps.prefs.save({ ...st, mode: undefined });
@@ -245,31 +247,40 @@ export function createMissilesPage(deps) {
       .catch(() => {}));
   }
 
+  // the emitters a HARM can be shot at: the pre-planned SAM threats of the DTC and the steerpoints of the flight plan (STPT 1-24), not the other PPTs
   function emitters() {
-    const P = deps.points && deps.points();
-    return P
-      ? P.ppt
-          .filter(p => !p.empty)
-          .map(p => ({
-            v: String(p.slot),
-            label: 'STPT ' + p.stpt + (p.name ? ' · ' + p.name : ''),
-            n: p.y * FT_KM,
-            e: p.x * FT_KM,
-            ringNm: p.rngNm || 0,
-            alt: p.altFt || 0,
-          }))
-      : [];
+    const P = deps.points && deps.points(),
+      sam = n => (deps.isSam ? deps.isSam(n) : true),
+      R = deps.route ? deps.route() : [];
+    return (P ? P.ppt.filter(p => !p.empty && sam(p.name)) : [])
+      .map(p => ({
+        v: String(p.slot),
+        label: 'STPT ' + p.stpt + (p.name ? ' · ' + p.name : ''),
+        n: p.y * FT_KM,
+        e: p.x * FT_KM,
+        ringNm: p.rngNm || 0,
+        alt: p.altFt || 0,
+      }))
+      .concat(
+        R.filter(w => w.n < 24).map(w => ({
+          v: 'r' + w.n,
+          label: 'STPT ' + (w.n + 1) + ' · flight plan',
+          n: +w.x,
+          e: +w.y,
+          ringNm: 0,
+          alt: +w.alt || 0,
+        }))
+      );
   }
-  const tab = list => {
-    const L = names(list),
-      c = cur();
-    if (!DB[c.msl] || !L.includes(c.msl)) c.msl = L[0];
-    return L;
-  };
+  // the missile shown: the one chosen when it is in the files, else the AGM-88 for the HARM (the first one of the list otherwise); the choice is kept, so
+  // the AGM-88 comes back when the missile files are read after the page opened
+  const pickMsl = (L, c, harm) => (L.includes(c.msl) ? c.msl : harm && L.includes('AGM-88') ? 'AGM-88' : L[0]);
+  const shown = () => pickMsl(names(st.mode), cur(), st.mode == 'harm');
+  const tab = list => names(list);
 
   function compute() {
     const c = cur(),
-      m = DB[c.msl];
+      m = DB[shown()];
     res = null;
     if (!m) return;
     if (st.mode == 'bvr') {
@@ -331,7 +342,7 @@ export function createMissilesPage(deps) {
               ? 'EOMG is still possible.'
               : 'no EOMG either (TI and GI both on): the missile neither glides nor flexes.');
       return (
-        `<div class="wpt">${tiles}</div><div class="wcard"><h3>Shot</h3><div class="kv">${kv('LAUNCH POINT', r.shot ? h3(bearing(r.em, r.launch) % 360) + '° · ' + (r.shot / NM).toFixed(1) + ' nm from the emitter' : 'none: outside the envelope')}${kv('ATTACK HDG', h3(v.heading) + '°')}${kv('LOFT ANGLE', r.loft == null ? 'none (no loft table)' : Math.round(r.loft) + '°')}${kv('FLIGHT TIME', fmt(r.flight) + ' s')}` +
+        `<div class="wpt">${tiles}</div><div class="wcard"><h3>Shot</h3><div class="kv">${kv('LAUNCH POINT', r.shot ? h3(toMag(bearing(r.em, r.launch))) + '° · ' + (r.shot / NM).toFixed(1) + ' nm from the emitter' : 'none: outside the envelope')}${kv('ATTACK HDG', h3(v.heading) + '°')}${kv('LOFT ANGLE', r.loft == null ? 'none (no loft table)' : Math.round(r.loft) + '°')}${kv('FLIGHT TIME', fmt(r.flight) + ' s')}` +
         (r.ringFt
           ? kv('SAM RING', (r.ringFt / NM).toFixed(1) + ' nm') +
             kv(
@@ -393,7 +404,7 @@ export function createMissilesPage(deps) {
       ${kv('RAERO', (r.dlz.raero / NM).toFixed(1) + ' nm')}${kv('RTR', (r.dlz.rtr / NM).toFixed(1) + ' nm')}${kv('A-POLE', r.dlz.aPole === null ? 'no pitbull range in the file' : (r.dlz.aPole / NM).toFixed(1) + ' nm (active ' + fmt(r.flight - (r.dlz.timeToActive || 0)) + ' s before impact)')}${kv('F-POLE', (r.dlz.fPole / NM).toFixed(1) + ' nm')}${kv('CLOSURE', fmt(r.dlz.closure) + ' kt')}${kv('PITBULL RANGE', r.dlz.pitbullNm ? r.dlz.pitbullNm + ' nm (' + { small: 'small fighter', fighter: 'fighter', bomber: 'bomber' }[r.v.tgtSize || 'fighter'] + ')' : '-')}${kv('RMAX HEAD-ON', (r.rHead / NM).toFixed(1) + ' nm (table)')}${kv('SHOT RANGE', (r.shot / NM).toFixed(1) + ' nm')}${kv('FLIGHT TIME', fmt(r.flight) + ' s')}${kv('MEAN MISSILE SPEED', 'Mach ' + (r.vm / 1000).toFixed(1) + '+ (assumed)')}</div></div>
       <div class="wcard"><h3>MAR · minimum abort range<span class="wtip" title="The closest the shooter can be and the target still turn and run, so that the missile falls to the stall speed before it arrives (BVR1 paper, turn-and-run). Uniform: constant deceleration from the missile's maximum speed so that it covers its Rmax. Variable: deceleration growing with the square of the speed, with the paper's measured maximum deceleration (only for the missiles it covers). The target's speed is the aborting aircraft's speed.">ⓘ</span></h3><div class="kv">
       ${kv('MAR, UNIFORM DECEL', Math.max(0, mar.uniform).toFixed(1) + ' nm')}${kv('MAR, VARIABLE DECEL', mar.variable !== null ? Math.max(0, mar.variable).toFixed(1) + ' nm' : 'not available for this missile')}
-      ${kv('STALL SPEED', fmt(mar.stall) + ' kt TAS' + (r.v.tgtSpeed > mar.vStall ? ' (the target speed)' : ' (400 KIAS)'))}${kv('MISSILE MAX SPEED', fmt(mar.vMax) + ' kt' + (mar.known ? '' : ' (assumed)'))}${kv('RMAX USED', mar.mor.toFixed(1) + ' nm')}</div></div>`;
+      ${kv('STALL SPEED', fmt(mar.stall) + ' kt TAS' + (r.v.tgtSpeed > mar.vStall ? ' (the target speed)' : ' (400 KIAS)'))}${kv('MISSILE MAX SPEED', fmt(mar.vMax) + ' kt' + (mar.known ? (mar.est ? ' (estimated)' : '') : ' (assumed)'))}${kv('RMAX USED', mar.mor.toFixed(1) + ' nm')}</div></div>`;
   }
 
   // BVR timeline card: your conditions + up to 4 enemy classes (each with its missile and, if you want, its own altitude and speed) -> MTR / TR / DOR / DR / MAR / STERN WEZ (+ FR), a scheme of the selected one and the datacard fill
@@ -541,7 +552,7 @@ export function createMissilesPage(deps) {
       .map(n => `<option value="${esc(n)}"${n === sel ? ' selected' : ''}>${esc(mslName(n))}</option>`)
       .join('')}</select>`;
   }
-  // the unit of the speeds and the Sliders switch (as on the EWS page), at the right of the title of a card of the BVR page
+  // the unit of the speeds and the Sliders switch (as on the EWS page), at the right of the title of a card of A-A > Timeline
   const hdrCtl = w =>
     `<span class="wctl"><span class="seg">${[
       ['kt', 'kt'],
@@ -633,10 +644,10 @@ export function createMissilesPage(deps) {
   const HLEG = [
     ['#ff5d5d', 'SAM ring', ''],
     ['#38bdf8', 'HARM range', '6 5'],
-    ['#fbbf24', 'Seeker opens', '2 6'],
+    ['#22d3ee', 'Seeker opens', '2 6'],
     ['#ffffff', 'HTS footprint', ''],
     ['#22d3ee', 'HAS ±60°', '4 4'],
-    ['#fbbf24', 'Line to the emitter', ''],
+    ['#3b82f6', 'Line to the emitter', ''],
   ];
   function harmVert(r) {
     if (!r || r.error || !r.shot) return '';
@@ -705,7 +716,7 @@ export function createMissilesPage(deps) {
       o.map._wpR = o.L.canvas({ pane: 'wpP' });
     }
     M = { ...o, WL: o.L.layerGroup().addTo(o.map) };
-    fit = true;
+    fit = !VK.restore(o.map, viewKey()); // back from another tab: the view as it was left
     const eb = deps.root.querySelector('[data-edit]');
     if (eb) {
       const on = deps.isEdit && deps.isEdit();
@@ -713,8 +724,11 @@ export function createMissilesPage(deps) {
       eb.classList.toggle('on', !!on);
     }
   }
+  const VK = mapKeep(),
+    viewKey = () => st.mode + '|' + st.em;
   function detachMap() {
     if (!M) return;
+    VK.save(M.map, viewKey());
     try {
       M.WL.remove();
     } catch (e) {
@@ -729,7 +743,7 @@ export function createMissilesPage(deps) {
   }
   // the map layer (satellite / coast) fades with the slider, or is switched off
   function applyOp() {
-    if (!M) return;
+    if (!M || M.ov) return;
     const o = st.map.on ? st.map.op / 100 : 0;
     ['tilePane', 'coastP'].forEach(k => {
       const p = M.map.getPane(k);
@@ -766,7 +780,7 @@ export function createMissilesPage(deps) {
         }).addTo(WL);
     if (r.ringFt) circ(r.ringFt, '#ff5d5d', '', 'SAM');
     circ(r.rMax, '#38bdf8', '6 5');
-    if (r.seekerOn) circ(r.seekerOn.ft, '#fbbf24', '2 6'); // where the seeker opens
+    if (r.seekerOn) circ(r.seekerOn.ft, '#22d3ee', '2 6'); // where the seeker opens (light blue as the HAS)
     if (r.foot && r.shot)
       L.polygon(r.foot.map(ll), {
         renderer: RN,
@@ -800,7 +814,7 @@ export function createMissilesPage(deps) {
       opacity: 0.4,
       interactive: false,
     }).addTo(WL);
-    L.polyline([ll(r.launch), ll(r.em)], { renderer: RN, color: '#fbbf24', weight: 3.5, interactive: false }).addTo(WL);
+    L.polyline([ll(r.launch), ll(r.em)], { renderer: RN, color: '#3b82f6', weight: 3.5, interactive: false }).addTo(WL); // the shot (blue)
     const lab = (p, t, d = 'right') =>
       L.circleMarker(ll(p), { radius: 0, opacity: 0, fillOpacity: 0, interactive: false, renderer: RN })
         .bindTooltip(esc(t), { permanent: true, direction: d, className: 'wplab', offset: [8, 0] })
@@ -813,7 +827,7 @@ export function createMissilesPage(deps) {
       color: '#111',
       weight: 2,
     }).addTo(WL);
-    lab(r.launch, 'Launch · ' + h3(r.v.heading) + '°');
+    lab(r.launch, 'Launch · ' + h3(toMag(r.v.heading)) + '°');
     L.circleMarker(ll(r.em), {
       renderer: RN,
       radius: 7,
@@ -852,7 +866,7 @@ export function createMissilesPage(deps) {
       const tabs = deps.only
         ? ''
         : `<div class="wtabs" role="tablist">${modes.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
-      const msel = `<div class="wrow"><label>Missile</label><select data-pick="msl">${L.map(k => `<option value="${esc(k)}"${k === c.msl ? ' selected' : ''}>${esc(mslName(k))}</option>`).join('')}</select></div>`;
+      const msel = `<div class="wrow"><label>Missile</label><select data-pick="msl">${L.map(k => `<option value="${esc(k)}"${k === shown() ? ' selected' : ''}>${esc(mslName(k))}</option>`).join('')}</select></div>`;
       const left =
         st.mode == 'harm'
           ? `<div class="wcard"><h3>Shot<span class="wtip" title="POS: the HARM is shot at the known position of the emitter (a steerpoint). HAS: the HARM is the sensor and sees only emitting radars within ±60°. HAD: the HTS pod gives the position; the missile is shot as in POS. The range is the table range of the missile for the launch altitude and speed; the flight time is an estimate.">ⓘ</span></h3>
@@ -894,7 +908,7 @@ export function createMissilesPage(deps) {
             ],
             c.gi
           )}</div>
-          <div class="wrow"><label>Emitter</label><select data-pick="em">${E.map(x => `<option value="${x.v}"${(st.em ? st.em === x.v : x === E[0]) ? ' selected' : ''}>${esc(x.label)}${x.ringNm ? ' · ' + x.ringNm.toFixed(0) + ' nm' : ''}</option>`).join('') || '<option>no PPT in the DTC</option>'}</select></div>${msel}
+          <div class="wrow"><label>Emitter</label><select data-pick="em">${E.map(x => `<option value="${x.v}"${(st.em ? st.em === x.v : x === E[0]) ? ' selected' : ''}>${esc(x.label)}${x.ringNm ? ' · ' + x.ringNm.toFixed(0) + ' nm' : ''}</option>`).join('') || '<option>no SAM PPT or flight steerpoint</option>'}</select></div>${msel}
           ${['heading', 'alt', 'speed', 'tgtAlt', 'shotPct', 'offNose'].map(slider).join('')}</div>`
           : `<div class="wcard"><div class="wh"><h3>Your shot<span class="wtip" title="Your missile, launched from your altitude and speed at the target (the enemy). Maximum range from the BMS table for the launch altitude, speed and target altitude (head-on). Against another aspect it is scaled with the target speed and a mean missile speed: R = Rhead (Vm + Vt cos aspect) / (Vm + Vt). An estimate, not BMS code. Enemy MAR: the range at which that target has to turn and run. The speeds are in knots (true airspeed) or in Mach, as chosen at the top right.">ⓘ</span></h3>${hdrCtl('bvr')}</div>${msel}
           ${['alt', 'speed', 'tgtAlt', 'tgtSpeed', 'aspect', 'shotPct'].map(slider).join('')}<div class="wrow"><label>Target</label>${seg(
@@ -911,7 +925,7 @@ export function createMissilesPage(deps) {
       else
         root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${left}</div>${
           st.mode == 'harm'
-            ? `<div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: Off</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div><div class="wrow wmap"><label>Map layer</label>${seg(
+            ? `<div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><span style="flex:1"></span><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div><div class="wrow wmap"><label>Map layer</label>${seg(
                 'mapon',
                 [
                   ['1', 'On'],
@@ -1289,6 +1303,28 @@ export function createMissilesPage(deps) {
     },
     root: deps.root,
     leave: detachMap,
+    // the drawing of the HARM page on the Map page (its Display > SEAD/DEAD switch): the same layers, in the group given, without moving the view or fading the map
+    overlay: async o => {
+      if (st.mode != 'harm') return false;
+      await load();
+      compute();
+      if (!res || res.error) return false;
+      if (!o.map._wpR) {
+        o.map.createPane('wpP').style.zIndex = 470;
+        o.map._wpR = o.L.canvas({ pane: 'wpP' });
+      }
+      const m0 = M,
+        f0 = fit;
+      M = { ...o, ov: true };
+      fit = false;
+      try {
+        paint();
+      } finally {
+        M = m0;
+        fit = f0;
+      }
+      return true;
+    },
     state: () => st,
     setState: o => {
       if (o && typeof o == 'object') {
@@ -1307,5 +1343,16 @@ export function createMissilesPage(deps) {
       }
     },
     result: () => res,
+    // the missile and the HARM settings of this page, for the SEAD page (the missile files read first)
+    harm: async () => {
+      load();
+      try {
+        await loadP;
+      } catch (e) {
+        /* the built-in table */
+      }
+      const L = names('harm');
+      return { m: DB[pickMsl(L, st.harm, true)] || null, v: st.harm };
+    },
   };
 }

@@ -417,6 +417,63 @@ textarea {
 .wpg .slr.bad input[type='range'] {
   accent-color: #ff5d5d;
 }
+/* the flight and its split: Split / Rejoin, the attack shown (LEAD / ELEMENT or WINGMAN), the mirror; the side a conflict slider should move to */
+.wpg .wgrp .wgrpb {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.wpg .wgrp .wsplit {
+  min-width: 82px;
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    color 0.25s;
+}
+.wpg .wgrp .wsplit.on {
+  background: #b45309;
+  border-color: #f59e0b;
+  color: #fff;
+}
+.wpg .wshow.wnew,
+.wpg .wgrp .wmir.wnew,
+.wpg .wegb.wnew {
+  animation: popin 0.25s ease-out;
+}
+.wpg .wshow .seg button.w-lead.on {
+  background: #1d4ed8;
+  color: #fff;
+}
+.wpg .wshow .seg button.w-elem.on {
+  background: #b45309;
+  color: #fff;
+}
+.wpg .wgrp .wmir {
+  padding-left: 10px;
+  padding-right: 10px;
+  transition:
+    background-color 0.2s,
+    color 0.2s;
+}
+.wpg .wgrp .wmir.on {
+  background: var(--ac);
+  border-color: var(--ac);
+  color: #08130d;
+}
+.wpg .slr .dcd {
+  font-style: normal;
+  margin-left: 4px;
+  animation: popin 0.25s ease-out;
+}
+.wpg .wdc.bad {
+  border-color: #ff5d5d;
+}
+.wpg .wdc.warn {
+  border-color: #f0b040;
+}
+.wpg .wdc .wamb {
+  color: #f0b040;
+}
 .wpg .slr input.zone {
   background: linear-gradient(to right, #ff5d5d99 var(--z, 0%), transparent var(--z, 0%)) no-repeat center/100% 4px;
 }
@@ -466,7 +523,7 @@ textarea {
   margin: 0 0 12px;
   border-bottom: 1px solid var(--line);
 }
-.wtabs button {
+.wtabs button:not(.btn) {
   padding: 7px 16px;
   border: 0;
   border-bottom: 2px solid transparent;
@@ -481,12 +538,17 @@ textarea {
     background-color 0.15s;
   border-radius: 6px 6px 0 0;
 }
-.wtabs button:hover {
+.wtabs button:not(.btn):hover {
   background: #ffffff0d;
 }
-.wtabs button.on {
+.wtabs button:not(.btn).on {
   color: #fff;
   border-bottom-color: #1f7a46;
+}
+/* Add card of a page, at the right of its tabs (Weapons, Weather, ROE / SOP) */
+.wtabs .wtcard {
+  margin: 0 0 5px auto;
+  align-self: center;
 }
 .wmapbox {
   position: relative;

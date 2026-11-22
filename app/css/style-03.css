@@ -284,7 +284,22 @@
   display: flex;
   gap: 10px;
   align-items: center;
-  animation: popin 0.16s ease-out;
+  animation: popinc 0.16s ease-out;
+}
+/* the banner of the next point of a line: in place, no animation (it is the same banner going on) */
+#mpadd.still {
+  animation: none;
+}
+/* popin keeping the centring of the banner (translateX(-50%)) */
+@keyframes popinc {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%);
+  }
 }
 #mpadd .btn {
   margin: 0;
@@ -1459,4 +1474,557 @@ body.og-dragging * {
   vertical-align: -2px;
   margin-right: 6px;
   opacity: 0.85;
+}
+/* Squadron > Missions: search, groups, virtual folders (core/squadron.js, core/misindex.js) */
+.msbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+.msbar .msq {
+  flex: 1;
+  min-width: 220px;
+}
+.msgrp {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.msgrp button {
+  padding: 4px 10px;
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
+}
+.msgrp button:last-child {
+  border-right: 0;
+}
+.msgrp button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.msgrp button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+@media (min-width: 901px) {
+  .sqtwo.mstwo {
+    grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+  }
+}
+.mshead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-height: 32px;
+  padding: 2px 6px 6px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--mu);
+}
+.mshead label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.mshead input[type='checkbox'] {
+  width: auto;
+  margin: 0 2px;
+}
+.mshead b {
+  color: #4cc38a;
+}
+.mssel {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-left: auto;
+}
+.mssel select {
+  width: auto;
+}
+.msth {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.msar {
+  width: 12px;
+  flex: none;
+  font-style: normal;
+  color: var(--mu);
+  cursor: pointer;
+  text-align: center;
+}
+.msar:hover {
+  color: var(--tx);
+}
+.msghost {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: #1f7a46;
+  color: #fff;
+  font-size: 12.5px;
+  box-shadow: 0 6px 18px #000a;
+  max-width: 300px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msdrag,
+.msdrag * {
+  user-select: none;
+  cursor: grabbing !important;
+}
+.mssel[hidden] {
+  display: none;
+}
+.msbody {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.msbody.nf {
+  grid-template-columns: minmax(0, 1fr);
+}
+.mstree {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.msf {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px 5px calc(6px + var(--d, 0) * 14px);
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-size: 13px;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.msf span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msf b {
+  color: var(--mu);
+  font-weight: 600;
+  font-size: 11.5px;
+}
+.msf:hover {
+  background: #ffffff0a;
+}
+.msf.on {
+  background: #13301f;
+  border-color: #4cc38a;
+}
+.msf.hot {
+  border-color: #4cc38a;
+  border-style: dashed;
+  background: #4cc38a22;
+}
+.msf input {
+  flex: 1;
+  min-width: 0;
+}
+.msfb {
+  border: 0;
+  background: none;
+  color: var(--mu);
+  cursor: pointer;
+  padding: 0 3px;
+  opacity: 0;
+  transition:
+    opacity 0.15s,
+    color 0.15s;
+}
+.msf:hover .msfb {
+  opacity: 1;
+}
+.msfb:hover {
+  color: var(--tx);
+}
+.msfb[data-fdel]:hover {
+  color: #ff5d5d;
+}
+.mscol {
+  min-width: 0;
+}
+.mslist {
+  min-width: 0;
+  max-height: 65vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+.msr input[type='checkbox'] {
+  width: auto;
+  flex: none;
+  margin: 0 2px;
+}
+.msr {
+  cursor: grab;
+  border-radius: 6px;
+  padding-left: 4px;
+  transition:
+    background-color 0.15s,
+    opacity 0.15s;
+}
+.msr:hover {
+  background: #ffffff08;
+}
+.msr.on {
+  background: #13301f;
+}
+.msr.drag {
+  opacity: 0.5;
+}
+.msr span:not(.msbt) {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.msr span:not(.msbt) b,
+.msr em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.msbt {
+  flex: none !important;
+}
+.msgrpb {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  margin-bottom: 6px;
+}
+.msgh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  background: none;
+  color: var(--tx);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+.msgh:hover {
+  background: #ffffff0a;
+}
+.msgh i {
+  font-style: normal;
+  color: var(--mu);
+  width: 12px;
+}
+.msgh i.msdot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  margin-right: 0;
+}
+.msgh b {
+  margin-left: auto;
+  color: var(--mu);
+  font-size: 12px;
+}
+.msgb {
+  padding: 0 10px 6px;
+}
+.msmore {
+  margin: 8px 0 2px;
+}
+.msapp {
+  animation: msapp 0.2s ease-out;
+}
+@keyframes msapp {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 800px) {
+  .msbody {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.msbody + .hint {
+  margin-top: 8px;
+}
+.msth .btn,
+.msbt .btn,
+.mssel .btn,
+.msf .btn {
+  padding: 3px 9px;
+  font-size: 12px;
+}
+.msdot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 4px;
+  vertical-align: 0;
+  background: #8b98a8;
+}
+.msfi {
+  flex: none;
+  vertical-align: -2px;
+}
+.msdot.all {
+  background: #4aa3ff;
+}
+.msdot.none {
+  background: transparent;
+  border: 2px solid #8b98a8;
+  width: 7px;
+  height: 7px;
+}
+.msgh .msdot {
+  font-style: normal;
+}
+/* the Briefing makes the page wider: the tabs of the Squadron page stay where they are (only what is under them grows) */
+main.wide #sqtabs {
+  padding-left: max(0px, calc((100% + 40px - 1300px) / 2));
+}
+/* F-15 SIT lines: the looks of a line in the menu of its point */
+.dtp .bar3.barw {
+  flex-wrap: wrap;
+}
+.dtp .bar3.barw .btn {
+  flex: 1 1 calc(50% - 5px);
+}
+.dtp .sitlook {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  border-top: 1px solid #263140;
+  padding-top: 6px;
+  margin-top: 2px;
+}
+.dtp .sitlook .fh {
+  color: var(--mu);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dtp .slr2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--mu);
+}
+.dtp .slr2 > span:first-child {
+  width: 46px;
+  flex: none;
+}
+.dtp .sitcols {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.dtp .sitcol {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid #0006;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.dtp .sitcol.on {
+  outline: 2px solid var(--tx);
+  outline-offset: 1px;
+}
+.dtp .sitcols input {
+  width: 64px;
+  font:
+    11px ui-monospace,
+    Consolas,
+    monospace;
+  padding: 2px 4px;
+}
+.dtp .seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.dtp .seg button {
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 9px;
+  cursor: pointer;
+}
+.dtp .seg button:last-child {
+  border-right: 0;
+}
+.dtp .seg button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.dtp .seg button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+/* the lengths of the sides of a rectangle (NM) */
+.rclen span {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+  font: 600 10.5px system-ui;
+  color: #e6edf3;
+  background: rgba(11, 15, 20, 0.78);
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  padding: 0 4px;
+  pointer-events: none;
+}
+.mpsnapw {
+  display: flex;
+  justify-content: center;
+  margin-top: 8px;
+}
+#mpdsnap {
+  padding: 2px 10px;
+  font-size: 11px;
+  margin: 0;
+}
+/* on: the green of the tools (the line buttons), not the green of the DTC buttons */
+#mpdsnap:not(.g) {
+  background: #1f7a46;
+  color: #fff;
+  border-color: #2fa862;
+}
+.dtp .sitcols input[type='color'] {
+  width: 24px;
+  height: 20px;
+  padding: 0 1px;
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  background: #0f1419;
+  cursor: pointer;
+}
+/* the colour picker of the program (SIT lines) */
+.dtp .sitpkb {
+  width: 22px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid #2a3542;
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+}
+.dtp .sitpkb::after {
+  content: '▾';
+  position: absolute;
+  right: -11px;
+  top: 0;
+  font-size: 10px;
+  color: var(--mu);
+}
+.dtp .sitpkb.on {
+  outline: 2px solid #2fa862;
+  outline-offset: 1px;
+}
+.cpk {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 8px;
+  background: #0f1419;
+  border: 1px solid #263140;
+  border-radius: 6px;
+}
+.cpsv {
+  position: relative;
+  height: 96px;
+  border-radius: 4px;
+  cursor: crosshair;
+  touch-action: none;
+}
+.cphue {
+  position: relative;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+  cursor: pointer;
+  touch-action: none;
+}
+.cpk1,
+.cpk2 {
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #000a;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.cpk2 {
+  top: 50%;
+  background: transparent;
+}
+.cprgb {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.dtp .cprgb label {
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+}
+.dtp .cprgb input {
+  width: 100%;
+  min-width: 0;
+  padding: 2px 4px;
+  font-size: 11.5px;
 }

@@ -18,6 +18,10 @@ export let ATOFLT = true;
 export let ATOOPEN;
 export let ATOCAT;
 export let PLAYER = null;
+// a TE: the faction of the flight chosen becomes the player's (selection.js apply)
+export const teSide = t => {
+  if (ST.C && ST.C.isTe && t != null) PLAYER = ST.VIEW = t;
+};
 ST.VIEW = null;
 export let ATOFX;
 export const allyOf = (x, y) => allyOfC(ST.C, x, y);
@@ -96,13 +100,16 @@ export function atoSearch0() {
       ? ST.C.playerTeam
       : ((ATOL.find(e => e.hifi) || ATOL[0] || {}).team ?? null);
   if (ST.VIEW === null || !teams.some(t => t[0] == ST.VIEW)) ST.VIEW = PLAYER;
-  // the other factions can be read by the squadron commander (who created it) or, with no squadron, by who turned the option on in the Settings; for the others only their own faction is listed
+  // the other factions can be read by the squadron commander (who created it) or, with no squadron, by who turned the option on in the Settings; for the others only their own faction is listed.
+  // A TE has no side of the player: every faction is open, and the one chosen becomes yours (its flights load, the pages and the map take its side)
   const role = ST.SQROLE ? ST.SQROLE() : 'none',
-    seeAll = role == 'owner' || (role == 'none' && ST.OBSERVER);
+    te = !!ST.C.isTe,
+    seeAll = te || role == 'owner' || (role == 'none' && ST.OBSERVER);
+  if (te) PLAYER = ST.VIEW;
   if (!seeAll && ST.VIEW != PLAYER) ST.VIEW = PLAYER;
   const shown = seeAll ? teams : teams.filter(t => t[0] == PLAYER);
   el.innerHTML = `<h3>Air Tasking Order</h3><div class="sr">
- <div class="w" style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-block"><button class="btn" id="aq_viewb" type="button" style="margin:0;border-radius:16px;padding:5px 14px;font-weight:600;color:#fff" title="Your faction comes from the campaign (player squadron). Click to choose another: other factions are read-only."></button><select id="aq_view" tabindex="-1" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none">${shown.map(([t, n]) => `<option value="${t}"${ST.VIEW == t ? ' selected' : ''} style="background:${t == PLAYER ? '#4cc38a' : allyOf(t, PLAYER) ? '#6b46b8' : '#a12b2b'};color:${t == PLAYER ? '#062014' : '#fff'}">${esc(n)}${t == PLAYER ? ' (you)' : ''}</option>`).join('')}</select></span><button class="btn g" id="aq_info" type="button" style="margin:0 0 0 auto;border-radius:16px;padding:4px 12px;font-size:12px" title="Click to show or hide the search filters"></button></div>
+ <div class="w" style="display:flex;align-items:center;gap:8px"><span style="position:relative;display:inline-block"><button class="btn" id="aq_viewb" type="button" style="margin:0;border-radius:16px;padding:5px 14px;font-weight:600;color:#fff" title="${te ? 'A TE: choose the faction to fly, every one is open.' : 'Your faction comes from the campaign (player squadron). Click to choose another: other factions are read-only.'}"></button><select id="aq_view" tabindex="-1" style="position:absolute;inset:0;width:100%;height:100%;opacity:0;pointer-events:none">${shown.map(([t, n]) => `<option value="${t}"${ST.VIEW == t ? ' selected' : ''} style="background:${t == PLAYER ? '#4cc38a' : allyOf(t, PLAYER) ? '#6b46b8' : '#a12b2b'};color:${t == PLAYER ? '#062014' : '#fff'}">${esc(n)}${t == PLAYER ? ' (you)' : ''}</option>`).join('')}</select></span><button class="btn g" id="aq_info" type="button" style="margin:0 0 0 auto;border-radius:16px;padding:4px 12px;font-size:12px" title="Click to show or hide the search filters"></button></div>
  <div class="w" id="aq_sp"></div><div class="w" id="aq_flt" style="display:${ATOFLT ? 'grid' : 'none'};grid-template-columns:1fr 1fr;gap:8px 6px">
  <input id="aq_cs" placeholder="Callsign" value="${esc(q.cs)}"><input id="aq_pkg" placeholder="Package #" value="${esc(q.pkg)}">
  <input id="aq_ac" placeholder="Aircraft" value="${esc(q.ac)}"><input id="aq_mis" placeholder="Mission type" value="${esc(q.mis)}">
@@ -123,6 +130,12 @@ export function atoSearch0() {
   $('aq_view').onchange = () => {
     viewUpd();
     ST.VIEW = +$('aq_view').value;
+    if (te) {
+      // a TE: the faction chosen is yours (the menu again, with "(you)" on it)
+      PLAYER = ST.VIEW;
+      if (mapV.isReady()) mapV.refresh();
+      return atoSearch();
+    }
     if (mapV.isReady()) mapV.refresh();
     const n = (teams.find(t => t[0] == ST.VIEW) || [])[1];
     if (ST.VIEW != PLAYER)
@@ -331,12 +344,12 @@ export function atoList0() {
     }
     if (lock || e.heli) return;
     if (msLocked(e.f)) {
-      appToast('This mission was made for another flight: load a campaign to use the other flights.');
+      appToast('This mission was made for another flight: load a campaign to use the other flights.', true);
       return;
     }
     const k = ST.CL.findIndex(x => x.f === e.f);
     if (k < 0) {
-      appToast('This flight has no flight plan to fill the datacard (it needs at least two steerpoints).');
+      appToast('This flight has no flight plan to fill the datacard (it needs at least two steerpoints).', true);
       return;
     }
     $('fsel').value = k;
@@ -395,4 +408,17 @@ export async function init7() {
   ATOOPEN = new Set();
   ATOCAT = new Set();
   ATOFX = { c: new Set(), p: new Set() };
+}
+
+// the flight chosen on the datacard as the Smart cards name it at the right of their title: "HAMMER 6 · PKG 4007" ('' without a flight)
+export function flightTag() {
+  try {
+    const el = /** @type {HTMLSelectElement|null} */ (document.getElementById('fsel')),
+      x = ST.C && ST.CL && ST.CL[+(el ? el.value : 0) || 0],
+      e = x && ATOL.find(z => z.f === x.f);
+    if (!e) return '';
+    return String(e.callsign).toUpperCase() + (e.pkgNo != null && e.pkgNo !== '' ? ' · PKG ' + e.pkgNo : '');
+  } catch (err) {
+    return '';
+  }
 }

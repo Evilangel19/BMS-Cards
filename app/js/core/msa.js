@@ -5,8 +5,9 @@
 //  - airbase / navaid MSA (civil IFR sectors): highest terrain within 25 NM of the point + 1,000 ft, up to 100 ft, in 1 to 4 sectors
 // Positions are BMS feet {n, e} (north / east), heights are feet.
 //
-// The terrain is read on a grid of 1 km cells (like the radar coverage does with its cells): a cell holds the highest of a few samples taken along the row of the
-// height map that crosses it. The cells of one row of the grid are in the same row of the file, so one read serves all of them, and a cell that was read once is
+// The terrain is taken on a grid of 1 km cells: from the grid of the highest ground of every cell made once from the whole height map (setCellMax, app/terrmax.js)
+// when it is ready; else (the first start of a theater, while it is made) read like the radar coverage does with its cells: a cell holds the highest of a few
+// samples taken along the row of the height map that crosses it. The cells of one row of the grid are in the same row of the file, so one read serves all of them, and a cell that was read once is
 // kept (`cache`), so the next flight, or an airbase on the same ground, costs nothing.
 export const NMFT = 6076.12;
 export const VFR_HALF = 5, // NM each side of the centreline
@@ -35,7 +36,22 @@ const num = v => (v === null || v === undefined || !isFinite(v) ? null : v);
  * Reads the cells that are not in the cache yet: `cells` = [[i, j]], the centre of a cell is (e = i * CELL, n = j * CELL).
  * Returns false when there is no terrain data. The cells are asked in the order of the rows (j), so a call of the reader holds whole rows.
  */
+// THE HIGHEST GROUND OF EVERY CELL, made once from the whole height map (app/terrmax.js, kept on disk per theater): when it is there the cells are taken from it
+// (the true highest of all the samples of the cell, nothing read), else they are read from the height map as below (a few samples per cell).
+let CELLMAX = null;
+/** @param {null | ((i:number, j:number) => number|null)} get the highest of the cell i, j (feet), null outside */
+export function setCellMax(get) {
+  CELLMAX = get;
+}
+export const cellMaxOn = () => !!CELLMAX;
 export async function loadCells(elev, cells, cache, progress) {
+  if (CELLMAX) {
+    for (const [i, j] of cells) {
+      const k = key(i, j);
+      if (!cache.has(k)) cache.set(k, num(CELLMAX(i, j)));
+    }
+    return true;
+  }
   const todo = cells.filter(([i, j]) => !cache.has(key(i, j))).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
   for (let o = 0; o < todo.length; o += CHUNK) {
     const part = todo.slice(o, o + CHUNK),

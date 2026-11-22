@@ -15,7 +15,15 @@
     "lastCamp": "",
     "wxTaf": "TGT",
     "checkUpdates": true,
-    "oneMapShot": false
+    "oneMapShot": false,
+    "osMotion": "",
+    "editTraining": false
+  },
+  "kneeboard": {
+    "toneOn": true,
+    "toneBright": -50,
+    "toneContrast": 100,
+    "toneDark": false
   },
   "mission": {
     "radiusNm": 60

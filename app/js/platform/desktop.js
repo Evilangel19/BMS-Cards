@@ -177,7 +177,7 @@ export async function saveBlob(blob, name, startDir) {
       if (!path) return;
       await T().fs.writeFile(path, new Uint8Array(await blob.arrayBuffer()));
     } catch (e) {
-      alert('Could not save the file: ' + ((e && e.message) || e));
+      alert('Could not save the file: ' + ((e && e.message) || e), 'bad');
     }
     return;
   }
@@ -324,6 +324,31 @@ export async function readRanges(path, spans, conc = 4) {
 }
 export async function fileSize(path) {
   return (await T().fs.stat(path)).size;
+}
+// size and date (ms) of a file; null when it is not there
+export async function fileStat(path) {
+  try {
+    const s = await T().fs.stat(path);
+    return { size: s.size, mtime: s.mtime ? +new Date(s.mtime) : 0 };
+  } catch (e) {
+    return null;
+  }
+}
+// a (huge) file read from the start, piece after piece: read(buf) fills buf as far as it can and gives the bytes read; close() at the end
+export async function openRead(path) {
+  const f = await T().fs.open(path, { read: true });
+  return {
+    read: async buf => {
+      let got = 0;
+      while (got < buf.length) {
+        const n = await f.read(buf.subarray(got));
+        if (!n) break;
+        got += n;
+      }
+      return got;
+    },
+    close: () => f.close(),
+  };
 }
 
 export async function writeBytes(path, bytes) {

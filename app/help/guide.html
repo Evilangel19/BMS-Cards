@@ -212,7 +212,7 @@
     <div class="cover">
       <div>
         <h1>BMS Cards</h1>
-        <div class="sub">User Guide · version 1.2 · for Falcon BMS 4.38.1</div>
+        <div class="sub">User Guide · version 1.3 · for Falcon BMS 4.38.1</div>
       </div>
       <img src="logo.png" alt="BMS Cards logo" />
     </div>
@@ -325,6 +325,11 @@
           saved mission.
         </p>
         <p>
+          A Tactical Engagement has no side for the player: every faction is open, and the flight that you select gives
+          your side. In a campaign, <span class="ui">Settings &gt; Other factions</span> shows the other sides (in a
+          squadron, only for its commander).
+        </p>
+        <p>
           Make sure that <span class="ui">📅 Day 1</span> is the real date of the first campaign day. The sun, the moon,
           the METAR and the TAF use this date.
         </p>
@@ -336,7 +341,8 @@
       <div>
         <h4>Select your flight</h4>
         <p>
-          The ATO on the left shows the packages and the flights. Click your flight. The program fills the datacard.
+          The ATO on the left shows the packages and the flights. Click your flight. The program fills the datacard and
+          writes the A-A and A-G blocks of the ROE for its mission.
         </p>
       </div>
     </div>
@@ -381,21 +387,48 @@
               </li>
               <li>
                 The <span class="ui">DTC</span> menu shows the groups of DTC points. The DTC tool bar adds, removes and
-                makes points automatically.
+                makes points automatically (threats, bullseye, front line, the edge of the friendly SAMs, the A-A plan,
+                the attack of the A-G page, the walls of the valley of a low-level route, tanker tracks). Put the
+                pointer on an automatic button to see what it will write; a line that it will replace blinks red. With
+                <span class="ui">Fit</span> on, the map then moves to show what was written. A button that cannot write
+                (no DTC open, the wrong flight or theater) is dimmed.
               </li>
               <li>
                 Click a point to change it. Drag it to move it. A steerpoint also takes its offsets, and a flight of the
-                package can go into the Link 16 plan.
+                package can go into the Link 16 plan or get a colour of its own.
+              </li>
+              <li>
+                Drag the label of a flight (yours or one of the package) or of a tanker track along its line to move it.
+                A double click puts it back. A click on the label of your flight gives it a colour.
               </li>
               <li>
                 The buttons below the map save the DTC and the mission, and make a picture of the map for the kneeboard
-                or the datacard.
+                or the datacard. <span class="ui">Copy</span> puts the map, as it is shown, in the clipboard (the
+                Briefing room has the same button).
               </li>
             </ul>
           </li>
           <li>
-            <b>Weapons</b>: plan the attack (VRP or VIP, pop-up, fuzes). Then click
-            <span class="ui">Apply to the DTC</span>.
+            <b>A-G</b> (air-to-ground): plan the attack on <span class="ui">Pop-up</span>,
+            <span class="ui">HADB</span> or <span class="ui">TOSS</span> (VRP or VIP, offsets, fuzes). Then click
+            <span class="ui">Apply to the DTC</span>. The limits of the manuals are shown in red (a pop-up under 350
+            KCAS, a cloud base under 2 000 ft over the target); the page writes an A-G block in the ROE of the flight.
+            <ul>
+              <li>
+                <span class="ui">HARM</span>: <b>SEAD</b>, the HARM shots of your flight that protect its package;
+                <b>DEAD</b>, your attack on a SAM (HARM standoff, Hunter-Killer or bombs). The ALIC codes aim at the
+                fire control radar of the SAM. <span class="ui">HARM tables</span> and
+                <span class="ui">Auto PPT</span> add the threats to the DTC after asking.
+              </li>
+              <li>
+                <span class="ui">Target</span>: the target picture (Basic Target Graphic). The plan of the objective, a
+                picture of the Map page or a screenshot that you paste (Ctrl+V), with the DMPI of the DTC, the threats,
+                filters (IR, UAV, targeting pod, NVG) and symbols that you draw. <span class="ui">＋ Picture</span> adds
+                a screenshot with no target, for example an aircraft to recognise.
+                <span class="ui">Put on datacard</span> puts the picture in the map box of the datacard, which travels
+                with the mission.
+              </li>
+            </ul>
           </li>
           <li>
             <b>Performance</b>: the fuel plan and the Joker margin. They give Bingo, Min.Fuel and the take-off data.
@@ -404,7 +437,17 @@
             <b>Weather</b>: the weather along the route. Select which TAF the card shows (target or landing field).
           </li>
           <li>
-            <b>BVR Timeline</b>: the air-to-air timeline. <span class="ui">Fill datacard</span> sends it to the card.
+            <b>A-A</b> (air-to-air): <span class="ui">DCA</span>, the area (FAOR) of a CAP flight (the FEZ on the threat
+            axis, its lines; for a QRA flight the scramble line on alert, the vector and the intercept once launched);
+            <span class="ui">OCA</span>, the SWEEP or ESCORT of a package (your position on it, commit, stop, target
+            area); both write an A-A block in the ROE of the flight. <span class="ui">Timeline</span>, the air-to-air
+            timeline. <span class="ui">Fill datacard</span> sends it to the card.
+          </li>
+          <li>
+            <b>Add card</b>, at the right of the tabs of A-G, A-A, Weather and ROE / SOP, puts the page on kneeboard
+            cards: the classic card with the map, the <b>Smart</b> card (the plan in one picture, light or dark for the
+            cockpit) and the Smart mission card (the pages of your flight together). It is dimmed when the page has
+            nothing to put on a card.
           </li>
           <li>
             <b>Squadron &gt; ROE / SOP</b>: click the ROE box or the SOP box of the card to open it. Click a preset to
@@ -449,8 +492,8 @@
       <div>
         <h4>Save the mission</h4>
         <p>
-          <span class="ui">📦 Save mission</span> keeps the package, the DTC, the datacard and the weapons data in one
-          mission file. A mission opens without the campaign.
+          <span class="ui">📦 Save mission</span> keeps the package, the DTC, the datacard and the data of the A-G and
+          A-A pages in one mission file. A mission opens without the campaign.
         </p>
       </div>
     </div>
@@ -468,7 +511,7 @@
     </div>
 
     <div class="tip">
-      <b>Summary:</b> campaign → flight → seat → card → (Map, Weapons, Performance if necessary) → DTC → kneeboard →
+      <b>Summary:</b> campaign → flight → seat → card → (Map, A-G, A-A, Performance if necessary) → DTC → kneeboard →
       mission → send the mission → online briefing.
     </div>
 
@@ -514,16 +557,21 @@
         </td>
       </tr>
       <tr>
-        <td><b>Weapons</b></td>
+        <td><b>A-G</b></td>
         <td>
           The attack planner: delivery profiles, offsets, fuzes, stick and the DLZ of the weapons.
-          <span class="ui">Apply to the DTC</span> writes the attack.
+          <span class="ui">Apply to the DTC</span> writes the attack. HARM: the SEAD and DEAD of a flight. Target: the
+          target picture and pictures without a target.
         </td>
       </tr>
       <tr>
-        <td><b>BVR Timeline</b></td>
+        <td><b>A-A</b></td>
         <td>
-          The timeline of an air-to-air engagement (ranges, A-pole, F-pole) against the threat classes that you select.
+          DCA: the Fighter Area Of Responsibility of a CAP flight (BARCAP, CAP, AMBUSHCAP, TARCAP, DCA, HAVCAP, RESCAP),
+          with sliders from the profile of the mission down to the minimums of BMS; for a QRA flight, the scramble and
+          the intercept. OCA: the SWEEP or ESCORT of a package, with the lead, the position (FS-1 / FS-2 / FS-3 of the
+          NATO manual) and the commit of the manual. Timeline: an air-to-air engagement (ranges, A-pole, F-pole) against
+          the threat classes that you select.
         </td>
       </tr>
       <tr>
@@ -577,11 +625,12 @@
       </li>
       <li>
         <b>Briefing</b>: a live room on the map. The briefer, and the pilots that he selects, draw lines, text and
-        symbols. The other pilots can follow his view. A kneeboard card keeps the result.
+        symbols. The other pilots can follow his view. A kneeboard card keeps the result, and
+        <span class="ui">Copy</span> puts the map with the drawings in the clipboard.
       </li>
       <li>
-        <b>Missions</b>: the missions that you send and receive. A mission that you receive puts its DTC data into your
-        DTC.
+        <b>Missions</b>: the missions that you send and receive, in folders that you make and drag the missions into. A
+        mission that you receive puts its DTC data into your DTC.
       </li>
       <li><b>Me</b> and <b>Settings</b>: your identity, the settings of the squadron and the connection test.</li>
     </ul>
@@ -709,7 +758,8 @@
       </li>
       <li>
         <b>Radio presets in the DTC.</b> Preset 6 is your flight, 13 is the first tanker, 5 is the AWACS. UHF 15 is the
-        backup frequency of the flight. VHF 15 and higher are the flights of the package.
+        backup frequency of the flight. VHF 15 and higher are the flights of the package; the datacard shows the VHF
+        preset of your flight next to the callsign.
       </li>
       <li>
         <b>Your seat</b> sets the IFF Mode 2 and Mode 3 codes, the Link 16 callsign and number, and the laser code in
@@ -734,8 +784,8 @@
     <h3>Missions</h3>
     <p>
       A mission is a folder with one mission file and its settings. The file contains the package, the DTC, the datacard
-      (with your changes and your seat) and the weapons data. With the weather maps for each hour, its size is
-      approximately 1.5 to 2 MB.
+      (with your changes, your seat and the picture of its map box), the data of the A-G and A-A pages, and the labels
+      and colours of the flights on the map. With the weather maps for each hour, its size is approximately 1.5 to 2 MB.
     </p>
 
     <h2>7. More information</h2>
@@ -752,7 +802,7 @@
     </ul>
 
     <div class="foot">
-      BMS Cards 1.2 · Falcon BMS 4.38.1 · An independent community project. The program reads all game data from your
+      BMS Cards 1.3 · Falcon BMS 4.38.1 · An independent community project. The program reads all game data from your
       installation.
     </div>
   </body>

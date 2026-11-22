@@ -5,7 +5,7 @@
 // The messages go to the pilots of the squadron through its peer-to-peer swarm (core/squadron.js), {k: 'brf', t: ...}. The rules are in core/briefroom.js.
 //
 // deps: {root, esc, me() -> uid, name(uid), role(uid) -> {role, lead}, online() -> [uid], send(msg), sendTo(uid, msg), attach(el) -> Promise<{L, map} | null>,
-//        detach(), shot({toast}) (the kneeboard frame of the map), mission() -> text, theater() -> text, toast(text), wide(bool), squad() -> id | null}
+//        detach(), shot({toast}) (the kneeboard frame of the map), copy({toast}) (the map with the drawings to the clipboard), mission() -> text, theater() -> text, toast(text), wide(bool), squad() -> id | null}
 import {
   NM,
   dist,
@@ -28,6 +28,7 @@ import {
 import { WX_MODES, legend as wxLegend, drawWx } from './wxlayer.js';
 import { WX_ALT, wxLevel } from '../parsers/fmap.js';
 import { symbolSvg, airbaseSvg, SIDE_COL } from './mapsymbols.js';
+import { toMag } from './magvar.js'; // the bearings written on the board: magnetic
 
 const rad = d => (d * Math.PI) / 180;
 const hhmm = ms => {
@@ -220,11 +221,12 @@ class Room {
   sendTo(uid, m) {
     this.d.sendTo(uid, { k: 'brf', ...m });
   }
-  toast(t, ms = 2600) {
+  // bad: a refusal or something missing (red)
+  toast(t, ms = 2600, bad = false) {
     const w = this.M && this.visible && this.wrap;
-    if (!w) return this.d.toast && this.d.toast(t);
+    if (!w) return this.d.toast && this.d.toast(t, bad);
     const d = document.createElement('div');
-    d.className = 'brtoast';
+    d.className = 'brtoast' + (bad ? ' bad' : '');
     d.textContent = t;
     w.appendChild(d);
     setTimeout(() => {
@@ -334,9 +336,10 @@ class Room {
     this.wxSync(true);
   }
   hide() {
+    // hidden again (a change of the squadron draws its tabs again while another page is on screen): the width of that page is not touched
+    if (this.visible) this.d.wide && this.d.wide(false);
     this.visible = false;
     this.tok = (this.tok || 0) + 1;
-    this.d.wide && this.d.wide(false);
     this.closePal();
     this.closeEd();
     this.closeWx();
@@ -722,7 +725,7 @@ class Room {
       A.innerHTML = '';
       return;
     }
-    const card = `<button class="btn g gn" data-a="card">Save a kneeboard card</button>`;
+    const card = `<button class="btn g gn" data-a="card">Save a kneeboard card</button><button class="btn g" data-a="copy" title="Copy the map with the drawings to the clipboard, to paste it elsewhere">Copy the map</button>`;
     const note = `<div class="brnote">Drawings live only in the room: a card keeps them.</div>`;
     if (this.isBriefer()) {
       A.innerHTML = `<div class="brtog"><span>Everyone follows my view</span><button class="brsw ${this.room.follow ? 'on' : ''}" aria-label="Everyone follows my view"></button></div>${card}<button class="btn g brred" data-a="close">Close the room</button>${note}`;
@@ -737,6 +740,7 @@ class Room {
         (b.onclick = () => {
           const a = b.dataset.a;
           if (a == 'card') this.startCard();
+          if (a == 'copy' && this.d.copy) this.d.copy({ toast: (t, bad) => this.toast(t, 4000, bad), el: this.wrap }); // the map with the drawings and the cursors
           if (a == 'close')
             this.ask(
               'Close the room for everyone?',
@@ -1041,8 +1045,8 @@ class Room {
               this.cursAll ? 'You see the cursors of everyone' : 'You see only the cursors of who can draw'
             );
           }
-          if (!this.me) return this.toast('Join the room first');
-          if (d[3] && !this.can()) return this.toast('Ask the briefer for the pen');
+          if (!this.me) return this.toast('Join the room first', 2600, true);
+          if (d[3] && !this.can()) return this.toast('Ask the briefer for the pen', 2600, true);
           if (k == 'undo') return this.undo();
           if (k == 'clear') return this.clearBoard();
           if (k == 'wx') return this.wxPanel ? this.closeWx() : this.openWx(b);
@@ -1204,7 +1208,7 @@ class Room {
     return this.uid() + '-' + Date.now().toString(36) + '-' + ++this.seq;
   }
   add(o) {
-    if (this.objs.size >= MAX_OBJS) return this.toast('The board is full: clear something first');
+    if (this.objs.size >= MAX_OBJS) return this.toast('The board is full: clear something first', 2600, true);
     this.objs.set(o.id, o);
     this.send({ t: 'add', o });
     this.undoS.push({ t: 'add', id: o.id });
@@ -1227,7 +1231,7 @@ class Room {
   }
   undo() {
     const u = this.undoS.pop();
-    if (!u) return this.toast('Nothing to undo');
+    if (!u) return this.toast('Nothing to undo', 2600, true);
     if (u.t == 'add' && this.objs.has(u.id)) {
       this.objs.delete(u.id);
       this.send({ t: 'del', id: u.id });
@@ -1738,7 +1742,7 @@ class Room {
     this.closeEd();
     this.shotTool = this.tool;
     this.setTool('pan');
-    this.d.shot({ toast: t => this.toast(t, 4000) });
+    this.d.shot({ toast: (t, bad) => this.toast(t, 4000, bad) });
   }
   // ------------------------------------------------------------------- painting
   P(ll) {
@@ -2108,7 +2112,7 @@ class Room {
       ctx.stroke();
     }
     const lab =
-      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(brg(o.a, o.b)) + '° · ' + fmtNm(dist(o.a, o.b));
+      (o.lab || (o.k == 'hold' ? 'HOLD' : 'CAP')) + ' · ' + pad3(toMag(brg(o.a, o.b))) + '° · ' + fmtNm(dist(o.a, o.b));
     const lo = (o.k == 'hold' ? 0 : r) + 16,
       sg = o.k == 'hold' ? -1 : 1;
     this.text(
@@ -2170,7 +2174,7 @@ class Room {
       ctx.lineWidth = 1.5;
       ctx.stroke();
     });
-    const l1 = fmtNm(d) + ' · ' + pad3(br) + '°',
+    const l1 = fmtNm(d) + ' · ' + pad3(toMag(br)) + '°',
       l2 = fmtKm(d) + ' · ' + fmtFt(d);
     ctx.font = '700 12px system-ui';
     const w = Math.max(ctx.measureText(l1).width, ((ctx.font = '500 11px system-ui'), ctx.measureText(l2).width)) + 16;
@@ -2265,7 +2269,7 @@ class Room {
     ctx.fill();
     this.text(
       ctx,
-      pad3(br) + '° · ' + fmtNm(d),
+      pad3(toMag(br)) + '° · ' + fmtNm(d),
       e.x + 12 * Math.cos(an),
       e.y + 12 * Math.sin(an) + 4,
       '#fff',

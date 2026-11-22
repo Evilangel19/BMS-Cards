@@ -1,4 +1,4 @@
-import { BMS_TESTED } from '../core/version.js';
+import { BMS_TESTED, BMS_ALSO } from '../core/version.js';
 import {
   isDesktop,
   readBytes,
@@ -26,6 +26,8 @@ import {
 } from '../bmsdata/bmsdata.js';
 import { CAM } from '../core/cam-core.js';
 import { setGeo } from '../rules/geo.js';
+import { parseMagVar, setMagGrid } from '../core/magvar.js';
+import { terrMaxStart } from './terrmax.js';
 import { ocdPath } from '../core/targets.js';
 import { parseAtc, buildAirbases } from '../bmsdata/airbases.js';
 import { parseAip } from '../bmsdata/aip.js';
@@ -196,9 +198,40 @@ async function readGameData(reloadTheaters, stage = () => {}) {
             ST.TH.name +
             ' not found (or without the centre of the theater): the positions on the map are those of Korea, so they will be wrong.'
           : '';
-      if (g) setGeo(g.lat, g.lon);
+      if (g) setGeo(g.lat, g.lon, g.proj, g.sizeKm);
       else setGeo();
       ST.THGEO = g;
+      // the magnetic variation of the theater: <theater>\Weather\MagVarMap_<theater>.csv (TerrData\Korea\Weather, Add-On Balkans\Terrdata\Balkans\Weather ...)
+      let mg = null;
+      try {
+        if (ST.TH) {
+          const data = jp(inst, 'Data'),
+            up = d => (Array.isArray(d) ? d : String(d).split(/[\\/]+/)).filter(Boolean),
+            bases = [
+              ST.TH.terrain,
+              ST.TH.newterrain ? up(ST.TH.newterrain).slice(0, -1) : null,
+              ['TerrData', ST.TH.name],
+            ].filter(Boolean);
+          for (const b of bases) {
+            const wdir = jp(data, ...up(b), 'Weather');
+            let es = [];
+            try {
+              es = (await listDir(wdir)).filter(e => !e.isDirectory && /^magvarmap.*\.csv$/i.test(e.name));
+            } catch (e) {
+              es = [];
+            }
+            if (!es.length) continue;
+            const own =
+              es.find(e => e.name.toLowerCase() == ('magvarmap_' + up(b).slice(-1)[0] + '.csv').toLowerCase()) || es[0];
+            mg = parseMagVar(new TextDecoder('utf-8').decode(await readBytes(jp(wdir, own.name))));
+            if (mg) break;
+          }
+        }
+      } catch (e) {
+        mg = null;
+      }
+      setMagGrid(mg);
+      terrMaxStart(); // the highest ground of every km for the MSA: read from its file, else made in the background (terrmax.js)
       const gk = g ? g.lat + ',' + g.lon : 'k';
       const tk = (ST.TH ? ST.TH.name : '') + '|' + gk; // a theater whose centre is not read has the key of Korea: the theater name tells them apart
       if (tk !== ST.GEOKEY && !(ST.GEOKEY === 'k' && gk === 'k')) {
@@ -342,7 +375,9 @@ async function readGameData(reloadTheaters, stage = () => {}) {
             '), the game version is not checked.';
         else if (v.every(x => !x))
           bmsVerNote = 'Falcon BMS.exe has no version number (0.0.0.0), the game version is not checked.';
-        const cv = compareVersion(v, BMS_TESTED);
+        let cv = compareVersion(v, BMS_TESTED);
+        if (cv.level == 'other' && BMS_ALSO.some(t => compareVersion(v, t).level == 'ok'))
+          cv = { level: 'ok', text: cv.text };
         bmsVer = cv.text;
         bmsLevel = cv.level;
         if (cv.level == 'newer' || cv.level == 'other')

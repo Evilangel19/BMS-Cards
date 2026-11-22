@@ -29,6 +29,7 @@ class FakeDesk:
         self.app_dir = app_dir
         self.bms = bms
         self.files = {}     # key -> bytes
+        self.mtimes = {}    # key -> the time written (ms), as a disk gives it
         self.names = {}     # key -> the path as it was written
         self.dirs = {}      # key -> the path as it was written
         self.writes = []    # the paths written, in order (a write that failed is not here)
@@ -64,7 +65,7 @@ class FakeDesk:
     # ---- for the test
     def put(self, p, data):
         self.mk(self.up(p))
-        self.files[self.key(p)] = data.encode('utf8') if isinstance(data, str) else bytes(data); self.names[self.key(p)] = str(p)
+        self.files[self.key(p)] = data.encode('utf8') if isinstance(data, str) else bytes(data); self.names[self.key(p)] = str(p); self._tick = getattr(self, '_tick', 0) + 1; self.mtimes[self.key(p)] = 1700000000000 + self._tick * 1000
     def read(self, p): return self.files[self.key(p)]
     def text(self, p): return self.files[self.key(p)].decode('utf8')
     def has(self, p): return self.is_file(p) or self.is_dir(p)
@@ -144,7 +145,7 @@ class FakeDesk:
         if not self.is_dir(self.up(p)): self._missing(p)
         for rx, msg in self.fail:
             if re.search(rx, str(p)): raise PermissionError(msg)
-        self.files[self.key(p)] = data; self.names[self.key(p)] = str(p); self.writes.append(str(p))
+        self.files[self.key(p)] = data; self.names[self.key(p)] = str(p); self.writes.append(str(p)); self._tick = getattr(self, '_tick', 0) + 1; self.mtimes[self.key(p)] = 1700000000000 + self._tick * 1000
     def _op_writeFile(self, a): self._write(a['path'], base64.b64decode(a['data']), 'fs:allow-write-file')
     def _op_writeTextFile(self, a): self._write(a['path'], a['text'].encode('utf8'), 'fs:allow-write-text-file')
     def _op_exists(self, a):
@@ -173,7 +174,7 @@ class FakeDesk:
     def _op_stat(self, a):
         p = a['path']
         self._need('fs:allow-stat', p, 'stat')
-        if self.is_file(p): return {'isFile': True, 'isDirectory': False, 'isSymlink': False, 'size': len(self.read(p)), 'mtime': None, 'readonly': False}
+        if self.is_file(p): return {'isFile': True, 'isDirectory': False, 'isSymlink': False, 'size': len(self.read(p)), 'mtime': self.mtimes.get(self.key(p)), 'readonly': False}
         if self.is_dir(p): return {'isFile': False, 'isDirectory': True, 'isSymlink': False, 'size': 0, 'mtime': None, 'readonly': False}
         self._missing(p, 'file')
     def _op_open(self, a):

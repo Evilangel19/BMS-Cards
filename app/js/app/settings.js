@@ -14,10 +14,11 @@ import {
 } from '../platform/desktop.js';
 import { APP_VERSION } from '../core/version.js';
 import { ST } from './state.js';
-import { $, applyAnim, esc } from './base.js';
+import { $, animOn, applyAnim, esc, osNoMotion } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
 import { verCheck } from './ready.js';
-import { kbDir, kbMemLoad, kbRender } from './kneeboard.js';
+import { kbDir, kbMemLoad, kbRender, kbToneSample } from './kneeboard.js';
+import { toneRGBA } from '../core/tone.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
 import { mapV, sqPage } from './pages.js';
@@ -41,9 +42,15 @@ export const AUTO_HINT = { campaigns: () => campDir(), dtc: () => dtcDir(), knee
 export async function autoLoadLast() {
   const u = ST.CFG.ui || {};
   if (!isDesktop() || !u.autoLoad) return;
-  const c = u.lastCamp;
-  if (c && [...$('csel').options, ...$('tesel').options].some(o => o.value == c)) await selectCampaign(c);
-  const d = u.lastDtc;
+  const c = u.lastCamp,
+    d = u.lastDtc;
+  // a training mission opens its own DTC, unless the last DTC is opened just after (the last one opened wins, as before)
+  ST.TRAINSKIP = !!(d && (await fileExists(d)));
+  try {
+    if (c && [...$('csel').options, ...$('tesel').options].some(o => o.value == c)) await selectCampaign(c);
+  } finally {
+    ST.TRAINSKIP = false;
+  }
   if (d && (await fileExists(d))) {
     const b = await readBytes(d);
     await openDtc({
@@ -55,8 +62,13 @@ export async function autoLoadLast() {
 }
 
 // The sections of the window. The switches and boxes of a section tell which section has unsaved changes (a dot on its entry).
-const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'mission', 'map', 'data', 'help'];
-const SW_OF = { general: ['autoLoad', 'anim', 'upd', 'oneShot'], datacard: ['form', 'others', 'mfd'], map: ['sat'] };
+const SECTIONS = ['folders', 'diag', 'general', 'datacard', 'kneeboard', 'mission', 'map', 'data', 'help'];
+const SW_OF = {
+  general: ['autoLoad', 'anim', 'upd', 'oneShot', 'editTrain'],
+  datacard: ['form', 'others', 'mfd'],
+  kneeboard: ['toneOn', 'toneDark'],
+  map: ['sat'],
+};
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -75,6 +87,7 @@ function readForm(dlg) {
     sw,
     radius: rad === '' ? '' : clamp(+rad || 0, 0, 300),
     trackers: q('c-trk').value.trim(),
+    tone: { bright: +q('c-tb').value, contrast: +q('c-tc').value },
     sat: {
       url: q('c-url').value.trim(),
       key: q('c-key').value.trim(),
@@ -86,8 +99,9 @@ function readForm(dlg) {
 // the part of the values that belongs to a section
 const OF = {
   folders: v => v.paths,
-  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot],
+  general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot, v.sw.editTrain],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
+  kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
 };
@@ -176,8 +190,8 @@ export async function openSettings() {
     sw(
       'anim',
       'Animations',
-      'Short transitions (ignored when the system asks for reduced motion)',
-      ui.animations !== false
+      'Short transitions, and dragging the cards on the Kneeboard (on wins over the animations turned off in Windows)',
+      animOn()
     ) +
     sw(
       'upd',
@@ -191,6 +205,12 @@ export async function openSettings() {
       'A new map screenshot replaces the last one, on the same kneeboard page. Off: each screenshot is a new card.',
       !!ui.oneMapShot
     ) +
+    sw(
+      'editTrain',
+      'Edit TE and training DTCs',
+      'The DTC of a TE or training mission (the .ini next to its .tac or .trn, loaded by BMS for that mission instead of the callsign.ini) is preset by the mission: off, Write DTC never changes it. On: it can be written, after a warning (the original is kept once in backup\\dtc).',
+      !!ui.editTraining
+    ) +
     '</div>';
   const datacard =
     top('datacard', 'Datacard', 'What the Datacard and Data Cartridge pages show.') +
@@ -199,10 +219,73 @@ export async function openSettings() {
     sw(
       'others',
       'Other factions',
-      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side.',
+      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side. A TE has every faction open, with or without this.',
       !!ST.OBSERVER
     ) +
+    // in a squadron, not its commander: the switch does nothing (ato.js); said here
+    (ST.SQROLE && ST.SQROLE() == 'member'
+      ? '<p class="hint wbad" id="s-obsno" style="margin:-4px 0 8px">You are in a squadron and not its commander: the other factions stay hidden whatever this says.</p>'
+      : '') +
     sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
+    '</div>';
+  const kb = C.kneeboard || {},
+    slider = (id, lab, hint, lo, hi, v) =>
+      '<div class="s-rw s-tone"><div class="tx"><label class="tt" for="' +
+      id +
+      '">' +
+      lab +
+      '</label><p class="hint">' +
+      hint +
+      '</p></div><input id="' +
+      id +
+      '" type="range" min="' +
+      lo +
+      '" max="' +
+      hi +
+      '" step="1" value="' +
+      v +
+      '"><output id="' +
+      id +
+      'o">' +
+      v +
+      '</output></div>';
+  const kneeboard =
+    top(
+      'kneeboard',
+      'Kneeboard',
+      'The pages as BMS shows them: the cockpit makes them lighter and flatter than on screen.'
+    ) +
+    '<div class="s-gp">' +
+    sw(
+      'toneOn',
+      'Cockpit tone',
+      'The kneeboard pages written darker and with more contrast (all of them: cards, pictures, datacard, documents; the mipmaps too). The cards are kept as they are: change the values and write the kneeboard again.',
+      kb.toneOn !== false
+    ) +
+    slider(
+      'c-tb',
+      'Brightness',
+      'As in Photoshop (Brightness/Contrast). Less: the greys and the colours darker.',
+      -100,
+      100,
+      kb.toneBright ?? -50
+    ) +
+    slider(
+      'c-tc',
+      'Contrast',
+      'As in Photoshop. More: the light greys go to white, the dark ones to black.',
+      -50,
+      100,
+      kb.toneContrast ?? 100
+    ) +
+    sw(
+      'toneDark',
+      'Also on dark pages',
+      'The dark cards get the tone too (it darkens their light text a little)',
+      !!kb.toneDark
+    ) +
+    '<div class="s-rw"><div class="tx"><div class="tt">Preview</div><p class="hint">The top of the left page of the Kneeboard row chosen: as it is, and as it is written.</p></div><button type="button" class="btn g" data-a="tonedef" title="Brightness -50, Contrast 100: the values tried in the cockpit">Default (−50 / 100)</button></div>' +
+    '<div class="s-tonepv"><canvas id="c-tpv0" width="360" height="250"></canvas><canvas id="c-tpv1" width="360" height="250"></canvas></div>' +
     '</div>';
   const mission =
     top('mission', 'Mission & squadron', 'What a saved mission keeps, and how your squadron finds its pilots.').replace(
@@ -260,6 +343,7 @@ export async function openSettings() {
     '</div><div class="s-gl s-gap"><span>Preferences</span><i>optional</i></div>' +
     nav('general', 'General', 'sliders') +
     nav('datacard', 'Datacard', 'card') +
+    nav('kneeboard', 'Kneeboard', 'card') +
     nav('mission', 'Mission &amp; squadron', 'people') +
     nav('map', 'Map', 'map') +
     '<div class="s-gl s-gap"><span>Data</span><i>move or back up</i></div>' +
@@ -271,6 +355,7 @@ export async function openSettings() {
     page('diag', '') +
     page('general', general) +
     page('datacard', datacard) +
+    page('kneeboard', kneeboard) +
     page('mission', mission) +
     page('map', map) +
     page('data', '') +
@@ -326,7 +411,33 @@ export async function openSettings() {
       q('nv-' + p).setAttribute('aria-current', on ? 'page' : 'false');
     });
     if (id === 'help') helpFill(q('s-guide'));
+    if (id === 'kneeboard') tonePreview();
   };
+  // the preview of the Cockpit tone: the top of the left page of the Kneeboard row chosen, as it is and as it is written
+  let toneSrc = null;
+  function tonePreview() {
+    if (!toneSrc) toneSrc = kbToneSample(360, 250);
+    const v = readForm(dlg),
+      t = { on: v.sw.toneOn, bright: v.tone.bright, contrast: v.tone.contrast, dark: v.sw.toneDark };
+    q('c-tbo').textContent = String(v.tone.bright);
+    q('c-tco').textContent = String(v.tone.contrast);
+    [0, 1].forEach(i => {
+      const c = /** @type {HTMLCanvasElement} */ (q('c-tpv' + i)),
+        x = c.getContext('2d');
+      x.drawImage(toneSrc, 0, 0);
+      if (i) {
+        // the sample is one page: its tone as for a half of a kneeboard file
+        const im = x.getImageData(0, 0, c.width, c.height),
+          w = c.width,
+          h = c.height,
+          d2 = new Uint8ClampedArray(w * 2 * h * 4);
+        for (let y = 0; y < h; y++) d2.set(im.data.subarray(y * w * 4, (y + 1) * w * 4), y * w * 8);
+        toneRGBA(d2, w * 2, h, t);
+        for (let y = 0; y < h; y++) im.data.set(d2.subarray(y * w * 8, y * w * 8 + w * 4), y * w * 4);
+        x.putImageData(im, 0, 0);
+      }
+    });
+  }
 
   // folders: what each one is (found, automatic, not found ...), said next to its name
   const seq = {};
@@ -368,7 +479,6 @@ export async function openSettings() {
           : '<span class="s-okm">' + ic('check', 's') + '</span>';
   }
   const allFolders = () => CFG_PATHS.forEach(([k]) => folderStatus(k));
-  const placeholders = () => CFG_PATHS.forEach(([k]) => (q('f-' + k).placeholder = ph(k)));
   function fillDiag() {
     q('p-diag').innerHTML = diagInner(prog, reportOpen);
     const n = warnCount(),
@@ -399,12 +509,22 @@ export async function openSettings() {
     n.ui = {
       ...(n.ui || {}),
       animations: v.sw.anim,
+      // on with Windows without animations: the program has them anyway; off: off, whatever Windows says
+      osMotion: v.sw.anim && osNoMotion() ? 'on' : (n.ui || {}).osMotion || '',
       showMfd34: v.sw.mfd,
       autoLoad: v.sw.autoLoad,
       oneMapShot: v.sw.oneShot,
       checkUpdates: v.sw.upd,
+      editTraining: v.sw.editTrain,
     };
     n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
+    n.kneeboard = {
+      ...(n.kneeboard || {}),
+      toneOn: v.sw.toneOn,
+      toneBright: v.tone.bright,
+      toneContrast: v.tone.contrast,
+      toneDark: v.sw.toneDark,
+    };
     n.mission = {
       ...(n.mission || {}),
       radiusNm: v.radius === '' ? ((ST.CFG.mission && ST.CFG.mission.radiusNm) ?? 60) : v.radius,
@@ -479,16 +599,12 @@ export async function openSettings() {
         }
       }
       fillCampaigns();
-      if (dlg.open) {
-        placeholders();
-        allFolders();
-        fillDiag();
-        refresh();
-      }
+      // saved: the window closes (its steps are easy to undo, and the import of settings asks on its own)
+      if (dlg.open) dlg.close();
     } catch (e) {
       loading = false;
       if (dlg.open) refresh();
-      alert('Could not save settings: ' + ((e && e.message) || e));
+      alert('Could not save settings: ' + ((e && e.message) || e), 'bad');
     }
   }
 
@@ -501,10 +617,16 @@ export async function openSettings() {
     else if (a === 'close') dlg.close();
     else if (a === 'save') save();
     else if (a === 'guidepdf') helpPdf();
-    else if (a === 'sw') {
+    else if (a === 'tonedef') {
+      /** @type {HTMLInputElement} */ (q('c-tb')).value = '-50';
+      /** @type {HTMLInputElement} */ (q('c-tc')).value = '100';
+      tonePreview();
+      refresh();
+    } else if (a === 'sw') {
       const on = !b.classList.contains('on');
       setSwitch(b, on);
       if (b.dataset.k === 'sat') setOpen(q('satbox'), on);
+      if (b.dataset.k === 'toneOn' || b.dataset.k === 'toneDark') tonePreview();
       refresh();
     } else if (a === 'report') {
       reportOpen = !reportOpen;
@@ -532,6 +654,7 @@ export async function openSettings() {
     if (t.id === 'c-rad') t.value = t.value.replace(/\D/g, '').slice(0, 3);
     else if (t.id === 'c-zoom') t.value = t.value.replace(/\D/g, '').slice(0, 2);
     if (t.id === 'c-rad' && +t.value > 300) t.value = '300';
+    if (t.id === 'c-tb' || t.id === 'c-tc') tonePreview();
     const k = t.id.startsWith('f-') && t.id.slice(2);
     if (k) {
       clearTimeout(later[k]);
@@ -575,7 +698,7 @@ export function stepper(i) {
   }
   b.onclick = e => {
     const t = e.target.closest('button');
-    if (!t) return;
+    if (!t || i.disabled) return; // a locked box stays as it is
     try {
       t === b.firstChild ? i.stepUp() : i.stepDown();
     } catch (x) {}
@@ -600,7 +723,8 @@ export async function checkAppFolder() {
       r.dir +
       '\n\nThe settings, the squadron, the missions, the kneeboard cards and the backups of the DTC and kneeboard files are kept there: nothing would be saved. ' +
       MOVE_HINT +
-      (r.why ? '\n\n(' + r.why + ')' : '')
+      (r.why ? '\n\n(' + r.why + ')' : ''),
+    'bad'
   );
   return false;
 }
@@ -613,7 +737,8 @@ onSaveFail((name, e) => {
       ' in the folder of the program (' +
       String((e && e.message) || e || 'error') +
       ').\n\nIf the folder cannot be written (Program Files, a protected, read-only or synced folder, a full disk), your changes are not kept. ' +
-      MOVE_HINT
+      MOVE_HINT,
+    'bad'
   );
 });
 
@@ -641,18 +766,42 @@ async function configBlocked(r) {
   try {
     await saveConfig(ST.CFG);
   } catch (e) {
-    alert('config.json could not be written: ' + ((e && e.message) || e));
+    alert('config.json could not be written: ' + ((e && e.message) || e), 'bad');
   }
+}
+// Windows has its animations turned off: asked once whether the program has them (they also allow dragging the Kneeboard cards); the answer is kept
+async function askMotion() {
+  const u = ST.CFG.ui || (ST.CFG.ui = {});
+  if (!osNoMotion() || u.osMotion || u.animations === false) return;
+  if (navigator.webdriver && !(/** @type {any} */ (window).__askMotion)) return; // the tests run without animations, unasked (tools/motion-test.py asks)
+  const yes = await confirm(
+    'Do you want the animations?\n\nWindows has them turned off. In BMS Cards they also allow dragging the cards on the Kneeboard. You can change it later in Settings > General > Animations.',
+    { ok: 'Yes', no: 'No' }
+  );
+  u.osMotion = yes ? 'on' : 'off';
+  applyAnim();
+  try {
+    await saveConfig(ST.CFG);
+  } catch (e) {
+    /* asked again next time */
+  }
+  if (yes && document.querySelector('#kn:not(.hide)')) kbRender();
 }
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
+  // the User Guide of the main bar: Settings open on it
+  $('guidebtn').onclick = () => {
+    LAST = 'help';
+    openSettings();
+  };
   const boot = loadConfig()
     .then(async r => {
       ST.CFG = r.config;
       applyAnim();
+      await askMotion();
       if (r.blocked) await configBlocked(r);
-      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'));
+      else if (r.warnings.length) alert('Settings: ' + r.warnings.join('\n'), 'bad');
       kbMemLoad();
       await loadGameData();
       await fillCampaigns();

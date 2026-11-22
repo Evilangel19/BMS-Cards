@@ -2,6 +2,7 @@
 // phase (every topic chosen). One card when everything fits; else ROE on one card and SOP on another (more SOP cards only when even the smaller text
 // does not fit). Drawn on a canvas of the size of a Kneeboard card (800 x 1200, at 2x).
 import { fullText } from '../core/roesop.js';
+import { inkCard } from '../core/cardink.js';
 
 const W = 1600,
   H = 2400,
@@ -64,6 +65,7 @@ const HEAD = 110, // the title of the card
   BAND = 68; // the band with the name of a part
 // the cards (one or two): [{title: 'ROE / SOP' | 'ROE / SOP (2)', parts: [[name, lines, k]]}]; plan.cut when the end did not fit
 export function roeCardPlan(sel, x) {
+  inkCard(x);
   const T = fullText(sel),
     room = H - 2 * M - HEAD,
     R = blocksOf(T, 'roe'),
@@ -131,6 +133,7 @@ export function roeCardPlan(sel, x) {
 }
 // draws one card; sub = the flight or the preset
 export function roeCardDraw(c, x, sub) {
+  inkCard(x);
   x.fillStyle = '#fff';
   x.fillRect(0, 0, W, H);
   x.fillStyle = '#111';

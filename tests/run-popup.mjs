@@ -114,12 +114,12 @@ const d = computePopup(T, R, { oa2Mode: 'target' }),
   e = computePopup(T, R, { oa2Mode: 'egress', egressRange: 8000 }),
   f = computePopup(T, R, {});
 ck(
-  'OA2: off by default, on the target, or out along the egress',
+  'OA2: off by default, on the target, or out along the egress from the release point',
   f.oa2 === null &&
     f.offsets.oa2 === null &&
     near(dist(d.oa2, T), 0, 0.001) &&
-    near(dist(e.oa2, T), 8000, 0.01) &&
-    near(bearing(T, e.oa2), e.v.attackHeading, 0.01) &&
+    near(dist(e.oa2, e.release), 8000, 0.01) &&
+    near(bearing(e.release, e.oa2), e.v.attackHeading, 0.01) &&
     d.offsets.oa2.rng === 20000 &&
     d.offsets.oa2.brg === 360
 );
@@ -127,10 +127,10 @@ const g1 = computePopup(T, R, { oa2Mode: 'egress', egressTurn: 'left', egressAng
   g2 = computePopup(T, R, { oa2Mode: 'egress', egressTurn: 'right', egressAngle: 30 });
 ck(
   'egress turn: none keeps the attack heading, left / right turn by the angle',
-  near(norm(bearing(T, e.oa2) - e.v.attackHeading), 0, 0.01) &&
-    near(norm(g1.v.attackHeading - bearing(T, g1.oa2)), 60, 0.01) &&
-    near(norm(bearing(T, g2.oa2) - g2.v.attackHeading), 30, 0.01) &&
-    near(dist(g1.oa2, T), 10000, 0.01)
+  near(norm(bearing(e.release, e.oa2) - e.v.attackHeading), 0, 0.01) &&
+    near(norm(g1.v.attackHeading - bearing(g1.release, g1.oa2)), 60, 0.01) &&
+    near(norm(bearing(g2.release, g2.oa2) - g2.v.attackHeading), 30, 0.01) &&
+    near(dist(g1.oa2, g1.release), 10000, 0.01)
 );
 ck(
   'turn G is a whole number 3-5 by default',
@@ -232,7 +232,7 @@ ck(
     'egress heading set: absolute heading 1-360, and the OA2 lies on it',
     near(eh(250).v.egressHeading, 250, 0.01) &&
       near(norm(eh(360).v.egressHeading), 0, 0.01) &&
-      near(bearing(eh(250).target, eh(250).oa2), 250, 1)
+      near(bearing(eh(250).release, eh(250).oa2), 250, 0.01)
   );
 }
 console.log(bad ? 'popup: ' + bad + ' FAILED' : 'popup: ' + n + '/' + n + ' checks passed');

@@ -7,7 +7,9 @@ import {
   pickFile,
   readBytes,
   listDir,
+  fileSize,
 } from '../platform/desktop.js';
+import * as MX from '../core/misindex.js';
 import { getGeo } from '../rules/geo.js';
 import { APP_VERSION } from '../core/version.js';
 import * as PJ from '../core/mission.js';
@@ -15,10 +17,10 @@ import { parseDtc } from '../parsers/dtc.js';
 import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { $, IO, appToast, enc8, esc, jclone } from './base.js';
-import { DTCTEXT, S, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
+import { DTCTEXT, S, addSection, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
-import { harmPage, mapV, pfPage, sqPage } from './pages.js';
+import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage, faorPage, ocaPage, qraPage } from './pages.js';
 import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
@@ -85,10 +87,19 @@ export async function wxUnpack(t) {
     s = new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate'));
   return new Uint8Array(await new Response(s).arrayBuffer());
 }
-// the weapons data (Weapons page, HARM and BVR pages): an attack profile travels with the mission
+// the weapons data (A-G page, HARM and A-A pages): an attack profile travels with the mission
 export function msfWeapons() {
   try {
-    return { wp: jclone(ST.wpPage.state()), harm: jclone(harmPage.state()), bvr: jclone(ST.msPage.state()) };
+    return {
+      wp: jclone(ST.wpPage.state()),
+      harm: jclone(harmPage.state()),
+      sead: jclone(seadPage.state()),
+      dead: jclone(deadPage.state()),
+      bvr: jclone(ST.msPage.state()),
+      faor: faorPage ? jclone(faorPage.state()) : null,
+      oca: ocaPage ? jclone(ocaPage.state()) : null,
+      qra: qraPage ? jclone(qraPage.state()) : null,
+    };
   } catch (e) {
     return null;
   }
@@ -164,7 +175,12 @@ export async function msfBuild() {
       d = an && (await perfAcGet(an));
     if (d) aircraft = { name: an, perf: d };
   } catch (e) {}
-  return PJ.buildMission({
+  let squadron = '';
+  try {
+    const q = ST.C.byId[x.f.sqd.n + ':' + x.f.sqd.c];
+    squadron = (q && ST.C.squads && ST.C.squads[q.id.n]) || '';
+  } catch (e) {}
+  const msf = PJ.buildMission({
     app: 'BMS Cards',
     name: msfName(x),
     flight: x.f.id.n + ':' + x.f.id.c,
@@ -177,9 +193,15 @@ export async function msfBuild() {
     weather: await wxBuild(x.f),
     aircraft,
     tanks: mapV.tanks(),
+    mapstyle: mapV.style(),
     weapons: msfWeapons(),
     mapshot: ST.MAPSHOT ? ST.MAPSHOT.toDataURL('image/png') : null,
   });
+  msf.squadron = squadron; // the squadron of the flight in the campaign (searched in Squadron > Missions)
+  try {
+    msf.osquad = (sqPage && sqPage.current && sqPage.current()) || ''; // the online squadron of the player (grouped by squadron)
+  } catch (e) {}
+  return msf;
 }
 export async function msfSave() {
   try {
@@ -208,7 +230,7 @@ export async function msfSave() {
     ST.XBASE = extraSig();
     appToast('Mission saved in: ' + dir);
   } catch (e) {
-    alert('Could not save the mission: ' + ((e && e.message) || e));
+    alert('Could not save the mission: ' + ((e && e.message) || e), 'bad');
   }
 }
 // ---- missions to send to other pilots ----
@@ -227,23 +249,87 @@ export async function msfSources() {
   } catch (e) {}
   return out;
 }
-// the missions saved in the missions folder (the ones that were received too): [{id (the file), name}]
-// each one with the date it was created (read from the first bytes of the file: a mission can weigh several MB), newest first
-export async function msfList() {
-  const L = (await msfSources()).filter(x => x.id);
-  for (const x of L) {
-    x.created = '';
-    try {
-      const h = await IO.readRange(x.id, 0, 600),
-        t = h ? new TextDecoder().decode(h) : '',
-        c = /"created"\s*:\s*"([^"]+)"/.exec(t);
-      if (c && !isNaN(Date.parse(c[1]))) x.created = c[1];
-    } catch (e) {
-      /* no date */
-    }
+// ---- the saved missions put in order: virtual folders and what is shown of each mission, in missions/index.json (core/misindex.js)
+let MIX = null;
+// the file access of the list: the desktop app, or a stand-in set by the tests (window.__msfIO)
+const mio = () =>
+  (typeof window != 'undefined' && window.__msfIO) ||
+  (isDesktop()
+    ? {
+        list: async () => (await msfSources()).filter(x => x.id).map(x => ({ key: x.label, id: x.id })),
+        size: id => fileSize(id),
+        text: id => msfText(id),
+        readIndex: async () => new TextDecoder().decode(await readBytes(joinPath(await missionsBase(), 'index.json'))),
+        writeIndex: async t => IO.writeBytes(joinPath(await missionsBase(), 'index.json'), enc8(t)),
+      }
+    : null);
+async function msfIndex(io) {
+  if (MIX) return MIX;
+  try {
+    MIX = MX.cleanIndex(JSON.parse(await io.readIndex()));
+  } catch (e) {
+    MIX = MX.blankIndex();
   }
+  return MIX;
+}
+async function msfIndexSave(io = mio()) {
+  if (io && MIX) await io.writeIndex(JSON.stringify(MIX));
+}
+// the missions saved in the missions folder (the ones that were received too): [{id (the file), label (its folder), created, folder, meta, from, squad}],
+// newest first. What is shown of a mission is read once from its file (a mission can weigh several MB) and kept in the index until the file changes.
+export async function msfList() {
+  const io = mio();
+  if (!io) return [];
+  const ix = await msfIndex(io),
+    L = await io.list();
+  let ch = MX.prune(
+    ix,
+    L.map(x => x.key)
+  );
+  for (const x of L) {
+    const it = ix.items[x.key] || (ix.items[x.key] = { folder: null, size: -1, meta: null, from: '', squad: '' });
+    let sz = -1;
+    try {
+      sz = await io.size(x.id);
+    } catch (e) {}
+    if (!it.meta || it.size !== sz) {
+      try {
+        it.meta = MX.metaOf(JSON.parse(await io.text(x.id)));
+      } catch (e) {
+        it.meta = { created: '' };
+      }
+      it.size = sz;
+      ch = true;
+    }
+    Object.assign(x, {
+      label: x.key,
+      created: it.meta.created || '',
+      meta: it.meta,
+      folder: it.folder,
+      from: it.from,
+      squad: it.squad,
+    });
+  }
+  if (ch) await msfIndexSave(io);
   return L.sort((a, b) => (b.created || '').localeCompare(a.created || '') || a.label.localeCompare(b.label));
 }
+// the virtual folders: the tree, and the changes (each one saved at once)
+export const msfFolders = async () => {
+  const io = mio();
+  return io ? MX.tree(await msfIndex(io)) : [];
+};
+const msfIdxDo = async fn => {
+  const io = mio();
+  if (!io) return null;
+  const r = fn(await msfIndex(io));
+  await msfIndexSave(io);
+  return r;
+};
+export const msfFolderAdd = (name, parent) => msfIdxDo(ix => MX.addFolder(ix, name, parent));
+export const msfFolderRename = (id, name) => msfIdxDo(ix => MX.renameFolder(ix, id, name));
+export const msfFolderDel = id => msfIdxDo(ix => MX.deleteFolder(ix, id));
+export const msfFolderMove = (id, parent) => msfIdxDo(ix => MX.moveFolder(ix, id, parent));
+export const msfMove = (keys, fid) => msfIdxDo(ix => MX.moveTo(ix, keys, fid));
 // the text of a saved mission file (to open it again)
 export const msfText = async id => new TextDecoder().decode(await readBytes(id));
 // deletes the folder of a saved mission (never the ones sent to the other pilots); true when it is gone
@@ -251,10 +337,15 @@ export async function msfRemove(id) {
   const base = await missionsBase(),
     dir = id.replace(/[\\/][^\\/]*$/, '');
   if (!dir || dir === base || !dir.startsWith(base)) throw new Error('This is not a mission folder.');
-  return IO.removeDir(dir);
+  const ok = await IO.removeDir(dir);
+  if (ok && MIX) {
+    delete MIX.items[dir.replace(/^.*[\\/]/, '')];
+    await msfIndexSave().catch(() => {});
+  }
+  return ok;
 }
 // a mission received from another pilot is kept in the missions folder (desktop app) under its own name; one that exists already is never overwritten: " (2)", " (3)"...; returns the folder or null
-export async function msfStoreReceived(text, name) {
+export async function msfStoreReceived(text, name, from = '', squad = '') {
   if (!isDesktop()) return null;
   const r = PJ.parseMission(text);
   if (r.error) throw new Error(r.error);
@@ -266,6 +357,15 @@ export async function msfStoreReceived(text, name) {
   const dir = joinPath(base, n);
   await IO.makeDir(dir);
   await IO.writeBytes(joinPath(dir, PJ.missionFolder.file(n)), enc8(text));
+  // who sent it, for the list (Squadron > Missions)
+  try {
+    const io = mio();
+    if (io) {
+      const ix = await msfIndex(io);
+      ix.items[n] = { folder: null, size: -1, meta: null, from: String(from || ''), squad: String(squad || '') };
+      await msfIndexSave(io);
+    }
+  } catch (e) {}
   return dir;
 }
 const msfRead = async id => {
@@ -290,17 +390,22 @@ function askBlock(g, diff, warns, dtcName, author) {
     o.id = 'msfgrp';
     o.style.cssText =
       'position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
+    const miss = diff.missing || [];
     o.innerHTML = `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">DTC data of the mission${author && author.callsign ? ' · from ' + esc(author.callsign) : ''}</h3>
  <div style="margin-bottom:8px">Applied to your open DTC <b>${esc(dtcName || '')}</b>: ${esc(g.label)}. These data replace yours so the points of the two DTCs never mix; the rest of your DTC (MFD, EWS, radio, Link 16...) is not touched.</div>
  <div class="hint" style="margin-bottom:8px">${diff.change} lines change · ${diff.add} new · ${diff.clear} of yours emptied · ${diff.same} already equal</div>
  ${warns.map(w => `<div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ ${esc(w)}</div>`).join('')}
+ ${miss.length ? `<label style="display:flex;gap:8px;align-items:flex-start;margin:8px 0;padding:6px 9px;border:1px solid var(--line);border-radius:6px;cursor:pointer"><input type="checkbox" data-add checked style="width:auto;margin-top:2px"><span><b>Add the missing sections</b> ${esc(miss.map(x => '[' + x + ']').join(', '))}: your DTC does not have them yet (a new DTC), they are added with the values of the mission (${diff.lost} lines). Off: those lines are not applied.</span></label>` : ''}
  <div class="hint" style="margin-top:8px">It stays in the program until you write the DTC (Write button of the DTC page): nothing in BMS changes before that.</div>
  <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px"><button class="btn g" data-x>Do not apply</button><button class="btn g gn" data-ok>Apply to my DTC</button></div></div>`;
     const done = v => {
       o.remove();
       res(v);
     };
-    o.querySelector('[data-ok]').onclick = () => done(true);
+    o.querySelector('[data-ok]').onclick = () => {
+      const a = /** @type {HTMLInputElement|null} */ (o.querySelector('[data-add]'));
+      done({ add: !!(a && a.checked) });
+    };
     o.querySelector('[data-x]').onclick = () => done(false);
     document.body.append(o);
   });
@@ -340,7 +445,7 @@ function askNoDtc(author) {
       'position:fixed;inset:0;z-index:2000;background:#000b;display:flex;align-items:center;justify-content:center';
     o.innerHTML = `<div style="background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 22px;max-width:560px;width:92%;max-height:86vh;overflow:auto;color:var(--tx);font:13px system-ui,sans-serif;box-shadow:0 10px 30px #000a"><h3 style="margin:0 0 6px;font-size:15px">No DTC is open${author && author.callsign ? ' · mission from ' + esc(author.callsign) : ''}</h3>
  <div style="margin-bottom:8px">The mission brings its DTC data (steerpoints, targets, PPT, lines, weapon targets, nav offsets, bomb profiles, laser codes, Bingo / Alow): they go into <b>your own DTC</b>, and no DTC is open. ${esc(why)}</div>
- <div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ Without a DTC the mission opens without them: the map, the Weapons page and the Data Cartridge do not show the points of the mission.</div>
+ <div style="margin:6px 0;padding:6px 9px;border:1px solid #c90;border-radius:6px;color:#fc6">⚠ Without a DTC the mission opens without them: the map, the A-G page and the Data Cartridge do not show the points of the mission.</div>
  <div class="bar" style="margin-top:14px;justify-content:flex-end;gap:8px;flex-wrap:wrap"><button class="btn g" data-x>Cancel</button><button class="btn g" data-skip>Open without the DTC data</button><button class="btn g gn" data-ok>Open my DTC…</button></div></div>`;
     const done = v => {
       removeEventListener('keydown', esc0, true);
@@ -392,31 +497,31 @@ async function msfShared(d) {
         cs +
         '.ini" for you, so this may not be the DTC used in the game.'
     );
-  if (diff.missing.length)
-    warns.push(
-      'Your DTC has no section ' +
-        diff.missing.map(x => '[' + x + ']').join(', ') +
-        ': ' +
-        diff.lost +
-        ' lines of the mission cannot be applied. This DTC may not be compatible with the mission.'
-    );
   if (diff.add > 0)
     warns.push(
       diff.add +
         ' lines of the mission do not exist in your DTC (a different DTC layout or version?) and will be added. The mission may not be compatible with this DTC.'
     );
-  if (!(await askBlock(g, diff, warns, ST.name, d.author))) return false;
-  const r = PJ.applyShare((a, b, c) => S(a, b, c), groups, [g.id], cur);
+  const ans = await askBlock(g, diff, warns, ST.name, d.author);
+  if (!ans) return false;
+  // the sections the DTC does not have yet (a new DTC, without those WDP adds): made, so the lines of the mission go in
+  if (ans.add) diff.missing.forEach(s => addSection(s));
+  const r = PJ.applyShare(
+    (a, b, c) => S(a, b, c),
+    groups,
+    [g.id],
+    ans.add ? lines.map(l => ({ s: l.s, k: l.k, v: l.v })) : cur
+  );
   dtcReloaded();
   dtcBtns();
   $('fn').textContent = ST.name + ' · mission applied (' + r.n + ' lines)';
-  if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.');
+  if (r.skipped) appToast(r.skipped + ' lines were NOT applied: your DTC has no section for them.', true);
   return r.n > 0;
 }
 // true when the mission was opened (false: refused, cancelled or failed; the program is as it was)
 export async function msfLoad(text, file) {
   const no = m => {
-    if (m) alert(m);
+    if (m) alert(m, 'bad');
     return false;
   };
   const r = PJ.parseMission(text);
@@ -544,6 +649,7 @@ export async function msfLoad(text, file) {
     ST.WX = wxNow;
     try {
       mapV.setTanks(Array.isArray(p.tanks) ? p.tanks : []);
+      mapV.setStyle(p.mapstyle || null);
     } catch (e) {}
     let i = ST.CL.findIndex(x => x.f.id.n + ':' + x.f.id.c == p.datacard.flight);
     if (i < 0) i = 0;
@@ -584,7 +690,12 @@ export async function msfLoad(text, file) {
       try {
         w.wp && ST.wpPage.setState(w.wp);
         w.harm && harmPage.setState(w.harm);
+        w.sead && seadPage.setState(w.sead);
+        w.dead && deadPage.setState(w.dead);
         w.bvr && ST.msPage.setState(w.bvr);
+        w.faor && faorPage && faorPage.setState(w.faor);
+        w.oca && ocaPage && ocaPage.setState(w.oca);
+        w.qra && qraPage && qraPage.setState(w.qra);
       } catch (e) {}
     }
     const d = p.datacard;
@@ -649,6 +760,7 @@ export function msfSnapshot() {
   s.html = { fsel: $('fsel').innerHTML, sel: $('fsel').value, cinfo: $('cinfo').textContent, fn: $('fn').textContent };
   try {
     s.tanks = jclone(mapV.tanks());
+    s.mapstyle = mapV.style();
   } catch (e) {
     s.tanks = [];
   }
@@ -676,6 +788,7 @@ export function msfRestore(s) {
   dtcBtns();
   try {
     mapV.setTanks(s.tanks);
+    mapV.setStyle(s.mapstyle || null);
   } catch (e) {}
   try {
     if (mapV.isReady()) mapV.refreshDtc();
@@ -683,7 +796,12 @@ export function msfRestore(s) {
   try {
     s.weapons && s.weapons.wp && ST.wpPage.setState(s.weapons.wp);
     s.weapons && s.weapons.harm && harmPage.setState(s.weapons.harm);
+    s.weapons && s.weapons.sead && seadPage.setState(s.weapons.sead);
+    s.weapons && s.weapons.dead && deadPage.setState(s.weapons.dead);
     s.weapons && s.weapons.bvr && ST.msPage.setState(s.weapons.bvr);
+    s.weapons && s.weapons.faor && faorPage && faorPage.setState(s.weapons.faor);
+    s.weapons && s.weapons.oca && ocaPage && ocaPage.setState(s.weapons.oca);
+    s.weapons && s.weapons.qra && qraPage && qraPage.setState(s.weapons.qra);
   } catch (e) {}
   try {
     view();
@@ -695,12 +813,12 @@ export function msfRestore(s) {
 export let MSFSIG = '';
 export const dtcDirty = () => lines.some(l => l.dirty);
 // the values of the DTC (not the 'edited' marks, which a Save DTC clears: saving the file is not a change of the mission)
-// what a mission holds besides the datacard and the DTC: Weapons, HARM and BVR pages, tanker tracks, the map picture
+// what a mission holds besides the datacard and the DTC: Weapons, HARM and A-A pages, tanker tracks, the map picture
 export const extraSig = () => {
   try {
     const w = msfWeapons();
     if (w && w.wp) delete w.wp.fz; // read back from the DTC by the page when it opens: the DTC lines already count
-    return JSON.stringify([w, mapV.tanks(), ST.MAPSHOT ? [ST.MAPSHOT.width, ST.MAPSHOT.height] : 0]);
+    return JSON.stringify([w, mapV.tanks(), mapV.style(), ST.MAPSHOT ? [ST.MAPSHOT.width, ST.MAPSHOT.height] : 0]);
   } catch (e) {
     return '';
   }

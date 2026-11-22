@@ -1,0 +1,1512 @@
+/* Weapons > Target: the target picture (core/tgtpage.js). Every rule starts with .tgp or .tgdlg. */
+.tgp [hidden] {
+  display: none !important;
+}
+.tgp {
+  /* three columns as the Pop-up tab: the picture as wide as the horizontal envelope */
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr) 400px;
+  grid-template-areas: 'l c r';
+  gap: 12px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .tgp {
+    grid-template-columns: 1fr;
+    grid-template-areas: 'l' 'c' 'r';
+  }
+}
+.tgp .tgleft,
+.tgp .tgright {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  grid-area: l;
+}
+.tgp .tgright {
+  grid-area: r;
+}
+.tgp .tgc {
+  grid-area: c;
+}
+.tgp .wcard h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tgp .tgh {
+  margin-left: auto;
+  color: var(--mu);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: 11.5px;
+}
+.tgp .hint {
+  font-size: 12px;
+  margin: 6px 0 0;
+}
+.tgp .btn {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+.tgp .tgadd,
+.tgp .tgfill {
+  width: 100%;
+  margin-top: 4px;
+}
+.tgp .tgrowt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  margin-bottom: 5px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: none;
+  color: var(--tx);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    border-color 0.15s;
+}
+.tgp .tgrowt:hover {
+  background: #ffffff0a;
+}
+.tgp .tgrowt.on {
+  background: #13301f;
+  border-color: var(--ac);
+}
+.tgp .tgrowt b {
+  min-width: 58px;
+  font-size: 11px;
+  color: var(--mu);
+}
+.tgp .tgrowt span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.tgp .tgrowt > span {
+  flex: 1;
+}
+.tgp .tgx {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: var(--mu);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.6;
+  transition:
+    opacity 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.tgp .tgrowt:hover .tgx {
+  opacity: 1;
+}
+.tgp .tgx:hover {
+  color: #ff5d5d;
+  border-color: #ff5d5d66;
+  background: #ff5d5d14;
+}
+.tgp .tgrowt small {
+  color: var(--mu);
+  font-size: 11px;
+}
+.tgp .seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.tgp .seg button,
+.tgp .tgtools button,
+.tgp .tgchips button {
+  padding: 4px 9px;
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s,
+    transform 0.15s;
+}
+.tgp .seg button:last-child {
+  border-right: 0;
+}
+.tgp .seg button.on,
+.tgp .tgtools button.on,
+.tgp .tgchips button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.tgp .seg button:not(.on):hover,
+.tgp .tgtools button:not(.on):hover,
+.tgp .tgchips button:not(.on):hover {
+  background: #1a212b;
+  color: var(--tx);
+}
+.tgp .tgtools button:active,
+.tgp .tgchips button:active {
+  transform: scale(0.97);
+}
+.tgp .tgtools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+.tgp .tgtools button,
+.tgp .tgchips button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+.tgp .tgchips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.tgp .tgrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+.tgp .tgrow .hint {
+  margin: 0;
+}
+.tgp .tgsec {
+  margin-top: 6px;
+}
+.tgp .tgsl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.tgp .tgsl > span {
+  width: 62px;
+  flex: none;
+}
+.tgp .tgsl input,
+.tgp .tgsl textarea {
+  flex: 1;
+  min-width: 0;
+}
+.tgp .tgrem {
+  align-items: flex-start;
+}
+.tgp .tgremt {
+  min-height: 64px;
+  resize: vertical;
+}
+.tgp .tgpen {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  color: var(--mu);
+  font-size: 12px;
+}
+.tgp .tgpen input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.tgp .tgcols {
+  display: flex;
+  gap: 5px;
+}
+.tgp .tgcols i {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 2px solid #4a586b;
+  transition:
+    border-color 0.15s,
+    transform 0.15s;
+}
+.tgp .tgcols i:hover {
+  transform: scale(1.1);
+}
+.tgp .tgcols i.on {
+  border-color: #fff;
+}
+.tgp .tgdrop {
+  display: block;
+  border: 1.5px dashed #3a4758;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+  color: var(--mu);
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s;
+}
+.tgp .tgdrop:hover,
+.tgp .tgdrop.hot {
+  border-color: var(--ac);
+  background: #13301f;
+}
+.tgp .tgdrop u {
+  color: var(--ac);
+}
+.tgp .tgok {
+  color: var(--ac);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.tgp .tgc {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.tgp .tgbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tgp .tgsp {
+  flex: 1;
+}
+.tgp .tginfo {
+  margin: 0;
+}
+.tgp .tgstage {
+  position: relative;
+}
+.tgp .tgstage > canvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 4px;
+  background: #000;
+  touch-action: none;
+}
+.tgp .tgmap {
+  position: relative;
+  height: 620px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d1b2a;
+}
+.tgp .tgmap #mpmap {
+  position: absolute;
+  inset: 0;
+}
+.tgp .tged {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  background: var(--card);
+  border: 1px solid #3a4758;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 6px 18px #000a;
+  z-index: 5;
+}
+.tgp .tged[hidden] {
+  display: none;
+}
+.tgp .tged input {
+  width: 240px;
+}
+.tgp .tgapp {
+  animation: tgapp 0.22s ease-out;
+}
+@keyframes tgapp {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+/* the window of the Kneeboard cards */
+.tgdlg {
+  background: var(--card);
+  color: var(--tx);
+  border: 1px solid #3a4758;
+  border-radius: 10px;
+  padding: 14px 16px;
+  /* as wide as its cards (four in a row), never with a bar to scroll sideways */
+  width: fit-content;
+  min-width: min(620px, 94vw);
+  max-width: 96vw;
+}
+.tgdlg::backdrop {
+  background: #0008;
+}
+.tgdlg h3 {
+  margin: 0 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ac);
+}
+.tgdlg .tgcards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin: 12px 0;
+}
+.tgdlg .tgcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #10161d;
+  color: var(--mu);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition:
+    border-color 0.15s,
+    background-color 0.15s,
+    color 0.15s,
+    transform 0.15s;
+}
+.tgdlg .tgcard:active {
+  transform: scale(0.98);
+}
+.tgdlg .tgcard.on {
+  border-color: var(--ac);
+  background: #13301f;
+  color: var(--tx);
+}
+.tgdlg .tgcard canvas {
+  width: 150px;
+  height: 225px;
+  border-radius: 3px;
+}
+.tgdlg .tgbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tgdlg .tgsp {
+  flex: 1;
+}
+/* Add all cards of the Kneeboard: many cards, in rows that scroll */
+.tgdlg.kball {
+  width: min(960px, 96vw);
+}
+.tgdlg.kball .tgcards {
+  flex-wrap: wrap;
+  max-height: 62vh;
+  overflow-y: auto;
+  padding: 2px;
+}
+.tgdlg.kball .tgcard {
+  width: 166px;
+}
+.tgdlg.kball .tgcard canvas {
+  width: 120px;
+  height: 180px;
+}
+.tgdlg.kball .tgcard span {
+  text-align: center;
+  line-height: 1.25;
+}
+/* the LEVELS menu of the Map page, lent to the bar of the picture */
+.tgp .tglev {
+  position: relative;
+  margin-left: 14px;
+}
+.tgp .tglev #mpbasew {
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: 700;
+}
+.tgp .tglev #mpbaseb {
+  box-shadow: none;
+}
+.tgp .tglev #mpbase {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  max-height: 70vh;
+  overflow: auto;
+  box-shadow: 0 8px 24px #000a;
+}
+.tgp .btn.g.tgnames.on {
+  background: #1f7a46;
+  color: #fff;
+  border-color: #2fa862;
+}
+.tgp .tgnames {
+  min-width: 88px;
+}
+/* From the datacard: the six layers in a grid, Names with its choice, Remove at the bottom */
+.tgp .tgchips.tgshow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 8px;
+}
+.tgp .tgchips.tgshow button {
+  border-right: 1px solid var(--line);
+  text-align: center;
+  padding: 5px 4px;
+}
+.tgp .tgnrow {
+  margin-top: 10px;
+}
+.tgp .btn.g.rd.tgunfill {
+  display: block;
+  width: 100%;
+  margin-top: 10px;
+  background: transparent;
+  border: 1px solid #a33a3a;
+  color: #ff8a8a;
+}
+.tgp .btn.g.rd.tgunfill:hover {
+  background: #3a1c1c;
+}
+.tgp .tgunh {
+  margin-top: 4px;
+}
+/* the filters: four by two */
+.tgp [data-seg='filt'] {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.tgp [data-seg='filt'] button {
+  border-bottom: 1px solid var(--line);
+  padding: 5px 2px;
+  text-align: center;
+}
+.tgp [data-seg='filt'] button:nth-child(4n) {
+  border-right: 0;
+}
+.tgp [data-seg='filt'] button:nth-last-child(-n + 4) {
+  border-bottom: 0;
+}
+/* the bar above the picture: the same height, spaced */
+.tgp .tgmapb {
+  display: inline-flex;
+  gap: 8px;
+}
+.tgp .tgtopbar {
+  gap: 10px;
+}
+.tgp .tgtopbar .btn,
+.tgp .tglev #mpbaseb {
+  height: 30px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+}
+.tgp .tglev {
+  margin-left: 6px;
+}
+.tgp .tgdetb {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tgp .tgdetb[hidden] {
+  display: none;
+}
+.tgp .tgdetb select {
+  height: 30px;
+  box-sizing: border-box;
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+.tgp .tgdetb select:hover,
+.tgp .tgdetb select:focus {
+  border-color: var(--ac, #4cc38a);
+  outline: none;
+}
+/* the tool bar of the annotations, as the bar of the Briefing room */
+.tgp .tgtb {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex-wrap: wrap;
+  background: #151a21;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px 6px;
+  margin-top: 10px;
+}
+.tgp .tgtb .t {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 42px;
+  border-radius: 7px;
+  font-size: 9.5px;
+  gap: 2px;
+  cursor: pointer;
+  color: var(--tx, #e6e9ee);
+  background: none;
+  border: 0;
+  padding: 0 3px;
+  font-family: inherit;
+  transition:
+    background 0.15s,
+    opacity 0.15s,
+    transform 0.1s;
+}
+.tgp .tgtb .t:hover:not(:disabled) {
+  background: #252c36;
+}
+.tgp .tgtb .t:active:not(:disabled) {
+  transform: scale(0.95);
+}
+.tgp .tgtb .t svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tgp .tgtb .t.on {
+  background: #2b3440;
+  box-shadow: inset 0 0 0 1px #3ecf8e;
+  color: #3ecf8e;
+}
+.tgp .tgtb .t.on span {
+  color: var(--tx, #e6e9ee);
+}
+.tgp .tgtb .t:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.tgp .tgtb .tgundo {
+  margin-left: auto;
+}
+.tgp .tgtb .t.er {
+  color: #ff9d6b;
+}
+.tgp .tgtb .t.cl {
+  color: #ff8a8a;
+}
+.tgp .tgtb .vs {
+  width: 1px;
+  height: 26px;
+  background: var(--line);
+  margin: 0 4px;
+}
+.tgp .tgtb .tgcols {
+  display: flex;
+  gap: 4px;
+  margin: 0 2px;
+}
+.tgp .tgthint {
+  margin: 5px 2px 8px;
+}
+.tgp .tgtb .tgcols i {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 0;
+  box-shadow: 0 0 0 1px #0008;
+  transition: box-shadow 0.15s;
+}
+.tgp .tgtb .tgcols i.on {
+  box-shadow:
+    0 0 0 2px #151a21,
+    0 0 0 4px #fff;
+}
+/* Weapons > HARM: the SEAD / Single shot switch and the SEAD page */
+.hsub {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 12px;
+}
+.hsub .seg {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.hsub .seg button {
+  padding: 5px 16px;
+  color: var(--mu);
+  background: #0f1419;
+  border: 0;
+  border-right: 1px solid var(--line);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.25s,
+    color 0.25s;
+}
+.hsub .seg button:last-child {
+  border-right: 0;
+}
+.hsub .seg button.on {
+  background: #1f7a46;
+  color: #fff;
+}
+.hsub .seg button:not(.on):hover {
+  color: var(--tx);
+}
+.wpg.sdg {
+  grid-template-columns: 540px minmax(0, 1fr) 400px;
+}
+@media (max-width: 1499px) {
+  .wpg.sdg {
+    grid-template-columns: 430px minmax(0, 1fr);
+  }
+  .wpg.sdg .wpr {
+    grid-column: 1/3;
+    grid-row: auto;
+  }
+}
+.sdnone {
+  max-width: 720px;
+}
+.sdf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  flex-wrap: wrap;
+}
+.sdf .hint {
+  font-size: 12px;
+}
+.sdf input[type='checkbox'] {
+  width: auto;
+  margin: 0;
+  flex: none;
+}
+.sdyou {
+  border: 1px solid var(--ac);
+  color: var(--ac);
+  border-radius: 12px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.sdbx {
+  width: 13px;
+}
+.sdt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.sdt th {
+  color: var(--mu);
+  font-weight: 500;
+  font-size: 11px;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 4px 3px;
+  border-bottom: 1px solid var(--line);
+}
+.sdt td {
+  padding: 5px 3px;
+  border-bottom: 1px solid var(--line);
+}
+.sdt tr[data-sdrow] {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.sdt tr.on td {
+  background: #22303d;
+}
+.sdt tr.off td {
+  opacity: 0.45;
+}
+.sdht {
+  background: #2a3441;
+  color: #cbd5e1;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-right: 3px;
+  font-size: 11px;
+}
+.sdme {
+  color: var(--ac) !important;
+  font-weight: 800;
+}
+.sdgap,
+.sdgapt {
+  color: #ff5a5a;
+}
+.sdimp {
+  color: #ff5a5a;
+}
+.sdmd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 2px 0 8px;
+  font-size: 12px;
+}
+.sdmd .seg button,
+.sdvw button {
+  padding: 3px 10px;
+}
+.sdsn em {
+  font-style: normal;
+  color: var(--mu);
+  margin-left: 4px;
+  font-size: 11px;
+}
+#sdsch .sdscv {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.sdscv text {
+  font-family: system-ui, sans-serif;
+}
+.sdscv .sdsl {
+  fill: #e6edf3;
+  font-size: 13px;
+  font-weight: 700;
+}
+.sdscv .sdss {
+  fill: #8b98a8;
+  font-size: 11px;
+}
+.sdscv .sdsm {
+  font-size: 11px;
+  font-weight: 700;
+}
+.sdscv .sdtk {
+  fill: #fff;
+  font-size: 11.5px;
+  font-weight: 800;
+}
+.sdscv .sdar {
+  font-size: 10.5px;
+  font-weight: 700;
+}
+.sdscv .sdrole {
+  font-size: 8.5px;
+  font-weight: 500;
+  opacity: 0.8;
+}
+.sdscv .sdme {
+  fill: #4cc38a;
+}
+.sdscv .sdarr {
+  stroke: #cbd5e1;
+  stroke-width: 1.3;
+  fill: none;
+}
+.sdscv .sdarrh {
+  fill: #cbd5e1;
+}
+.sdevh {
+  margin-top: 12px;
+}
+.sdev {
+  columns: 2;
+  column-gap: 24px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+.sdev div {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  break-inside: avoid;
+}
+.sdev .e-in span:last-child {
+  color: #ff9f1a;
+}
+.sdev .e-harm span:last-child {
+  color: #38bdf8;
+}
+.sdev .e-me span:last-child {
+  color: var(--ac);
+  font-weight: 800;
+}
+.sdev .e-imp span:last-child,
+.sdev .e-gap span:last-child {
+  color: #ff5a5a;
+}
+.sdev .e-task span:last-child {
+  color: #fff;
+  font-weight: 800;
+}
+.leaflet-marker-icon.sdtag span {
+  position: absolute;
+  left: 10px;
+  top: -9px;
+  white-space: nowrap;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.leaflet-marker-icon.sdtag .sdme {
+  color: #4cc38a;
+}
+.leaflet-marker-icon.sdsamm .sdsamt {
+  position: absolute;
+  left: -6px;
+  top: -10px;
+  font-size: 13px;
+  text-shadow: 0 0 2px #000;
+}
+.leaflet-marker-icon.sdtag .sdtri {
+  position: absolute;
+  left: -10px;
+  top: -14px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-bottom: 18px solid #fff;
+  filter: drop-shadow(0 0 1.5px #000);
+}
+.leaflet-marker-icon.sdtag .sdtri + span {
+  left: 14px;
+}
+.leaflet-marker-icon.sdimp .sdimpm {
+  position: absolute;
+  left: -7px;
+  top: -7px;
+  width: 14px;
+  height: 14px;
+  background: #ff3b3b;
+  border: 1.5px solid #fff;
+  transform: rotate(45deg);
+  box-sizing: border-box;
+}
+.sdw {
+  color: #ffb020;
+  font-weight: 600;
+}
+.sdok {
+  color: var(--ac);
+  font-weight: 700;
+}
+.sdsr {
+  display: grid;
+  grid-template-columns: 112px minmax(64px, 1fr) 112px 82px 82px 14px;
+  white-space: nowrap;
+  gap: 6px;
+  align-items: center;
+  padding: 5px 4px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.2s;
+}
+.sdsr.on {
+  background: #22303d;
+}
+.sdseat {
+  font-weight: 800;
+  font-size: 12.5px;
+  color: #cbd5e1;
+}
+.sdsr select:disabled {
+  opacity: 0.45;
+}
+.sdsr select {
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 4px;
+  font: inherit;
+  min-width: 0;
+}
+.sdtk {
+  position: relative;
+  height: 16px;
+  margin-left: 96px;
+  color: var(--mu);
+  font-size: 11px;
+}
+.sdtk span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+.sdtr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.sdtr.on {
+  background: #22303d;
+}
+.sdtn {
+  width: 88px;
+  font-weight: 600;
+  font-size: 12.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sdtn em {
+  font-style: normal;
+  color: var(--mu);
+  margin-left: 5px;
+  font-size: 11px;
+}
+.sdtb {
+  position: relative;
+  flex: 1;
+  height: 16px;
+  background: #121820;
+  border-radius: 3px;
+}
+.sdtb i {
+  position: absolute;
+  top: 0;
+  height: 16px;
+  border-radius: 3px;
+}
+.sdtb .sdwz {
+  background: rgba(255, 93, 93, 0.35);
+  border: 1px solid #ff5d5d;
+  box-sizing: border-box;
+}
+.sdtb .sdhm {
+  top: 4px;
+  height: 8px;
+}
+.sdtb .sd85 {
+  width: 10px;
+  height: 10px;
+  top: 3px;
+  background: #ff9f1c;
+  transform: rotate(45deg);
+  border-radius: 1px;
+}
+.sdbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.sdpb h3 {
+  color: #ffb020;
+}
+.sdpb {
+  margin-bottom: 0;
+}
+.wpg.sdg .kv {
+  grid-template-columns: 110px 1fr;
+}
+.leaflet-marker-icon.sdsam span,
+.leaflet-marker-icon.sd85m span {
+  position: absolute;
+  left: 10px;
+  top: -9px;
+  white-space: nowrap;
+  font:
+    700 11px system-ui,
+    sans-serif;
+  color: #ffb3b3;
+  background: rgba(0, 0, 0, 0.6);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.leaflet-marker-icon.sd85m span {
+  color: #ff9f1c;
+  top: -22px;
+}
+.leaflet-marker-icon.sd85m i {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  background: #ff9f1c;
+  border: 1.5px solid #fff;
+  transform: rotate(45deg);
+  box-sizing: border-box;
+}
+/* Weapons > HARM > DEAD */
+.wpg.sdg.dg .wpr {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ddtel {
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  border: 2px solid #ef4444;
+  border-radius: 6px;
+  background: rgba(239, 68, 68, 0.14);
+  color: #ffb4b4;
+  font-size: 12.5px;
+}
+.ddtel b {
+  color: #ff5a5a;
+  letter-spacing: 0.3px;
+}
+.sdtel {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: #b91c1c;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 800;
+}
+.ddorb {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.seg.sm button {
+  padding: 2px 9px;
+  font-size: 11.5px;
+  min-height: 0;
+}
+.ddrl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.ddtile {
+  border: 1px solid var(--ln, #2a3442);
+  border-radius: 8px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.ddtile.me {
+  border-color: var(--ac);
+  box-shadow: 0 0 0 1px var(--ac) inset;
+}
+.ddtile .th {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--mu, #9aa6b2);
+  margin-bottom: 6px;
+}
+.ddtile .th .no {
+  font-size: 15px;
+  color: var(--tx);
+}
+.ddtile .th .you {
+  margin-left: auto;
+  background: var(--ac);
+  color: #06140c;
+  border-radius: 4px;
+  padding: 0 6px;
+  font-weight: 800;
+}
+.ddtile .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.ddtile .chips button {
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ln, #2a3442);
+  background: transparent;
+  color: var(--mu, #9aa6b2);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.ddtile .chips button:not(.on):hover {
+  color: var(--tx);
+}
+#ddal .wh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ddinfo {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--mu, #9aa6b2);
+  background: transparent;
+  color: var(--mu, #9aa6b2);
+  font-weight: 900;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+}
+.ddinfo:hover {
+  color: var(--tx);
+  border-color: var(--tx);
+}
+.ddnote {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(250, 204, 21, 0.16);
+  border: 1px solid #facc15;
+  color: #fde68a;
+  font-size: 12.5px;
+}
+.ddpop {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #0b0f14;
+}
+.ddpop > div {
+  padding: 3px 8px;
+}
+.ddpop .hint {
+  grid-column: 1/3;
+  margin: 4px 0 0;
+}
+.ddsteps {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.ddsteps li {
+  margin-bottom: 4px;
+}
+.ddbtns {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+.oat {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.oat th {
+  text-align: left;
+  font-size: 10.5px;
+  color: var(--mu, #9aa6b2);
+  font-weight: 600;
+}
+.oat td,
+.oat th {
+  padding: 3px 4px;
+}
+.oat .ddadd {
+  padding: 2px 8px;
+  font-size: 11.5px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.leaflet-marker-icon.sdtag .ddpt,
+.leaflet-marker-icon.sdtag .ddanc {
+  position: absolute;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #000;
+  box-sizing: border-box;
+}
+.leaflet-marker-icon.sdtag .ddanc {
+  border-radius: 2px;
+}
+/* what appears for the first time on the DEAD page animates; what is written again does not */
+#wpdead .fxin {
+  animation: tgapp 0.22s ease-out;
+}
+#wpdead select {
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: inherit;
+  max-width: 100%;
+  cursor: pointer;
+}
+#wpdead select:hover,
+#wpdead select:focus {
+  border-color: var(--ac, #4cc38a);
+  outline: none;
+}
+#wpdead select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#ddtg .wh select {
+  max-width: 62%;
+}
+.oat tr.oapt td {
+  padding-top: 0;
+  padding-bottom: 6px;
+}
+.oat tr.oapt select {
+  max-width: 220px;
+  margin-right: 6px;
+  font-size: 11.5px;
+}
+.btn.ddman:disabled {
+  opacity: 1;
+  background: #0b0f14;
+  color: var(--mu, #9aa6b2);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+/* the map of the DEAD page opened out of sight, for the picture of a card while the scheme is shown */
+#ddmapw.ddoff {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 1000px;
+}
+/* your seat on the DEAD page: white (green is for the launches only) */
+#wpdead .ddyou {
+  color: #fff;
+  font-weight: 800;
+}
+#wpdead svg .ddyou {
+  fill: #fff;
+  font-weight: 800;
+}
+/* DEAD map labels: on the side away from the SAM (ddlf: to the left of the point), a bit lower (ddlo) */
+.leaflet-marker-icon.sdtag.ddlf span {
+  left: auto;
+  right: 10px;
+}
+.leaflet-marker-icon.sdtag.ddlo span {
+  top: 8px;
+}
+.leaflet-marker-icon.sdtag .ddtx {
+  background: rgba(11, 15, 20, 0.72);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 10.5px;
+  letter-spacing: 0.2px;
+}
+.leaflet-marker-icon.sdtag .ddtri {
+  position: absolute;
+  left: -7px;
+  top: -10px;
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 12px solid #ff3b3b;
+  filter: drop-shadow(0 0 1px #000);
+}
+.leaflet-marker-icon.sdtag .ddmk {
+  position: absolute;
+  left: -6px;
+  top: -12px;
+  font-size: 20px;
+  font-weight: 900;
+  text-shadow: 0 0 2px #000;
+}
+/* the nav offsets of DEAD: a block for each anchor */
+.oab {
+  border-left: 3px solid;
+  padding: 6px 0 6px 10px;
+  margin: 8px 0;
+}
+.oah {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-weight: 700;
+}
+.oah .hint {
+  margin-left: auto;
+  font-weight: 400;
+}
+.oav {
+  font-size: 12px;
+  margin: 4px 0 2px;
+  color: var(--mu, #9aa6b2);
+}
+.oav b {
+  color: var(--tx);
+}
+.oap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.oap select {
+  flex: 1;
+  min-width: 0;
+  font-size: 11.5px;
+}
+.oaf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 12.5px;
+}
+/* SEAD: the switch Launch outside the rings, the total covered */
+.sdout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.sdtot {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+#sdmapw.ddoff {
+  position: fixed;
+  left: -12000px;
+  top: 0;
+  width: 1000px;
+}
+.wh .sdvw {
+  margin-left: 12px;
+}
+.hsub .hacts {
+  margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+/* DEAD steps done together: white */
+.ddsteps li.ddsh {
+  color: #fff;
+  font-weight: 700;
+}
+/* DEAD scheme: the way glyphs, the mark */
+.sdscv .ddway {
+  font:
+    700 11px system-ui,
+    sans-serif;
+}
+.sdscv .ddmkt {
+  font:
+    900 12px system-ui,
+    sans-serif;
+}
+/* SEAD: ROLEX / LEEROY on the map */
+#sdmapw {
+  position: relative;
+}
+#sdmapw .sddt {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 500;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(11, 15, 20, 0.85);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+.slr em[data-sddte] {
+  white-space: nowrap;
+  min-width: 92px;
+  text-align: right;
+}
+
+/* the title of the Page card with Save PNG at its right */
+.tgp .tgph {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.tgp .tgph h3 {
+  margin: 0;
+}
+
+/* under Style: the style that goes with the look of the cards */
+.tgp .tgsth {
+  margin: 2px 0 6px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.tgp .tgsth.dk {
+  color: #9fb4d8;
+}
+/* Add all cards of the Kneeboard: its two choices (Classic, Smart) */
+#kballk {
+  display: inline-flex;
+  gap: 6px;
+  margin-left: 6px;
+}
+#kballk[hidden] {
+  display: none;
+}
+#kballk.kbapp {
+  animation: tgapp 0.22s ease-out;
+}

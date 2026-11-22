@@ -59,9 +59,9 @@ same(
   'src-tauri/Cargo.lock (bms-cards)',
   first(read('src-tauri/Cargo.lock'), /name = "bms-cards"\r?\nversion = "([^"]+)"/)
 );
-// every beta has its line in the roadmap
+// every beta has its line in the beta log of the dev branch (docs/archive/BETALOG.md; up to 1.2.0 it was the roadmap)
 const m = /-beta\.(\d+)$/.exec(V);
-if (m) ok('docs/ROADMAP.md has a line for ' + V, read('docs/ROADMAP.md').includes('- ' + V + ' ('));
+if (m) ok('docs/archive/BETALOG.md has a line for ' + V, read('docs/archive/BETALOG.md').includes('- ' + V + ' ('));
 
 console.log(bad ? `${bad} of ${n} version checks failed` : `OK - ${n} version checks`);
 process.exit(bad ? 1 : 0);

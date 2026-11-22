@@ -4,6 +4,7 @@
 // mission it is the default of). A flight just chosen gets its default by itself (the list of the button chosen wins). The datacard gets the short form:
 // 5 lines a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's by the commander) join the SOP.
 // "Add card" puts the whole text on Kneeboard cards. A click on the ROE or SOP box of the datacard opens this page.
+import { otherLook, cardDark } from '../core/cardink.js';
 import {
   ROE,
   ROE_CATS,
@@ -15,6 +16,7 @@ import {
   sopShort,
   pickDefault,
   BOX_MAX,
+  capSel,
   sopPhaseOn,
   sopAll,
   topicsAll,
@@ -32,6 +34,13 @@ import { markMan } from './selection.js';
 import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
+import { drawSmartText, SC_W, SC_H } from '../core/smartcard.js';
+import { fullText } from '../core/roesop.js';
+import { seatIdx } from './seat.js';
+import { flightTag } from './ato.js';
+import { chooseCards } from '../core/tgdlg.js';
+import { faorLines } from '../core/faor.js';
+import { agLines } from '../core/agrules.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
 // folded (bmsroeclosed2), Chosen only (bmsroeonly)
@@ -117,10 +126,17 @@ const R = {
   wrote: '', // the choices last written on the datacard
   cust: new Set(), // the SOP topics written with an own text
   flightKey: null,
+  stale: false, // a block of a page came while this page was hidden: drawn when it is shown
 };
-const key = s => JSON.stringify(cleanSel(s));
+// the FAOR block (written by the FAOR page) is not a choice of this page: a preset with the same choices is still that preset
+const key = s => JSON.stringify({ ...cleanSel(s), faor: null, ag: null });
+// a choice put in keeps the FAOR block of the flight (a preset, Clear, Discard do not touch it): only the FAOR page changes it
 const setSel = (s, kept = true) => {
+  const fa = R.sel && R.sel.faor,
+    ag = R.sel && R.sel.ag;
   R.sel = cleanSel(s);
+  R.sel.faor = fa || null;
+  R.sel.ag = ag || null;
   R.cust = new Set(Object.keys(R.sel.sop).filter(k => R.sel.sop[k].t));
   if (kept) R.base = key(R.sel);
 };
@@ -162,7 +178,10 @@ function matchPick() {
 }
 function loadFlight() {
   R.flightKey = ST.CURK;
+  R.sel = emptySel();
   setSel(flightSel(), false);
+  R.sel.faor = cleanSel(flightSel()).faor;
+  R.sel.ag = cleanSel(flightSel()).ag;
   R.wrote = key(R.sel);
   matchPick();
 }
@@ -171,8 +190,13 @@ export function roeDraw(box, ctx) {
   const sig = JSON.stringify([ctx.squad, ctx.own, ctx.presets, ctx.sections]);
   R.ctx = ctx;
   syncCustom();
-  if (ST.CURK !== R.flightKey || !R.box) loadFlight();
-  if (box !== R.box || sig !== R.sig || !box.firstChild) {
+  let fresh = R.stale; // a block written while the page was hidden (blockSet): the page shows it now
+  if (ST.CURK !== R.flightKey || !R.box) {
+    loadFlight();
+    fresh = true;
+  }
+  if (box !== R.box || sig !== R.sig || !box.firstChild || fresh) {
+    R.stale = false;
     if (sig !== R.sig && R.box && !dirty()) matchPick(); // the lists changed (saved here, or by the commander): the preset of now again
     R.box = box;
     R.sig = sig;
@@ -298,10 +322,14 @@ let GUARD = false;
 function leaveGuard() {
   if (GUARD) return;
   GUARD = true;
+  // Add card at the right of the tabs of the Squadron page (shown on the ROE / SOP tab)
+  document.addEventListener('click', e => {
+    if (e.target.closest && e.target.closest('#sqroekb')) addCards();
+  });
   document.addEventListener(
     'click',
     e => {
-      const t = e.target.closest && e.target.closest('.tab[data-t], #sqtabs button, #sqroe [data-a=back]');
+      const t = e.target.closest && e.target.closest('.tab[data-t], #sqtabs button[data-tab], #sqroe [data-a=back]');
       if (!t || !R.box || !R.box.offsetParent || !dirty() || R.leaving) return;
       if (t.matches('[data-t=sq]') || t.dataset.tab == 'roe') return;
       e.preventDefault();
@@ -353,6 +381,9 @@ function render() {
   );
   try {
     render0(box);
+    const kb = /** @type {HTMLButtonElement|null} */ (document.getElementById('sqroekb')),
+      n = counts();
+    if (kb) kb.disabled = !(n.r || n.s); // Add card: dimmed while nothing is chosen
     box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot').forEach(e => {
       if (seen.has(e.className + '|' + e.textContent)) e.style.animation = 'none';
     });
@@ -387,13 +418,17 @@ function render0(box) {
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
     return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
   };
+  const fa = R.sel.faor,
+    ag = R.sel.ag;
   const roeCard = card(
     'roe',
     'ROE',
     `one rule a line on the card · ${BOX_MAX} lines at most`,
-    `${ROE.map(
+    `${fa ? `<div class="rpfa"><div class="rpt rg">A-A · ${esc(fa.pos != null ? 'OCA' : 'DCA')}${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by A-A &gt; ${fa.pos != null ? 'OCA' : 'DCA'}</small><button type="button" class="btn g" data-a="faor" title="The page that writes this block">Edit in ${fa.pos != null ? 'OCA' : 'DCA'}</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ag ? `<div class="rpfa"><div class="rpt rg">A-G · ${esc(ag.kind)}<small>written by A-G</small><button type="button" class="btn g" data-a="agpage" title="The page that writes this block">Edit in A-G</button></div><div class="rpfl">${agLines(ag, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
       ([id, lab, kind, , opts]) =>
-        `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
+        fa && (id == 'ws' || id == 'commit')
+          ? `<div class="rpt rg">${esc(lab)}<small>set by A-A</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
+          : `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
     ).join(
       ''
     )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea>`
@@ -490,7 +525,7 @@ function render0(box) {
       warn.length
         ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
         : ''
-    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><button type="button" class="btn" data-a="kb" title="A Kneeboard card with the whole ROE and SOP, not shortened">Add card</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
+    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
     'other',
@@ -505,10 +540,10 @@ function render0(box) {
   wire(box);
 }
 // the datacard of the flight: the two boxes and the choices (no word: every change goes there at once)
-function writeCard() {
-  const t1 = roeText(R.sel),
-    t2 = sopText(R.sel);
-  setField('roesel', JSON.stringify(cleanSel(R.sel)));
+function writeCard(sel = R.sel) {
+  const t1 = roeText(sel),
+    t2 = sopText(sel);
+  setField('roesel', JSON.stringify(cleanSel(sel)));
   setField('roe', t1);
   setField('sop', t2);
   [
@@ -520,7 +555,117 @@ function writeCard() {
   });
   markMan();
   draw();
-  R.wrote = key(R.sel);
+  if (sel === R.sel) R.wrote = key(R.sel);
+}
+// the ROE of the flight now: this page's choices when it was opened on the flight, else those of the datacard
+export function roeOfFlight() {
+  return R.box && ST.CURK === R.flightKey ? cleanSel(R.sel) : flightSel();
+}
+// THE FAOR BLOCK of the flight, from the FAOR page (core/faor.js faorRoe, null: none): on the datacard at once, and on this page when it shows the flight.
+// false when there is no flight or nothing changed
+export function roeFaorSet(fa) {
+  return blockSet('faor', fa);
+}
+// THE A-G BLOCK of the flight, from the A-G pages (core/agrules.js); false when nothing changed
+export function roeAgSet(b) {
+  return blockSet('ag', b);
+}
+function blockSet(field, fa) {
+  if (!flightOn()) return false;
+  const seen = R.box && ST.CURK === R.flightKey,
+    s = seen ? R.sel : flightSel(),
+    nx = capSel({ ...s, [field]: fa }); // the block lines are never cut: the last choices of the lists make room for them
+  if (JSON.stringify(nx[field]) === JSON.stringify(cleanSel(s)[field])) return false;
+  if (seen) {
+    R.sel = nx;
+    writeCard();
+    if (R.box.isConnected && !R.box.closest('.hide')) render();
+    else R.stale = true; // drawn when the page is shown (roeDraw)
+  } else writeCard(nx);
+  return true;
+}
+// the data of the Smart ROE / SOP card for the flight now (the combined Smart cards take their ROE / SOP part from it): null when nothing is chosen
+export function roeSmartNow() {
+  const seen = R.box && ST.CURK === R.flightKey,
+    c0 = seen && R.pick && !dirty() && chipOf(R.pick),
+    sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '';
+  try {
+    return roeSmart(seen ? R.sel : flightSel(), sub);
+  } catch (e) {
+    return null;
+  }
+}
+// the ROE / SOP cards, in both looks, for Add all cards of the Kneeboard (none when nothing is chosen; pages.js registers it)
+export async function roeAllCards() {
+  const c = document.createElement('canvas');
+  c.width = CARD_W;
+  c.height = CARD_H;
+  const seen = R.box && ST.CURK === R.flightKey, // the page was opened on this flight: its choices, else those of the datacard
+    plan = roeCardPlan(seen ? R.sel : flightSel(), c.getContext('2d'));
+  if (!plan.length) return [];
+  const c0 = seen && R.pick && !dirty() && chipOf(R.pick),
+    sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '';
+  const mk = p => {
+    const k = document.createElement('canvas');
+    k.width = CARD_W;
+    k.height = CARD_H;
+    roeCardDraw(p, k.getContext('2d'), sub);
+    return k;
+  };
+  const sm = roeSmartCard(seen ? R.sel : flightSel(), sub);
+  return plan
+    .map(p => ({
+      name: p.title + (sub ? ' · ' + sub : ''),
+      label: p.title,
+      c: mk(p),
+      alt: otherLook(() => mk(p)),
+      dark: cardDark(),
+    }))
+    .concat(sm ? [sm] : []);
+}
+// the Smart ROE / SOP card (core/smartcard.js): the numbers of the flight in the key box (joker, bingo, IFF, laser), the ROE and the SOP in short blocks
+function roeSmart(sel, sub) {
+  const T = fullText(sel),
+    v = k => (F[k] != null && String(F[k]).trim() ? String(F[k]).trim() : '--'),
+    lsr = v('fl' + seatIdx() + '_5'),
+    blocks = [
+      ...T.roe.map(([lab, L]) => [String(lab).toUpperCase(), L]),
+      ...(T.roeFree.length ? [['ROE', T.roeFree]] : []),
+      ...T.sop.map(([ph, L]) => [String(ph).toUpperCase(), L.map(([lab, t]) => (lab ? lab + ': ' : '') + t)]),
+      ...(T.sopFree.length ? [['SOP', T.sopFree]] : []),
+    ];
+  if (!blocks.length) return null;
+  const n = blocks.reduce((a, b) => a + b[1].length, 0);
+  return {
+    title: 'ROE / SOP',
+    right: flightTag() || F.cs || '',
+    key: [
+      ['JOKER', v('joker')],
+      ['BINGO', v('bingo'), true],
+      ['LASER', lsr],
+      ['M1', v('m1')],
+      ['M3', v('m3')],
+      ['M4', v('m4')],
+      ['PRESET', (sub || 'Custom').toUpperCase().slice(0, 10)],
+      ['RULES', String(n)],
+    ],
+    blocks,
+    foot: [],
+    last: sub ? 'ROE preset: ' + sub : '',
+  };
+}
+function roeSmartCard(sel, sub) {
+  const D = roeSmart(sel, sub);
+  if (!D) return null;
+  const mk = () => {
+    const k = document.createElement('canvas');
+    k.width = SC_W;
+    k.height = SC_H;
+    drawSmartText(/** @type {CanvasRenderingContext2D} */ (k.getContext('2d')), D);
+    return k;
+  };
+  const nm = 'Smart · ROE / SOP' + (sub ? ' · ' + sub : '');
+  return { name: nm, label: 'Smart · ROE / SOP', c: mk(), alt: otherLook(mk), dark: cardDark() };
 }
 // Add card: the whole text on Kneeboard cards (two when one is not enough: ROE and SOP apart, the pilot is told first)
 async function addCards() {
@@ -529,17 +674,39 @@ async function addCards() {
   c.height = CARD_H;
   const x = c.getContext('2d'),
     plan = roeCardPlan(R.sel, x);
-  if (!plan.length) return appToast('Nothing chosen yet: no card to add.');
+  if (!plan.length) return appToast('Nothing chosen yet: no card to add.', true);
   const c0 = R.pick && !dirty() && chipOf(R.pick),
     sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '',
     go = async () => {
-      for (const p of plan) {
-        roeCardDraw(p, x, sub);
-        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-        await kbAddPic(blob, p.title + (sub ? ' · ' + sub : ''));
+      // the classic card(s) and the Smart card, chosen on their pictures
+      const mk = p => {
+          const k = document.createElement('canvas');
+          k.width = CARD_W;
+          k.height = CARD_H;
+          roeCardDraw(p, /** @type {CanvasRenderingContext2D} */ (k.getContext('2d')), sub);
+          return k;
+        },
+        sm = roeSmartCard(R.sel, sub),
+        list = plan
+          .map(p => ({
+            kind: 'std',
+            name: p.title + (sub ? ' · ' + sub : ''),
+            label: p.title,
+            c: mk(p),
+            alt: otherLook(() => mk(p)),
+          }))
+          .concat(sm ? [{ ...sm, kind: 'smart' }] : []);
+      const pick = await chooseCards(list, 'Add ROE / SOP cards to the Kneeboard');
+      if (!pick.length) return;
+      for (const z of pick) {
+        const blob = await new Promise(r => z.c.toBlob(r, 'image/png')),
+          alt = await new Promise(r => z.alt.toBlob(r, 'image/png'));
+        if (blob) await kbAddPic(blob, z.name, alt, cardDark());
       }
       appToast(
-        plan.length == 1 ? 'ROE / SOP card added to the Kneeboard.' : 'Two ROE / SOP cards added to the Kneeboard.'
+        pick.length == 1
+          ? 'ROE / SOP card added to the Kneeboard.'
+          : pick.length + ' ROE / SOP cards added to the Kneeboard.'
       );
     };
   if (plan.length == 1) return go();
@@ -698,7 +865,7 @@ function wire(box) {
       R.lastT = now;
       if (dbl && kk == R.pick) {
         R.lastQ = null;
-        if (!c.ed) return appToast('Only the commander changes the presets of the squadron.');
+        if (!c.ed) return appToast('Only the commander changes the presets of the squadron.', true);
         R.open = true;
         if (c.std) R.name = c.name;
         render();
@@ -751,6 +918,8 @@ function wire(box) {
     }
     if (!a) return;
     const act = a.dataset.a;
+    if (act == 'agpage') return ST.agGo && ST.agGo(R.sel.ag);
+    if (act == 'faor') return ST.bvrGo && ST.bvrGo(R.sel.faor && R.sel.faor.pos != null ? 'oca' : 'faor');
     if (act == 'clear') {
       setSel(emptySel(), false);
       return render();
@@ -847,7 +1016,8 @@ function limitText(ta) {
   if (L.length > room) {
     R.sel[f] = L.slice(0, room).join('\n');
     appToast(
-      `The ${f == 'free' ? 'ROE' : 'SOP'} box holds ${BOX_MAX} lines: the last ${L.length - room} line${L.length - room == 1 ? ' was' : 's were'} left out.`
+      `The ${f == 'free' ? 'ROE' : 'SOP'} box holds ${BOX_MAX} lines: the last ${L.length - room} line${L.length - room == 1 ? ' was' : 's were'} left out.`,
+      true
     );
   }
 }

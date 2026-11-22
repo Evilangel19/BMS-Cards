@@ -195,6 +195,10 @@ export const MAR_MISSILE = {
   'AA-10C': { vMax: 2709, aMax: 77 },
   'AA-12': { vMax: 2408, aMax: 77 },
   'AIM-54C': { vMax: 3010, aMax: 55 },
+  // not in the paper (BMS 4.38.2): estimated (est) from the data files, the paper's values of the nearest missile scaled by a flight along a line at
+  // 25 000 ft from Mach 0.9 (motor, weight, drag of each file): AA-12B from the AA-12 (the same airframe), AA-13 (R-37M) from the AIM-54C (long burn, heavy)
+  'AA-12B': { vMax: 2540, aMax: 70, est: true },
+  'AA-13': { vMax: 3920, aMax: 55, est: true },
 };
 export function marShot(name, rHeadFt, tgtSpeed, tgtAlt) {
   const mor = rHeadFt / NM,
@@ -207,6 +211,7 @@ export function marShot(name, rHeadFt, tgtSpeed, tgtAlt) {
     mor,
     vMax,
     known: !!k,
+    est: !!(k && k.est),
     uniform: u.mar,
     variable: w ? w.mar : null,
     stall: Math.max(vStall, tgtSpeed),

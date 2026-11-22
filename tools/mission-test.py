@@ -77,7 +77,7 @@ try:
         check('the hourly maps come back with the mission', pg.evaluate("()=>__app.WXS.size") == nk)
         # the radius is a setting
         pg.click('#cfgbtn'); pg.wait_for_timeout(500); pg.click('#nv-mission'); pg.wait_for_timeout(300)
-        pg.fill('#c-rad', '25'); pg.click('#cfgsave'); pg.wait_for_timeout(500); pg.click('#cfgcancel'); pg.wait_for_timeout(400)
+        pg.fill('#c-rad', '25'); pg.click('#cfgsave'); pg.wait_for_timeout(500); pg.wait_for_timeout(400)  # Save closes the window
         o2 = json.loads(pg.evaluate("async()=>JSON.stringify(await __app.msfBuild())"))
         check('the mission radius comes from the Settings (25 nm)', o2['package'].get('radiusNm') == 25)
         # standalone: the map and the weapons / missiles pages work from the mission alone
@@ -86,7 +86,7 @@ try:
         check('the map shows the flights and units of the mission', pg.evaluate("()=>document.querySelectorAll('#mpbody .leaflet-marker-icon, #mpbody svg path, #mpbody canvas').length>0"))
         pg.click('[data-t=wp]'); pg.wait_for_timeout(1200)
         check('the weapons page opens from the mission', pg.is_visible('#wp') and pg.locator('#wp .wcard, #wp .wrow').count() > 0)
-        pg.click('[data-t=ms]') if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
+        (pg.click('[data-t=ms]'), pg.click('#bvrtabs [data-bsub=tl]')) if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
         # the shape of the mission file against a reference (tests/mission-shape.json): a change must come with a decision about minReader
         def shape(v, d=0):
             if v is None: return None
@@ -160,6 +160,21 @@ try:
         check('Open my DTC…: the DTC is chosen, then the usual window shows what the mission changes in it', pg.is_visible('#msfgrp') and 'Viper.ini' in pg.inner_text('#msfgrp'))
         pg.click('#msfgrp [data-ok]'); r3 = pg.evaluate("async()=>await window.__r")
         check('and the mission opens with its DTC data in the chosen DTC (target_83 of the mission)', r3 is True and pg.evaluate("()=>{const l=__app.lines.find(l=>l.s=='STPT'&&l.k=='target_83');return !!l&&l.v.startsWith('123456')&&!!l.dirty}"))
+        # a new DTC without the sections WDP adds (NAV OFFSETS, ICP, Laser, FCC_…): Add the missing sections (checked) makes them with the values of the mission
+        secs = sorted(set(pg.evaluate("async d=>{const m=await import('/app/js/core/mission.js');return [...new Set(m.shareFromSaved(d).flatMap(g=>g.items.map(i=>i[0])))]}", json.loads(other)['dtc'])) & {'NAV OFFSETS', 'ICP', 'Laser', 'FCC_AIM', 'FCC_AGM', 'FCC_AGB'})
+        if secs:
+            import re as _re
+            ini2 = ini
+            for sname in secs: ini2 = _re.sub(r'(?ms)^\[' + _re.escape(sname) + r'\]\r?\n.*?(?=^\[|\Z)', '', ini2)
+            pg.goto('http://localhost:8797/app/index.html'); pg.wait_for_timeout(800)
+            pg.evaluate("ini=>{window.showOpenFilePicker=async()=>[{getFile:async()=>new File([ini],'Viper.ini')}]}", ini2)
+            pg.evaluate("t=>{window.__r=__app.msfLoad(t)}", other); pg.wait_for_timeout(600)
+            pg.click('#msfnodtc [data-ok]'); pg.wait_for_selector('#msfgrp', state='visible', timeout=8000)
+            check('a DTC without %s: Add the missing sections, checked, instead of the warning' % secs, pg.is_checked('#msfgrp [data-add]') and 'cannot be applied' not in pg.inner_text('#msfgrp'))
+            pg.click('#msfgrp [data-ok]'); pg.evaluate("async()=>await window.__r")
+            check('...applied: the sections made, with the lines of the mission', pg.evaluate("s=>s.every(x=>__app.lines.some(l=>l.s==x&&l.k&&l.dirty))", secs))
+        else:
+            check('the mission of the test has lines of NAV OFFSETS / ICP / Laser / FCC to try Add the missing sections', False)
         # without the tables of the game a mission is refused before anything changes (its flights and the map would be wrong)
         r4 = pg.evaluate("""async t=>{const ct=__app.CAM_D.ct;__app.CAM_D.ct=[];const c0=__app.C;try{return [await __app.msfLoad(t),__app.C===c0]}finally{__app.CAM_D.ct=ct}}""", other)
         check('no game data: the mission is refused and nothing changes', r4 == [False, True])

@@ -13,14 +13,20 @@ import { toLL as mToLL, fromLL as mFromLL, theaterBounds as mBounds } from '../c
 import { parseLink16 } from '../parsers/link16.js';
 import { parseIff } from '../parsers/iff.js';
 import { parseTwx } from '../parsers/twx.js';
+import { fmapDrift } from '../parsers/fmap.js';
+import { coastRegion } from '../core/mapconst.js';
+import { kbAddPic, KBX } from './kneeboard.js';
+import { terrain, heightsOf } from './gamefiles.js';
+import { FT_KM } from '../core/mapdtc.js';
+import basemap from '../data/basemap.js';
 import { ST } from './state.js';
-import { $, esc, jp, rememberLast } from './base.js';
+import { $, appToast, esc, jp, rememberLast } from './base.js';
 import { F, dEl, MIR, pushOne } from './datacard.js';
 import { perfFill } from './perf.js';
-import { lines } from './dtcfile.js';
+import { lines, openDtc, closeDtc } from './dtcfile.js';
 import { mapV } from './pages.js';
 import { apply, cardClear, discardOk, loadCam, manClear } from './selection.js';
-import { atoSearch } from './ato.js';
+import { atoSearch, flightTag } from './ato.js';
 import { msfLoad } from './mission.js';
 import { busyEnd, busyStart } from '../core/busy.js';
 
@@ -39,7 +45,22 @@ export const wxKey = ms => {
   const t = Math.floor(ms / 1000);
   return (Math.floor(t / 86400) + 1) * 10000 + Math.floor((t % 86400) / 3600) * 100;
 };
-export const wxAt = ms => (ms != null && WXS.get(wxKey(ms))) || ST.WX;
+// the time of a key of the hourly maps (DHHMM, Zulu: day 1 = the first day of the campaign)
+const keyMs = k => ((Math.floor(k / 10000) - 1) * 24 + Math.floor((k % 10000) / 100)) * 3600000;
+// the weather of a time: the hourly map of that hour (WeatherMapsUpdates: BMS loads it at its hour and keeps it until the next one); without it the last
+// hourly map before, moved with its wind; without hourly maps the map of the campaign, moved with its wind from the time of the campaign
+export const wxAt = ms => {
+  if (ms == null) return ST.WX;
+  const k = wxKey(ms),
+    w = WXS.get(k);
+  if (w) return w;
+  let bk = -1;
+  for (const kk of WXS.keys()) if (kk < k && kk > bk) bk = kk;
+  if (bk > 0) return fmapDrift(WXS.get(bk), ms - keyMs(bk));
+  if (WXDIR.files && Object.keys(WXDIR.files).length) return ST.WX;
+  const now = ST.C && ST.C.now;
+  return ST.WX && now != null ? fmapDrift(ST.WX, ms - now) : ST.WX;
+};
 // wind aloft at a position (km), time and altitude (ft): the layer nearest to the altitude, from the map of that hour
 export const wxWind = (x, y, t, a) => {
   const w = wxAt(t);
@@ -56,8 +77,17 @@ export const wxKeys = f => {
     b = Math.max(...ts),
     o = [];
   for (let t = Math.floor(a / 3600000) * 3600000; t <= b; t += 3600000) o.push(wxKey(t));
+  // the hours of the forecasts (TAF): from one hour before the target and the landing to two hours after
+  [taMs(f), landMs(f)].forEach(m => {
+    if (m == null) return;
+    for (let t = Math.floor((m - 3600000) / 3600000) * 3600000; t <= m + 3 * 3600000; t += 3600000) {
+      const k = wxKey(t);
+      if (!o.includes(k)) o.push(k);
+    }
+  });
   return o;
 };
+const taMs = f => ((f && f.wps ? f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) : null) || {}).arr;
 export async function wxList() {
   const c = [];
   try {
@@ -107,7 +137,7 @@ export const tafFor = f => {
   const site = tafSite(f),
     ta = (f.wps.find(p => ![0, 1, 2, 3, 4, 7, 8].includes(p.act)) || {}).arr,
     W = wxAt(site ? site.arr : ta);
-  return W ? CAM.tafText(ST.C, W, f, site || undefined) : '';
+  return W ? CAM.tafText(ST.C, W, f, site || undefined, wxAt) : '';
 };
 export function setTafMode(m) {
   ST.CFG.ui = ST.CFG.ui || {};
@@ -189,6 +219,7 @@ export function wxFlight() {
       rwy: F['ab' + j + '_5'],
       ils: F['ab' + j + '_6'],
       atis: Wb && ms != null ? CAM.atisText(Wb, [id, o[2], o[3], ms], elev) : '',
+      col: Wb && ms != null ? CAM.wxColour(Wb, [id, o[2], o[3], ms], elev) : '',
     });
   });
   return {
@@ -202,6 +233,14 @@ export function wxFlight() {
     hours,
     bases,
     taf: tafFor(f),
+    // both forecasts for the Weather card: of the target and of the landing airbase
+    tafTgt: ta != null && wxAt(ta) ? CAM.tafText(ST.C, wxAt(ta), f, undefined, wxAt) : '',
+    tafLdg: (() => {
+      const o = (F.__ab || [])[1];
+      if (!o || land == null || !wxAt(land)) return '';
+      const id = (o[1].match(/\((\w+)\)/) || [])[1] || o[1];
+      return CAM.tafText(ST.C, wxAt(land), f, { id, x: o[2], y: o[3], arr: land, elev: +F.ab1_4 || 0 }, wxAt);
+    })(),
     tafMode: tafMode(),
     tafId: (tafSite(f) || {}).id || '',
   };
@@ -233,9 +272,9 @@ export let wxPage;
 export const campDir = () =>
   ST.CFG.paths.campaigns ||
   (ST.CFG.paths.bmsInstall ? jp(ST.CFG.paths.bmsInstall, 'Data', ST.TH ? ST.TH.campaign : 'Campaign') : '');
-// the campaign menu (.cam) and the Tactical Engagement menu (.tac) are separate; choosing in one clears the other
+// the campaign menu (.cam) and the menu of the Tactical Engagements (.tac) and training missions (.trn, the same format) are separate; choosing in one clears the other
 export const setSel = n => {
-  const te = /\.tac$/i.test(n || '');
+  const te = /\.(tac|trn)$/i.test(n || '');
   $('csel').value = te ? '' : n || '';
   $('tesel').value = te ? n : '';
   $('csel').classList.toggle('dimsel', !!n && te);
@@ -247,7 +286,7 @@ export async function fillCampaigns() {
     d = campDir();
   if (!isDesktop() || !d) {
     sel.innerHTML = '<option value="">— set the BMS folder in Settings, or use Open ▾ › Campaign —</option>';
-    tsel.innerHTML = '<option value="">— select a tactical engagement —</option>';
+    tsel.innerHTML = '<option value="">— Select a TE or Training —</option>';
     return;
   }
   const all = (await listDir(d)).filter(e => !e.isDirectory),
@@ -258,17 +297,44 @@ export async function fillCampaigns() {
       .map(e => e.name)
       .sort(srt),
     tacs = all
-      .filter(e => /\.tac$/i.test(e.name))
+      .filter(e => /\.(tac|trn)$/i.test(e.name) && !/^te_new(_nt)?\.tac$/i.test(e.name)) // TE_New, TE_New_NT: the blanks of BMS for a new TE
       .map(e => e.name)
       .sort(srt);
   sel.innerHTML = '<option value="">— select a campaign —</option>' + names.map(n => opt(n, /\.cam$/i)).join('');
   if (!names.length)
     sel.innerHTML = '<option value="">— no campaigns found in ' + d.replace(/</g, '&lt;') + ' —</option>';
   tsel.innerHTML =
-    '<option value="">— select a tactical engagement —</option>' + tacs.map(n => opt(n, /\.tac$/i)).join('');
-  if (!tacs.length) tsel.innerHTML = '<option value="">— no tactical engagements found —</option>';
+    '<option value="">— Select a TE or Training —</option>' +
+    tacs
+      .map(n =>
+        /\.trn$/i.test(n) ? opt(n, /\.trn$/i).replace(/<\/option>$/, ' · Training</option>') : opt(n, /\.tac$/i)
+      )
+      .join('');
+  if (!tacs.length) tsel.innerHTML = '<option value="">— no TE or training found —</option>';
 }
 // the last choice wins: the arrow keys on the menu choose one campaign after the other, and a slow file of a campaign left behind must not end up over the one chosen last
+// the Weather card: the BMS terrain heights (ft) at points in km, null without the BMS folder
+async function tgtHeights(pts) {
+  const t = await terrain();
+  return t
+    ? heightsOf(
+        t,
+        pts.map(p => ({ n: p[1] * FT_KM, e: p[0] * FT_KM }))
+      )
+    : null;
+}
+// the land of the offline coastlines in km of the theater, kept per region
+const COASTKM = {};
+async function coastKm() {
+  const reg = coastRegion();
+  if (!reg) return [];
+  if (COASTKM[reg]) return COASTKM[reg];
+  const data = reg == 'med' ? (await import('../data/basemap-med.js')).default : basemap,
+    [[la0, lo0], [la1, lo1]] = mBounds(),
+    pad = 2,
+    inBox = r => r.some(([lo, la]) => lo > lo0 - pad && lo < lo1 + pad && la > la0 - pad && la < la1 + pad);
+  return (COASTKM[reg] = data.land.filter(inBox).map(r => r.map(([lo, la]) => mFromLL(la, lo))));
+}
 let CAMGEN = 0;
 // a campaign or a mission opened another way (Open menu): a choice of the menu still loading is dropped
 export const campCancel = () => ++CAMGEN;
@@ -288,6 +354,8 @@ async function selectCampaign0(name) {
     return;
   }
   if (stale()) return;
+  if (name !== ST.CAMSEL) await leaveTeDtc();
+  if (stale()) return;
   ST.CAMSEL = name;
   setSel(name);
   rememberLast('lastCamp', name);
@@ -305,7 +373,7 @@ async function selectCampaign0(name) {
   }
   const dir = campDir(),
     es = await listDir(dir),
-    stem = name.replace(/\.(cam|tac)$/i, '');
+    stem = name.replace(/\.(cam|tac|trn)$/i, '');
   if (stale()) return;
   const find = (...sfx) => {
     const e =
@@ -383,20 +451,90 @@ async function selectCampaign0(name) {
   try {
     bytes = await readBytes(joinPath(dir, name));
   } catch (e) {
-    if (!stale()) alert('Unable to read the campaign file: ' + ((e && e.message) || e));
+    if (!stale()) alert('Unable to read the campaign file: ' + ((e && e.message) || e), 'bad');
     return;
   }
   if (stale()) return;
   await loadCam(new File([bytes], name), stale);
   if (stale()) return;
-  if (ST.C && ST.C.isTe) $('cinfo').textContent = 'Tactical Engagement. ' + $('cinfo').textContent;
+  if (ST.C && ST.C.isTe)
+    $('cinfo').textContent =
+      (/\.trn$/i.test(name) ? 'Training mission. ' : 'Tactical Engagement. ') + $('cinfo').textContent;
+  // a TE (.tac) or a training mission (.trn) with its DTC <name>.ini next to it: BMS loads that file for the mission (the callsign.ini is for the
+  // campaigns). It is opened with it, unless the last DTC is about to be opened at start (Settings > Open last at start: the last one opened wins, as
+  // before); choosing another TE, a campaign or nothing closes it again (leaveTeDtc). The file is protected: dtcfile.js dtcOverwrite.
+  const ini = /\.(tac|trn)$/i.test(name) ? find('.ini') : null;
+  const prev = ST.DTCF && ST.DTCF.path;
+  ST.TRAIN = ini ? { path: joinPath(dir, ini), name: ini, prev: prev || null } : null;
+  if (ST.TRAIN) {
+    $('cinfo').textContent =
+      (/\.trn$/i.test(name) ? 'Training mission' : 'Tactical Engagement') +
+      ' (its DTC: ' +
+      ini +
+      '). ' +
+      $('cinfo').textContent.replace(/^(Tactical Engagement|Training mission)\. /, '');
+    const open = prev;
+    if (open && open.toLowerCase() == ST.TRAIN.path.toLowerCase()) ST.TRAIN.prev = null;
+    if (!ST.TRAINSKIP && (!open || open.toLowerCase() != ST.TRAIN.path.toLowerCase())) {
+      const dirty = lines.some(l => l.dirty);
+      if (
+        !dirty ||
+        (await confirm(
+          'Open the DTC of the mission (' +
+            ini +
+            ')?\n\nThe DTC open now has changes not written: they are lost. Cancel keeps it open.'
+        ))
+      )
+        try {
+          const b = await readBytes(ST.TRAIN.path);
+          if (stale()) return;
+          await openDtc({
+            name: ini,
+            path: ST.TRAIN.path,
+            arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+          });
+        } catch (e) {
+          appToast('The DTC of the mission could not be read: ' + ((e && e.message) || e), true);
+        }
+    }
+  }
+}
+// another TE, a campaign or nothing chosen: the DTC of the TE / training mission opened with it is closed, and the DTC open before it comes back (else none).
+// A DTC opened by hand since then stays.
+async function leaveTeDtc() {
+  const t = ST.TRAIN;
+  ST.TRAIN = null;
+  if (!t) return;
+  const open = ST.DTCF && ST.DTCF.path;
+  if (!open || open.toLowerCase() != t.path.toLowerCase()) return;
+  if (
+    lines.some(l => l.dirty) &&
+    !(await confirm('The DTC of the mission (' + t.name + ') has changes not written: they are lost.', {
+      ok: 'Close it',
+      no: 'Keep it open',
+    }))
+  )
+    return;
+  if (t.prev)
+    try {
+      const b = await readBytes(t.prev);
+      await openDtc({
+        name: t.prev.split(/[\\/]/).pop(),
+        path: t.prev,
+        arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength),
+      });
+      return;
+    } catch (e) {
+      /* the DTC before it is gone: none */
+    }
+  closeDtc();
 }
 export async function loadFmap(file) {
   let W;
   try {
     W = CAM.parseFmap(new Uint8Array(await file.arrayBuffer()));
   } catch (e) {
-    return alert('Unable to read the .fmap: ' + e.message);
+    return alert('Unable to read the .fmap: ' + e.message, 'bad');
   }
   if (ST.C && ST.CL.length && !(await discardOk())) return;
   manClear();
@@ -406,7 +544,7 @@ export async function loadFmap(file) {
 }
 export async function loadL16(file) {
   const m = parseLink16(await file.text());
-  if (!Object.keys(m).length) return alert('No STN found in the Link16 file.');
+  if (!Object.keys(m).length) return alert('No STN found in the Link16 file.', 'bad');
   ST.L16 = m;
   atoSearch();
   if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
@@ -414,7 +552,7 @@ export async function loadL16(file) {
 }
 export async function loadIFF(file) {
   const m = parseIff(await file.text());
-  if (!Object.keys(m).length) return alert('No IFF policy found in the file.');
+  if (!Object.keys(m).length) return alert('No IFF policy found in the file.', 'bad');
   ST.IFFP = m;
   if (ST.C && ST.CL.length) apply(+$('fsel').value || 0);
   else alert('IFF policy loaded: open a campaign to fill in the IFF column.');
@@ -424,7 +562,7 @@ export async function loadTwx(file) {
   try {
     T = parseTwx(await file.arrayBuffer());
   } catch (e) {
-    return alert(e.message);
+    return alert(e.message, 'bad');
   }
 
   const v = T.iso;
@@ -443,10 +581,14 @@ export async function loadTwx(file) {
 // run 14: statements that run when the program starts (in the order of the original file)
 export async function init14() {
   WXS = new Map();
+  KBX.src.wx = () => (wxPage ? wxPage.allCards() : []); // Add all cards (Kneeboard)
   wxPage = createWeatherPage({
     root: $('wx'),
     esc,
-    flight: wxFlight,
+    flight: () => {
+      const f = wxFlight();
+      return f ? { ...f, tag: flightTag() } : f;
+    },
     at: wxAt,
     fill: wxFill,
     fillState: wxFillState,
@@ -458,14 +600,26 @@ export async function init14() {
     get bounds() {
       return mBounds();
     },
+    // the Weather card: terrain heights, coasts in km, the Kneeboard
+    heights: pts => tgtHeights(pts),
+    coast: () => coastKm(),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
+    toast: (m, bad) => appToast(m, bad),
   });
+  // the TE / Training menu as wide as the campaign menu (its names are longer: it would grow)
+  const cs = $('csel'),
+    syncW = () => {
+      if (cs.offsetWidth) $('tesel').style.width = cs.offsetWidth + 'px';
+    };
+  if (window.ResizeObserver) new ResizeObserver(syncW).observe(cs);
+  syncW();
   $('csel').onchange = () => selectCampaign($('csel').value);
   $('tesel').onchange = () => selectCampaign($('tesel').value);
   $('cam').onclick = async () => {
     const f = await pickFile({
-      exts: ['cam', 'tac', 'bcrd'],
+      exts: ['cam', 'tac', 'trn', 'bcrd'],
       startDir: ST.CFG.paths.campaigns,
-      title: 'Open a campaign, a Tactical Engagement or a mission',
+      title: 'Open a campaign, a Tactical Engagement, a training mission or a mission',
     });
     if (!f) return;
     if (/\.bcrd$/i.test(f.name)) {

@@ -1,6 +1,6 @@
 import { createTargetData } from '../core/targetdata.js';
 import { createDtcPage } from '../core/dtcpage.js';
-import { FT_KM, WT_N, dtcPoints, removePoint } from '../core/mapdtc.js';
+import { FT_KM, WT_N, dtcPoints, removePoint, sitMeta } from '../core/mapdtc.js';
 import { loadPrefs, savePrefs, isDesktop, readBytes } from '../platform/desktop.js';
 import { readTarget, targetLine } from '../core/targets.js';
 import { openTargetPicker } from '../core/targetpicker.js';
@@ -23,7 +23,7 @@ import { $, animOn, appToast, esc, jp } from './base.js';
 import { l16Back, l16Info, l16Remove, l16Unpin } from './l16link.js';
 import { G, S, lines, stpts, view } from './dtcfile.js';
 import { DCS0, dcSync, dtcChanged, freqOwners } from './datacard.js';
-import { dtcBtns, dtcClear, dtcSet } from './dtcapply.js';
+import { dtcBtns, dtcClear, dtcSet, sitOn } from './dtcapply.js';
 import { terrain, heightsOf } from './gamefiles.js';
 import { mapV } from './pages.js';
 
@@ -197,7 +197,7 @@ export async function init8() {
               name: fActName(f.wps, i, mn),
               pos: mFmtLL(w.ll[0], w.ll[1]),
               alt: w.altFt,
-              hdg: l ? String(Math.round(l.hdg)).padStart(3, '0') + '°' : '',
+              hdg: l ? String(Math.round(l.mhdg) % 360).padStart(3, '0') + '°' : '',
               dist: l ? l.nm.toFixed(1) : '',
               spd: l && dt > 0 ? Math.round(l.nm / dt) : '',
               form:
@@ -244,6 +244,8 @@ export async function init8() {
     l16Back,
     toast: appToast,
     pointSet: (g, slot, patch) => dtcSet(g, slot, patch, true),
+    sitOn: () => sitOn(),
+    sitMeta: () => sitMeta(lines),
     pointDel: (g, slot) =>
       removePoint(
         dtcPoints(lines),

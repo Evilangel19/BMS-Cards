@@ -26,6 +26,13 @@ export function ownIndex(F) {
   return -1;
 }
 
+/** the VHF preset of the player's flight on the card (the cell left of Callsign): "VHF 16" for the second flight of the package table; '' when the
+ * flight is not in it */
+export const vhfPreset = F => {
+  const i = ownIndex(F);
+  return i < 0 ? '' : 'VHF ' + (15 + i);
+};
+
 /**
  * The presets the card gives: [{k: 'UHF_6', v: '276675'}, ...] (kHz, only the ones the card has a frequency for).
  * @param {Record<string, any>} F the datacard (pk<i>_2 / pk<i>_3 = UHF / VHF of the package flights, su0 = the first tanker, su2 = the AWACS, su<i>_v = VHF of a support aircraft, rd_u15 = UHF2 of the first flight)

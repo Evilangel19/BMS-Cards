@@ -14,7 +14,7 @@ export const FILES = {
   rack: 'BmsRack.dat', // pylons and racks of every station (their weight and drag count in the loadout)
 };
 export const OPTIONAL = new Set();
-// Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 (a newer BMS may have changed it)
+// Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 and 4.38.2 (a newer BMS may have changed it)
 export const EXPECT = {
   ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
   ucd: ['Name', 'CtIdx', 'VehicleCtIdx_0', 'Rng_Air', 'Rng_LowAir', 'RadarVehicle', 'Det_LowAir', 'Det_Air'],
@@ -451,8 +451,9 @@ export function parseTheaterTxt(text) {
     mapPx: n('map size in pixels'),
     lat: n('center latitude'),
     lon: n('center longitude'),
+    proj: t['projection string'] || '', // +proj=tmerc ... (rules/geo.js setGeo)
   };
-  return r.lat != null && r.lon != null ? r : null;
+  return (r.lat != null && r.lon != null) || /\+proj=tmerc/i.test(r.proj) ? r : null;
 }
 
 const parts = p => (p || '').split(/[\\/]+/).filter(Boolean);

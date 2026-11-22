@@ -24,7 +24,7 @@ export function initAppear() {
   document.addEventListener(
     'click',
     e => {
-      const b = e.target.closest && e.target.closest('.wtabs button');
+      const b = e.target.closest && e.target.closest('.wtabs button:not(.btn)');
       if (!b || b.disabled || b.classList.contains('on')) return;
       const bar = b.closest('.wtabs'),
         id = bar.id,

@@ -1,6 +1,7 @@
 // Part of the datacard core (prototype logic, moved as-is from cam-core.js).
 import { allyOf } from './coalitions.js';
 import { carrierNear } from './carriers.js';
+import { toMag } from './magvar.js';
 const ord = n => n + (['th', 'st', 'nd', 'rd'][n % 100 > 10 && n % 100 < 14 ? 0 : Math.min(n % 10, 4) % 4] || 'th');
 const locBE = (C, u, codes) => {
   if (!C.bull || !u) return '';
@@ -8,7 +9,7 @@ const locBE = (C, u, codes) => {
   if (!w) return '';
   const n = w.y - C.bull.y,
     e = w.x - C.bull.x,
-    b = Math.round(((Math.atan2(e, n) * 180) / Math.PI + 360) % 360) % 360;
+    b = Math.round(toMag((Math.atan2(e, n) * 180) / Math.PI, w.x, w.y)) % 360; // magnetic
   return String(b).padStart(3, '0') + '/' + Math.round(Math.hypot(n, e) / 1.852);
 };
 function fac(C, f, u6) {

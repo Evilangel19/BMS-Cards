@@ -195,7 +195,9 @@ export function applyDtcEdits(original, edits) {
 // A mission sent to other pilots does not bring the whole DTC of its author (the MFD pages, the EWS programs ... are personal): it brings groups of sections.
 // `mission` groups are the ones the author of a mission decides (they are on by default), the others are personal (off by default; the author can still turn them on).
 // what travels to other pilots: ONE block of the DTC (no choice): steerpoints 1-99 (targets, PPT, geo lines, weapon targets), nav offsets, FCC profiles, laser codes and the ICP section (Bingo, Alow)
-export const DTC_BLOCK_SECS = ['STPT', 'NAV OFFSETS', 'FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser', 'ICP'];
+export const DTC_BLOCK_SECS = ['STPT', 'NAV OFFSETS', 'FCC_AGB', 'FCC_AIM', 'FCC_AGM', 'Laser', 'ICP', 'F15_SIT_LINES'];
+// sections made in the DTC of the receiver when it has none yet (the F-15 SIT lines of BMS 4.38.2: an older DTC has no such section)
+const MADE_SECS = new Set(['F15_SIT_LINES']);
 export const DTC_GROUPS = [
   {
     id: 'mission',
@@ -246,7 +248,7 @@ const norm = v =>
   String(v == null ? '' : v)
     .replace(/\s+/g, ' ')
     .trim();
-const SLOT_SECS = ['STPT', 'NAV OFFSETS'];
+const SLOT_SECS = ['STPT', 'NAV OFFSETS', 'F15_SIT_LINES'];
 const isEmptySlot = v => {
   const t = norm(v)
     .split(/\s*,\s*/)
@@ -283,7 +285,7 @@ export function shareDiff(existing, g) {
     same = 0,
     lost = 0;
   for (const [s, k, v] of g.items) {
-    if (!secs.has(s)) {
+    if (!secs.has(s) && !MADE_SECS.has(s)) {
       miss.add(s);
       lost++;
       continue;
@@ -306,7 +308,7 @@ export function applyShare(set, groups, ids, existing) {
       const clr = shareClears(existing, g);
       for (const [s, k, v] of g.items) {
         if (!stptOk({ s, k })) continue; // a mission saved by an older version may still carry the route
-        if (secs && !secs.has(s)) {
+        if (secs && !secs.has(s) && !MADE_SECS.has(s)) {
           skipped++;
           continue;
         }
@@ -333,6 +335,7 @@ export function buildMission({
   weather = null,
   aircraft = null,
   tanks = null,
+  mapstyle = null,
   weapons = null,
   mapshot = null,
   created = null,
@@ -356,6 +359,7 @@ export function buildMission({
     weather,
     aircraft,
     tanks,
+    mapstyle,
     weapons,
     mapshot,
   };
@@ -458,10 +462,11 @@ export function missionShapeError(o) {
   const x = o.weapons;
   if (x != null) {
     if (!isObj(x)) return 'weapons is not an object';
-    for (const k of ['wp', 'harm', 'bvr'])
+    for (const k of ['wp', 'harm', 'sead', 'dead', 'bvr'])
       if (x[k] != null && !isObj(x[k])) return 'weapons.' + k + ' is not an object';
   }
   if (o.tanks != null && !Array.isArray(o.tanks)) return 'tanks is not a list';
+  if (o.mapstyle != null && !isObj(o.mapstyle)) return 'mapstyle is not an object';
   if (o.mapshot != null && !(typeof o.mapshot == 'string' && /^data:image\/(png|jpeg);base64,/.test(o.mapshot)))
     return 'mapshot is not a picture';
   if (o.aircraft != null && !isObj(o.aircraft)) return 'aircraft is not an object';

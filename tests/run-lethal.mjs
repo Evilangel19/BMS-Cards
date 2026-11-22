@@ -23,20 +23,29 @@ const ck = (name, ok) => {
 const near = (a, b, t = 1) => Math.abs(a - b) <= t;
 const T = { n: 0, e: 0 },
   R = { n: -30000, e: 0 };
-// envelope: the two graph classes exactly, 1 000 lb interpolated and flagged
+// envelope: the maximum fragment envelopes of the graphs (frag.js), 1 000 lb blended and flagged
 const e5 = envelope(500),
   e10 = envelope(1000),
   e20 = envelope(2000);
-ck('500 lb: 3 600 ft out, 2 450 ft up, 25 s', e5.out === 3600 && e5.up === 2450 && e5.t === 25 && !e5.approx);
-ck('2000 lb: 3 700 ft out, 2 500 ft up, 27 s', e20.out === 3700 && e20.up === 2500 && e20.t === 27 && !e20.approx);
 ck(
-  '1000 lb lies between the two and is approximate',
-  e10.out > 3600 && e10.out < 3700 && e10.t > 25 && e10.t < 27 && e10.approx
+  '500 lb (MK-82 graph): about 3 700 ft out, 3 050 ft up over the impact, 26 s ' + [e5.out, e5.up, e5.t],
+  near(e5.out, 3700, 60) && near(e5.up, 3050, 60) && near(e5.t, 26.5, 0.5) && !e5.approx
 );
+ck(
+  '2000 lb (MK-84 graph): about 3 700 ft out, 3 100 ft up, 28 s ' + [e20.out, e20.up, e20.t],
+  near(e20.out, 3700, 60) && near(e20.up, 3100, 60) && near(e20.t, 28, 0.5) && !e20.approx
+);
+ck('1000 lb lies between the two and is approximate', e10.t >= e5.t && e10.t <= e20.t && e10.approx);
 ck(
   'weights outside the classes stay on the nearest class',
-  envelope(250).out === 3600 && envelope(4000).out === 3700 && envelope(0) === null
+  envelope(250).up === e5.up && envelope(4000).up === e20.up && envelope(0) === null
 );
+// the fragments in time: high up for a moment, low down for most of the fall, the far edge late and briefly (read from the graph)
+const W = (r, z) => e5.model.win(r, z);
+ck('over the impact at 3 000 ft: about 7-11 s ' + W(0, 3000), W(0, 3000)[0] > 6 && W(0, 3000)[1] < 12);
+ck('over the impact at 1 000 ft: about 1-23 s ' + W(0, 1000), W(0, 1000)[0] < 2 && W(0, 1000)[1] > 21);
+ck('3 500 ft out, 300 ft up: briefly about 13 s ' + W(3500, 300), W(3500, 300)[0] > 11 && W(3500, 300)[1] < 16);
+ck('2 500 ft out, 2 000 ft up: outside the envelope', W(2500, 2000) === null && W(5000, 0) === null);
 // bomb names from the loadout
 ck(
   'MK-82 / GBU-12 / GBU-38 are 500 lb',
@@ -94,9 +103,16 @@ ck(
   a.mra.value === Math.max(a.mra.frag, a.mra.recovery, a.mra.arming) && a.mra.frag > 0
 );
 ck(
-  '2000 ft is below the MRA of a 15 deg MK-82 drop: the aircraft is inside the zone at the first impact and the release altitude is red',
-  a.below && a.viol && a.viol.bomb === 1 && a.flags.releaseAltitude
+  '2000 ft is below the MRA of a 15 deg MK-82 drop (the arming delay of 6 s): the release altitude is red',
+  a.below && a.flags.releaseAltitude
 );
+{
+  const lo = analyse(computePopup(T, R, { releaseAltitude: 1000, diveAngle: 15 }), e5, [0]);
+  ck(
+    '1000 ft in a 15 deg dive: inside the fragments of the first bomb, below the fragmentation MRA ' + lo.mra.frag,
+    lo.viol && lo.viol.bomb === 1 && lo.mra.frag > 1000 && lo.mra.frag < 2000
+  );
+}
 const hi = analyse(
   computePopup(T, R, { releaseAltitude: a.mra.value + 200, diveAngle: 15, ad1: 1, ad2: 2 }),
   e5,

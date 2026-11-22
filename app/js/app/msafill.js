@@ -1,6 +1,6 @@
 // MSA / ERAA of the selected flight (datacard, MDC, map) and of the airbases: the terrain comes from the HeightMap.raw of the BMS folder (gamefiles.js terrain()),
 // nothing is estimated: without it the cells stay empty. The results are kept per route / airbase, the terrain is read once.
-import { routeMsa, baseMsa } from '../core/msa.js';
+import { routeMsa, baseMsa, loadCells, ifrMsa } from '../core/msa.js';
 import { flightRoute } from '../core/mapdata.js';
 import { FT_KM } from '../core/mapdtc.js';
 import { busyWrap } from '../core/busy.js';
@@ -67,7 +67,50 @@ export function msaOfBase(x, y) {
   }
   return BASES.get(key);
 }
+// the MSA of an area (the FEZ of the FAOR page): the highest cell inside the polygon (campaign km) + 1 000 ft; null without the terrain
+const AREAS = new Map();
+export function msaOfArea(poly) {
+  if (!poly || poly.length < 3) return Promise.resolve(null);
+  const key = th() + '|' + poly.map(p => p.x.toFixed(1) + ',' + p.y.toFixed(1)).join(';');
+  if (AREAS.has(key)) return AREAS.get(key);
+  const inside = (x, y) => {
+    let c = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i],
+        b = poly[j];
+      if (a.y > y != b.y > y && x < ((b.x - a.x) * (y - a.y)) / (b.y - a.y) + a.x) c = !c;
+    }
+    return c;
+  };
+  const xs = poly.map(p => p.x),
+    ys = poly.map(p => p.y),
+    cl = [];
+  for (let j = Math.floor(Math.min(...ys)); j <= Math.ceil(Math.max(...ys)); j++)
+    for (let i = Math.floor(Math.min(...xs)); i <= Math.ceil(Math.max(...xs)); i++) if (inside(i, j)) cl.push([i, j]);
+  const cache = cells(),
+    pr = busyWrap('Reading the terrain of the FEZ…', loadCells(elev, cl, cache)).then(
+      ok => {
+        if (!ok) {
+          AREAS.delete(key);
+          return null;
+        }
+        let m = null;
+        cl.forEach(([i, j]) => {
+          const v = cache.get(i + ',' + j);
+          if (v != null && (m === null || v > m)) m = v;
+        });
+        return m === null ? null : ifrMsa(Math.max(0, m));
+      },
+      () => {
+        AREAS.delete(key);
+        return null;
+      }
+    );
+  AREAS.set(key, pr);
+  return pr;
+}
 export const clearMsa = () => {
+  AREAS.clear();
   ROUTES.clear();
   BASES.clear();
   CELLS.clear();

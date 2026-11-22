@@ -201,7 +201,8 @@ export function parseUni(blk, ver, ct) {
       vu();
       r.slots = [u8(), u8(), u8(), u8()];
       r.pilots = [u8(), u8(), u8(), u8()];
-      sk(8);
+      sk(4); // the state of each aircraft
+      r.pslots = [u8(), u8(), u8(), u8()]; // the seats taken by a player (255: none): the flight the player chose in the campaign
       r.lastSlot = u8();
       r.csId = u8();
       r.csNum = u8();
@@ -518,7 +519,7 @@ export function objInitial(E) {
     return null;
   }
 }
-// highest campaign file version this reader was checked against (BMS 4.38.1 writes 109); a newer file may carry fields read wrongly
+// highest campaign file version this reader was checked against (BMS 4.38.1 and 4.38.2 write 109); a newer file may carry fields read wrongly
 export const CAM_VER_MAX = 110;
 // Tactical Engagement files (.tac) are campaign files with one more section, "te" (text): the teams of the engagement. Teams that have a name (not "---"): [{n, name}]; the first one is the player's side
 export function teTeams(u8) {
@@ -598,6 +599,6 @@ export function openCam(u8, D, name) {
     objOwnRaw: OD.own,
     objFeatRaw: OD.feat,
     parse: { num: pu.num, count: units.length, end: pu.end, len: pu.len },
-    name: (name || '').replace(/\.(cam|tac)$/i, ''),
+    name: (name || '').replace(/\.(cam|tac|trn)$/i, ''),
   };
 }

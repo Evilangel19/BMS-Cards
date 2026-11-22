@@ -1,3 +1,4 @@
+import { inkDc } from '../core/cardink.js';
 import { SHOT, LAYOUT, paintBlank } from '../core/cardlayout.js';
 import { DC_ROW, seatCell, seatShift } from '../core/seatgeo.js';
 import { FP_NAMES, fpCx, fpTextX } from '../core/fpcols.js';
@@ -399,6 +400,17 @@ export const MSHOT = [
   ((SHOT[3] - SHOT[1]) * 1200) / LAYOUT.h,
 ];
 export let BLK = null;
+// the blank of the MDC format in the dark look (Kneeboard, dark datacard pages)
+let BLKD = null;
+const blankDark = () => {
+  if (!BLKD) {
+    BLKD = document.createElement('canvas');
+    BLKD.width = LAYOUT.w;
+    BLKD.height = LAYOUT.h;
+    paintBlank(inkDc(BLKD.getContext('2d')), LAYOUT);
+  }
+  return BLKD;
+};
 export const blank = () => {
   if (!BLK) {
     BLK = document.createElement('canvas');
@@ -506,12 +518,13 @@ function mdcText(x, v, d) {
   x.textAlign = 'left';
   x.fillStyle = '#000';
 }
-export function mdcDraw(x) {
+// dk: the dark look (x wrapped by inkDc: the colours turned as they are drawn)
+export function mdcDraw(x, dk = false) {
   x.setTransform(1, 0, 0, 1, 0, 0);
   x.fillStyle = '#fff';
   x.fillRect(0, 0, 2048, 2048);
   x.imageSmoothingQuality = 'high';
-  x.drawImage(blank(), 0, 0, 2048, 2048);
+  x.drawImage(dk ? blankDark() : blank(), 0, 0, 2048, 2048);
   x.setTransform(2048 / 1600, 0, 0, 2048 / 1200, 0, 0);
   x.textBaseline = 'middle';
   x.textAlign = 'left';
@@ -713,9 +726,10 @@ function draw0() {
     x.drawImage(ST.MAPSHOT, 1048, 1290, 564, 752);
   }
 }
-export function gapless() {
+// src: the card as drawn (the canvas of the page), or a copy of it (the dark look of the Kneeboard)
+export function gapless(src) {
   const cut = ST.MDCON ? [1002, 1041] : [1012, 1040],
-    c = $('cv'),
+    c = src || $('cv'),
     o = document.createElement('canvas');
   o.width = o.height = 2048;
   const q = o.getContext('2d');

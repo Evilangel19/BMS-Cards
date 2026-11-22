@@ -81,6 +81,27 @@ ck(
   );
 }
 {
+  // gap (the fine pass of the MSA): the points of a row far apart are read as separate short pieces, the values are the same
+  const pts = [];
+  for (let j = 0; j < 8; j++) for (const i of [0, 1, 6, 7]) pts.push({ n: (j / 7) * S, e: (i / 7) * S });
+  const each = [];
+  for (const q of pts) each.push(await heightAt(readAt, spec, q.n, q.e));
+  let longest = 0;
+  const r = await heightsAt(
+    async (o, l) => {
+      longest = Math.max(longest, l);
+      return readAt(o, l);
+    },
+    spec,
+    pts,
+    { gap: 4 }
+  );
+  ck(
+    'gap: the same values, read in short pieces (longest ' + longest + ' bytes of a 16-byte row)',
+    JSON.stringify(r) === JSON.stringify(each) && longest <= 4
+  );
+}
+{
   // a cache of rows: whole rows are read once and kept, several rows are read in one go
   const pts = [];
   for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) pts.push({ n: (j / 7) * S, e: (i / 7) * S });

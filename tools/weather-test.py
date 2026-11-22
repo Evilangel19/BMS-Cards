@@ -88,6 +88,14 @@ try:
             check('after Fill the button is dimmed (the datacard holds the weather)', 'nil' in pg.evaluate("()=>document.querySelector('#wx [data-fill]').className"))
         else:
             check('the button is dimmed when the datacard already holds the weather', True)
+        # Add card: a dialog with the four pictures (SIGWX, RADAR, WIND, Smart) to choose from, as on the Target page
+        if pg.locator('#wx [data-wxcard]').count():
+            check('one Add card button (no SIGWX/RADAR/WIND switch)', pg.locator('#wx [data-wxcard]').count() == 1 and pg.locator('#wx [data-cst]').count() == 0)
+            pg.click('#wx [data-wxcard]'); pg.wait_for_timeout(1500)
+            d = pg.evaluate("()=>{const d=document.querySelector('dialog.tgdlg[open]');return d?{n:d.querySelectorAll('.tgcard').length,t:d.textContent}:null}")
+            check('the dialog shows the four cards (SIGWX, RADAR, WIND, Smart) %s' % (d and d['n']), d and d['n'] == 4 and all(k in d['t'] for k in ('SIGWX', 'RADAR', 'WIND', 'Smart')))
+            pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
+            check('Escape closes it', pg.locator('dialog.tgdlg[open]').count() == 0)
         pg.screenshot(path=SH + '/weather.png', full_page=True)
         pg.click('[data-t=mp]'); pg.wait_for_timeout(800)
         check('leaving the page gives the map back to the Map page (no weather left on it)', pg.evaluate("()=>{const m=document.querySelector('#mpmap');return !!m&&m.parentElement.id=='mpbody'&&!document.querySelector('img.wxcells')}"))

@@ -15,6 +15,7 @@ import {
   egressHeading,
   offsetRow,
 } from './popup.js';
+import { toMag } from './magvar.js';
 
 const rad = d => (d * Math.PI) / 180,
   deg = r => (r * 180) / Math.PI,
@@ -70,7 +71,7 @@ export const HADB_LIMITS = {
   stickSpacing: [0, 1000, 25],
 };
 export const TOSS_LIMITS = {
-  releaseAngle: [5, 60, 1],
+  releaseAngle: [5, 45, 1], // TO 1F-16CM-34-1-1 BMS: the CCRP release angle 0-45°, max toss 45°
   ingressAltitude: [50, 2000, 50],
   ingressSpeed: [300, 650, 5],
   releaseSpeed: [300, 650, 5],
@@ -83,12 +84,16 @@ export const TOSS_LIMITS = {
 const unit = h => ({ n: Math.cos(rad(h)), e: Math.sin(rad(h)) });
 const add = (p, q, k = 1) => ({ n: p.n + q.n * k, e: p.e + q.e * k });
 
-// the common tail: stick, fuze, OA2 / egress, wheel
-function tail(target, attack, v, fall, pulses, gsFps, extra) {
+// the common tail: stick, fuze, OA2 / egress (out along the egress heading from the release point), wheel
+function tail(target, attack, v, fall, pulses, gsFps, extra, release) {
   const stickLen = (pulses - 1) * v.stickSpacing,
     egressHdg = egressHeading(v, attack);
   const oa2 =
-    v.oa2Mode === 'target' ? { ...target } : v.oa2Mode === 'egress' ? project(target, egressHdg, v.egressRange) : null;
+    v.oa2Mode === 'target'
+      ? { ...target }
+      : v.oa2Mode === 'egress'
+        ? project(release || target, egressHdg, v.egressRange)
+        : null;
   return {
     impacts: stickImpacts(target, attack, v, pulses, stickLen, gsFps),
     fuze: fuzeData(fall, v),
@@ -188,12 +193,13 @@ export function computeHadb(target, ref, inp) {
       [[-relRange, v.releaseAltitude], 'Release · ' + Math.round(v.releaseAltitude) + ' ft', '#4aa3ff'],
     ],
   };
-  const t = tail(target, attack, v, fall, pulses, gsFps, {});
+  const t = tail(target, attack, v, fall, pulses, gsFps, {}, release);
   const slant = Math.hypot(dist(pup, target), ingressAlt);
   return {
     target,
     pup,
     vrp: release,
+    release,
     oa,
     oa2: t.oa2,
     oa2Alt: t.oa2Alt,
@@ -206,7 +212,7 @@ export function computeHadb(target, ref, inp) {
         ['pull', arc],
         ['dive', [endTurn, release]],
         ['fall', [release, target]],
-        ...(t.oa2 && v.oa2Mode == 'egress' ? [['egress', [target, t.oa2]]] : []),
+        ...(t.oa2 && v.oa2Mode == 'egress' ? [['egress', [release, t.oa2]]] : []),
       ],
       marks: [
         [oa, 'OA1', '#a78bfa', 'dia'],
@@ -219,8 +225,8 @@ export function computeHadb(target, ref, inp) {
         [endTurn, release, 'dive'],
       ],
       labels: [
-        [mid2(oa, pup), 'Ingress ' + h3(hin) + '°'],
-        [mid2(endTurn, release), 'Attack ' + h3(attack) + '°'],
+        [mid2(oa, pup), 'Ingress ' + hm(hin) + '°'],
+        [mid2(endTurn, release), 'Attack ' + hm(attack) + '°'],
       ],
     },
     vert,
@@ -245,7 +251,7 @@ export function computeHadb(target, ref, inp) {
       pupToTarget: dist(pup, target),
       pupBearing: bearing(pup, target),
       wheelRange: slant,
-      egressHeading: t.egressHeading,
+      egressHeading: t.egressHdg,
       tofStick: fall.time + (gsFps > 0 ? stickLen / gsFps : 0),
     },
   };
@@ -354,7 +360,7 @@ export function computeToss(target, ref, inp) {
       [[xRel, relAlt], 'Release · ' + Math.round(relAlt) + ' ft', '#4aa3ff'],
     ],
   };
-  const tl = tail(target, attack, { ...v, releaseAltitude: relAlt }, fall, pulses, gsFps, {});
+  const tl = tail(target, attack, { ...v, releaseAltitude: relAlt }, fall, pulses, gsFps, {}, release);
   const preTurn = vrp
     ? [
         ['ingress', [oa2L, vrp]],
@@ -380,7 +386,7 @@ export function computeToss(target, ref, inp) {
         ['ingress', [oa, pup]],
         ['climb', [pup, release]],
         ['fall', [release, target]],
-        ['egress', [target, project(target, tl.egressHdg, v.egressRange)]],
+        ['egress', [release, project(release, tl.egressHdg, v.egressRange)]],
       ],
       marks: [
         ...(vrp
@@ -398,8 +404,8 @@ export function computeToss(target, ref, inp) {
         [pup, release, 'climb'],
       ],
       labels: [
-        [mid2(oa, pup), 'Attack ' + h3(attack) + '°'],
-        ...(vrp ? [[mid2(oa2L, vrp), 'Ingress ' + h3(hin) + '°']] : []),
+        [mid2(oa, pup), 'Attack ' + hm(attack) + '°'],
+        ...(vrp ? [[mid2(oa2L, vrp), 'Ingress ' + hm(hin) + '°']] : []),
       ],
     },
     vert,
@@ -421,7 +427,7 @@ export function computeToss(target, ref, inp) {
       pupToTarget: dist(pup, target),
       pupBearing: bearing(pup, target),
       tofStick: fall.time + (gsFps > 0 ? stickLen / gsFps : 0),
-      egressHeading: tl.egressHeading,
+      egressHeading: tl.egressHdg,
     },
   };
 }
@@ -477,4 +483,5 @@ export function matCheck(r, ppt, sam) {
 }
 const mid2 = (a, b) => ({ n: (a.n + b.n) / 2, e: (a.e + b.e) / 2 });
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
+const hm = h => h3(toMag(h)); // magnetic, as the pilot reads it
 export { offsetRow, FT_NM };

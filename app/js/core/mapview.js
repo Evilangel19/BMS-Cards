@@ -2,6 +2,9 @@
 import { wezOf, wezText, wezSams } from './wez.js';
 import { radarUnits, neededCells, coverage, CELL_KM } from './radarcov.js';
 import basemap from '../data/basemap.js';
+import { koreaCoasts, KOREA_COAST } from './coastsit.js';
+import { colorPicker } from './colorpick.js';
+import { lowPart, noeSamples, noeWalls, SEARCH_NM, LOW_FT } from './noe.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import { objState, featState } from '../parsers/cam.js';
@@ -20,6 +23,14 @@ import {
   freeSlot,
   removePoint,
   parseLL,
+  lineSpec,
+  lineNo,
+  lineName,
+  sitShift,
+  SIT_DASH,
+  SIT_DASH_PX,
+  SIT_QUICK,
+  SIT_LEN,
 } from './mapdtc.js';
 import {
   toLL,
@@ -37,6 +48,7 @@ import {
   allyOf,
   hostileOf,
   frontLine,
+  samEdge,
   spottedBy,
   crossesRoute,
   theaterBounds,
@@ -74,6 +86,7 @@ import {
   store,
   tgtName,
 } from './mapconst.js';
+import { magAt } from './magvar.js';
 export function createMap(host, deps) {
   let map = null,
     G = {},
@@ -106,6 +119,13 @@ export function createMap(host, deps) {
   const OBJ_ALL = OBJ_LAYERS.concat(PLACE_LAYERS); // objectives and places: all drawn by objDraw
   // choices (filters, level, open menus, view) are kept in the browser storage and, in the desktop app, in a file next to the program
   let PREF = store.get();
+  // the look the pilot gave the map of a mission: labels moved along their route (lbl: key -> {i, f}) and the colours of the flights of the package
+  // (col: flight id -> RRGGBB); kept with the preferences and with the mission (style / setStyle)
+  const mstyOk = o => ({
+    lbl: o && o.lbl && typeof o.lbl == 'object' ? o.lbl : {},
+    col: o && o.col && typeof o.col == 'object' ? o.col : {},
+  });
+  let MSTY = mstyOk(PREF.msty);
   const migrate = o => {
     const r = Object.assign({}, o);
     OBJ_ALL.forEach(([t]) => {
@@ -131,7 +151,9 @@ export function createMap(host, deps) {
     filOpen: !!PREF.filOpen,
   });
   st = mkSt();
+  let DRY = false; // an AUTO run for its preview (autoPreview): the DTC is a copy, the helpers do nothing
   const persist = () => {
+    if (DRY) return;
     store.set(PREF);
     if (deps.savePrefs) deps.savePrefs(PREF);
   };
@@ -148,11 +170,15 @@ export function createMap(host, deps) {
     return BASES.sat;
   };
   const baseDef = k => (k == 'sat' ? satDef() : BASES[k]);
+  // the filters a A-G page chose with its Map filters button (PLANMODE, below) are not the Map page's: what is kept is the Map page's (PLANSAVE)
+  let PLANSAVE = null,
+    PLANMODE = 0,
+    LENTMODE = 0;
   const save = () => {
     Object.assign(PREF, {
       base: st.base,
       coastLight: st.cl,
-      on: st.on,
+      on: PLANMODE && PLANSAVE ? { ...st.on, ...PLANSAVE } : st.on,
       closed: st.closed,
       dtcOpen: st.dtcOpen,
       dtcFilOpen: st.dtcFilOpen,
@@ -162,12 +188,26 @@ export function createMap(host, deps) {
     });
     persist();
   };
-  const $ = id => host.querySelector('#' + id) || (away && away.querySelector('#' + id)); // the map (and its frame) may be borrowed by another page
+  // the map (and its frame) may be borrowed by another page, the LEVELS menu by the Target tab (LEVW, declared below)
+  const $ = id =>
+    host.querySelector('#' + id) || (away && away.querySelector('#' + id)) || (LEVW && LEVW.querySelector('#' + id));
 
   let home = null,
     away = null,
     MO = null;
-  /* the Weapons page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
+  /* the A-G page borrows the map and puts it in another element: the classes (palette, zoom, names) and the colour variables that the styles read on the map page are copied there */
+  let LEVWAS = false, // the LEVELS menu was open when another page borrowed it
+    LEVW = null; // the LEVELS menu while it is lent
+  function levelsBack() {
+    const w = LEVW;
+    LEVW = null;
+    if (w && w.parentNode !== host) {
+      host.append(w);
+      const m = w.querySelector('#mpbase');
+      if (LEVWAS && m && m.style.display == 'none') w.querySelector('#mpbaseb').click();
+    }
+    LEVWAS = false;
+  }
   const MIRROR = ['game', 'lt', 'sat', 'cl', 'names', 'nofd', 'zlo', 'zmid', 'wxlo', 'shoting'];
   function mirror() {
     if (!away) return;
@@ -175,9 +215,9 @@ export function createMap(host, deps) {
     MIRROR.forEach(k => away.classList.toggle(k, host.classList.contains(k)));
     for (const n of host.style) if (n.startsWith('--')) away.style.setProperty(n, host.style.getPropertyValue(n));
   }
-  // the DTC points can be dragged on the Map page; on the Weapons pages only after "Edit points"
+  // the DTC points can be dragged on the Map page; on the A-G pages only after "Edit points"
   let EDIT = true,
-    WEDIT = false; // WEDIT: the choice of the user for the Weapons pages ("Edit points"), kept while the pages are redrawn
+    WEDIT = false; // WEDIT: the choice of the user for the A-G pages ("Edit points"), kept while the pages are redrawn
   const ro = w => {
     if (!EDIT)
       w.querySelectorAll('input,select,button').forEach(x => {
@@ -208,9 +248,24 @@ export function createMap(host, deps) {
     });
     return EDIT;
   }
+  // the zoom of the map locked (the Target tab: the width is chosen there), except while the frame of a picture is open
+  let ZL = false;
+  function zoomApply() {
+    if (!map) return;
+    const off = ZL && !shotOn;
+    ['scrollWheelZoom', 'doubleClickZoom', 'touchZoom', 'boxZoom'].forEach(
+      h => map[h] && map[h][off ? 'disable' : 'enable']()
+    );
+    map.getContainer().classList.toggle('mpzl', off);
+  }
+  function zoomLock(on) {
+    ZL = !!on;
+    zoomApply();
+  }
   function detach() {
     if (!away || !map) return;
     if (shotOn) shotStop(); // a frame opened on the page that borrowed the map goes with it
+    if (ZL) zoomLock(false);
     if (MO) {
       MO.disconnect();
       MO = null;
@@ -225,6 +280,7 @@ export function createMap(host, deps) {
       if (p) p.style.opacity = '';
     });
     home.insertBefore(c, home.firstChild);
+    planHome();
     bgOp();
     map.invalidateSize();
   }
@@ -278,7 +334,7 @@ export function createMap(host, deps) {
     }
     mergeTanks();
     host.innerHTML =
-      '<div id="mpmap"></div><div id="mpfilw"><button class="btn" id="mpfilb">FILTERS <i>▾</i></button><div id="mpbar" class="mpp" style="display:none"></div></div><div id="mpnote" class="mpp" style="display:none"></div><div id="mpll" class="mpp"><span id="mpllc"></span><span id="mptm"></span></div><div id="mptm" class="mpp"></div><div id="mptoast" class="mpp" style="display:none"></div><div id="mpbasew"><button class="btn" id="mpbaseb">LEVELS <i>▾</i></button><div id="mpbase" class="mpp" style="display:none"></div></div><div id="mpdtcw"><div id="mpdtc" style="display:none"></div><div id="mpdrow"><button class="btn" id="mpdtcb">DTC <i>▴</i></button><div id="mpdfun"></div></div></div><div id="mpshots"><button class="btn" id="mpshotkb" title="Take a picture of the map as a new kneeboard card (1 : 2)">Screenshot for kneeboard</button><button class="btn" id="mpshot" title="Take a picture of the map for the empty space of the datacard (page 2)">Screenshot for datacard</button></div><input type="file" id="mpfile" accept="image/*" style="display:none">';
+      '<div id="mpmap"></div><div id="mpfilw"><button class="btn" id="mpfilb">FILTERS <i>▾</i></button><div id="mpbar" class="mpp" style="display:none"></div></div><div id="mpnote" class="mpp" style="display:none"></div><div id="mpll" class="mpp"><span id="mpllc"></span><span id="mptm"></span></div><div id="mptm" class="mpp"></div><div id="mptoast" class="mpp" style="display:none"></div><div id="mpbasew"><button class="btn" id="mpbaseb">LEVELS <i>▾</i></button><div id="mpbase" class="mpp" style="display:none"></div></div><div id="mpdtcw"><div id="mpdtc" style="display:none"></div><div id="mpdrow"><button class="btn" id="mpdtcb">DTC <i>▴</i></button><div id="mpdfun"></div></div></div><div id="mpshots"><button class="btn" id="mpshotkb" title="Take a picture of the map as a new kneeboard card (1 : 2)">Screenshot for kneeboard</button><button class="btn" id="mpshot" title="Take a picture of the map for the empty space of the datacard (page 2)">Screenshot for datacard</button><button class="btn" id="mpcopy" title="Copy the map as it is shown (with everything on it) to the clipboard, to paste it elsewhere">Copy</button></div><input type="file" id="mpfile" accept="image/*" style="display:none">';
     map = L.map('mpmap', {
       preferCanvas: true,
       zoomControl: true,
@@ -286,6 +342,7 @@ export function createMap(host, deps) {
       minZoom: 5,
       maxZoom: 18,
       zoomSnap: 0.25,
+      zoomDelta: 0.5, // the + and - buttons by half a level (a scale of 10, 15, 20, 30 km...)
     });
     // hover tooltips: close any that is left on when the pointer is no longer over a unit (a redraw under the cursor can leave one orphaned)
     const TIPS = new Set();
@@ -327,7 +384,7 @@ export function createMap(host, deps) {
     });
     map.createPane('coastP').style.zIndex = 250;
     map.createPane('planP').style.zIndex = 450;
-    map.createPane('atkP').style.zIndex = 460; // the attack of the Weapons page (pop-up line ...): above the flight plan
+    map.createPane('atkP').style.zIndex = 460; // the attack of the A-G page (pop-up line ...): above the flight plan
     CR = L.canvas({ pane: 'coastP' });
     PR = L.canvas({ pane: 'planP' });
     map.createPane('planM').style.zIndex = 452;
@@ -412,11 +469,18 @@ export function createMap(host, deps) {
     };
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
+    map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
+    map.on('zoomend', () => (st.on.fa || st.on.oc) && !away && faorDraw());
     zc();
     host.addEventListener(
       'click',
       e => {
         const d = e.target.closest && e.target.closest('.flb div[data-lb]');
+        if (d && Date.now() - LDRAG < 350) {
+          e.stopPropagation(); // the end of a drag of the label
+          e.preventDefault();
+          return;
+        }
         if (d && LBP[d.dataset.lb]) {
           e.stopPropagation();
           e.preventDefault();
@@ -473,7 +537,14 @@ export function createMap(host, deps) {
     uf: ['Friendly units', 'Friendly units · JTAC only'],
     sj: 'Only the JTAC of the flight',
   };
-  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS/HARM' };
+  const DSPTXT = {
+    rc: 'Enemy radar coverage',
+    msa: 'MSA and ERAA',
+    da: 'Pop-up/HADB/TOSS',
+    hm: 'SEAD/DEAD',
+    fa: 'DCA',
+    oc: 'OCA',
+  };
   // the details of the filters, in the tooltips (the rows stay on one line)
   const TIP = {
     nav: 'VOR and TACAN stations',
@@ -488,7 +559,10 @@ export function createMap(host, deps) {
     fs: 'Only support flights: tankers, AWACS, JSTARS...',
     fe: 'Only the enemy flights your side has spotted',
     rc: 'Approximate coverage of the enemy radars at the chosen altitude',
-    da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss, HARM)',
+    da: 'The attack worked out on the A-G page: the lines of each phase and the marks (pop-up, HADB, toss)',
+    hm: 'The drawing of A-G > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
+    fa: 'The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT, STOP and the HARDWALL',
+    oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the sweep area, COMMIT, STOP and the target area',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -564,6 +638,8 @@ export function createMap(host, deps) {
     'Objects',
   ]; // sections with a switch for all their layers
   const secKeys = n => MAP_LAYERS.filter(l => l[3] == n).map(l => l[0]); // the "only ..." switches are not part of a section's master switch
+  // the box of a section: the Objects panel holds the political places too, so its box switches them as well
+  const mstKeys = n => (n == 'Objects' ? secKeys('Objects').concat(secKeys('Political')) : secKeys(n));
   // the all / none button of the Objects panel says what its next click does; the political button is lit while its three layers are on
   function objBtns() {
     const t = $('mpobj') && $('mpobj').querySelector('a[data-a=tog]'),
@@ -578,19 +654,20 @@ export function createMap(host, deps) {
   // the switch of a section: on when all its layers are on, "mixed" when some are
   function masters() {
     host.querySelectorAll('#mpbar input.mst').forEach(i => {
-      const k = secKeys(i.dataset.sec),
+      const k = mstKeys(i.dataset.sec),
         n = k.filter(x => st.on[x]).length;
       i.checked = n == k.length;
       i.indeterminate = n > 0 && n < k.length;
     });
     objBtns();
     host.querySelectorAll('#mpbar .mpo').forEach(r => {
-      const n = secKeys(r.dataset.sec).filter(x => st.on[x]).length;
+      const n = mstKeys(r.dataset.sec).filter(x => st.on[x]).length;
       r.querySelector('.mpcn').textContent = n ? n + ' on' : '';
     });
     clrLabel();
   }
   function setLayers(keys, on) {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     keys.forEach(k => {
       st.on[k] = on;
       const c = host.querySelector(`input[data-k=${k}]`);
@@ -780,7 +857,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -848,7 +925,7 @@ export function createMap(host, deps) {
     objFly(el);
     el.querySelectorAll('input.mst').forEach(i => {
       i.onclick = e => e.stopPropagation();
-      i.onchange = () => setLayers(secKeys(i.dataset.sec), i.checked);
+      i.onchange = () => setLayers(mstKeys(i.dataset.sec), i.checked);
     });
     el.querySelectorAll('input[data-k]').forEach(
       i =>
@@ -882,6 +959,7 @@ export function createMap(host, deps) {
     );
     $('mpshot').onclick = () => shotStart('dc');
     $('mpshotkb').onclick = () => shotStart('kb');
+    $('mpcopy').onclick = () => copyMap();
     $('mpfa').onclick = () => {
       // every section open, or - when all are open - every section folded
       const hs = [...el.querySelectorAll('.mps:not(.mpo)')],
@@ -994,8 +1072,6 @@ export function createMap(host, deps) {
     refilter();
   }
   // Map filters on the weapon pages, four states in a ring: 0 = the filters of the Map page, 1 = no filters (only the weapon drawing), 2 = the flight plan only, 3 = the flight plan and the PPT rings (the MAT toss is checked against them)
-  let PLANSAVE = null,
-    PLANMODE = 0;
   function cyclePlan() {
     const keys = MAP_LAYERS.map(l => l[0]).concat(
       MAP_OPTS.map(o => o[0]),
@@ -1020,6 +1096,16 @@ export function createMap(host, deps) {
     masters();
     refilter();
     return PLANMODE;
+  }
+  // the map back on the Map page: its own filters again (the choice of the A-G pages kept for when they borrow it again); borrowed: that choice again
+  function planHome() {
+    LENTMODE = PLANMODE;
+    while (PLANMODE) cyclePlan();
+  }
+  function planLent() {
+    const m = LENTMODE;
+    LENTMODE = 0;
+    while (PLANMODE != m) cyclePlan();
   }
   // everything that depends on the "only" switches is drawn again
   function refilter() {
@@ -1050,15 +1136,16 @@ export function createMap(host, deps) {
   function dtcMenu() {
     const m = $('mpdtc'),
       rows = MAP_LAYERS.filter(l => l[3] == 'DTC steerpoints');
-    const ln4 = (attr, cls, tit) =>
-      '<span class="mpg">' +
-      [1, 2, 3, 4]
+    const ln4 = (attr, cls, tit, ns = [1, 2, 3, 4], xc = '') =>
+      `<span class="mpg${xc}">` +
+      ns
         .map(
           n =>
             `<button class="btn g ${cls}" ${attr}="${attr == 'data-add' ? 'line' + n : n}"${attr == 'data-add' ? ' disabled' : ''} title="${tit(n)}">${n}</button>`
         )
         .join('') +
       '</span>';
+    const S7 = [6, 7, 8, 9, 10, 11, 12];
     m.innerHTML = `<div id="mpdedit" style="display:none"><div id="mpdfil"><div class="dtf"><button class="btn" id="mpdfb" title="Show or hide the DTC filters (hidden = the DTC points are off)">Filters <i>▾</i></button></div><div class="mpp mpbox" id="mpdfrows">${rows.map(l => layerRow([l[0], l[1]])).join('')}</div></div>
       <div id="mpdham"><div class="rail">
         <button class="btn g gn" id="mpdadd" data-fly="padd" title="Add: points, lines, rectangle">＋<small>ADD</small></button>
@@ -1069,23 +1156,32 @@ export function createMap(host, deps) {
           <button class="btn g gb tl" data-add="prec" disabled title="Click on the map to place a precision target (STPT ${STPT_RANGE.prec}). Click a point to edit it, drag it to move it.">${ICON.prec}<span>TGT Stpt</span></button>
           <button class="btn g gb tl" data-add="ppt" disabled title="Click on the map to place a pre-planned threat (STPT ${STPT_RANGE.ppt}); pick its type in the point's editor.">${ICON.ppt}<span>Pre-planned</span></button></div>
           <div class="fh">Lines</div>${ln4('data-add', 'gb', n => `LINE${n}: each click on the map adds the next point (up to 6 steerpoints); Esc or Done stops. Red = full, green = partly used, white = empty.`)}
-          <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button></div>
+          <div class="fh sitrow">SIT lines 6-12 · F-15</div>${ln4('data-add', 'gb', n => `SIT line ${n}: each click on the map adds the next point (up to ${SIT_LEN}); Break leaves a gap, Esc or Done stops. Red = full, green = partly used, white = empty.`, S7, ' sitrow')}
+          <button class="btn g gb tl wide" id="mpdrect" disabled title="Closed rectangle of 5 steerpoints in a free LINE: click the map, scale it with the square corners, move it by the middle, turn it with the round handles.">▭<span>Rectangle</span></button>
+          <div class="mpsnapw"><button type="button" class="btn" id="mpdsnap" title="Snap: a point of a line, added or dragged, goes exactly onto a point near it (14 px): the points of the lines, the PPTs, the TGT steerpoints and the steerpoints of the flight plan. Press to switch it on or off.">Snap to points</button></div></div>
         <div class="fly" id="pdel" style="display:none"><div class="fh">Points</div><div class="tg">
           <button class="btn g rd tl" data-clr="prec" title="Remove every precision target">${ICON.trash}<span>TGT Stpt</span></button>
           <button class="btn g rd tl" data-clr="sam" title="Remove the SAM pre-planned threats (SA-n, AAA, MANPADS)">${ICON.trash}<span>SAM</span></button>
           <button class="btn g rd tl" data-clr="oth" title="Remove the pre-planned threats that are not SAMs">${ICON.trash}<span>OTHER</span></button>
           <button class="btn g rd tl" data-clr="ppt" title="Remove every pre-planned threat">${ICON.trash}<span>ALL PPT</span></button></div>
           <div class="fh">Lines</div><span class="mrow">${ln4('data-del', 'rb', n => `Remove the 6 steerpoints of LINE${n}. Red = full, green = partly used, white = empty.`)}${sqAll('line', 'Remove every steerpoint of the 4 lines')}</span>
+          <div class="fh sitrow">SIT lines 6-12 · F-15</div><span class="mrow sitrow">${ln4('data-del', 'rb', n => `Remove the points of SIT line ${n}. Red = full, green = partly used, white = empty.`, S7)}${sqAll('sit', 'Remove every point of the SIT lines 6-12')}</span>
           <button class="btn g rd tl wide" data-clr="all" title="Remove every pre-planned threat, precision target and line steerpoint">${ICON.trash}<span>CLEAR DTC</span></button></div>
-        <div class="fly" id="pauto" style="display:none"><div class="fh">Automatic lines</div><div class="tg">
+        <div class="fly" id="pauto" style="display:none"><div class="fh fhrow">Automatic lines<button type="button" class="btn${PREF.aufit === false ? ' g' : ''}" id="mpdfit" title="Fit: after an AUTO the map shows what it wrote. Press to switch it off or on.">Fit</button></div><div class="tg">
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
-          <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button></div>
+                    <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
+          <button class="btn g bb tl" id="mpdsam" title="A whole LINE of 6 points: the forward edge of the rings of the friendly SAMs near the route of the selected flight (beyond it they do not cover you; on the way back: altitude and IFF)"><span>SAM FRIENDLY</span></button>
+          <button class="btn g bb tl" id="mpdatk" title="Two LINEs from the attack page of A-G (Pop-up, HADB, TOSS) with its target: the attack (IP, PUP, apex, release, target, egress) and the run-in V (the axis IP to target, 15° either side)"><span>ATTACK</span></button>
+          <button class="btn g bb tl" id="mpdnoe" title="Two LINEs, VALLEY L and VALLEY R: the walls of the valley of the low part of the flight plan (steerpoints under 5 000 ft, not the take-off nor the landing): where the terrain rises to the altitude of the leg, up to 5 NM each side. Needs the terrain of the BMS folder."><span>NOE</span></button>
+          <button class="btn g bb tl" id="mpdfez" title="The plan of the A-A page of the selected flight as lines: a CAP flight (DCA: the FEZ, COMMIT / STOP, the HARDWALL), a QRA (the scramble line or the vector), a SWEEP or ESCORT (OCA: the track and the target area); a whole LINE each (F-15: a SIT line). The lines it wrote before are replaced, after asking."><span>FEZ</span></button>
+          <button class="btn g bb tl sitrow" id="mpdcoast" title="F-15, Korea: the coast of the peninsula as the SIT lines ECOAST (6: the east coast and half of the south coast) and WCOAST (7: the other half and the west coast), 30 points each; lines 6 and 7 are replaced"><span>COAST</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
       `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (the original is kept once in the program folder, backup\\dtc)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
     $('mpshotkb').innerHTML = ICON.cam + ' Screenshot for kneeboard';
     $('mpshot').innerHTML = ICON.cam + ' Screenshot for datacard';
+    $('mpcopy').innerHTML = ICON.cam + ' Copy';
     // closing the Filters macro switches every DTC filter off (the points disappear), opening it brings back what was on
     const keys = rows.map(l => l[0]),
       mst = () => {};
@@ -1153,9 +1249,63 @@ export function createMap(host, deps) {
       }
     };
     $('mpdrect').onclick = () => rectStart();
-    $('mpdppt').onclick = autoPpt;
-    $('mpdbull').onclick = autoBull;
-    $('mpdfront').onclick = autoFront;
+    // Fit (the switch next to "Automatic lines"): after an AUTO the map shows the points it wrote (a threat with its ring)
+    const fitAfter = fn => async () => {
+      const P0 = deps.dtc && deps.dtc.points(),
+        was = P0 ? JSON.stringify(P0) : '';
+      await fn();
+      const P1 = deps.dtc && deps.dtc.points();
+      if (PREF.aufit === false || !P1 || !map || JSON.stringify(P1) == was) return;
+      const old = new Map(),
+        B = [];
+      if (P0) Object.keys(P0).forEach(g => P0[g].forEach(p => old.set(g + p.slot, JSON.stringify(p))));
+      Object.keys(P1).forEach(g =>
+        P1[g].forEach(p => {
+          if (p.empty || old.get(g + p.slot) == JSON.stringify(p)) return;
+          const c = toLL(p.x, p.y);
+          if (g == 'ppt' && p.rngNm) {
+            const b = window.L.latLng(c).toBounds(p.rngNm * 1852 * 2); // the ring of the threat
+            B.push(b.getSouthWest(), b.getNorthEast());
+          } else B.push(c);
+        })
+      );
+      if (B.length) map.fitBounds(window.L.latLngBounds(B).pad(0.25), { maxZoom: 10 });
+    };
+    $('mpdppt').onclick = fitAfter(autoPpt);
+    $('mpdbull').onclick = fitAfter(autoBull);
+    $('mpdfez').onclick = fitAfter(async () => {
+      const r = deps.aaAuto ? await deps.aaAuto() : null;
+      if (r && r.msg) toast(r.msg, !!r.bad);
+      autoRefresh();
+    });
+    $('mpdfront').onclick = fitAfter(autoFront);
+    $('mpdsam').onclick = fitAfter(autoSam);
+    $('mpdatk').onclick = fitAfter(autoAttack);
+    $('mpdnoe').onclick = fitAfter(autoNoe);
+    $('mpdcoast').onclick = fitAfter(autoCoast);
+    $('mpdfit').onclick = e => {
+      e.stopPropagation();
+      PREF.aufit = PREF.aufit === false;
+      persist();
+      $('mpdfit').classList.toggle('g', PREF.aufit === false);
+    };
+    // the pointer on an AUTO: what it would write, on the map (autoPreview)
+    [
+      ['mpdppt', autoPpt],
+      ['mpdbull', autoBull],
+      ['mpdfront', autoFront],
+      ['mpdcoast', autoCoast],
+      ['mpdsam', autoSam],
+      ['mpdatk', autoAttack],
+      ['mpdnoe', autoNoe],
+      ['mpdfez', () => (deps.aaAuto ? deps.aaAuto() : null)],
+    ].forEach(([id, run]) => {
+      const b = $(id);
+      if (!b) return;
+      b.addEventListener('mouseenter', () => autoPreview(run));
+      b.addEventListener('mouseleave', autoUnpreview);
+      b.addEventListener('click', autoUnpreview);
+    });
     // hamburgers: a button is replaced by its sub-buttons (150 ms fade); opening one closes the others; a leaf button, or a click on an empty spot of the map, closes them all
     // keep a panel clear of the DTC function buttons at the bottom and of the top of the map: shift it up, or let it scroll
     const tankPlace = p => {
@@ -1224,8 +1374,22 @@ export function createMap(host, deps) {
         flyShow(b, open);
       };
     });
-    m.querySelectorAll('.fly button').forEach(x => x.addEventListener('click', () => foldAll()));
+    m.querySelectorAll('.fly button:not(#mpdsnap):not(#mpdfit)').forEach(x =>
+      x.addEventListener('click', () => foldAll())
+    );
     m.querySelectorAll('[data-clr]').forEach(b => (b.onclick = () => clearPoints(b.dataset.clr)));
+    // Snap to points: lit (green) when on, dark when off, like Names
+    const snw = m.querySelector('#mpdsnap');
+    if (snw) {
+      const lit = () => snw.classList.toggle('g', !snapOn());
+      lit();
+      snw.onclick = ev => {
+        ev.stopPropagation();
+        PREF.snap = !snapOn();
+        persist();
+        lit();
+      };
+    }
     m.querySelectorAll('[data-del]').forEach(b => (b.onclick = () => lineDelete(+b.dataset.del)));
     m.querySelectorAll('[data-add]').forEach(
       b =>
@@ -1269,7 +1433,90 @@ export function createMap(host, deps) {
     };
     dtcInfo();
   }
+  // the lines that can be drawn: LINE1-4, with an F-15 also the SIT lines 6-12
+  const LNS = () => (sitOn() ? [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12] : [1, 2, 3, 4]);
+  const lnPts = (P, n) => {
+    const { g, a, len } = lineSpec(n);
+    return ((P && P[g]) || []).filter(q => q.slot >= a && q.slot < a + len);
+  };
+  const lnUsed = (P, n) => lnPts(P, n).filter(q => !q.empty).length;
+  const lnName = n => {
+    const m = n <= 4 ? sitM() : sitM() || {};
+    return m ? lineName(n, m) : 'LINE' + n;
+  };
+  // the steerpoints of a part of a line, for the messages: "STPT 31-35" (LINE1-4) or "points 1-5" (SIT lines)
+  const lnRange = (n, slot, k) =>
+    n <= 4
+      ? 'STPT ' + (GROUPS.line.first + slot) + '-' + (GROUPS.line.first + slot + k - 1)
+      : 'points ' + (slot - lineSpec(n).a + 1) + '-' + (slot - lineSpec(n).a + k);
+  // the first line (in LNS order) with room: need = 'whole' (an empty line) or a number of free points after its last one: {n, g, slot}
+  const lineFor = (P, need) => {
+    for (const n of LNS()) {
+      const { g, a, len } = lineSpec(n),
+        k = freeSlot(P, g, n);
+      if (need == 'whole' ? k == a : k >= 0 && a + len - k >= need) return { n, g, slot: k };
+    }
+    return null;
+  };
+  // SNAPPING: a point of a line (added or dragged) within SNAP_PX of another point goes exactly onto it: the points of the lines, the PPTs, the TGT
+  // steerpoints and the steerpoints of the flight plan. A ring shows the target. Switch in ADD (kept).
+  const SNAP_PX = 14;
+  const snapOn = () => PREF.snap !== false;
+  let SNR = null;
+  const snapRing = ll => {
+    const L = window.L;
+    if (!ll) {
+      if (SNR) SNR.remove();
+      SNR = null;
+      return;
+    }
+    if (!SNR)
+      SNR = L.circleMarker(ll, { radius: 11, color: '#4cc38a', weight: 2.5, fill: false, interactive: false }).addTo(
+        map
+      );
+    else SNR.setLatLng(ll);
+  };
+  // the point to snap to: a Leaflet latlng with the exact grid position of the target (xy: [x, y] km), or null; self = the point being moved
+  function snapTo(ll, self) {
+    if (!snapOn() || !map) return null;
+    const L = window.L,
+      p = map.latLngToContainerPoint(ll),
+      cand = DT.filter(e => e.it !== self && !e.it.empty)
+        .map(e => ({ ll: e.mk.getLatLng(), xy: [e.it.x, e.it.y] }))
+        .concat(OFFR.map(o => ({ ll: L.latLng(o.ll), xy: fromLL(o.ll[0], o.ll[1]) })));
+    let best = null,
+      bd = SNAP_PX * SNAP_PX;
+    cand.forEach(c => {
+      const q = map.latLngToContainerPoint(c.ll),
+        d = (q.x - p.x) ** 2 + (q.y - p.y) ** 2;
+      if (d <= bd) {
+        bd = d;
+        best = c;
+      }
+    });
+    if (!best) return null;
+    const r = L.latLng(best.ll);
+    r.xy = best.xy;
+    return r;
+  }
+  // a length on a side ("20.0 NM"), a small label at the middle of the side
+  const lenIcon = t => window.L.divIcon({ className: 'rclen', html: `<span>${t}</span>`, iconSize: [0, 0] });
+  const nmTxt = nm => (nm < 100 ? nm.toFixed(1) : Math.round(nm)) + ' NM';
+  // a closed box of 4 square corners (5 points, the last on the first): the lengths of its sides in NM, or null
+  function boxSides(pts) {
+    if (pts.length != 5 || Math.hypot(pts[0].x - pts[4].x, pts[0].y - pts[4].y) > 0.05) return null;
+    const v = [0, 1, 2, 3].map(i => [pts[i + 1].x - pts[i].x, pts[i + 1].y - pts[i].y]),
+      len = v.map(([a, b]) => Math.hypot(a, b));
+    if (len.some(l => l < 0.1)) return null;
+    for (let i = 0; i < 4; i++) {
+      const [a, b] = v[i],
+        [c, d] = v[(i + 1) % 4];
+      if (Math.abs(a * c + b * d) / (len[i] * len[(i + 1) % 4]) > 0.05) return null; // not square (about 3°)
+    }
+    return len.map(l => l / 1.852);
+  }
   const showLayer = k => {
+    if (DRY) return;
     if (!st.on[k]) {
       st.on[k] = true;
       save();
@@ -1280,17 +1527,11 @@ export function createMap(host, deps) {
     }
   };
   // each AUTO works once: it is dimmed while the line (or the threats) it generated is still in the DTC and comes back when that is deleted
-  const lineRoom = (P, whole) => {
-    for (let n = 1; n <= 4; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (whole ? k == (n - 1) * LINE_LEN : k >= 0 && LINE_LEN - (k % LINE_LEN) >= 5) return true;
-    }
-    return false;
-  }; // a LINE for a rectangle (5 free points) / a whole free LINE for a tanker track
+  const lineRoom = (P, whole) => !!lineFor(P, whole ? 'whole' : 5); // a LINE for a rectangle (5 free points) / a whole free LINE for a tanker track
   const AU = {};
   const auLine = (P, r) => {
     if (!r) return false;
-    const q = P.line[(r.line - 1) * LINE_LEN];
+    const q = lnPts(P, r.line).find(z => z.slot == lineSpec(r.line).a);
     return !!q && !q.empty && Math.hypot(q.x - r.x, q.y - r.y) < 3;
   };
   const auUsed = key => {
@@ -1307,6 +1548,119 @@ export function createMap(host, deps) {
       );
     return auLine(P, r);
   };
+  // ---- THE PREVIEW OF AN AUTO: the pointer on its button runs it on a copy of the DTC (deps.dtc swapped for the time of the run, the helpers silent,
+  // AU and the tanker labels put back) and draws what it would write, dashed and faint; a line or a threat it would replace blinks red
+  let AUP = 0; // the preview in course (a newer one, or leaving the button, makes it go)
+  async function autoPreview(run) {
+    const real = deps.dtc,
+      P0 = real && real.points();
+    autoUnpreview();
+    if (!P0 || !map) return;
+    const my = ++AUP,
+      V = JSON.parse(JSON.stringify(P0)),
+      W = [],
+      at = (g, s) => V[g].find(p => p.slot == s);
+    deps.dtc = {
+      ...real,
+      points: () => V,
+      set: (g, s, v) => {
+        let p = at(g, s);
+        const was = !!p && !p.empty;
+        if (!p) V[g].push((p = { group: g, slot: s }));
+        if (was) W.push({ g, s, old: { ...p } });
+        Object.assign(p, v, { empty: false });
+        W.push({ g, s, p: { ...p } });
+      },
+      clear: (g, s) => {
+        const p = at(g, s);
+        if (p && !p.empty) {
+          W.push({ g, s, old: { ...p } });
+          p.empty = true;
+        }
+      },
+      setMeta: () => {},
+    };
+    const au = JSON.stringify(AU),
+      tk = JSON.stringify(PREF.tanks || null),
+      cf = window.confirm;
+    DRY = true;
+    window.confirm = /** @type {any} */ (async () => true); // the questions of the AUTOs: yes, to see what would be written
+    try {
+      await run();
+    } catch (e) {
+      /* nothing to show */
+    } finally {
+      DRY = false;
+      window.confirm = cf;
+      deps.dtc = real;
+      Object.keys(AU).forEach(k => delete AU[k]);
+      Object.assign(AU, JSON.parse(au));
+      if (JSON.parse(tk)) PREF.tanks = JSON.parse(tk);
+      else delete PREF.tanks;
+    }
+    if (my != AUP || !W.length) return;
+    const L = window.L;
+    if (!G.au) G.au = L.layerGroup().addTo(map);
+    if (!map._auR) map._auR = L.svg({ padding: 0.5 }); // SVG (the map draws on canvas): the blinking is a CSS animation
+    const ll = p => toLL(p.x, p.y),
+      key = (g, s) => (g == 'ppt' ? 'p' + s : g + ':' + (g == 'sit' ? Math.floor(s / SIT_LEN) : lineOf(s))),
+      novel = new Map(),
+      gone = new Map();
+    W.forEach(w => {
+      const k = key(w.g, w.s);
+      if (w.p) (novel.get(k) || novel.set(k, []).get(k)).push(w.p);
+      if (w.old && !(w.p && w.old.x == w.p.x && w.old.y == w.p.y)) (gone.get(k) || gone.set(k, []).get(k)).push(w.old);
+    });
+    const draw = (pts, cls, color) => {
+      const q = [...new Map(pts.map(p => [p.slot, p])).values()].sort((a, b) => a.slot - b.slot);
+      if (q[0] && q[0].group == 'ppt')
+        q.forEach(p => {
+          L.circle(ll(p), {
+            radius: Math.max(1500, (p.rngNm || 0) * 1852),
+            color,
+            weight: 2,
+            dashArray: '6 5',
+            fill: false,
+            className: cls,
+            interactive: false,
+            renderer: map._auR,
+          }).addTo(G.au);
+          L.circleMarker(ll(p), {
+            radius: 4,
+            color,
+            weight: 2,
+            fill: false,
+            className: cls,
+            interactive: false,
+            renderer: map._auR,
+          }).addTo(G.au);
+        });
+      else if (q.length > 1)
+        L.polyline(q.map(ll), {
+          color,
+          weight: 3,
+          dashArray: '8 6',
+          className: cls,
+          interactive: false,
+          renderer: map._auR,
+        }).addTo(G.au);
+      else if (q.length)
+        L.circleMarker(ll(q[0]), {
+          radius: 4,
+          color,
+          weight: 2,
+          className: cls,
+          interactive: false,
+          renderer: map._auR,
+        }).addTo(G.au);
+    };
+    gone.forEach(pts => draw(pts, 'aublink', '#ef4444'));
+    novel.forEach(pts => draw(pts, 'auprev', pts[0] && pts[0].group == 'ppt' ? pal.dtc.ppt : pal.dtc.line));
+  }
+  function autoUnpreview() {
+    AUP++;
+    if (G.au) G.au.clearLayers();
+  }
   function autoRefresh() {
     // the delete buttons are red only when there is something to delete
     const P0 = deps.dtc && deps.dtc.points(),
@@ -1318,22 +1672,42 @@ export function createMap(host, deps) {
         oth: ne('ppt').length - sm,
         ppt: ne('ppt').length,
         line: ne('line').length,
+        sit: P0 && P0.sit ? ne('sit').length : 0,
       };
-    n.all = n.prec + n.ppt + n.line + (deps.dtc && deps.dtc.wtargets ? deps.dtc.wtargets().length : 0);
+    n.all =
+      n.prec +
+      n.ppt +
+      n.line +
+      (sitOn() ? n.sit : 0) +
+      (deps.dtc && deps.dtc.wtargets ? deps.dtc.wtargets().length : 0);
     document.querySelectorAll('#pdel [data-clr]').forEach(b => b.classList.toggle('nil', !n[b.dataset.clr]));
     [
       ['mpdppt', 'ppt'],
       ['mpdbull', 'bull'],
       ['mpdfront', 'front'],
+      ['mpdcoast', 'coast'],
+      ['mpdsam', 'sam'],
+      ['mpdatk', 'atk'],
+      ['mpdnoe', 'noe'],
     ].forEach(([id, k]) => {
       const b = $(id);
       if (b) {
-        const u = auUsed(k);
+        const u = auUsed(k),
+          off = !P0 || (k == 'coast' && !koreaOn()); // no DTC to write into; COAST only in Korea
         b.classList.toggle('used', u);
-        b.disabled = u;
+        b.disabled = u || off;
       }
     });
-    const noTk = !!P0 && !lineRoom(P0, true);
+    // FEZ: only for a flight an A-A page plans (CAP, QRA, SWEEP, ESCORT)
+    const fz = $('mpdfez');
+    if (fz) {
+      if (!fz.dataset.tip) fz.dataset.tip = fz.title;
+      const ok = !!deps.aaCan && deps.aaCan();
+      fz.disabled = !ok || !P0;
+      fz.classList.toggle('used', !ok);
+      fz.title = ok ? fz.dataset.tip : 'Choose a CAP, QRA, SWEEP or ESCORT flight: ' + fz.dataset.tip;
+    }
+    const noTk = !P0 || !lineRoom(P0, true);
     document.querySelectorAll('#mpdtkl [data-tk]').forEach(b => {
       const u = auUsed('tk:' + b.textContent) || noTk;
       b.classList.toggle('used', u);
@@ -1420,8 +1794,74 @@ export function createMap(host, deps) {
               ' pre-planned threats added' +
               (dup ? ' (' + dup + ' already in the DTC)' : '') +
               '.'
-          : 'The SAMs crossing the flight plan are already in the DTC.'
+          : 'The SAMs crossing the flight plan are already in the DTC.',
+        !added
       );
+  }
+  // the AUTO PPT for a list of SAMs chosen elsewhere (A-G > HARM > SEAD: the threats assigned): each one not in the DTC yet in a free PPT slot; the
+  // SAM threats already there stay. list: [{x, y (km), rng (km), name}]. The message of what was done.
+  function autoPptFor(list) {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the threats are added to it.', bad: true };
+    let added = 0,
+      dup = 0,
+      full = 0;
+    if (!AU.ppt) AU.ppt = [];
+    list.forEach(m => {
+      const Q = deps.dtc.points();
+      if (Q.ppt.some(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5)) return dup++;
+      const slot = freeSlot(Q, 'ppt');
+      if (slot < 0) return full++;
+      const k = pptForUnit(m.name),
+        en = k >= 0 ? PPT[k] : null;
+      deps.dtc.set('ppt', slot, {
+        x: m.x,
+        y: m.y,
+        altFt: 0,
+        name: en
+          ? en[0]
+          : String(m.name)
+              .replace(/[\s,]+/g, ' ')
+              .trim()
+              .slice(0, 6),
+        rngNm: en ? pptRng(en) : m.rng / 1.852,
+      });
+      added++;
+      AU.ppt.push({ slot, x: m.x, y: m.y });
+    });
+    if (added && map) {
+      showLayer('dq');
+      sync();
+      dtc();
+    }
+    return {
+      added,
+      msg:
+        (added ? added + ' pre-planned threats added' : 'No pre-planned threat added') +
+        (dup ? ' (' + dup + ' already in the DTC)' : '') +
+        (full ? '; ' + full + ' more did not fit: no free PPT slot' : '') +
+        '.',
+      bad: !!full,
+    };
+  }
+  // one point as a PPT with no threat ring (A-G > HARM > DEAD: an anchor): {x, y (km), name (a type of the threat list), label}. The message of what was done.
+  function addPpt(m) {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the point is added to it.', bad: true };
+    const same = P.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
+    const lb = m.label || m.name;
+    if (same) return { msg: lb + ' is already PPT ' + same.stpt + ' of the DTC.' };
+    const slot = freeSlot(P, 'ppt');
+    if (slot < 0) return { msg: 'No free PPT slot in the DTC.', bad: true };
+    deps.dtc.set('ppt', slot, { x: m.x, y: m.y, altFt: 0, name: String(m.name), rngNm: 0 });
+    if (map) {
+      showLayer('dq');
+      sync();
+      dtc();
+    }
+    const Q = deps.dtc.points(),
+      q = Q && Q.ppt.find(p => !p.empty && Math.hypot(p.x - m.x, p.y - m.y) < 0.5);
+    return { msg: lb + ' added to the DTC' + (q ? ' as PPT ' + q.stpt : '') + ' (' + m.name + ').' };
   }
   // CLEAR opens three buttons: PPT, TGT, LINES
   async function clearPoints(g) {
@@ -1434,13 +1874,20 @@ export function createMap(host, deps) {
             ['ppt', 'pre-planned threats', sel.ppt],
             ['prec', 'precision targets', () => true],
             ['line', 'line steerpoints', () => true],
+            ...(sitOn() ? [['sit', 'SIT line points', () => true]] : []),
           ]
         : g == 'sam'
           ? [['ppt', 'SAM pre-planned threats', sel.sam]]
           : g == 'oth'
             ? [['ppt', 'other pre-planned threats', sel.oth]]
-            : [[g, g == 'prec' ? 'precision targets' : 'line steerpoints', () => true]];
-    const list = kinds.map(([gr, nm, f]) => [gr, nm, P[gr].filter(p => !p.empty && f(p))]),
+            : [
+                [
+                  g,
+                  g == 'prec' ? 'precision targets' : g == 'sit' ? 'SIT line points' : 'line steerpoints',
+                  () => true,
+                ],
+              ];
+    const list = kinds.map(([gr, nm, f]) => [gr, nm, (P[gr] || []).filter(p => !p.empty && f(p))]),
       WT = g == 'all' && deps.dtc.wtargets ? deps.dtc.wtargets() : [];
     if (WT.length) list.push(['wt', 'weapon targets', WT]);
     const tot = list.reduce((n, l) => n + l[2].length, 0);
@@ -1519,28 +1966,25 @@ export function createMap(host, deps) {
           ? 'No tanker (AIR REFUEL) on station during the selected flight.'
           : 'No tanker (AIR REFUEL) of your side in this campaign.') +
         '</span>';
-    w.querySelectorAll('[data-tk]').forEach(
-      b =>
-        (b.onclick = () => {
-          tankAdd(TK[+b.dataset.tk][1]);
-          foldAll();
-        })
-    );
+    w.querySelectorAll('[data-tk]').forEach(b => {
+      b.onclick = () => {
+        autoUnpreview();
+        tankAdd(TK[+b.dataset.tk][1]);
+        foldAll();
+      };
+      b.addEventListener('mouseenter', () => autoPreview(() => tankAdd(TK[+b.dataset.tk][1])));
+      b.addEventListener('mouseleave', autoUnpreview);
+    });
     autoRefresh();
   }
   // the track goes straight into an empty LINE as a closed rectangle (10 NM wide) laid on the two FUEL waypoints, with its label (no editing, unlike the rectangle tool)
   function tankAdd(f) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first: the track is added to it.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line) return toast('No empty LINE left: a tanker track needs a whole LINE for itself.', true);
     if (auUsed('tk:' + deps.flightInfo(f).cs))
       return toast('The track of ' + deps.flightInfo(f).cs + ' is already in the DTC.', true);
@@ -1568,7 +2012,7 @@ export function createMap(host, deps) {
       pts = cs.concat([cs[0]]).map(z => fromLL(z[0], z[1]));
     if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
       return toast('The track reaches outside the theater.', true);
-    pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+    pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
     AU['tk:' + deps.flightInfo(f).cs] = { line, x: pts[0][0], y: pts[0][1] };
     PREF.tanks = (PREF.tanks || [])
       .filter(t => Math.hypot(t.x - pts[0][0], t.y - pts[0][1]) > 0.05)
@@ -1576,36 +2020,21 @@ export function createMap(host, deps) {
         { x: pts[0][0], y: pts[0][1], cs: deps.flightInfo(f).cs, ac: deps.flightInfo(f).ac || '', t: opWin(f) },
       ]);
     persist();
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
-    map.fitBounds(window.L.latLngBounds(cs).pad(0.5));
-    toast(
-      'LINE' +
-        line +
-        ': track of ' +
-        deps.flightInfo(f).cs +
-        ' (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 4) +
-        ') added to the DTC.'
-    );
+    if (PREF.aufit !== false && !DRY) map.fitBounds(window.L.latLngBounds(cs).pad(0.5));
+    toast(lnName(line) + ': track of ' + deps.flightInfo(f).cs + ' (' + lnRange(line, slot, 5) + ') added to the DTC.');
   }
   // FRONT LINE: a whole empty LINE of 6 points along the front (friendly units closest to the enemy, end to end)
   function autoFront() {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first: the line is added to it.', true);
     if (auUsed('front')) return toast('The front line is already in the DTC.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line) return toast('No empty LINE left: the front line needs a whole LINE for itself.', true);
     const f = deps.getC() ? frontLine(UL, LINE_LEN) : null; // the friendly units and every spotted enemy ground unit
     if (!f || f.length < LINE_LEN)
@@ -1616,20 +2045,166 @@ export function createMap(host, deps) {
         true
       );
     addStop();
-    f.forEach((p, i) => deps.dtc.set('line', slot + i, { x: p.x, y: p.y, altFt: 0 }));
+    f.forEach((p, i) => deps.dtc.set(lg, slot + i, { x: p.x, y: p.y, altFt: 0 }));
     AU.front = { line, x: f[0].x, y: f[0].y };
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
     toast(
-      'LINE' +
-        line +
-        ': front line, 6 points (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 5) +
+      lnName(line) +
+        ': front line, 6 points (' +
+        lnRange(line, slot, 6) +
         ') on the friendly units closest to the enemy.'
     );
+  }
+  // LINES OF AN AUTO: each [AU key, name, points] in a whole free LINE (all or none: what was written is taken back when one does not fit) -> the
+  // names of the lines, or null (the message said)
+  function putLines(parts, what) {
+    const done = [];
+    for (const [key, , pts] of parts) {
+      const P = deps.dtc.points(),
+        wl = lineFor(P, 'whole');
+      if (!wl) {
+        done.forEach(d => d.slots.forEach(([g, sl]) => deps.dtc.clear(g, sl)));
+        toast('Not enough empty LINEs: ' + what + ' needs ' + parts.length + ' whole LINEs.', true);
+        return null;
+      }
+      pts.forEach((q, i) => deps.dtc.set(wl.g, wl.slot + i, { x: q.x, y: q.y, altFt: 0 }));
+      AU[key] = { line: wl.n, x: pts[0].x, y: pts[0].y };
+      done.push({ n: wl.n, g: wl.g, slots: pts.map((_, i) => [wl.g, wl.slot + i]) });
+    }
+    addStop();
+    done.forEach(d => showLayer(GROUPS[d.g].layer));
+    sync();
+    dtc();
+    return done.map(d => lnName(d.n));
+  }
+  const selRoute = () => {
+    const C = deps.getC(),
+      f = deps.getSel();
+    return C && f ? flightRoute(C, f) : [];
+  };
+  // SAM FRIENDLY: the forward edge of the rings of the friendly SAMs within 30 NM of the route (core/mapdata.js samEdge), 6 points
+  function autoSam() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the line is added to it.', true);
+    if (auUsed('sam')) return toast('The edge of the friendly SAMs is already in the DTC.', true);
+    const r = selRoute();
+    if (!r.length) return toast('Select a flight with a flight plan first: the friendly SAMs near it are used.', true);
+    const e = samEdge(UL, r, LINE_LEN);
+    if (!e) return toast('No friendly SAM near the route (or no enemy ground unit to tell the forward side).', true);
+    const n = putLines([['sam', 'SAM FRIENDLY', e]], 'SAM FRIENDLY');
+    if (n) toast(n[0] + ': the forward edge of the friendly SAMs near the route, 6 points.');
+  }
+  // ATTACK: the attack of the A-G page (deps.attackLines) and its run-in V, two LINEs
+  function autoAttack() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (auUsed('atk')) return toast('The attack is already in the DTC.', true);
+    const a = deps.attackLines ? deps.attackLines() : { error: 'the A-G page is not there' };
+    if (!a || a.error) return toast('ATTACK: ' + ((a && a.error) || 'no attack') + '.', true);
+    const n = putLines(
+      [
+        ['atk', 'ATTACK', a.path],
+        ['atk2', 'RUN-IN', a.vee],
+      ],
+      'ATTACK'
+    );
+    if (n) toast(n[0] + ': the ' + a.label + ' attack (IP to egress); ' + n[1] + ': the run-in V, 15° either side.');
+  }
+  // NOE: the walls of the valley of the low part of the flight plan (core/noe.js), two LINEs; the heights from the BMS folder (deps.elev)
+  let NOEH = null;
+  async function autoNoe() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (auUsed('noe')) return toast('The valley is already in the DTC.', true);
+    const r = selRoute(),
+      part = r.length ? lowPart(r) : null;
+    if (!part)
+      return toast(
+        'The flight plan has no leg under ' + LOW_FT.toLocaleString('en-US') + ' ft (take-off and landing apart).',
+        true
+      );
+    if (!deps.elev) return toast('NOE needs the terrain of the BMS folder (the desktop app).', true);
+    const S = noeSamples(r, part),
+      hk = JSON.stringify([S.pts.length, S.pts[0], S.pts[S.pts.length - 1]]);
+    let H = NOEH && NOEH.k == hk ? NOEH.H : null; // the heights of this route read once (the preview of the button, then the button)
+    if (!H)
+      try {
+        H = await busyRun('NOE: reading the terrain…', () =>
+          deps.elev(S.pts.map(q => ({ e: q.x * FT_KM, n: q.y * FT_KM })))
+        );
+        if (H) NOEH = { k: hk, H };
+      } catch (e) {
+        H = null;
+      }
+    if (!H) return toast('NOE: the terrain heights could not be read (the HeightMap of the BMS folder).', true);
+    const W = noeWalls(S, H, LINE_LEN),
+      n = putLines(
+        [
+          ['noe', 'VALLEY L', W.L],
+          ['noe2', 'VALLEY R', W.R],
+        ],
+        'NOE'
+      );
+    if (n)
+      toast(
+        n[0] +
+          ' / ' +
+          n[1] +
+          ': the walls of the valley, steerpoints ' +
+          r[part.a].n +
+          '-' +
+          r[part.b].n +
+          (W.wide > 0.3
+            ? '; wider than ' + SEARCH_NM + ' NM in places: the line stays at ' + SEARCH_NM + ' NM there.'
+            : '.'),
+        W.wide > 0.3
+      );
+  }
+  // COAST (F-15, Korea): the coast of the peninsula as ECOAST (SIT line 6) and WCOAST (SIT line 7), 30 points each, always in those two lines so that
+  // their names keep their meaning (what they hold is replaced, after asking)
+  const koreaOn = () => !Object.values(KOREA_COAST).some(([lo, la]) => fromLL(la, lo).some(v => v < 0 || v > 1024));
+  async function autoCoast() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (!sitOn()) return toast('The SIT lines are for the F-15.', true);
+    if (!koreaOn()) return toast('COAST is for the Korea theater only.', true);
+    const c = koreaCoasts(basemap.land, SIT_LEN);
+    if (!c) return toast('The coast of Korea was not found in the map data.', true);
+    const used = [6, 7].filter(n => lnUsed(P, n));
+    if (
+      used.length &&
+      !(await confirm(
+        used.map(n => lnName(n) + ' (SIT line ' + n + ')').join(' and ') +
+          ' already ' +
+          (used.length > 1 ? 'have' : 'has') +
+          ' points: replace them with the coast?'
+      ))
+    )
+      return;
+    addStop();
+    [
+      [6, 'ECOAST', c.east],
+      [7, 'WCOAST', c.west],
+    ].forEach(([n, name, pts]) => {
+      const { a } = lineSpec(n),
+        have = new Set(lnPts(P, n).map(q => q.slot));
+      for (let i = 0; i < SIT_LEN; i++) {
+        const p = pts[i];
+        if (p) {
+          const [x, y] = fromLL(p[1], p[0]);
+          deps.dtc.set('sit', a + i, { x, y });
+        } else if (have.has(a + i)) deps.dtc.clear('sit', a + i);
+      }
+      if (deps.dtc.setMeta) deps.dtc.setMeta(n, { name });
+    });
+    const [x0, y0] = fromLL(c.east[0][1], c.east[0][0]);
+    AU.coast = { line: 6, x: x0, y: y0 };
+    showLayer('ds');
+    sync();
+    dtc();
+    toast('ECOAST (6) and WCOAST (7): the coast of Korea, ' + SIT_LEN + ' points each, added to the DTC.');
   }
   // BULLSEYE LINE: a 3-point line shaped like an L, the bullseye in the corner: 30 NM due east, the bullseye, 60 NM due north
   function autoBull() {
@@ -1638,15 +2213,10 @@ export function createMap(host, deps) {
     if (auUsed('bull')) return toast('The bullseye line is already in the DTC.', true);
     const b = bullseye(deps.getC());
     if (!b) return toast('This campaign has no bullseye.', true);
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (k == (n - 1) * LINE_LEN) {
-        line = n;
-        slot = k;
-      }
-    } // an empty LINE: with other points in it the L would join them
+    const wl = lineFor(P, 'whole'),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line'; // an empty LINE: with other points in it the L would join them
     if (!line) return toast('No empty LINE left: the bullseye L needs a whole LINE for itself.', true);
     addStop();
     const pts = [
@@ -1656,42 +2226,147 @@ export function createMap(host, deps) {
     ].map(p => fromLL(p[0], p[1]));
     if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
       return toast('The line would reach outside the theater.', true);
-    pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+    pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
     AU.bull = { line, x: pts[0][0], y: pts[0][1] };
-    showLayer('dl');
+    showLayer(GROUPS[lg].layer);
     sync();
     dtc();
-    toast(
-      'LINE' +
-        line +
-        ': bullseye L (STPT ' +
-        (GROUPS.line.first + slot) +
-        '-' +
-        (GROUPS.line.first + slot + 2) +
-        ') added to the DTC.'
-    );
+    toast(lnName(line) + ': bullseye L (' + lnRange(line, slot, 3) + ') added to the DTC.');
+  }
+  // A-A (DCA, OCA): the lines of the plan of a page into the DTC. Fz: {parts [[key, label, pts]], sit (the SIT line of the F-15), sitName, key}.
+  // F-16: a whole LINE each part, the lines written before by the same page taken back first; F-15: the SIT line given, the parts with a break between
+  // them. -> {msg, bad} or null (not wanted)
+  async function autoAA(Fz, name) {
+    let P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the lines are added to it.', bad: true };
+    const parts = Fz.parts,
+      K = Fz.key,
+      n8 = Fz.sit;
+    if (parts.some(([, , q]) => q.some(p => p.x < 0 || p.x > 1024 || p.y < 0 || p.y > 1024)))
+      return { msg: 'The plan reaches outside the theater.', bad: true };
+    if (sitOn()) {
+      const { a, len } = lineSpec(n8),
+        seq = [];
+      parts.forEach(([, , q], k) => {
+        if (k) seq.push(null);
+        q.forEach(p => seq.push(p));
+      });
+      if (seq.length > len) return { msg: 'The plan has more points than a SIT line (' + len + ').', bad: true };
+      if (
+        lnUsed(P, n8) &&
+        !auUsed(K + ':sit') &&
+        !(await confirm(
+          'SIT line ' + n8 + ' (' + lnName(n8) + ') already has points: replace them with the plan of ' + name + '?'
+        ))
+      )
+        return null;
+      addStop();
+      const have = new Set(lnPts(P, n8).map(q => q.slot));
+      for (let k = 0; k < len; k++) {
+        const p = seq[k];
+        if (p) deps.dtc.set('sit', a + k, { x: p.x, y: p.y });
+        else if (have.has(a + k)) deps.dtc.clear('sit', a + k);
+      }
+      if (deps.dtc.setMeta) deps.dtc.setMeta(n8, { name: Fz.sitName });
+      AU[K + ':sit'] = { line: n8, x: seq[0].x, y: seq[0].y };
+      showLayer('ds');
+      sync();
+      dtc();
+      return {
+        msg:
+          'SIT line ' +
+          n8 +
+          ' (' +
+          Fz.sitName +
+          '): ' +
+          name +
+          ' (' +
+          parts.map(z => z[1]).join(', ') +
+          ') added to the DTC.',
+      };
+    }
+    // the lines written before by this page are emptied first, so that the new plan takes their place (after asking)
+    const old = Object.keys(AU).filter(k => k.startsWith(K + ':') && k != K + ':sit' && AU[k] && auLine(P, AU[k]));
+    if (
+      old.length &&
+      !(await confirm(
+        old.map(k => lnName(AU[k].line)).join(', ') +
+          (old.length > 1 ? ' hold' : ' holds') +
+          ' the plan written before: replace ' +
+          (old.length > 1 ? 'them' : 'it') +
+          ' with the plan of ' +
+          name +
+          '?'
+      ))
+    )
+      return null;
+    addStop();
+    Object.keys(AU)
+      .filter(k => k.startsWith(K + ':') && k != K + ':sit')
+      .forEach(k => {
+        const r = AU[k];
+        if (r && auLine(P, r)) {
+          const { g, a, len } = lineSpec(r.line);
+          for (let i = a; i < a + len; i++) deps.dtc.clear(g, i);
+        }
+        delete AU[k];
+      });
+    const done = [],
+      miss = [];
+    for (const [k, lab, q] of parts) {
+      P = deps.dtc.points();
+      const wl = lineFor(P, 'whole');
+      if (!wl || q.length > lineSpec(wl.n).len) {
+        miss.push(lab);
+        continue;
+      }
+      q.forEach((p, i) => deps.dtc.set(wl.g, wl.slot + i, { x: p.x, y: p.y, altFt: 0 }));
+      AU[K + ':' + k] = { line: wl.n, x: q[0].x, y: q[0].y };
+      done.push(lnName(wl.n) + ' ' + lab);
+    }
+    showLayer(GROUPS.line.layer);
+    sync();
+    dtc();
+    if (!done.length) return { msg: 'No empty LINE left: each part of the plan needs a whole LINE.', bad: true };
+    return {
+      msg:
+        name +
+        ' added to the DTC: ' +
+        done.join(', ') +
+        (miss.length ? '. No empty LINE left for ' + miss.join(', ') + '.' : '.'),
+      bad: !!miss.length,
+    };
   }
   // + LINEn adds points one click at a time; once the line is complete the same button is "- LINEn" and deletes the line (after asking)
   function lineTool(n) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return;
-    if (freeSlot(P, 'line', n) >= 0) return addStart('line', n);
+    const { g, len } = lineSpec(n);
+    if (freeSlot(P, g, n) >= 0) return addStart(g, n);
     toast(
-      'LINE' + n + ' is full (6 steerpoints), so nothing was added. Use − → Lines → ' + n + ' to empty it first.',
+      lnName(n) +
+        ' is full (' +
+        len +
+        (n <= 4 ? ' steerpoints' : ' points') +
+        '), so nothing was added. Use DELETE → Lines → ' +
+        n +
+        ' to empty it first.',
       true
     );
   }
-  async function lineDelete(n) {
+  // empties a whole line (its 6 steerpoints, or the 30 points of a SIT line); asks first unless `sure`
+  async function lineDelete(n, sure) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first.', true);
-    const a = (n - 1) * LINE_LEN;
-    if (P.line.slice(a, a + LINE_LEN).every(q => q.empty))
-      return toast('LINE' + n + ' is already empty, so nothing was removed.', true);
+    const { g, a, len } = lineSpec(n);
+    if (!lnUsed(P, n)) return toast(lnName(n) + ' is already empty, so nothing was removed.', true);
     addStop();
-    if (!(await confirm('Delete all the steerpoints of LINE' + n + '?'))) return;
-    for (let i = a; i < a + LINE_LEN; i++) deps.dtc.clear('line', i);
+    if (!sure && !(await confirm('Delete all the ' + (n <= 4 ? 'steerpoints' : 'points') + ' of ' + lnName(n) + '?')))
+      return;
+    const have = new Set(lnPts(P, n).map(q => q.slot));
+    for (let i = a; i < a + len; i++) if (g == 'line' || have.has(i)) deps.dtc.clear(g, i);
     dtc();
-    toast('LINE' + n + ' emptied.');
+    toast(lnName(n) + ' emptied.');
   }
   // picture (official or imported), re-projected once and kept. The BMS folder picture (16k, 100+ MB) is not re-projected as a whole: it is
   // decoded off the main thread and cut into tiles on demand at full resolution, so the program stays usable while it loads.
@@ -2409,6 +3084,7 @@ export function createMap(host, deps) {
     return ro(d);
   }
   function sync() {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     unitVis();
     host.classList.toggle('names', !!st.on.names);
     const nb = $('mpnm');
@@ -2421,6 +3097,16 @@ export function createMap(host, deps) {
     });
     if (st.on.msa) G.msaS.addTo(map);
     else map.removeLayer(G.msaS);
+    if (!!st.on.hm !== HMON) {
+      HMON = !!st.on.hm;
+      harmDraw();
+    }
+    ['fa', 'oc'].forEach(k => {
+      if (!!st.on[k] !== AAON[k]) {
+        AAON[k] = !!st.on[k];
+        aaDraw(k);
+      }
+    });
     objDraw();
     radarCov();
     msaDraw();
@@ -2428,6 +3114,12 @@ export function createMap(host, deps) {
 
   const side = (ally, owner) => (ally ? 'friend' : owner == 0 ? 'neutral' : 'hostile');
   // units and SAM rings (campaign / faction change)
+  // the ring of a SAM (km): the range of its pre-planned threat in Ppt.ini when the list has one, else the range of its unit class (the same on the
+  // Map page, SEAD and DEAD)
+  function samRng(name, rng) {
+    const k = pptForUnit(name);
+    return k >= 0 && PPT[k] && PPT[k][1] > 1000 ? Math.round((PPT[k][1] / FT_KM) * 10) / 10 : rng;
+  }
   function units(C, view) {
     const L = window.L;
     ['uf', 'ue'].forEach(k => G[k].clearLayers());
@@ -2436,10 +3128,7 @@ export function createMap(host, deps) {
     if (!C) return;
     UL = mapUnits(C, view).filter(m => m.spotted);
     UL.forEach(m => {
-      if (m.sam) {
-        const k = pptForUnit(m.name);
-        if (k >= 0 && PPT[k][1] > 1000) m.rng = Math.round((PPT[k][1] / FT_KM) * 10) / 10;
-      }
+      if (m.sam) m.rng = samRng(m.name, m.rng);
     }); // same ring as the pre-planned threat of the list
     UL.forEach(m => {
       const s = unitSymbol(m.carrier ? 'Carrier' : m.cat, side(m.ally, m.owner));
@@ -2642,7 +3331,7 @@ export function createMap(host, deps) {
       const s = flightState(f, C.now);
       if (!s) return;
       const ally = allyOf(C, f.owner, view);
-      if (!ally && !spottedBy(f, mates)) return;
+      if (!ally && !C.isTe && !spottedBy(f, mates)) return; // a TE has nothing spotted (no time has run): every flight
       if (ally && st.on.fs && !SUPPORT.has(deps.flightInfo(f).cat)) return; // "support only": tankers, AWACS, airlift, CSAR...
       const col = ally ? pal.trk : pal.foe,
         info = deps.flightInfo(f),
@@ -2699,7 +3388,7 @@ export function createMap(host, deps) {
             ' · ' +
             s.gsKt +
             ' kt · ' +
-            Math.round(s.hdg) +
+            Math.round(s.mhdg) +
             '°',
           { direction: 'right', offset: [10, 0] }
         )
@@ -2719,7 +3408,7 @@ export function createMap(host, deps) {
   const msaZ = () => (map ? map.getZoom() : 8);
   function msaMark(ll, secs, hov) {
     const L = window.L,
-      sy = msaSymbol(secs, msaZ(), deps.magvar ? deps.magvar() : 0);
+      sy = msaSymbol(secs, msaZ(), magAt(...fromLL(ll[0], ll[1]))); // the bearings of the sectors magnetic, with the variation of the place
     return L.marker(ll, {
       icon: L.divIcon({ className: hov ? 'msas fxh' : 'msas', html: sy.html, iconSize: [0, 0] }), // fxh: the symbol under the mouse fades in
       interactive: false,
@@ -2872,7 +3561,8 @@ export function createMap(host, deps) {
       .forEach((m, i) => member(C, m, i));
     const mn = C.D.S[300 + f.omis] || '',
       lg = legs(r),
-      ll = r.map(p => p.ll);
+      ll = r.map(p => p.ll),
+      oc = colOf(f); // the colour the pilot gave the selected flight
     // from the first landing steerpoint on (recovery, diversion) the line is dashed
     const li = r.findIndex(p => p.act == 7),
       parts2 =
@@ -2894,7 +3584,7 @@ export function createMap(host, deps) {
         }).addTo(G.fp);
       L.polyline(pl, {
         renderer: PRM,
-        color: pal.plan,
+        color: oc || pal.plan,
         weight: 2.5,
         opacity: 0.95,
         dashArray: dash,
@@ -2912,7 +3602,7 @@ export function createMap(host, deps) {
       const mk = L.marker(p.ll, {
         icon: L.divIcon({
           className: 'wps',
-          html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`,
+          html: `<span${oc ? ` style="--plan:${oc}"` : ''}><svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b></span>`,
           iconSize: [18, 18],
         }),
         zIndexOffset: 1000,
@@ -2923,7 +3613,7 @@ export function createMap(host, deps) {
       mk.bindPopup(
         () =>
           stpPopup(
-            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.hdg)).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
+            `<b>Steerpoint ${p.n}</b> · ${deps.esc(actName(f.wps, i, mn))}<br>${fmtLL(p.ll[0], p.ll[1])}<br>${p.altFt ? p.altFt.toLocaleString('en-US') + ' ft' : 'Ground'}${t ? ' · ' + t : ''}${l ? '<br>Leg ' + l.nm.toFixed(1) + ' NM · ' + String(Math.round(l.mhdg) % 360).padStart(3, '0') + '°' : ''}${stpExtra(f, i)}`,
             p,
             mk
           ),
@@ -2950,8 +3640,11 @@ export function createMap(host, deps) {
       G.fd,
       ll,
       `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}${wzLine(f)}`,
-      '',
-      0
+      'clk',
+      0,
+      null,
+      ev => ownColour(f, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0]),
+      { key: 'f:' + info.cs, ...(oc ? { sty: '--plan:' + oc } : {}) }
     );
     placeLabels();
     msaDraw();
@@ -2972,15 +3665,17 @@ export function createMap(host, deps) {
   // a label drawn again (a switch of the map draws the plan again: the WEZ line, a layer) does not pop in again: a label taken away a moment ago and
   // put back is known by its kind and its first bold text (the callsign)
   const LBGONE = new Map();
-  function label(group, route, html, cls, k, list, pick) {
+  // o: {key, sty}: key, a label the pilot can drag along its route (the flight, a tanker track): it stays where it is let go (MSTY.lbl, kept with the
+  // mission), a double click gives it back to placeLabels(); sty, CSS variables of the box (the colour of a flight of the package)
+  function label(group, route, html, cls, k, list, pick, o = {}) {
     const L = window.L,
       at = route.length > 1 ? [(route[0][0] + route[1][0]) / 2, (route[0][1] + route[1][1]) / 2] : route[0];
     const lk = cls + '|' + (String(html).match(/<b>.*?<\/b>/) || [html])[0],
       still = Date.now() - (LBGONE.get(lk) || 0) < 400;
     const mk = L.marker(at, {
       icon: L.divIcon({
-        className: 'flb ' + cls + (still ? ' still' : ''),
-        html: `<div style="--o:${k * 34}px"${pick ? ` data-lb="${++LBN}"` : ''}>${html}</div>`,
+        className: 'flb ' + cls + (still ? ' still' : '') + (o.key ? ' drg' : ''),
+        html: `<div style="--o:${k * 34}px${o.sty ? ';' + o.sty : ''}"${pick ? ` data-lb="${++LBN}"` : ''}${o.key ? ' title="Drag along the route to move it; double click: back to its place"' : ''}>${html}</div>`,
         iconSize: [0, 0],
       }),
       interactive: false,
@@ -2989,13 +3684,87 @@ export function createMap(host, deps) {
     }).addTo(group);
     mk.on('remove', () => LBGONE.set(lk, Date.now()));
     if (pick) LBP[LBN] = pick;
-    (list || LBL).push({ mk, r: route });
+    const it = { mk, r: route, key: o.key || '' };
+    (list || LBL).push(it);
+    if (o.key) {
+      const wire = () => {
+        const el = mk.getElement() && mk.getElement().querySelector('div');
+        if (el) labelDrag(it, el);
+      };
+      mk.on('add', wire); // the element is made again each time the layer comes back
+      wire();
+    }
+  }
+  // the point of a route nearest to a point of the screen: {ll, i (the leg), f (along it, 0-1)}
+  function onRoute(r, pt) {
+    let best = null;
+    for (let i = 0; i < r.length - 1; i++) {
+      const a = map.latLngToContainerPoint(r[i]),
+        b = map.latLngToContainerPoint(r[i + 1]),
+        vx = b.x - a.x,
+        vy = b.y - a.y,
+        L2 = vx * vx + vy * vy,
+        f = L2 ? Math.max(0, Math.min(1, ((pt.x - a.x) * vx + (pt.y - a.y) * vy) / L2)) : 0,
+        d = Math.hypot(pt.x - a.x - f * vx, pt.y - a.y - f * vy);
+      if (!best || d < best.d) best = { d, i, f };
+    }
+    return best ? { i: best.i, f: best.f, ll: anchorLL(r, best) } : null;
+  }
+  const anchorLL = (r, a) => [
+    r[a.i][0] + (r[a.i + 1][0] - r[a.i][0]) * a.f,
+    r[a.i][1] + (r[a.i + 1][1] - r[a.i][1]) * a.f,
+  ];
+  let LDRAG = 0; // the time a label was let go: the click that follows the drag does not open it
+  function labelDrag(o, el) {
+    el.addEventListener('pointerdown', ev => {
+      if (ev.button || o.r.length < 2) return;
+      ev.stopPropagation();
+      const sx = ev.clientX,
+        sy = ev.clientY;
+      let moved = false,
+        a = null;
+      map.dragging.disable();
+      const mv = e => {
+        if (!moved && Math.hypot(e.clientX - sx, e.clientY - sy) < 4) return;
+        moved = true;
+        el.classList.add('grab');
+        a = onRoute(o.r, map.mouseEventToContainerPoint(e));
+        if (a) o.mk.setLatLng(a.ll);
+      };
+      const up = () => {
+        window.removeEventListener('pointermove', mv);
+        window.removeEventListener('pointerup', up);
+        map.dragging.enable();
+        el.classList.remove('grab');
+        if (!moved || !a) return;
+        LDRAG = Date.now();
+        MSTY.lbl[o.key] = { i: a.i, f: Math.round(a.f * 1e4) / 1e4 };
+        PREF.msty = MSTY;
+        persist();
+      };
+      window.addEventListener('pointermove', mv);
+      window.addEventListener('pointerup', up);
+    });
+    el.addEventListener('dblclick', e => {
+      e.stopPropagation();
+      if (!MSTY.lbl[o.key]) return;
+      delete MSTY.lbl[o.key];
+      PREF.msty = MSTY;
+      persist();
+      placeLabels();
+    });
   }
   function placeLabels() {
     if (!map || (!LBL.length && !TLB.length)) return;
     const sz = map.getSize(),
       c = { x: sz.x / 2, y: sz.y / 2 };
     LBL.concat(TLB).forEach(o => {
+      const an = o.key && MSTY.lbl[o.key];
+      if (an && an.i >= 0 && an.i < o.r.length - 1) {
+        o.mk.setLatLng(anchorLL(o.r, an)); // moved by the pilot: it stays there
+        o.mk.setOpacity(1);
+        return;
+      }
       let best = null,
         bd = Infinity;
       const cand = o.r.length > 1 ? o.r.slice(1).map((q, i) => [(o.r[i][0] + q[0]) / 2, (o.r[i][1] + q[1]) / 2]) : o.r;
@@ -3014,7 +3783,7 @@ export function createMap(host, deps) {
       } else o.mk.setOpacity(0);
     });
   }
-  // ---- offsets of a route steerpoint (1-24), placed on the map: OA1, OA2, VRP, VRP PUP, VIP, VIP PUP (deps.offs; the Weapons page shows and writes them) ----
+  // ---- offsets of a route steerpoint (1-24), placed on the map: OA1, OA2, VRP, VRP PUP, VIP, VIP PUP (deps.offs; the A-G page shows and writes them) ----
   let OFFR = [],
     OFFP = null,
     OFFRE = 0; // OFFR: the route steerpoints of the picked flight; OFFP: the point waiting for a click {n, at, key, mk}; OFFRE: steerpoint whose panel opens again after a placement
@@ -3023,7 +3792,7 @@ export function createMap(host, deps) {
     return { n: y * FT_KM, e: x * FT_KM };
   };
   const posLL = q => toLL(q.e / FT_KM, q.n / FT_KM);
-  // the points follow the store whoever changes it (the Weapons page: Clear offsets)
+  // the points follow the store whoever changes it (the A-G page: Clear offsets)
   if (deps.offs)
     deps.offs.onChange(() => {
       try {
@@ -3126,10 +3895,15 @@ export function createMap(host, deps) {
     d.innerHTML =
       html +
       (deps.offs && p.n >= 1 && p.n <= 24
-        ? `<div class="bar" style="margin:6px 0 0"><button class="btn g" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map">Offsets</button><button class="btn g rd${Object.keys(deps.offs.get(p.n, neOf(p.ll))).length ? '' : ' nil'}" type="button" data-a="offdel" title="Delete every offset of this steerpoint">Delete offsets</button></div>`
+        ? `<div class="bar" style="margin:6px 0 0"><button class="btn g${deps.dtc && deps.dtc.points() ? '' : ' nil'}" type="button" data-a="offs" title="Place OA1, OA2, VRP, VIP and the pull-up points of this steerpoint on the map (written into the NAV OFFSETS of the DTC: a DTC must be open)">Offsets</button><button class="btn g rd${Object.keys(deps.offs.get(p.n, neOf(p.ll))).length ? '' : ' nil'}" type="button" data-a="offdel" title="Delete every offset of this steerpoint">Delete offsets</button></div>`
         : '');
     const b = d.querySelector('[data-a=offs]');
-    if (b) b.onclick = later(() => offPanel(d, p, mk));
+    if (b)
+      b.onclick = later(() => {
+        // the offsets go into the NAV OFFSETS of the DTC: without a DTC open they would go nowhere
+        if (!(deps.dtc && deps.dtc.points())) return toast('Open a DTC first: the offsets are written into it.', true);
+        offPanel(d, p, mk);
+      });
     const dl = d.querySelector('[data-a=offdel]');
     if (dl)
       dl.onclick = later(() => {
@@ -3198,12 +3972,56 @@ export function createMap(host, deps) {
   }
 
   // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
+  const fid = m => m.id.n + ':' + m.id.c;
+  // THE COLOUR OF A FLIGHT (the selected one or one of its package): a row of a popup, the colour picker of the program under it
+  const colOf = m => (/^[0-9A-F]{6}$/i.test(MSTY.col[fid(m)] || '') ? '#' + MSTY.col[fid(m)] : null);
+  const colRow = cur =>
+    `<div class="bar" style="margin:6px 0 0;align-items:center;gap:6px"><span class="hint" style="min-height:0;margin:0">Colour</span><button class="btn g" type="button" data-a="col" title="The colour of this flight on the map and on its pictures (kept with the mission)" style="min-width:34px;padding:4px 8px;background:${cur ? '#' + cur : 'transparent'}">${cur ? '&nbsp;' : 'Pick'}</button><button class="btn g" type="button" data-a="cold"${cur ? '' : ' disabled'} title="The colour of the map palette again">Default</button></div><div class="sitpk" data-a="colpk" hidden></div>`;
+  function colWire(w, m, cur, grown) {
+    const setCol = h => {
+      if (h) MSTY.col[fid(m)] = h.toUpperCase();
+      else delete MSTY.col[fid(m)];
+      PREF.msty = MSTY;
+      persist();
+      refresh();
+    };
+    const cb = /** @type {HTMLElement} */ (w.querySelector('[data-a=col]')),
+      cw = /** @type {HTMLElement} */ (w.querySelector('[data-a=colpk]'));
+    let PK = null;
+    cb.onclick = () => {
+      cw.hidden = !cw.hidden;
+      if (!PK && !cw.hidden)
+        PK = colorPicker(cw, cur || 'FFFFFF', {
+          live: h => (cb.style.background = '#' + h),
+          pick: h => setCol(h),
+        });
+      grown();
+    };
+    /** @type {HTMLElement} */ (w.querySelector('[data-a=cold]')).onclick = later(() => {
+      map.closePopup();
+      setCol('');
+    });
+  }
+  // the label of the selected flight clicked: a small window with its colour
+  function ownColour(f, at) {
+    const w = document.createElement('div'),
+      cur = MSTY.col[fid(f)] || '';
+    w.className = 'dtp';
+    w.innerHTML = `<div><b>${deps.esc(deps.flightInfo(f).cs)}</b></div>${colRow(cur)}`;
+    let pop = null;
+    colWire(w, f, cur, () => pop && pop.update());
+    pop = window.L.popup({ className: 'mpop', closeButton: false, autoPan: true, minWidth: 236, offset: [0, -6] })
+      .setLatLng(at)
+      .setContent(w)
+      .openOn(map);
+  }
   function member(C, m, k) {
     const L = window.L,
       r = flightRoute(C, m),
       info = deps.flightInfo(m),
       pick = ev => EDIT && mateOpen(m, ev && ev.latlng),
-      ll = r.map(p => p.ll);
+      ll = r.map(p => p.ll),
+      cc = colOf(m); // the colour the pilot gave it
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
     (li > 0 && li < r.length - 1
@@ -3215,9 +4033,9 @@ export function createMap(host, deps) {
     ).forEach(([pl, dash]) =>
       L.polyline(pl, {
         renderer: PR,
-        color: pal.mate,
-        weight: 1.8,
-        opacity: 0.75,
+        color: cc || pal.mate,
+        weight: cc ? 2.2 : 1.8,
+        opacity: cc ? 0.9 : 0.75,
         dashArray: dash,
         interactive: false,
       }).addTo(G.pk)
@@ -3232,7 +4050,7 @@ export function createMap(host, deps) {
       L.marker(p.ll, {
         icon: L.divIcon({
           className: 'wps dim',
-          html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`,
+          html: `<span${cc ? ` style="--mate:${cc}"` : ''}><svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b></span>`,
           iconSize: [18, 18],
         }),
         zIndexOffset: 400,
@@ -3242,13 +4060,20 @@ export function createMap(host, deps) {
         .bindTooltip(deps.esc(info.text) + '<br>Steerpoint ' + p.n, { direction: 'top', offset: [0, -6] })
         .addTo(G.pk);
     });
-    label(G.pk, ll, `<b>${deps.esc(info.cs)}</b>`, 'm clk', k, null, ev =>
-      mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0])
+    label(
+      G.pk,
+      ll,
+      `<b>${deps.esc(info.cs)}</b>`,
+      'm clk',
+      k,
+      null,
+      ev => mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0]),
+      { key: 'm:' + fid(m), ...(cc ? { sty: '--plan:' + cc + ';--mate:' + cc } : {}) } // dragged along its route too; a click opens it
     );
   }
   // a flight of the package is clicked: with the editing on a small window offers to select it or to add it to the Link 16 files of the DTC; otherwise it is just selected
   function mateOpen(m, at) {
-    if (!EDIT || !deps.l16 || !at) {
+    if (!EDIT || !at) {
       if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
       return;
     }
@@ -3273,21 +4098,23 @@ export function createMap(host, deps) {
     const w = document.createElement('div'),
       info = deps.flightInfo(m),
       A = deps.l16,
-      d = A.mate(m),
+      d = A ? A.mate(m) : null,
       esc = deps.esc,
       parts = String(info.text).split(' · '),
       pick = { start: null }; // the slot chosen in the menu (null: the first free)
     w.className = 'dtp';
     const home = () => {
-      const can = A.can(),
-        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [];
+      const can = A ? A.can() : { ok: false, why: 'Link 16 is not available here' },
+        in2 = d ? ['A', 'B'].map(f => [f, A.has(f, d.cs)]).filter(z => z[1].length) : [],
+        cur = MSTY.col[fid(m)] || '';
       w.innerHTML = `<div><b>${esc(parts[0])}</b></div><div class="hint" style="min-height:0">${esc(parts.slice(1).join(' · '))}</div>${
         in2.length
           ? `<div class="hint" style="min-height:0">Link 16: ${in2.map(z => 'file ' + z[0] + ' · slot ' + rangeText(z[1])).join(' · ')}</div>`
           : ''
       }<div class="bar bar3" style="margin:6px 0 0"><button class="btn g" type="button" data-a="sel" title="Load this flight on the Datacard">Select flight</button><button class="btn g" type="button" data-a="l16"${
         d ? '' : ' disabled'
-      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>`;
+      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>${colRow(cur)}`;
+      colWire(w, m, cur, grown);
       w.querySelector('[data-a=sel]').onclick = later(() => {
         map.closePopup();
         if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
@@ -3422,7 +4249,19 @@ export function createMap(host, deps) {
     const k = pptIndex(n);
     return k >= 0 && k < SAMPPT;
   };
-  const dtcCol = (g, it) => (g == 'ppt' && it && !isSamPpt(it.name) ? pal.dtc.pptO : pal.dtc[g]);
+  const otherPptNames = () =>
+    Array.from({ length: PPT.length || 0 }, (_, i) => PPT[i])
+      .slice(SAMPPT)
+      .filter(e => e && e[0])
+      .map(e => ({ name: e[0], label: e[2] || e[0] }));
+  // the F-15 (its kneeboard chosen by the aircraft of the flight): the SIT lines, LINE1-4 with their looks and the lines 6-12 of [F15_SIT_LINES]
+  const sitOn = () => !!(deps.dtc && deps.dtc.sitOn && deps.dtc.sitOn());
+  const sitM = () => (sitOn() && deps.dtc.sitMeta ? deps.dtc.sitMeta() : null);
+  const dtcCol = (g, it) => {
+    const m = (g == 'line' || g == 'sit') && it && it.slot != null ? sitM() : null;
+    if (m) return '#' + m[lineNo(it)].hex;
+    return g == 'ppt' && it && !isSamPpt(it.name) ? pal.dtc.pptO : pal.dtc[g == 'sit' ? 'line' : g];
+  };
   const P0 = () => deps.dtc.points();
   function dtcInfo() {
     const ob = $('mpdopen');
@@ -3442,6 +4281,7 @@ export function createMap(host, deps) {
     $('mpdsave').disabled = !has || !(deps.dtc.canOverwrite && deps.dtc.canOverwrite()) || !deps.dtc.dirty();
     $('mpdsave').classList.toggle('nil', $('mpdsave').disabled);
     $('mpmsave').classList.toggle('nil', !(deps.missionDirty && deps.missionDirty()));
+    $('mpdtcb').classList.toggle('nodtc', !has); // red: no DTC open
     if (ob) {
       ob.classList.toggle('g', !has);
       ob.style.display = has ? '' : 'none';
@@ -3454,16 +4294,23 @@ export function createMap(host, deps) {
       b.disabled = !has;
     });
     $('mpdrect').disabled = !has;
-    [1, 2, 3, 4].forEach(n =>
+    const so = sitOn();
+    host.querySelectorAll('.sitrow').forEach(el => (el.style.display = so ? '' : 'none'));
+    host.querySelectorAll('.mpp [data-k=ds]').forEach(el => {
+      const r = el.closest('label') || el.parentElement;
+      if (r) r.style.display = so ? '' : 'none';
+    });
+    [1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12].forEach(n =>
       host.querySelectorAll(`[data-add=line${n}],[data-del="${n}"]`).forEach(b => {
-        const a = (n - 1) * LINE_LEN,
-          pl = has ? P0().line.slice(a, a + LINE_LEN) : [],
-          full = has && pl.length > 0 && pl.every(q => !q.empty),
-          none = has && pl.every(q => q.empty);
+        const u = has ? lnUsed(P0(), n) : 0,
+          full = has && u >= lineSpec(n).len && (n > 4 || freeSlot(P0(), 'line', n) < 0),
+          none = has && !u;
+        if (n > 4) b.title = b.title.replace(/^(SIT line \d+|[A-Z][A-Z0-9 ]*?)(?=:)/, lnName(n));
         b.classList.toggle('lnr', full);
         b.classList.toggle('lng', has && !full && !none);
         b.classList.toggle('lnw', none);
-        b.textContent = n;
+        // the SIT lines: the number and the initial of the name (6E ECOAST, 11H HAZARD)
+        b.textContent = n > 4 && so ? n + (String(lnName(n)).match(/[A-Z0-9]/i) || [''])[0].toUpperCase() : n;
       })
     );
     $('mpdrect').classList.toggle('lnr', has && !lineRoom(P0(), false)); // no LINE with 5 free points: red
@@ -3483,33 +4330,41 @@ export function createMap(host, deps) {
     return L.divIcon({
       className: 'dts ' + it.group,
       html:
-        `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.stpt}</b>` +
+        `<svg width="18" height="18" viewBox="0 0 18 18" style="--c:${col}">${sh}</svg><b style="color:${col}">${it.group == 'sit' ? it.slot - lineSpec(lineNo(it)).a + 1 : it.stpt}</b>` +
         (it.group == 'ppt' && it.name ? `<i class="dtn" style="color:${col}">${deps.esc(pptLabel(it.name))}</i>` : ''),
       iconSize: [18, 18],
     });
   };
   const dtcTip = it =>
-    `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? 'LINE' + lineOf(it.slot) + ' point ' + ((it.slot % LINE_LEN) + 1) : GROUPS[it.group].label}${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
+    (it.group == 'sit'
+      ? `<b>${deps.esc(lnName(lineNo(it)))}</b> · point ${it.slot - lineSpec(lineNo(it)).a + 1}`
+      : `<b>STPT ${it.stpt}</b> · ${it.group == 'line' ? deps.esc(lnName(lineOf(it.slot))) + ' point ' + ((it.slot % LINE_LEN) + 1) : GROUPS[it.group].label}`) +
+    `${it.name ? '<br>' + deps.esc(it.name) : ''}${it.group == 'prec' && !it.name && deps.nearName && deps.nearName(it.x, it.y) ? '<br>near ' + deps.esc(deps.nearName(it.x, it.y)) : ''}<br>${fmtLL(...toLL(it.x, it.y))}${it.group == 'ppt' && it.rngNm ? '<br>Range ' + it.rngNm.toFixed(1) + ' NM' : ''}`;
   // after a change (a point or a whole line deleted ...) an unfinished line is recalculated: the highlighted point and the Done button follow
   function dtc() {
-    const am = addM && addM.g == 'line' && !addM.rect ? addM : null;
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
+    const am = addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? addM : null;
     try {
       dtc0();
     } finally {
-      if (am && addM === am) addStart('line', am.line);
+      if (am && addM === am) addStart(am.g, am.line);
     }
   }
   function dtc0() {
-    ['dp', 'dq', 'dl', 'da'].forEach(k => G[k].clearLayers());
+    ['dp', 'dq', 'dl', 'ds', 'dn', 'da'].forEach(k => G[k].clearLayers());
     DT = [];
     LNP = [];
     attackDraw();
+    harmDraw();
+    faorDraw();
     const P = deps.dtc && deps.dtc.points();
     dtcInfo();
     sams(deps.getC(), deps.getSel());
     autoRefresh();
     if (!P) return;
-    ['prec', 'ppt', 'line'].forEach(g => P[g].filter(p => !p.empty).forEach(dtcMark));
+    ['prec', 'ppt', 'line', ...(sitOn() ? ['sit'] : [])].forEach(g =>
+      (P[g] || []).filter(p => !p.empty).forEach(dtcMark)
+    );
     dtcLinesDraw();
     wtDraw();
     placeLabels();
@@ -3562,11 +4417,65 @@ export function createMap(host, deps) {
     };
     return ro(d);
   }
-  // the attack worked out on the Weapons page (deps.attack(): lines per phase and marks as [lat, lon]); the Weapons page draws it itself while it has the map
+  // the drawing of the HARM page of the flight (SEAD, DEAD or Single shot: deps.harm(group) draws it in the group and says whether there was one); the HARM
+  // page draws it itself while it has the map. Drawn again at every zoom (the texts of DEAD are placed for the scale); the last call wins.
+  let HMN = 0,
+    HMON = false;
+  // Display > DCA and OCA: the pages of A-A draw the plan of the flight in a group given to them (deps.faor, deps.oca), as the HARM page does
+  const AAN = { fa: 0, oc: 0 },
+    AAON = { fa: false, oc: false },
+    AADEP = { fa: 'faor', oc: 'oca' };
+  function aaDraw(k) {
+    const n = ++AAN[k],
+      dep = deps[AADEP[k]];
+    if (!G[k]) return;
+    G[k].clearLayers();
+    if (away || !dep || !st.on[k]) return;
+    const g = window.L.layerGroup();
+    new Promise(r => r(dep({ L: window.L, map, WL: g })))
+      .then(ok => {
+        if (n !== AAN[k] || away) return;
+        G[k].clearLayers();
+        if (ok)
+          g.getLayers().forEach(l => {
+            g.removeLayer(l);
+            G[k].addLayer(l);
+          });
+      })
+      .catch(() => {});
+  }
+  const faorDraw = () => {
+    aaDraw('fa');
+    aaDraw('oc');
+  };
+  function harmDraw() {
+    const n = ++HMN;
+    if (!G.hm) return;
+    G.hm.clearLayers();
+    if (away || !deps.harm || !st.on.hm) return;
+    const g = window.L.layerGroup();
+    new Promise(r => r(deps.harm({ L: window.L, map, WL: g })))
+      .then(ok => {
+        if (n !== HMN || away) return;
+        G.hm.clearLayers();
+        if (ok)
+          g.getLayers().forEach(l => {
+            g.removeLayer(l);
+            G.hm.addLayer(l);
+          });
+      })
+      .catch(() => {});
+  }
+  // the attack worked out on the A-G page (deps.attack(): lines per phase and marks as [lat, lon]); the A-G page draws it itself while it has the map
   function attackDraw() {
     const A = !away && deps.attack && deps.attack();
     if (!A) return;
     const L = window.L;
+    // the other group of the flight (lead / element) in white, under the attack shown
+    (A.ghost || []).forEach(q => {
+      L.polyline(q, { pane: 'atkP', color: '#000', weight: 5, opacity: 0.4, interactive: false }).addTo(G.da);
+      L.polyline(q, { pane: 'atkP', color: '#fff', weight: 2.5, opacity: 0.95, interactive: false }).addTo(G.da);
+    });
     A.segs.forEach(z => {
       const q = z.pts;
       L.polyline(q, { pane: 'atkP', color: '#000', weight: 6, opacity: 0.35, interactive: false }).addTo(G.da);
@@ -3623,17 +4532,36 @@ export function createMap(host, deps) {
       offset: [0, -4],
       minWidth: 230,
     });
+    const isLine = it.group == 'line' || it.group == 'sit';
+    // while a line is drawn, a click on a point adds the next point of the line exactly there (snapped), its menu does not open
+    mk.on('preclick', () => {
+      if (!addM || addM.rect || (addM.g != 'line' && addM.g != 'sit')) return;
+      e.skipPop = true;
+      const ll = mk.getLatLng();
+      setTimeout(() => addM && addPlace(ll), 0);
+    });
+    mk.on('popupopen', () => {
+      if (e.skipPop) {
+        e.skipPop = false;
+        mk.closePopup();
+      }
+    });
     mk.on('drag', () => {
-      const ll = mk.getLatLng(),
-        [x, y] = fromLL(ll.lat, ll.lng);
+      const sn = isLine ? snapTo(mk.getLatLng(), it) : null,
+        ll = sn || mk.getLatLng(),
+        [x, y] = sn ? sn.xy : fromLL(ll.lat, ll.lng);
+      if (isLine) snapRing(sn);
       it.x = x;
       it.y = y;
       if (e.ring) e.ring.setLatLng(ll);
-      if (it.group == 'line') dtcLinesDraw();
+      if (isLine) dtcLinesDraw();
     });
     mk.on('dragend', () => {
+      const sn = isLine ? snapTo(mk.getLatLng(), it) : null;
+      snapRing(null);
+      if (sn) mk.setLatLng(sn);
       const ll = mk.getLatLng(),
-        [x, y] = fromLL(ll.lat, ll.lng);
+        [x, y] = sn ? sn.xy : fromLL(ll.lat, ll.lng);
       if (x < 0 || x > 1024 || y < 0 || y > 1024) {
         dtc();
         toast('That is outside the theater.', true);
@@ -3650,12 +4578,20 @@ export function createMap(host, deps) {
     return e;
   }
   function dtcLinesDraw() {
-    const L = window.L;
-    LNP.forEach(l => G.dl.removeLayer(l));
+    const L = window.L,
+      SM = sitM();
+    LNP.forEach(l => {
+      G.dl.removeLayer(l);
+      G.ds.removeLayer(l);
+      G.dn.removeLayer(l);
+    });
     LNP = [];
     TLB.forEach(o => G.dl.removeLayer(o.mk));
     TLB = [];
-    dtcLines({ line: DT.filter(e => e.it.group == 'line').map(e => e.it) }).forEach(run => {
+    dtcLines({
+      line: DT.filter(e => e.it.group == 'line').map(e => e.it),
+      sit: SM ? DT.filter(e => e.it.group == 'sit').map(e => e.it) : [],
+    }).forEach(run => {
       const tk = (PREF.tanks || []).find(
         t => run.pts.length > 1 && Math.hypot(t.x - run.pts[0].x, t.y - run.pts[0].y) < 0.05
       );
@@ -3672,17 +4608,45 @@ export function createMap(host, deps) {
               f = C && C.units.find(u => u.kind == 'flight' && u.wps && deps.flightInfo(u).cs == tk.cs);
             if (!f || !deps.selectFlight || deps.selectFlight(f) === false)
               toast('That flight cannot be selected.', true);
+          },
+          { key: 'tk:' + tk.cs }
+        );
+      if (run.pts.length > 1) {
+        // an F-15: the colour, the dash and the name of the SIT line (dimmed when it is not shown on the SIT)
+        const m = SM && SM[run.line],
+          px = m && SIT_DASH_PX[m.dash];
+        const pl = L.polyline(
+          run.pts.map(p => toLL(p.x, p.y)),
+          {
+            color: m ? '#' + m.hex : dtcCol('line'),
+            weight: m ? 2.4 : 2,
+            opacity: m && !m.on ? 0.4 : 0.9,
+            dashArray: px ? px.join(' ') : null,
+            interactive: false,
           }
-        );
-      if (run.pts.length > 1)
-        LNP.push(
-          L.polyline(
-            run.pts.map(p => toLL(p.x, p.y)),
-            { color: dtcCol('line'), weight: 2, opacity: 0.9, interactive: false }
-          )
-            .bindTooltip('LINE' + run.line, { permanent: true, direction: 'center', className: 'lnlab' })
-            .addTo(G.dl)
-        );
+        )
+          .bindTooltip(deps.esc(lnName(run.line)), { permanent: true, direction: 'center', className: 'lnlab' })
+          .addTo(G[run.line > 4 ? 'ds' : 'dl']);
+        LNP.push(pl);
+        // a rectangle (a closed box of square corners, also a tanker track): the lengths of its sides
+        const bs = run.line && boxSides(run.pts);
+        if (bs)
+          bs.forEach((nm, i) => {
+            const p = run.pts[i],
+              q = run.pts[i + 1];
+            LNP.push(
+              L.marker(toLL((p.x + q.x) / 2, (p.y + q.y) / 2), {
+                icon: lenIcon(nmTxt(nm)),
+                interactive: false,
+                keyboard: false,
+                zIndexOffset: 600,
+              }).addTo(G.dn)
+            );
+          });
+        // the label in the colour of the line (its element is kept by the tooltip while the layer is hidden)
+        const te = m && pl.getTooltip() ? pl.getTooltip().getElement() : null;
+        if (te) te.style.color = '#' + m.hex;
+      }
     });
   }
   // pre-planned threat list of BMS (data/ppt.js): the ring range comes from the list (feet), the same value the game uses
@@ -3717,36 +4681,46 @@ export function createMap(host, deps) {
       w = document.createElement('div'),
       ll = toLL(it.x, it.y);
     w.className = 'dtp';
+    const isLn = it.group == 'line' || it.group == 'sit',
+      ln = isLn ? lineNo(it) : 0,
+      sp = isLn ? lineSpec(ln) : null,
+      SM = isLn ? sitM() : null;
     const head =
-      it.group == 'line'
-        ? `<div><b>STPT ${it.stpt}</b> · LINE${lineOf(it.slot)}, point ${(it.slot % LINE_LEN) + 1} of ${LINE_LEN}</div>`
-        : it.group == 'prec'
-          ? `<label>STPT<input data-f="stpt" type="number" min="${g.first}" max="${g.first + g.n - 1}" step="1" value="${it.stpt}"></label>`
-          : `<div><b>STPT ${it.stpt}</b> · ${g.label}</div>`;
+      it.group == 'sit'
+        ? `<div><b>${deps.esc(lnName(ln))}</b> · SIT line ${ln}, point ${it.slot - sp.a + 1} of ${SIT_LEN}</div>`
+        : it.group == 'line'
+          ? `<div><b>STPT ${it.stpt}</b> · ${deps.esc(lnName(ln))}, point ${(it.slot % LINE_LEN) + 1} of ${LINE_LEN}</div>`
+          : it.group == 'prec'
+            ? `<label>STPT<input data-f="stpt" type="number" min="${g.first}" max="${g.first + g.n - 1}" step="1" value="${it.stpt}"></label>`
+            : `<div><b>STPT ${it.stpt}</b> · ${g.label}</div>`;
     const cur = pptIndex(it.name),
-      PL = deps.dtc.points(),
-      l0 = (lineOf(it.slot) - 1) * LINE_LEN;
-    const more =
-      it.group == 'line' &&
-      PL &&
-      PL.line.slice(l0, l0 + LINE_LEN).filter(q => !q.empty).length < LINE_LEN &&
-      !PL.line.slice(it.slot + 1, l0 + LINE_LEN).some(q => !q.empty); // the last point of an unfinished line
+      PL = deps.dtc.points();
+    const more = isLn && PL && lnUsed(PL, ln) < sp.len && freeSlot(PL, it.group, ln) == it.slot + 1; // the last point of an unfinished line
     const body =
       it.group == 'prec'
         ? `<label>Position<input data-f="pos" value="${fmtLL(ll[0], ll[1])}"></label><label>Altitude (ft)<input data-f="alt" type="number" value="${it.altFt}"></label>`
         : it.group == 'ppt'
           ? `<label>Threat<select data-f="type">${cur >= 0 ? '' : !it.name ? '<option value="" selected disabled>— choose a threat —</option>' : `<option value="" selected>${deps.esc(it.name)} (other)</option>`}${PPT.map((e, i) => `<option value="${i}"${i == cur ? ' selected' : ''}>${deps.esc(e[2])}</option>`).join('')}</select></label>`
           : '';
+    // an F-15: the looks of the SIT line (name, shown on the SIT, colour, dash), written into [F15_SIT_LINES]
+    const m = SM && SM[ln],
+      look = m
+        ? `<div class="sitlook"><div class="fh">${ln <= 4 ? 'SIT line' : 'Line'}</div><label>Name<input data-f="sname" maxlength="16" value="${deps.esc(lnName(ln))}"></label><div class="slr2"><span>Shown</span><span class="seg sm"><button type="button" class="${m.on ? 'on' : ''}" data-son="1">On</button><button type="button" class="${m.on ? '' : 'on'}" data-son="0">Off</button></span></div><div class="slr2"><span>Colour</span><span class="sitcols">${SIT_QUICK.map(h => `<button type="button" class="sitcol${h == m.hex ? ' on' : ''}" data-shex="${h}" style="background:#${h}" title="#${h}" aria-label="Colour ${h}"></button>`).join('')}<input data-f="shex" maxlength="6" value="${m.hex}" title="Colour, hex RRGGBB"><button type="button" class="sitpkb" data-a="pick" style="background:#${m.hex}" title="Any colour" aria-label="Pick any colour"></button></span></div><div class="sitpk" hidden></div><div class="slr2"><span>Dash</span><span class="seg sm">${SIT_DASH.map((d, i) => `<button type="button" class="${i == m.dash ? 'on' : ''}" data-sdash="${i}" title="${d}">${['—', 'XL', 'L', 'M', '···'][i]}</button>`).join('')}</span></div></div>`
+        : '';
     w.innerHTML =
       head +
       body +
+      look +
       '<div class="bar' +
-      (it.group == 'line' ? ' bar3' : '') +
+      (isLn ? ' bar3' + (it.group == 'sit' ? ' barw' : '') : '') +
       '" style="margin:6px 0 0">' +
       (more
         ? '<button class="btn g gn" data-a="addn" title="Add the next point of this line">＋ Add point</button>'
         : '') +
-      (it.group == 'line'
+      (it.group == 'sit'
+        ? '<button class="btn g" data-a="ins" title="A new point between this one and the next (half way)">＋ Insert after</button><button class="btn g" data-a="brk" title="A break after this point: the line goes on in a new piece">⌇ Break after</button>'
+        : '') +
+      (isLn
         ? ''
         : '<button class="btn g" data-a="conv" title="' +
           (it.group == 'ppt'
@@ -3756,9 +4730,9 @@ export function createMap(host, deps) {
           (it.group == 'ppt' ? '⇄ TGT Steerpoint' : '⇄ Pre-planned STPT') +
           '</button>') +
       '<button class="btn g rd" data-a="del">' +
-      (it.group == 'line' ? '− Delete point' : ICON.trash + ' Delete') +
+      (isLn ? '− Delete point' : ICON.trash + ' Delete') +
       '</button>' +
-      (it.group == 'line' ? '<button class="btn g rd" data-a="dline">' + ICON.trash + ' Delete line</button>' : '') +
+      (isLn ? '<button class="btn g rd" data-a="dline">' + ICON.trash + ' Delete line</button>' : '') +
       '</div><div class="hint err" style="color:#ff8a8a;min-height:0"></div>';
     const err = m => {
         w.querySelector('.err').textContent = m || '';
@@ -3854,17 +4828,89 @@ export function createMap(host, deps) {
     if (an)
       an.onclick = () => {
         map.closePopup();
-        addStart('line', lineOf(it.slot));
+        addStart(it.group, ln);
       };
     const dl = w.querySelector('[data-a=dline]');
     if (dl)
       dl.onclick = async () => {
-        // the whole line (its 6 rows)
-        if (!(await confirm('Delete all the steerpoints of LINE' + lineOf(it.slot) + '?'))) return;
-        const a = (lineOf(it.slot) - 1) * LINE_LEN;
-        for (let i = a; i < a + LINE_LEN; i++) deps.dtc.clear('line', i);
+        // the whole line (its 6 rows, or the 30 points of a SIT line)
+        if (!(await confirm('Delete all the ' + (ln <= 4 ? 'steerpoints' : 'points') + ' of ' + lnName(ln) + '?')))
+          return;
         map.closePopup();
-        dtc();
+        lineDelete(ln, true);
+      };
+    // SIT lines 6-12: a point in the middle of the next piece, or a break (the points after it move down one)
+    const shift = put => {
+      if (!EDIT) return;
+      const P = deps.dtc.points();
+      if (!P || !sitShift(P, it.slot, 1, deps.dtc.set, deps.dtc.clear, put))
+        return err(lnName(ln) + ' is full (' + SIT_LEN + ' points).');
+      map.closePopup();
+      dtc();
+    };
+    const ins = w.querySelector('[data-a=ins]');
+    if (ins)
+      ins.onclick = () => {
+        const P = deps.dtc.points(),
+          nx = P && P.sit.find(q => q.slot == it.slot + 1 && !q.empty);
+        shift(nx ? { x: (it.x + nx.x) / 2, y: (it.y + nx.y) / 2 } : { x: it.x + 2, y: it.y });
+      };
+    const brk = w.querySelector('[data-a=brk]');
+    if (brk) brk.onclick = () => shift(null);
+    // the looks: written at once; the lines and the points of that line drawn again, the menu stays open
+    const look1 = patch => {
+      if (!EDIT || !deps.dtc.setMeta) return;
+      deps.dtc.setMeta(ln, patch);
+      dtcLinesDraw();
+      DT.filter(z => (z.it.group == 'line' || z.it.group == 'sit') && lineNo(z.it) == ln).forEach(z =>
+        z.mk.setIcon(dtcIcon(z.it))
+      );
+      const m2 = sitM()[ln];
+      w.querySelectorAll('[data-son]').forEach(b => b.classList.toggle('on', (b.dataset.son == '1') == m2.on));
+      w.querySelectorAll('[data-shex]').forEach(b => b.classList.toggle('on', b.dataset.shex == m2.hex));
+      w.querySelectorAll('[data-sdash]').forEach(b => b.classList.toggle('on', +b.dataset.sdash == m2.dash));
+      if (f('shex')) f('shex').value = m2.hex;
+      const pb = w.querySelector('[data-a=pick]');
+      if (pb) pb.style.background = '#' + m2.hex;
+      if (PK && !fromPk) PK.set(m2.hex);
+      autoRefresh();
+      dtcInfo(); // the buttons of the lines: the initial of a new name
+    };
+    if (f('sname')) f('sname').onchange = () => look1({ name: f('sname').value });
+    w.querySelectorAll('[data-son]').forEach(b => (b.onclick = () => look1({ on: b.dataset.son == '1' })));
+    w.querySelectorAll('[data-shex]').forEach(b => (b.onclick = () => look1({ hex: b.dataset.shex })));
+    w.querySelectorAll('[data-sdash]').forEach(b => (b.onclick = () => look1({ dash: +b.dataset.sdash })));
+    // any colour: the picker of the program opens under the colours; the line follows while a knob moves, the colour is written when it is let go
+    let PK = null,
+      fromPk = false;
+    const pkb = w.querySelector('[data-a=pick]'),
+      pkw = w.querySelector('.sitpk');
+    if (pkb && pkw)
+      pkb.onclick = () => {
+        pkw.hidden = !pkw.hidden;
+        pkb.classList.toggle('on', !pkw.hidden);
+        if (!PK && !pkw.hidden)
+          PK = colorPicker(pkw, sitM()[ln].hex, {
+            live: h => {
+              pkb.style.background = '#' + h;
+              if (f('shex')) f('shex').value = h;
+              LNP.filter(
+                l => l.getLatLngs && l.getTooltip() && String(l.getTooltip().getContent()) == deps.esc(lnName(ln))
+              ).forEach(l => l.setStyle({ color: '#' + h }));
+            },
+            pick: h => {
+              fromPk = true;
+              look1({ hex: h });
+              fromPk = false;
+            },
+          });
+      };
+    if (f('shex'))
+      f('shex').onchange = () => {
+        const v = f('shex').value.replace(/^#/, '').trim();
+        if (!/^[0-9a-f]{6}$/i.test(v)) return err('The colour is 6 hex digits, RRGGBB (FF0000 is red).');
+        err();
+        look1({ hex: v });
       };
     return w;
   }
@@ -3888,8 +4934,15 @@ export function createMap(host, deps) {
     const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-in' });
     a.onfinish = a.oncancel = () => el.remove();
   };
+  // while a line is drawn the ring shows where the next click would snap
+  const addHover = ev =>
+    snapRing(addM && (addM.g == 'line' || addM.g == 'sit') && !addM.rect ? snapTo(ev.latlng, null) : null);
+  let ADDT = 0; // when the add banner was last taken away without fading: a new one right after only follows the next point (no animation)
   function addStop(fade) {
+    if (fade !== true && $('mpadd')) ADDT = Date.now();
     addM = null;
+    if (map) map.off('mousemove', addHover);
+    snapRing(null);
     rectClear();
     if (ADL) {
       ADL.remove();
@@ -3910,22 +4963,47 @@ export function createMap(host, deps) {
     const slot = freeSlot(P, g, line);
     if (slot < 0)
       return toast(
-        g == 'line' ? 'LINE' + line + ' already has its 6 steerpoints.' : 'No free slot left for this kind of point.',
+        g == 'line'
+          ? lnName(line) + ' already has its 6 steerpoints.'
+          : g == 'sit'
+            ? lnName(line) + ' already has its ' + SIT_LEN + ' points.'
+            : 'No free slot left for this kind of point.',
         true
       );
     addM = { g, slot, line };
+    if (g == 'line' || g == 'sit') map.on('mousemove', addHover);
     host.classList.add('adding');
     const b = document.createElement('div');
     b.id = 'mpadd';
-    b.className = 'mpp';
+    b.className = 'mpp' + (Date.now() - ADDT < 400 ? ' still' : '');
+    const sa = g == 'sit' ? lineSpec(line).a : 0;
     b.innerHTML =
       g == 'line'
-        ? `LINE${line}: click on the map to add point ${(slot % LINE_LEN) + 1} of ${LINE_LEN} (STPT ${GROUPS[g].first + slot}); every click adds the next one <button class="btn g">Done</button>`
-        : `Click on the map to place STPT ${GROUPS[g].first + slot} (${GROUPS[g].label}) <button class="btn g">Cancel</button>`;
+        ? `${deps.esc(lnName(line))}: click on the map to add point ${(slot % LINE_LEN) + 1} of ${LINE_LEN} (STPT ${GROUPS[g].first + slot}); every click adds the next one <button class="btn g">Done</button>`
+        : g == 'sit'
+          ? `${deps.esc(lnName(line))}: click on the map to add point ${slot - sa + 1} of ${SIT_LEN}; every click adds the next one${slot > sa && slot - sa < SIT_LEN - 1 ? ' <button class="btn g" data-a="brk" title="Leave a gap: the next point starts a new piece of the line">⌇ Break</button>' : ''} <button class="btn g">Done</button>`
+          : `Click on the map to place STPT ${GROUPS[g].first + slot} (${GROUPS[g].label}) <button class="btn g">Cancel</button>`;
     host.append(b);
-    b.querySelector('button').onclick = () => addStop(true);
+    b.querySelector('button:not([data-a])').onclick = () => addStop(true);
+    const bk = b.querySelector('[data-a=brk]');
+    if (bk)
+      bk.onclick = () => {
+        // a break: the next click goes one point further, the empty point between them splits the line
+        addM.slot = slot + 1;
+        if (ADL) {
+          ADL.remove();
+          ADL = null;
+        }
+        bk.remove();
+        b.firstChild.textContent = `${lnName(line)}: after a break, click on the map to start the next piece (point ${slot - sa + 2} of ${SIT_LEN}) `;
+      };
     window.addEventListener('keydown', addKey, true);
-    const prev = g == 'line' && slot % LINE_LEN > 0 ? P.line[slot - 1] : null;
+    const prev =
+      g == 'line' && slot % LINE_LEN > 0
+        ? P.line[slot - 1]
+        : g == 'sit' && slot > sa
+          ? P.sit.find(q => q.slot == slot - 1)
+          : null;
     if (prev && !prev.empty) {
       // an unfinished line: the last point is highlighted and Done sits beside it
       const L = window.L,
@@ -3945,13 +5023,18 @@ export function createMap(host, deps) {
         de = dm.getElement();
       L.DomEvent.disableClickPropagation(de);
       de.querySelector('button').onclick = () => addStop(true);
-      b.querySelector('button').remove();
+      b.querySelector('button:not([data-a])').remove();
     }
   }
   function addPlace(latlng) {
     if (addM.rect) return rectPlace(latlng);
-    const { g, slot } = addM,
-      [x, y] = fromLL(latlng.lat, latlng.lng);
+    const { g, slot } = addM;
+    let sn = null;
+    if (g == 'line' || g == 'sit') {
+      sn = snapTo(latlng, null);
+      snapRing(null);
+    }
+    const [x, y] = sn ? sn.xy : fromLL(latlng.lat, latlng.lng);
     if (x < 0 || x > 1024 || y < 0 || y > 1024) return toast('That is outside the theater.', true);
     const d = g == 'prec' ? { name: 'Map STPT ' + (GROUPS[g].first + slot) } : {};
     deps.dtc.set(g, slot, Object.assign({ x, y, altFt: 0 }, d));
@@ -3965,13 +5048,13 @@ export function createMap(host, deps) {
     }
     sync();
     dtc();
-    if (g == 'line') {
+    if (g == 'line' || g == 'sit') {
       // a line is drawn point after point: stay in add mode until it is full (Done / Esc to stop earlier)
-      const line = lineOf(slot),
+      const line = lineNo({ group: g, slot }),
         P = deps.dtc.points(),
-        nx = P ? freeSlot(P, 'line', line) : -1;
-      if (nx >= 0) addStart('line', line);
-      else toast('LINE' + line + ' is complete (6 steerpoints).');
+        nx = P ? freeSlot(P, g, line) : -1;
+      if (nx >= 0) addStart(g, line);
+      else toast(lnName(line) + ' is complete (' + (g == 'sit' ? SIT_LEN + ' points' : '6 steerpoints') + ').');
       return;
     }
     const e = DT.find(z => z.it.group == g && z.it.slot == slot);
@@ -3992,15 +5075,10 @@ export function createMap(host, deps) {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return;
     addStop();
-    let line = 0,
-      slot = -1;
-    for (let n = 1; n <= 4 && !line; n++) {
-      const k = freeSlot(P, 'line', n);
-      if (pre && pre.whole ? k == (n - 1) * LINE_LEN : k >= 0 && LINE_LEN - (k % LINE_LEN) >= 5) {
-        line = n;
-        slot = k;
-      }
-    }
+    const wl = lineFor(P, pre && pre.whole ? 'whole' : 5),
+      line = wl ? wl.n : 0,
+      slot = wl ? wl.slot : -1,
+      lg = wl ? wl.g : 'line';
     if (!line)
       return toast(
         pre && pre.whole
@@ -4008,12 +5086,12 @@ export function createMap(host, deps) {
           : 'No LINE has 5 free steerpoints left (a closed rectangle needs 5).',
         true
       );
-    addM = { rect: true, line, slot };
+    addM = { rect: true, line, slot, lg };
     host.classList.add('adding');
     const b = document.createElement('div');
     b.id = 'mpadd';
     b.className = 'mpp';
-    b.innerHTML = `Click on the map to place the closed rectangle for LINE${line} (5 steerpoints) <button class="btn g">Cancel</button>`;
+    b.innerHTML = `Click on the map to place the closed rectangle for ${deps.esc(lnName(line))} (5 ${lg == 'sit' ? 'points' : 'steerpoints'}) <button class="btn g">Cancel</button>`;
     host.append(b);
     b.querySelector('button').onclick = addStop;
     window.addEventListener('keydown', addKey, true);
@@ -4021,11 +5099,11 @@ export function createMap(host, deps) {
   }
   function rectPlace(c, pre) {
     const L = window.L,
-      { line, slot } = addM;
+      { line, slot, lg } = addM;
     addM = null;
     rectClear();
     const g = L.layerGroup().addTo(map),
-      col = dtcCol('line'),
+      col = dtcCol(lg, { group: lg, slot }),
       rc = (RC = {
         g,
         line,
@@ -4074,6 +5152,20 @@ export function createMap(host, deps) {
       fillOpacity: 0.08,
       interactive: false,
     }).addTo(g);
+    // the lengths of the sides while it is placed (NW-NE and SE-SW: 2a, NE-SE and SW-NW: 2b)
+    rc.lens = [0, 1, 2, 3].map(() =>
+      L.marker(rc.c, { icon: lenIcon(''), interactive: false, keyboard: false, zIndexOffset: 880 }).addTo(g)
+    );
+    const lens = () => {
+      const cs = corners();
+      rc.lens.forEach((mk, i) => {
+        const p = cs[i],
+          q = cs[(i + 1) % 4];
+        mk.setLatLng([(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]);
+        const el = mk.getElement();
+        if (el) el.firstChild.textContent = nmTxt(((i % 2 ? rc.b : rc.a) * 2) / NM);
+      });
+    };
     rc.lead = L.polyline([toLLm(0, rc.b), rotPos(1)], { color: col, weight: 1.5, interactive: false }).addTo(g);
     rc.lead2 = L.polyline([toLLm(0, -rc.b), rotPos(-1)], { color: col, weight: 1.5, interactive: false }).addTo(g);
     const mkH = (cls, size) => L.divIcon({ className: 'rch ' + cls, html: '<i></i>', iconSize: [size, size] });
@@ -4100,6 +5192,7 @@ export function createMap(host, deps) {
       rc.lead2.setLatLngs([toLLm(0, -rc.b), rq]);
       rc.bm.setLatLng(btnPos());
       heading();
+      lens();
     };
     rc.upd = () => upd();
     rc.hs = corners().map((p, i) => {
@@ -4147,12 +5240,13 @@ export function createMap(host, deps) {
     );
     rc.rm.bindTooltip('000°', { permanent: true, direction: 'right', offset: [8, 0], className: 'rtip' });
     map.on('zoomend', rc.upd);
+    lens();
     const ban = $('mpadd');
     if (ban) ban.style.display = 'none'; // the buttons are next to the rectangle, not in the banner
     rc.bm = L.marker(btnPos(), {
       icon: L.divIcon({
         className: 'rcb',
-        html: `<div class="rcbi"><span>LINE${line}</span><button class="btn" data-a="ok">Place</button><button class="btn g" data-a="no">Cancel</button></div>`,
+        html: `<div class="rcbi"><span>${deps.esc(lnName(line))}</span><button class="btn" data-a="ok">Place</button><button class="btn g" data-a="no">Cancel</button></div>`,
         iconSize: [0, 0],
       }),
       zIndexOffset: 950,
@@ -4168,7 +5262,7 @@ export function createMap(host, deps) {
         pts = cs.concat([cs[0]]).map(p => fromLL(p[0], p[1])); // NW, NE, SE, SW and NW again: the box is closed
       if (pts.some(([x, y]) => x < 0 || x > 1024 || y < 0 || y > 1024))
         return toast('The rectangle reaches outside the theater.', true);
-      pts.forEach(([x, y], i) => deps.dtc.set('line', slot + i, { x, y, altFt: 0 }));
+      pts.forEach(([x, y], i) => deps.dtc.set(lg, slot + i, { x, y, altFt: 0 }));
       if (rc.tank) {
         PREF.tanks = (PREF.tanks || [])
           .filter(t => Math.hypot(t.x - pts[0][0], t.y - pts[0][1]) > 0.05)
@@ -4176,23 +5270,10 @@ export function createMap(host, deps) {
         persist();
       } // the line keeps its tanker label
       addStop();
-      if (!st.on.dl) {
-        st.on.dl = true;
-        save();
-        const k = host.querySelector('input[data-k=dl]');
-        if (k) k.checked = true;
-      }
+      showLayer(GROUPS[lg].layer);
       sync();
       dtc();
-      toast(
-        'LINE' +
-          line +
-          ': closed rectangle, 5 steerpoints (STPT ' +
-          (GROUPS.line.first + slot) +
-          '-' +
-          (GROUPS.line.first + slot + 4) +
-          ') added to the DTC.'
-      );
+      toast(lnName(line) + ': closed rectangle, 5 points (' + lnRange(line, slot, 5) + ') added to the DTC.');
     };
   }
 
@@ -4219,6 +5300,7 @@ export function createMap(host, deps) {
   // notices: informational ones sit at the bottom of the map, danger ones (a refusal and its reason) are red in the middle; both fade by themselves
   let toastA = null;
   function toast(msg, warn) {
+    if (DRY) return; // an AUTO previewed: nothing is drawn, said or kept
     const t = $('mptoast');
     if (!t) return;
     clearTimeout(toastT);
@@ -4295,6 +5377,7 @@ export function createMap(host, deps) {
     shotAng = 0;
     shotK = k || 'dc';
     host.classList.add('shoting');
+    if (ZL) zoomApply();
     map.closePopup();
     if (addM) addStop(true);
     const fr = document.createElement('div');
@@ -4316,14 +5399,15 @@ export function createMap(host, deps) {
       sizeFrame();
     };
     let angRaf = 0;
-    $('mpang').oninput = () => {
-      if (angRaf) return;
-      angRaf = requestAnimationFrame(() => {
-        angRaf = 0;
-        setAng(+$('mpang').value);
-      });
-    };
-    $('mprot').onclick = () => setAng(shotAng + 90);
+    if ($('mpang'))
+      $('mpang').oninput = () => {
+        if (angRaf) return;
+        angRaf = requestAnimationFrame(() => {
+          angRaf = 0;
+          setAng(+$('mpang').value);
+        });
+      };
+    if ($('mprot')) $('mprot').onclick = () => setAng(shotAng + 90);
     window.addEventListener('keydown', onKey, true);
     window.addEventListener('resize', sizeFrame);
   }
@@ -4340,6 +5424,7 @@ export function createMap(host, deps) {
     window.removeEventListener('keydown', onKey, true);
     window.removeEventListener('resize', sizeFrame);
     shotBtn();
+    if (ZL) zoomApply();
   }
   const tainted = c => {
     try {
@@ -4349,6 +5434,117 @@ export function createMap(host, deps) {
       return true;
     }
   };
+  // a picture of the whole map as it is (base map, flight plan, objects), for a card of another page (the Attack card): scale times its size.
+  // A base map that cannot be copied (cross-origin) is replaced by the offline coastlines, as for the screenshots. -> {canvas, coast} or null
+  async function snap(scale = 2) {
+    if (!$('mpmap') || !map) return null;
+    try {
+      const { c, warn } = await mapPicture({}, scale);
+      return { canvas: c, coast: !!warn };
+    } catch (e) {
+      return null;
+    }
+  }
+  // THE PICTURE OF THE MAP (html2canvas) of a box of #mpmap {x, y, width, height} ({}: all of it) at a scale: {c, warn}. A base map that cannot be exported (a
+  // cross-origin picture: html2canvas leaves it blank without an error) is replaced by the offline coastlines, with a warning
+  async function mapPicture(box, scale, el) {
+    const h2c = await loadH2C(),
+      mp = $('mpmap');
+    const run = () =>
+      h2c(el || mp, {
+        ...box,
+        scale,
+        useCORS: true,
+        logging: false,
+        backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
+        ignoreElements: e =>
+          e.classList &&
+          (e.classList.contains('leaflet-control-container') || e.classList.contains('brhdr') || e.id == 'mpfr'),
+        onclone: doc => {
+          // SVG symbols take their colours from the page style sheet: copy them into the SVG so they survive the conversion
+          const w = doc.defaultView,
+            props = [
+              'fill',
+              'fill-opacity',
+              'stroke',
+              'stroke-width',
+              'stroke-opacity',
+              'stroke-dasharray',
+              'opacity',
+              'font-family',
+              'font-size',
+              'font-weight',
+            ];
+          doc.querySelectorAll('#mpmap svg *, .brcurs svg *').forEach(e => {
+            const cs = w.getComputedStyle(e);
+            props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
+          });
+        },
+      });
+    let c,
+      warn = '';
+    if (OV && OV._url && tainted(OV._url)) c = null;
+    else {
+      c = await run();
+      if (tainted(c)) c = null;
+    }
+    if (!c) {
+      // the coastlines map (light or dark, as the flight-plan colours) takes the place of the base map
+      const base = OV || TL,
+        lt = pal !== PAL.dark,
+        cg = lt ? G.coastL : G.coastD,
+        bg = (lt ? COAST.light : COAST.dark).sea,
+        ob = mp.style.background;
+      if (base) map.removeLayer(base);
+      cg.addTo(map);
+      mp.style.background = bg;
+      try {
+        c = await run();
+      } finally {
+        map.removeLayer(cg);
+        mp.style.background = ob;
+        if (base) {
+          base.addTo(map);
+          base.bringToBack();
+        }
+      }
+      if (tainted(c)) throw new Error('the map contains an image that cannot be exported.');
+      warn =
+        'WARNING: the base map is not in the screenshot (its server does not allow copying, a browser security rule): the offline coastlines map was used instead. To include it, import the picture: Base map → Imported map picture.';
+    }
+    return { c, warn };
+  }
+  // COPY (the button by the screenshots, also in the Briefing room: el, the box of its map, with the cursors of the pilots): the whole map as it is
+  // shown, as a picture in the clipboard
+  async function copyMap(say, el) {
+    const t = say || toast;
+    if (!map) return;
+    let warn = '';
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem)
+        throw new Error('this browser cannot put a picture in the clipboard');
+      const mp = $('mpmap'),
+        blob = await busyRun('Copying the map…', async () => {
+          const box = el || mp,
+            { c, warn: w } = await mapPicture(
+              { x: 0, y: 0, width: box.clientWidth, height: box.clientHeight },
+              Math.max(1, window.devicePixelRatio || 1),
+              el
+            );
+          warn = w;
+          return new Promise(r => c.toBlob(r, 'image/png'));
+        });
+      await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
+      t(
+        warn
+          ? warn + ' The map was copied to the clipboard.'
+          : 'The map was copied to the clipboard: paste it where you want.',
+        !!warn
+      );
+    } catch (e) {
+      t('Copy failed: ' + ((e && e.message) || e), true);
+    }
+  }
   async function shotTake() {
     const fr = $('mpfr'),
       cap = $('mpcap');
@@ -4356,84 +5552,24 @@ export function createMap(host, deps) {
     cap.disabled = true;
     cap.textContent = 'Capturing…';
     try {
-      const h2c = await loadH2C(),
-        mp = $('mpmap'),
+      const mp = $('mpmap'),
         fb = fr.getBoundingClientRect(),
         mb = mp.getBoundingClientRect(),
         fw = fb.width,
         fh = fb.height,
         cw = parseFloat($('mpfi').style.width); // fb: the box around the turned frame, cw: the width of the frame itself
-      const run = () =>
-        h2c(mp, {
-          x: fb.left - mb.left,
-          y: fb.top - mb.top,
-          width: fw,
-          height: fh,
-          scale: shotDim().out / cw,
-          useCORS: true,
-          logging: false,
-          backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
-          ignoreElements: e => e.classList && e.classList.contains('leaflet-control-zoom'),
-          onclone: doc => {
-            // SVG symbols take their colours from the page style sheet: copy them into the SVG so they survive the conversion
-            const w = doc.defaultView,
-              props = [
-                'fill',
-                'fill-opacity',
-                'stroke',
-                'stroke-width',
-                'stroke-opacity',
-                'stroke-dasharray',
-                'opacity',
-                'font-family',
-                'font-size',
-                'font-weight',
-              ];
-            doc.querySelectorAll('#mpmap svg *').forEach(e => {
-              const cs = w.getComputedStyle(e);
-              props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
-            });
-          },
-        });
       const to =
-        shotK == 'kb'
-          ? 'the kneeboard cards'
-          : deps.mdcShot && deps.mdcShot()
-            ? 'the datacard (MDC format, the big white box)'
-            : 'the datacard (page 2, bottom left)';
-      let c,
-        warn = '';
-      // html2canvas leaves a picture it cannot read (cross-origin) blank without any error, so it is checked first
-      if (OV && OV._url && tainted(OV._url)) c = null;
-      else {
-        c = await run();
-        if (tainted(c)) c = null;
-      }
-      if (!c) {
-        // the base picture cannot be exported: take the shot again without it
-        // the coastlines map (light or dark, as the flight-plan colours) takes the place of the base map
-        const base = OV || TL,
-          lt = pal !== PAL.dark,
-          cg = lt ? G.coastL : G.coastD,
-          bg = (lt ? COAST.light : COAST.dark).sea,
-          ob = mp.style.background;
-        if (base) map.removeLayer(base);
-        cg.addTo(map);
-        mp.style.background = bg;
-        try {
-          c = await run();
-        } finally {
-          map.removeLayer(cg);
-          mp.style.background = ob;
-          if (base) {
-            base.addTo(map);
-            base.bringToBack();
-          }
-        }
-        if (tainted(c)) throw new Error('the map contains an image that cannot be exported.');
-        warn =
-          'WARNING: the base map is not in the screenshot (its server does not allow copying, a browser security rule): the offline coastlines map was used instead. To include it, import the picture: Base map → Imported map picture.';
-      }
+        shotK == 'tg'
+          ? 'the target picture (A-G > Target)'
+          : shotK == 'kb'
+            ? 'the kneeboard cards'
+            : deps.mdcShot && deps.mdcShot()
+              ? 'the datacard (MDC format, the big white box)'
+              : 'the datacard (page 2, bottom left)';
+      let { c, warn } = await mapPicture(
+        { x: fb.left - mb.left, y: fb.top - mb.top, width: fw, height: fh },
+        shotDim().out / cw
+      );
       if (shotAng && c) {
         // straighten: turn the picture back by the angle of the frame and keep the middle, of the proportions of the card
         const ow = shotDim().out,
@@ -4450,8 +5586,27 @@ export function createMap(host, deps) {
         q.drawImage(c, -c.width / 2, -c.height / 2);
         c = r;
       }
-      deps.setShot(c, shotK);
+      // the target picture: where its corners are (the frame may be turned: its corners go round its middle)
+      let geo = null;
+      if (shotK == 'tg') {
+        const fe = $('mpfi'),
+          fi = fe.getBoundingClientRect(),
+          mx = (fi.left + fi.right) / 2,
+          my = (fi.top + fi.bottom) / 2,
+          hw = fe.offsetWidth / 2,
+          hh = fe.offsetHeight / 2,
+          an = (shotAng * Math.PI) / 180,
+          co = Math.cos(an),
+          sn = Math.sin(an),
+          at = (dx, dy) => {
+            const l = map.containerPointToLatLng([mx + dx * co - dy * sn - mb.left, my + dx * sn + dy * co - mb.top]);
+            return [l.lat, l.lng];
+          };
+        geo = { tl: at(-hw, -hh), tr: at(hw, -hh), bl: at(-hw, hh) };
+      }
+      const k0 = shotK;
       shotStop();
+      deps.setShot(c, k0, geo);
       (SHOTOPT.toast || toast)(
         warn ? warn + ' The screenshot was added to ' + to + '.' : 'Screenshot added to ' + to + '.',
         !!warn
@@ -4665,6 +5820,7 @@ export function createMap(host, deps) {
     units: () => UL, // for the tests
     // called when the page becomes visible
     async show() {
+      levelsBack(); // the LEVELS menu comes home if a page still holds it
       detach();
       if (!map) {
         try {
@@ -4678,6 +5834,14 @@ export function createMap(host, deps) {
       refresh();
     },
     dtcItems: () => DT.map(e => ({ stpt: e.it.stpt, name: e.it.name, group: e.it.group })),
+    // the lines drawn (for the tests): colour, dash, opacity and label
+    dtcLineLooks: () =>
+      LNP.filter(l => l.getLatLngs).map(l => ({
+        col: l.options.color,
+        dash: l.options.dashArray || '',
+        op: l.options.opacity,
+        lab: l.getTooltip() ? String(l.getTooltip().getContent()) : '',
+      })),
     refresh,
     fromLL,
     refreshDtc: () => {
@@ -4689,6 +5853,14 @@ export function createMap(host, deps) {
     refreshDtcButtons: () => {
       if (map) dtcInfo();
     },
+    autoPptFor: list => autoPptFor(list),
+    autoAA: (Fz, name) => autoAA(Fz, name),
+    addPpt: m => addPpt(m),
+    isSamPpt: n => !(PPT.length > 0) || isSamPpt(n),
+    samRng: (name, rng) => samRng(name, rng),
+    // the PPT types of the threat list (Ppt.ini) that are not SAMs: [name]
+    otherPpt: () => otherPptNames(),
+    palette: () => pal,
     autoPptSlots: () => {
       const P = deps.dtc && deps.dtc.points(),
         o = new Set();
@@ -4712,7 +5884,11 @@ export function createMap(host, deps) {
                 ? 'Front line (AUTO)'
                 : k.startsWith('tk:')
                   ? 'Tanker ' + k.slice(3)
-                  : k;
+                  : k.startsWith('dca:')
+                    ? 'DCA (AUTO)'
+                    : k.startsWith('oca:')
+                      ? 'OCA (AUTO)'
+                      : k;
       });
       dtcLines({ line: P.line.filter(p => !p.empty) }).forEach(run => {
         const tk = (PREF.tanks || []).find(
@@ -4725,6 +5901,31 @@ export function createMap(host, deps) {
     shotStart,
     shotTake,
     shotStop,
+    snap,
+    // the LEVELS menu (base map and layers) lent to another page (A-G > Target): moved into el, then back
+    // (the menu comes closed; if it was open on the Map page it opens again there)
+    // (kept in LEVW while it is away: $ only finds what is in the map page or in the page that borrows the map)
+    levelsTo: el => {
+      const w = LEVW || $('mpbasew');
+      if (!w || !el) return false;
+      const m = w.querySelector('#mpbase');
+      if (!LEVW) LEVWAS = !!(m && m.style.display != 'none');
+      if (m && m.style.display != 'none') w.querySelector('#mpbaseb').click();
+      LEVW = w;
+      el.append(w);
+      return true;
+    },
+    levelsBack,
+    // the map made ready without showing it (for a page that lends a part of it)
+    ensure: async () => {
+      if (!map)
+        try {
+          await init();
+        } catch (e) {}
+      return !!map;
+    },
+    // the colours of the DTC steerpoints in the palette of the base map shown (dark, light or BMS): TGT STPT, weapon target, flight plan
+    dtcColors: () => ({ prec: pal.dtc.prec, wpn: '#ef4444', stpt: pal.plan, light: pal === PAL.light }),
     toLL,
     fmtLL,
     isReady: () => !!map,
@@ -4734,7 +5935,7 @@ export function createMap(host, deps) {
     state: () => st,
     // number of objects drawn in a layer (0 when the layer is off); picture overlay (for tests)
     objectsAll: on => {
-      OBJ_LAYERS.forEach(([t]) => {
+      OBJ_ALL.forEach(([t]) => {
         st.on['o' + t] = !!on;
         const c = host.querySelector(`input[data-k=o${t}]`);
         if (c) c.checked = !!on;
@@ -4746,9 +5947,9 @@ export function createMap(host, deps) {
     objectsOn: () => OBJ_LAYERS.every(([t]) => st.on['o' + t]),
     count: k => (map && G[k] && map.hasLayer(G[k]) ? G[k].getLayers().length : 0),
     overlay: () => OV,
-    // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the Weapons page as a background
-    // the Weapons page borrows the Leaflet map (with the layer and flight plan chosen here) and gives it back with detach()
-    // view: the page does not edit anything (the Weather page): the points cannot be moved whatever the choice made on the Weapons pages
+    // the picture now shown as the base of the map page, as {canvas, bounds: [[south, west], [north, east]]} (null when there is none): used by the A-G page as a background
+    // the A-G page borrows the Leaflet map (with the layer and flight plan chosen here) and gives it back with detach()
+    // view: the page does not edit anything (the Weather page): the points cannot be moved whatever the choice made on the A-G pages
     async attach(el, view) {
       if (!map) {
         try {
@@ -4765,9 +5966,18 @@ export function createMap(host, deps) {
       MO = new MutationObserver(mirror);
       MO.observe(host, { attributes: true, attributeFilter: ['class', 'style'] });
       setEdit(view ? false : WEDIT);
+      planLent();
       map.invalidateSize();
       refresh();
       return { L: window.L, map };
+    },
+    // the labels moved by the pilot and the colours of the flights of the package, kept with the mission
+    style: () => JSON.parse(JSON.stringify(MSTY)),
+    setStyle: o => {
+      MSTY = mstyOk(o && typeof o == 'object' ? JSON.parse(JSON.stringify(o)) : null);
+      PREF.msty = MSTY;
+      persist();
+      if (map) refresh();
     },
     // the labels of the tanker tracks are kept with the mission (they belong to the DTC lines drawn from the tanker list)
     tanks: () => (PREF.tanks || []).slice(),
@@ -4780,16 +5990,19 @@ export function createMap(host, deps) {
       }
     },
     detach: () => detach(),
+    copy: o => copyMap(o && o.toast, o && o.el),
+    zoomLock,
     toggleEdit: () => {
       const r = setEdit(!EDIT);
       if (away) WEDIT = r;
       return r;
     },
-    isEdit: () => EDIT,
+    // the borrowing page asks between two drawings too (the map gone home, where it edits): the page's own choice then, so its button does not flicker
+    isEdit: () => (away ? EDIT : WEDIT),
     // the map is taken for a heavy one (the bar shows while it is moved); the tests use it
     heavy: b => (HEAVY = !!b),
     cyclePlan,
-    planMode: () => PLANMODE,
+    planMode: () => PLANMODE || LENTMODE,
     // the Settings changed the satellite provider: the layer (and its name in the menu) is made again
     // another theater was chosen: the pictures are placed again, the view goes to the theater, the base map is checked
     // the objects of the theater (list of the game data) were read again: the map asks for them anew

@@ -83,3 +83,28 @@ export function parseFmap(u8) {
     },
   };
 }
+
+const DRIFT = new WeakMap();
+// A map moved by the wind of its header: the "Map Model" of BMS makes the whole map drift with it (from hdg, kt), so the weather of a place dt ms
+// later is the weather of the place upwind. The briefing of BMS reads it so (take off, target, landing): checked on KoreaU2 (4.38.2).
+export function fmapDrift(W, dt) {
+  if (!W || !W.hdr || !W.hdr.wind || !dt || !isFinite(dt)) return W;
+  const h = (W.hdr.wind.hdg * Math.PI) / 180,
+    d = (W.hdr.wind.spd * 1.852 * dt) / 3600000,
+    ox = Math.sin(h) * d,
+    oy = Math.cos(h) * d;
+  if (!isFinite(d) || Math.hypot(ox, oy) < 0.5) return W;
+  let m = DRIFT.get(W);
+  if (!m) DRIFT.set(W, (m = new Map()));
+  const key = Math.round(dt / 60000);
+  if (m.has(key)) return m.get(key);
+  const o = Object.create(W);
+  o.at = (x, y, lv) => W.at(x + ox, y + oy, lv);
+  o.wind = (x, y, a) => W.wind(x + ox, y + oy, a);
+  o.profile = (x, y) => W.profile(x + ox, y + oy);
+  o.cell = (i, j, lv) => W.at((i + 0.5) * W.cs + ox, (j + 0.5) * W.cs + oy, lv);
+  o.drift = dt;
+  if (m.size > 200) m.clear();
+  m.set(key, o);
+  return o;
+}

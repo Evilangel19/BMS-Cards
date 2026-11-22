@@ -373,8 +373,8 @@ export const perfLater = () => {
   clearTimeout(ST.PFT);
   ST.PFT = setTimeout(() => perfFill(+$('fsel').value || 0), 400);
 };
-// The BVR box of the datacard filled by itself with the timeline of the BVR page (its last classes and conditions, kept between sessions), when the box is empty:
-// a mission that holds its own BVR values keeps them, a value typed by hand stays, "Fill datacard" on the BVR page writes over them as before.
+// The BVR box of the datacard filled by itself with the timeline of A-A > Timeline (its last classes and conditions, kept between sessions), when the box is empty:
+// a mission that holds its own BVR values keeps them, a value typed by hand stays, "Fill datacard" on A-A > Timeline writes over them as before.
 export async function bvrAuto(i) {
   const pg = ST.msPage;
   if (!pg || !pg.rowsReady || !ST.CL[i]) return;

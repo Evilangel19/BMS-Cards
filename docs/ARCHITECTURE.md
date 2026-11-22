@@ -17,11 +17,11 @@ Tauri v2 shell (`src-tauri/`, Rust: file access, folders, config) + a vanilla ES
 ## Layout
 
 ```
-app/index.html     the page (HTML only); style sheets app/css/style-01..10.css (loaded in this order, the order matters)
+app/index.html     the page (HTML only); style sheets app/css/style-01..12.css (loaded in this order, the order matters)
 app/js/app/        the page's code: main.js (entry), state.js (ST: state shared by modules), pages.js, settings.js (+ settingsui, settingsdiag, settingsdata),
                    campaign.js, dtcfile.js, dtcapply.js, mission.js, kneeboard.js, datacard.js, seat.js (the pilot seat), seatdtc.js (IFF of the seat into the DTC), l16link.js (Link 16 of the DTC: the plan, the changes of the pilot, the lines written), roepage.js and roecard.js (ROE / SOP: the page, the kneeboard card), settingshelp.js (the User Guide), expose.js (helper for tests) ...
 app/js/core/       the pages and their logic: mapview.js (+ mapconst, mapdata, mapdtc, mapoffs, mapsymbols, mapwarp, skylayer, skypic),
-                   busy.js (the loading bar: the big start-up bar while the program starts, a small bar at the top after that), weaponspage.js, dtcpage.js, squadron.js (+ organization.js, orgpage.js, medals.js), missilespage.js, perfpage.js, weatherpage.js, docspage.js,
+                   busy.js (the loading bar: the big start-up bar while the program starts, a small bar at the top after that), weaponspage.js (+ tgtpage.js, tgtdraw.js: the Target tab), dtcpage.js, squadron.js (+ organization.js, orgpage.js, medals.js), missilespage.js, perfpage.js, weatherpage.js, docspage.js,
                    ato.js, flight.js, fillcard.js, cardlayout.js, iffseat.js (IFF codes of one aircraft), l16plan.js (the Link 16 plan of a package, pure), seatgeo.js (where the seat buttons sit), dctemplate.js, dds.js, kneeboard.js, mission.js, zip.js, transfer.js, transferrun.js, roesop.js (ROE / SOP, pure), briefing.js and briefroom.js (the Briefing room) ...
 app/js/parsers/    cam, fmap, link16, iff, twx, dtc, lzss
 app/js/rules/      weather (ATIS/TAF), airbase, geo, support, ephemerides
@@ -71,6 +71,113 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 - **The page** (`app/roepage.js`, Squadron > ROE / SOP, between Members and Organization): the section Presets (Flight / Squadron, the presets as small buttons, the Standard first: a click puts a preset on the datacard, a double-click opens it: name and Default for; the Standard can be renamed, not deleted; delete with Undo), the ROE chips, the SOP by phase (folded at first: `bmsroeclosed2`; the columns in the order of the flight), the custom sections, the preview and Add card. Every change goes on the datacard at once (`writeCard`: `F.roesel`, `F.roe`, `F.sop`, a hand change of the flight); a change kept in no preset shows the part to save it, and leaving the page or choosing another preset asks first. The squadron's presets and sections travel in the meta of the squadron (`roe`, `roeSec`), changed only by the commander (`owns(q)`). Mine stay in the browser storage (`bmsroepre`, `bmsroestd`, `bmsroesec`).
 - **The card of the datacard** (`app/cardview.js`, `freeLayout` / `freeDraw`): a rule too long wraps at a space or right after "+" or "/", the size goes down half a pixel at a time (14 to 11 px) and the lines get closer before the text gets smaller. **The kneeboard card** (`app/roecard.js`): one card when everything fits, else two at most (ROE and SOP in one flow, the text smaller down to 0.6; what still does not fit is cut and the page says so).
 - Tests: `tests/run-roesop.mjs`, `tools/roesop-test.py`.
+
+## Map: labels, colours, AUTO preview
+
+- **Labels** (`label()` in `core/mapview.js`): `placeLabels()` puts each on the leg nearest the centre of the view; one with a `key` (`f:<callsign>` the
+  flight, `tk:<callsign>` a tanker track) can be dragged along its route and stays there (`MSTY.lbl`: leg and fraction); double click forgets it.
+- **Colours** (`MSTY.col`: flight id `n:c` -> RRGGBB): a flight of the package from its popup (editing on), the selected flight from its label
+  (`ownColour`); labels of the package drag too (`m:<id>`).
+- **Copy** (`copyMap`) and the screenshots share `mapPicture` (html2canvas, the offline coastlines when the base map cannot be exported). **Fit**
+  after an AUTO (`fitAfter`, `PREF.aufit`).
+- `MSTY` is kept in the preferences of the map and in the mission (`mapstyle`; `mapV.style()` / `setStyle()`).
+- **AUTOs that write several lines** go through `putLines` (whole free LINEs, all or none). SAM FRIENDLY: `samEdge` (`core/mapdata.js`); ATTACK:
+  `attackLines()` of the A-G page; NOE: `core/noe.js` with the heights of `deps.elev`.
+- **The preview of an AUTO** (`autoPreview(run)`): the same function as the button, on a copy of the DTC; the helpers that draw, say or keep return
+  at once while `DRY`; what it wrote is drawn on `G.au` (an SVG renderer: the map is on canvas), what it replaces blinks.
+
+## Factions
+
+- `PLAYER` (`app/ato.js`) is the side of the player, from the player squadron of the campaign; `ST.VIEW` the side looked at. Another side can be read
+  (Settings > Other factions with no squadron, or the commander of the squadron) but its flights do not load (`lock`). **A TE** (`C.isTe`) has no side of
+  the player: every faction is open, the one chosen in the ATO or the owner of the flight chosen (`teSide`) becomes `PLAYER`, and the map draws every
+  flight (in a campaign the other sides only when spotted).
+
+## A-A (DCA, OCA) and the names in the code
+
+The tabs were renamed in 1.3 (Weapons is **A-G**, BVR is **A-A**, with **DCA**, **OCA** and **Timeline** under it; DCA was called FAOR in the first betas).
+Only what the pilot reads changed. The names in the code, in the files the program writes and in the browser storage stayed, so that the missions, the
+preferences and the tests of before still work. Use this table to find a page in the code:
+
+| Shown | In the code |
+| --- | --- |
+| A-G tab | `data-t="wp"`, `<section id="wp">`, `ST.wpPage` (`core/weaponspage.js`), body class `onwp`, mission field `weapons.wp`, the HARM tab `weapons.harm` / `sead` / `dead` |
+| A-A tab | `data-t="ms"`, `<section id="ms">`, body class `onms`; its tabs `#bvrtabs` (`data-bsub`), `ST.bvrPage` (render / leave), `ST.bvrGo(key)` (open a tab from another page), the tab shown `localStorage['aasub']` (init13 in `app/pages.js`) |
+| A-A > DCA | tab key `faor`, `faorPage` (`core/faorpage.js`, root `#fapage`), the geometry `core/faor.js`, `faorCtx` / `faorDeps` in `app/pages.js`, map layer `fa` (Display > DCA), mission field `weapons.faor`, `sessionStorage['dca1']`, `localStorage['faorcardkinds']`, body class `onfaor` (DCA or OCA shown) |
+| A-A > DCA, a QRA flight | the same tab (key `faor`): `dcaPage()` in `app/pages.js` gives `qraPage` (`core/qrapage.js`, root `#qrpage`) for a QRA flight, else `faorPage`; the geometry `core/qra.js`, `qraCtx` in `app/pages.js`, drawn by the map layer `fa`, mission field `weapons.qra`, `sessionStorage['qra1']`, `localStorage['qracardkinds']` |
+| A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
+| A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
+| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA, QRA and OCA: an OCA block has `pos`, `ta`), `cleanFaor` / `faorLines` / `faorBox` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
+| The A-G block of the ROE | `sel.ag` in `core/roesop.js` (kind POP-UP, HADB, TOSS, SEAD, DEAD), `cleanAg` / `agLines` / `agAttack` in `core/agrules.js`, `roeAgSet` in `app/roepage.js` (both blocks through `blockSet`), `agDeps` in `app/pages.js`, `ST.agGo(block)` (Edit in A-G) |
+
+- **One plan, three drawings** (`core/aakit.js`): a page of A-A describes its plan once as a list of shapes in km (`spec()`: poly, ring, dot, label, arrow, each
+  with an `ink` for the Smart card) and the same list is drawn on the Leaflet map (`drawLeaflet`: the page and Display > DCA / OCA), in the pixels of the
+  picture of the map for the classic card (`snapMap` + `toPx`, `core/aacard.js`) and in ink on the Smart card (`toInk`, `core/smartaa.js`; the module `aa`
+  of the Smart mission card, `core/smartcombo.js`). `addCards` / `allOf` are the Add card window and Add all cards of both pages.
+- **DTC lines**: `autoAA` in `core/mapview.js` (DCA: the FEZ, COMMIT / STOP, the HARDWALL, F-15 SIT line 8 FEZ; OCA: the track and the target area, SIT
+  line 9 MISC); the lines written by a page are remembered under `AU['dca:...']` / `AU['oca:...']` and replaced when the page writes again.
+- **OCA without a package**: a SWEEP alone in its package (as BMS makes them) is an independent sweep (FS-1D, `X.indep` from `ocaCtx`): the plan follows
+  its own route to its last sweep steerpoint, without lead or side. **The night** of the embedded escort comes from the date of the campaign set on the
+  Datacard (`sunAlt` in `rules/ephemerides.js`: the Sun under -6° over the target at its time); IMC / low level is a switch.
+- The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page of the
+  flight: DCA / QRA or OCA); the lines a page wrote before are replaced only after asking.
+- **The sweep area** of OCA (`sweepArea`): one outline at w / 2 from the track, traced with marching squares on a grid of the distance to it (not a box
+  per leg: short legs and turns made overlapping boxes). **The DTC lines of OCA** (`ocaDtcLines`, a LINE holds 6 points;
+  no track, the steerpoints show it): a sweep its area as two open lines of 6 points, one each side, meeting at the ends (`sweepRing`: Visvalingam
+  to 10 vertices, each edge moved out by as much as the area passes it, a miter limit of w); an escort a U open on the side of arrival around the
+  target at the TOT, its sides touching the STOP circle of the package and the COMMIT circle of the escort.
+- **The ROE blocks have no weapon and no tactic** (the HARM mode, the DEAD tactic, the OCA position and lead, the stern conversion of the QRA are on the
+  pages, the cards and the datacard already). **In the datacard box** (`roeText`): the A-A block gives WPN, COMMIT and one line (`faorBox`), the A-G
+  block its lines (`agBox`); they are never cut: `blockSet` passes the choice through `capSel`, so the last choices of the lists make room.
+- A page builds itself when it has nothing yet (`!root.firstChild`): a page computed for the Map before it was shown stayed empty.
+- Shapes with `map: false` are drawn on the cards only (the SAM rings of OCA: the map shows the SAMs already).
+- **QRA** (`core/qra.js`): in the ATO of BMS a QRA waits on its airbase (a route base -> base); when the campaign launches it, the same flight
+  gets the mission INTERCEPTION and an Intercept steerpoint (action 13) whose target id (`tid`) names the enemy flight. No flight starts as an
+  INTERCEPTION. ALERT (no Intercept steerpoint): the threat axis of the DCA from the base, the scramble line `rs = ri + vt * time to ri` (climb at
+  `CLIMB_KT`, then the dash), checked against the friendly radars (`coverNm`, `radarUnits`) unless an AWACS is on station, and the enemy airbases
+  on the axis. INTERCEPT: the target dead-reckoned from where the side of the flight sees it now (`spottedBy`, `flightState`, which also gives x / y),
+  the collision point (`qraIntercept`), the commit point, the aspect; not spotted, the steerpoint of BMS (`qraFromStpt`). With VID in the ROE, the
+  stern conversion (`stern`). The A-A block has `qra`, `vec`, `ri`, `rs` (`cleanFaor` / `faorLines` in `core/faor.js`); the DTC lines use
+  the key `dca`, so they replace those of the FAOR of the flight.
+- Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`, `tests/run-qra.mjs`, `tools/qra-test.py`.
+
+## A-G rules of the manuals
+
+- `core/agrules.js` (pure): the limits of TO 1F-16CM-34-1-1 BMS and AFMAN 11-2F-16 Vol 3 (`POPUP_KCAS` 350, 300 above 10 000 ft AGL; `CEIL_AGL` 2 000;
+  `RACK_MS` 60; `TOSS_MAX` 45) and `agChecks`: a pop-up under the abort speed (the TAS as KCAS at the release altitude over the target) and a ripple under
+  the least interval of the racks turn their sliders red; a cloud base over the target under the ceiling (`deps.wxBase`: the Weather card of the flight,
+  `wxAtTarget`) is a red line of the Checks card of the page. The release angle of the toss ends at 45° (`TOSS_LIMITS`; a page saved with more is cut).
+- **The A-G block** (`sel.ag`): the attack pages (Pop-up, HADB, TOSS) and HARM > SEAD / DEAD write it in the ROE of the flight after each plan,
+  and at once when a flight is chosen (`ST.roeBlocks` in `app/pages.js`: the page of its mission, `roeNow()`; the A-A pages the same);
+  (`deps.roeAg`, not for a CAP or OCA flight: its block is the A-A one); the night comes from the date of the campaign (`deps.night`, the Sun under -6°
+  over the task steerpoint). Like the A-A block it is kept out of the presets (`key()` in `app/roepage.js`); while it is there, the choices PID and MIN RLS
+  of the lists step aside on the card and in the datacard box.
+- Tests: `tests/run-agrules.mjs`, `tools/agrules-test.py`.
+
+## How a mission page is made
+
+The method of the pages of A-G (Pop-up, HADB, TOSS, SEAD, DEAD) and A-A (DCA, QRA, OCA), to follow for the next ones.
+
+1. **Doctrine first.** Public USAF and NATO documents (AFTTP, AFMAN 11-2F-16 Vol 3, ATP / AJP, the Multi-Service Brevity Codes, the BMS manuals);
+   the habits of the players only as a backup. The names on screen come from the documents (FEZ, scramble line, stern conversion); the minimums
+   and the standards of the sliders too, each one written in a comment with its source.
+2. **The BMS files next**, before planning the page: what the campaign really holds for that mission (the mission number in Strings.txt, the
+   waypoint actions and their `tid`, what is spotted by the side, the times). A probe in `/home/claude/work` over several campaigns (Korea and other
+   theaters) with `Falcon4_CT.xml` loaded into `CAM.D.ct`. When the files change the plan (QRA: no flight starts as an INTERCEPTION), say so and
+   decide with the user before writing code.
+3. **Only what the pilot could know**: the spotted enemy, the steerpoints of the flight, the date of the campaign; never the true route of the enemy.
+   What is missing falls back to something the page states (the BMS steerpoint, the threat axis of the DCA).
+4. **Agree the list first**: the sliders (defaults from the profile of the mission, the ranges inside the limits of the documents), the red checks,
+   the ROE lines, the DTC lines, the cards; then the code in one beta.
+5. **The shape of the code**:
+   - a pure module with the geometry, the checks `[text, red]`, the ROE block and the DTC lines (`core/faor.js`, `core/oca.js`, `core/qra.js`,
+     `core/agrules.js`), tested with made-up data in `tests/run-*.mjs`;
+   - a page `create...Page(deps)` with `ctx()` built in `app/pages.js` from the ATO (`...Ctx`), `spec()` as the one list of shapes for the map, the
+     classic card and the Smart card (`core/aakit.js`), `roeWrite` into its block of the ROE (`sel.faor` A-A, `sel.ag` A-G), `dtcAuto` through
+     `mapview.autoAA` (asks before replacing), `state` / `setState` in the mission (`app/mission.js`), `allCards` for Add all cards, `_test`;
+   - the cards: classic (`core/aacard.js` or the card of the page) with the picture of the map, Smart, and the module of the Smart mission card;
+   - a browser test `tools/<page>-test.py` with a made-up context, screenshots looked at before the commit.
+6. **Then** the docs (this file: the names in the code; BETALOG, CHANGELOG, the guide) and the version.
 
 ## Docs page
 
@@ -126,6 +233,8 @@ Every function or button that is added comes with its animation, in the same cha
 - The state of a squadron (`q`) is kept in `squadron.json` next to the program (`core/prefs.js`: the text is written to `squadron.json.new` and read back, only then to `squadron.json`, so a whole copy always exists; a file that cannot be read is kept as `.bad`, never overwritten by an empty start). The roster merges member by member, the organization item by item: the newer time stamp wins, a deleted package or flight stays as a marker for 60 days so the pilots who were offline hear about it.
 - `core/organization.js`: the rules of the organization, pure functions without DOM or network: `q.owner` (commander), `q.mc` (mission commander), `q.org` (packages, flights, seats), `orgView` (what is shown: the limits of 5 flights and 4 pilots are applied there, the same on every computer), `orgReduce` (every action of the board with its permission check), templates.
 - `core/orgpage.js`: the board as HTML and its events (clicks, menus, dragging with pointer events: the HTML5 drag-and-drop does not reach the page inside the Tauri window on Windows). `core/squadron.js`: the page itself (network, persistence, Me / Members / Organization / Missions / Settings).
+- `core/misindex.js`: Squadron > Missions in order: the virtual folders and the cached details of the saved missions (`missions/index.json`, written by `app/mission.js`: `msfList`, `msfFolder*`, `msfMove`), the search and the groups of the list (test `tests/run-misindex.mjs`, UI test `tools/missions-test.py`). The mission folders on the disk never move.
+- `core/tgtpage.js`: Weapons > Target, the target picture (a Basic Target Graphic). A page object shown under the mode tabs of the Weapons page like the HARM page (`deps.tgt`); `weaponspage.attack()` gives it the attack of the last attack mode (`st.amode`). The targets, the objective files, the threats, the Map frame (`shotStart('tg')`: north up, the corners come back with the picture), the Kneeboard and the datacard are reached through `tgtDeps()` in `app/pages.js`. The rules without DOM (place of a picture on the ground, targets by objective, threats, kinds of buildings, plan, filters) are in `core/tgtdraw.js` (test `tests/run-tgtdraw.mjs`); styles in `css/style-12.css`; UI test `tools/tgtpage-test.py`. The pictures and symbols are kept for the session only. ＋ Picture adds an entry with no target (`PICS`, key `pic:N`): a screenshot to annotate, one Graphic card, no plan view.
 - `core/briefing.js`: the Briefing tab (a room per squadron, live drawings on the map of the Map page, borrowed with `attach(el, true)`; messages `{k:'brf'}` on the swarm; nothing saved, a kneeboard card through the frame of the map). `core/briefroom.js`: its rules without DOM (roles, the briefer, the check of a drawing that comes from the network, distances and bearings). Styles in `css/style-11.css`. The weather of the room is drawn by `core/wxlayer.js`, shared with the Weather page.
 - Every change has a time stamp from `orgClock` (the clock of the computer, never before the newest change already seen), so a late clock cannot make a new change lose. The wait for the answer to a mission or card is an idle timeout (`ackWait`): it starts again at every piece sent.
 - The members of a squadron are trusted: the roles are rules of the screen and of the shared data, not a defence against a hostile member (decided, see `ROADMAP.md`).

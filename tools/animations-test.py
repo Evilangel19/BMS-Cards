@@ -65,7 +65,7 @@ try:
         check('a field shows hover and focus with a short change of its border', ev("()=>{const e=document.querySelector('input[type=text],input:not([type])');const s=getComputedStyle(e);return s.transitionProperty.includes('border-color')&&s.transitionDuration.split(',').some(x=>x.trim()!='0s')}"))
 
         # ---- 2. the BVR timeline: the enemy block opens and closes smoothly, the arrow turns, the row mark and the drawing are changed in place
-        pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(900)
+        pg.click('button.tab[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(900)
         wen = lambda i: ev("i=>{const e=document.querySelector('.wen[data-i=\"'+i+'\"]');const r=e.getBoundingClientRect();return {h:Math.round(r.height),v:getComputedStyle(e).visibility,o:e.classList.contains('open')}}", i)
         check('the enemy blocks are in the page but closed: no height, hidden (Tab never reaches them)', all(wen(i)['h'] == 0 and wen(i)['v'] == 'hidden' and not wen(i)['o'] for i in range(4)))
         check('a closed block has no slider or box that can take the focus', ev("()=>[...document.querySelectorAll('.wen:not(.open) input')].every(e=>getComputedStyle(e).visibility=='hidden')"))
@@ -221,7 +221,7 @@ try:
         pg.mouse.click(5, 5); pg.wait_for_timeout(200)
 
         # ---- 8. switched off: Settings > Animations, and the system "reduce motion"
-        pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(700)
+        pg.click('button.tab[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(700)
         ev("()=>{__app.CFG.ui={...(__app.CFG.ui||{}),animations:false};document.documentElement.classList.add('noanim')}")
         check('animations off: html has .noanim and the buttons, fields, rows, the enemy block and the arrow have no transition', ev("""()=>{const z=s=>{const e=document.querySelector(s);return getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')&&getComputedStyle(e).animationName=='none'};
           return document.documentElement.classList.contains('noanim')&&['.btn','.seg button','.dsw','.wex','.wen','.wex span','tr[data-tlsel]','tr[data-tlsel] td','input[type=number],input[type=text]'].every(z)}"""))
@@ -235,7 +235,7 @@ try:
         check('no page errors %s' % errs, not errs); pg.close()
 
         pg, errs = start(br, 'reduce')
-        pg.click('button.tab[data-t=ms]'); pg.wait_for_timeout(1000)
+        pg.click('button.tab[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(1000)
         check('system "reduce motion": no transition and no animation, whatever the setting says', ev("""()=>['.btn','.seg button','.dsw','.wex','.wen','tr[data-tlsel]','tr[data-tlsel] td','select'].every(s=>{const e=document.querySelector(s);return getComputedStyle(e).transitionDuration.split(',').every(x=>x.trim()=='0s')&&getComputedStyle(e).animationName=='none'})"""))
         pg.click('[data-tlopen="0"]'); pg.wait_for_timeout(50)
         check('system "reduce motion": the block is open at once', ev("()=>Math.round(document.querySelector('.wen').getBoundingClientRect().height)") > 60)

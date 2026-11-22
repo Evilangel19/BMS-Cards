@@ -43,7 +43,7 @@ try:
         pg.evaluate("()=>__app.sq.refresh()"); pg.wait_for_timeout(300)
         check('a page drawn again keeps the name (a known name is never made empty)', pg.evaluate("()=>__app.sq.db().squads[0].roster.me000001.name") == 'Alpha Lead')
         # ---- BVR timeline: changed on the page, kept for the next session
-        pg.click('[data-t=ms]'); pg.wait_for_timeout(600)
+        pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(600)
         pg.evaluate("async()=>{const {ST}=await import('/app/js/app/state.js');const s=ST.msPage.state();ST.msPage.setState({tl:{...s.tl,cls:['Mig-29A','Su-27','J-10','Mig-31'],std:{...s.tl.std,alt:30000}}})}")
         pg.wait_for_timeout(1500)
         saved = json.loads(desk.text(APP + '\\bvrprefs.json')) if desk.has(APP + '\\bvrprefs.json') else {}
@@ -57,7 +57,7 @@ try:
         check('a box that holds values (a mission, or typed) is left alone', r[1] == '' and r[2] == '99')
         pg.close()
         pg, errs2 = page(br)
-        pg.click('[data-t=ms]'); pg.wait_for_timeout(800)
+        pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(800)
         st = pg.evaluate("async()=>{const {ST}=await import('/app/js/app/state.js');return ST.msPage.state().tl}")
         check('the next session starts with the same timeline (classes and conditions)', st['cls'][0] == 'Mig-29A' and st['std']['alt'] == 30000)
         # ---- Kneeboard not saved
@@ -69,8 +69,15 @@ try:
         check('a click opens the three rows: DTC (no file), Kneeboard (to save, with its button), Mission', pg.locator('#rdypop .rdyr').count() == 3 and pg.locator('#rdypop .rdyr.todo [data-r=kb]').count() == 1 and 'No DTC file open' in pg.inner_text('#rdypop'))
         pg.click('#rdypop [data-r=kb]'); pg.wait_for_timeout(7000)
         check('Save kneeboard writes the files without leaving the page: the warning and the dot go', desk.has('C:\\BMS\\kb\\7982.dds') and not pg.is_visible('#rdy.warn') and pg.locator('.tab[data-t=kn].unsaved').count() == 0 and pg.is_visible('#kb'))
+        check('...and the Save button of the Kneeboard page is dimmed (the same test as the tab bar)', pg.evaluate("()=>document.getElementById('kbsave').classList.contains('nil')"))
+        # the same card drawn again a few pixels different (another tab, another graphics path of the window): not a change (1.2.1-beta.11)
+        pg.click('.tab[data-t=kb]'); pg.wait_for_timeout(500)
+        pg.evaluate("async()=>{const x=document.getElementById('cv').getContext('2d');x.fillStyle='#777';x.fillRect(300,300,40,3);const {ST}=await import('/app/js/app/state.js');ST.CVV++}"); pg.wait_for_timeout(2000)
+        check('the datacard drawn again on its tab, a few pixels different, the same values: still Ready to fly', not pg.is_visible('#rdy.warn') and pg.locator('.tab[data-t=kn].unsaved').count() == 0)
+        pg.click('.tab[data-t=kn]'); pg.wait_for_timeout(500)
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3500';draw()}"); pg.wait_for_timeout(2000)
         check('a new change of the datacard brings it back', pg.is_visible('#rdy.warn'))
+        check('...and Save is lit again on the Kneeboard page', pg.evaluate("()=>!document.getElementById('kbsave').classList.contains('nil')"))
         pg.evaluate("async()=>{const {draw}=await import('/app/js/app/cardview.js');__app.F.bingo='3400';draw()}"); pg.wait_for_timeout(2000)
         check('the datacard back as it was saved: no warning', not pg.is_visible('#rdy.warn'))
         pg.close()

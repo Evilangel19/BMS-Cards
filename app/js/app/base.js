@@ -32,9 +32,12 @@ export function rememberLast(k, v) {
     /* none */
   }
 }
+// Windows asks for reduced motion (its animations turned off)
+export const osNoMotion = () => !!(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches);
+// the animations (and the dragging of the Kneeboard cards): the switch of Settings > General; Windows without animations turns them off unless the pilot
+// said yes at start (ui.osMotion 'on'; 'off' = said no)
 export const animOn = () =>
-  (!ST.CFG.ui || ST.CFG.ui.animations !== false) &&
-  !(window.matchMedia && matchMedia('(prefers-reduced-motion:reduce)').matches);
+  (!ST.CFG.ui || ST.CFG.ui.animations !== false) && (!osNoMotion() || (ST.CFG.ui && ST.CFG.ui.osMotion === 'on'));
 export const applyAnim = () => document.documentElement.classList.toggle('noanim', !animOn());
 // Expand animation: grow and fade in the given elements (same 150 ms as collapse).
 export function expand(els) {
@@ -121,7 +124,10 @@ export const jclone = o => {
   }
 };
 // act = {label, fn}: a button in the message (Undo); ms = how long it stays
+// act: a button of the toast {label, fn}; true: a warning (red)
 export function appToast(m, act, ms = 5000) {
+  const bad = act === true;
+  if (bad) act = null;
   let t = document.getElementById('apptoast');
   if (!t) {
     t = document.createElement('div');
@@ -131,6 +137,8 @@ export function appToast(m, act, ms = 5000) {
     document.body.append(t);
   }
   t.textContent = m;
+  t.style.borderColor = bad ? '#e5534b' : '#3ddc84';
+  t.style.color = bad ? '#ffb4ae' : '#e6edf3';
   if (act) {
     const b = document.createElement('button');
     b.type = 'button';
@@ -176,9 +184,9 @@ export async function init1() {
           $(i).classList.toggle('hide', i != b.dataset.t)
         );
         document.body.classList.toggle('onms', b.dataset.t == 'ms');
-        if (b.dataset.t != 'ms' && ST.msPage) ST.msPage.leave();
+        if (b.dataset.t != 'ms' && ST.bvrPage) ST.bvrPage.leave();
         if (b.dataset.t != 'wx' && typeof wxPage != 'undefined' && wxPage) wxPage.leave();
-        if (b.dataset.t == 'ms') ST.msPage.render();
+        if (b.dataset.t == 'ms') ST.bvrPage.render();
         if (b.dataset.t == 'dtc') view();
         if (b.dataset.t == 'sq') {
           sqPage.enter();

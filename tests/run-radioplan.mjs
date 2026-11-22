@@ -2,7 +2,7 @@
 import fs from 'node:fs';
 import { CAM } from '../app/js/core/cam-core.js';
 import { buildAto } from '../app/js/core/ato.js';
-import { khz, ownIndex, radioPlan, radioEdits } from '../app/js/core/radioplan.js';
+import { khz, ownIndex, vhfPreset, radioPlan, radioEdits } from '../app/js/core/radioplan.js';
 let n = 0,
   bad = 0;
 const ck = (name, ok) => {
@@ -30,6 +30,13 @@ ck(
 ck(
   'ownIndex: not in the package table, or no callsign: -1',
   ownIndex({ cs: 'X 1', pk0_0: 'Y 1' }) === -1 && ownIndex({ pk0_0: 'Y 1' }) === -1
+);
+
+ck(
+  'vhfPreset: VHF 15 + the place of the flight in the package table (the cell left of Callsign); none when it is not there',
+  vhfPreset({ cs: 'Gator 7', pk0_0: 'Hammer 7', pk1_0: 'Gator 7' }) === 'VHF 16' &&
+    vhfPreset({ cs: 'Hammer 7', pk0_0: 'Hammer 7' }) === 'VHF 15' &&
+    vhfPreset({ cs: 'X 1', pk0_0: 'Y 1' }) === ''
 );
 
 // ---- the rules on a made-up card (own flight is the second of the package)

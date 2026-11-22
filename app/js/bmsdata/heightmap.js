@@ -91,7 +91,9 @@ const SPAN_MAX = 262144; // the longest piece read in one call
  * @param {(offset:number, length:number) => Promise<Uint8Array|null>} readAt
  * @param {{side:number, sizeFt:number}|null} spec
  * @param {{n:number, e:number}[]} pts
- * @param {{ readMany?: (spans:number[][]) => Promise<(Uint8Array|null)[]>, rows?: ReturnType<typeof createRowCache> }} [opt]
+ * opt.gap (bytes): without a row cache, the points of a row further apart than gap are read as separate pieces (the small squares of the fine pass of the MSA,
+ * scattered over the row: a few short pieces instead of the span between the first and the last).
+ * @param {{ readMany?: (spans:number[][]) => Promise<(Uint8Array|null)[]>, rows?: ReturnType<typeof createRowCache>, gap?: number }} [opt]
  */
 export async function heightsAt(readAt, spec, pts, opt) {
   const offs = pts.map(p => heightOffset(spec, p.n, p.e)),
@@ -136,6 +138,28 @@ export async function heightsAt(readAt, spec, pts, opt) {
       const b = cache.get(r);
       if (b) put(idx, r * rowB, b);
       else jobs.push({ lo: r * rowB, len: rowB, idx, row: r });
+      continue;
+    }
+    const gap = opt && opt.gap;
+    if (gap) {
+      // pieces of the row: the points sorted along it, a new piece where the next point is further than gap
+      const s = idx.slice().sort((a, b) => offs[a] - offs[b]);
+      let part = [s[0]];
+      const flush = () => {
+        const lo = offs[part[0]],
+          hi = offs[part[part.length - 1]];
+        if (part.length < 2) alone.push(...part);
+        else if (hi - lo + 2 <= SPAN_MAX) jobs.push({ lo, len: hi - lo + 2, idx: part });
+        else alone.push(...part);
+      };
+      for (let q = 1; q < s.length; q++) {
+        if (offs[s[q]] - offs[part[part.length - 1]] > gap) {
+          flush();
+          part = [];
+        }
+        part.push(s[q]);
+      }
+      flush();
       continue;
     }
     let lo = Infinity,
