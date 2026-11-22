@@ -43,7 +43,7 @@ try:
         pg.evaluate("()=>__app.sq.refresh()"); pg.wait_for_timeout(300)
         check('a page drawn again keeps the name (a known name is never made empty)', pg.evaluate("()=>__app.sq.db().squads[0].roster.me000001.name") == 'Alpha Lead')
         # ---- BVR timeline: changed on the page, kept for the next session
-        pg.click('[data-t=ms]'); pg.wait_for_timeout(600)
+        pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(600)
         pg.evaluate("async()=>{const {ST}=await import('/app/js/app/state.js');const s=ST.msPage.state();ST.msPage.setState({tl:{...s.tl,cls:['Mig-29A','Su-27','J-10','Mig-31'],std:{...s.tl.std,alt:30000}}})}")
         pg.wait_for_timeout(1500)
         saved = json.loads(desk.text(APP + '\\bvrprefs.json')) if desk.has(APP + '\\bvrprefs.json') else {}
@@ -57,7 +57,7 @@ try:
         check('a box that holds values (a mission, or typed) is left alone', r[1] == '' and r[2] == '99')
         pg.close()
         pg, errs2 = page(br)
-        pg.click('[data-t=ms]'); pg.wait_for_timeout(800)
+        pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(800)
         st = pg.evaluate("async()=>{const {ST}=await import('/app/js/app/state.js');return ST.msPage.state().tl}")
         check('the next session starts with the same timeline (classes and conditions)', st['cls'][0] == 'Mig-29A' and st['std']['alt'] == 30000)
         # ---- Kneeboard not saved

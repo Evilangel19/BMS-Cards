@@ -21,7 +21,7 @@ try:
         pg.route('**/app/js/data/local/missilefallback.js', lambda r: r.fulfill(body=fb, content_type='application/javascript'))
         pg.goto('http://localhost:8812/app/index.html'); pg.wait_for_timeout(800)
         pg.evaluate("t=>__app.parse(t)", ini); pg.wait_for_timeout(300)
-        pg.click('[data-t=ms]'); pg.wait_for_timeout(800)
+        pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(800)
         rows = lambda: json.loads(pg.evaluate("()=>JSON.stringify(__app.msPage.rows())"))
         state = lambda: json.loads(pg.evaluate("()=>JSON.stringify(__app.msPage.state())"))
         def slide(sel, v):  # a slider moved and released

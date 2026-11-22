@@ -38,6 +38,7 @@ import { fullText } from '../core/roesop.js';
 import { seatIdx } from './seat.js';
 import { flightTag } from './ato.js';
 import { chooseCards } from '../core/tgdlg.js';
+import { faorLines } from '../core/faor.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
 // folded (bmsroeclosed2), Chosen only (bmsroeonly)
@@ -124,9 +125,13 @@ const R = {
   cust: new Set(), // the SOP topics written with an own text
   flightKey: null,
 };
-const key = s => JSON.stringify(cleanSel(s));
+// the FAOR block (written by the FAOR page) is not a choice of this page: a preset with the same choices is still that preset
+const key = s => JSON.stringify({ ...cleanSel(s), faor: null });
+// a choice put in keeps the FAOR block of the flight (a preset, Clear, Discard do not touch it): only the FAOR page changes it
 const setSel = (s, kept = true) => {
+  const fa = R.sel && R.sel.faor;
   R.sel = cleanSel(s);
+  R.sel.faor = fa || null;
   R.cust = new Set(Object.keys(R.sel.sop).filter(k => R.sel.sop[k].t));
   if (kept) R.base = key(R.sel);
 };
@@ -168,7 +173,9 @@ function matchPick() {
 }
 function loadFlight() {
   R.flightKey = ST.CURK;
+  R.sel = emptySel();
   setSel(flightSel(), false);
+  R.sel.faor = cleanSel(flightSel()).faor;
   R.wrote = key(R.sel);
   matchPick();
 }
@@ -397,13 +404,16 @@ function render0(box) {
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
     return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
   };
+  const fa = R.sel.faor;
   const roeCard = card(
     'roe',
     'ROE',
     `one rule a line on the card · ${BOX_MAX} lines at most`,
-    `${ROE.map(
+    `${fa ? `<div class="rpfa"><div class="rpt rg">FAOR${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by the FAOR page</small><button type="button" class="btn g" data-a="faor" title="BVR > FAOR: the page that writes this block">Edit in FAOR</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
       ([id, lab, kind, , opts]) =>
-        `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
+        fa && (id == 'ws' || id == 'commit')
+          ? `<div class="rpt rg">${esc(lab)}<small>set by the FAOR</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
+          : `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
     ).join(
       ''
     )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea>`
@@ -515,10 +525,10 @@ function render0(box) {
   wire(box);
 }
 // the datacard of the flight: the two boxes and the choices (no word: every change goes there at once)
-function writeCard() {
-  const t1 = roeText(R.sel),
-    t2 = sopText(R.sel);
-  setField('roesel', JSON.stringify(cleanSel(R.sel)));
+function writeCard(sel = R.sel) {
+  const t1 = roeText(sel),
+    t2 = sopText(sel);
+  setField('roesel', JSON.stringify(cleanSel(sel)));
   setField('roe', t1);
   setField('sop', t2);
   [
@@ -530,7 +540,26 @@ function writeCard() {
   });
   markMan();
   draw();
-  R.wrote = key(R.sel);
+  if (sel === R.sel) R.wrote = key(R.sel);
+}
+// the ROE of the flight now: this page's choices when it was opened on the flight, else those of the datacard
+export function roeOfFlight() {
+  return R.box && ST.CURK === R.flightKey ? cleanSel(R.sel) : flightSel();
+}
+// THE FAOR BLOCK of the flight, from the FAOR page (core/faor.js faorRoe, null: none): on the datacard at once, and on this page when it shows the flight.
+// false when there is no flight or nothing changed
+export function roeFaorSet(fa) {
+  if (!flightOn()) return false;
+  const seen = R.box && ST.CURK === R.flightKey,
+    s = seen ? R.sel : flightSel(),
+    nx = cleanSel({ ...s, faor: fa });
+  if (JSON.stringify(nx.faor) === JSON.stringify(cleanSel(s).faor)) return false;
+  if (seen) {
+    R.sel.faor = nx.faor;
+    writeCard();
+    if (R.box.isConnected && !R.box.closest('.hide')) render();
+  } else writeCard(nx);
+  return true;
 }
 // the data of the Smart ROE / SOP card for the flight now (the combined Smart cards take their ROE / SOP part from it): null when nothing is chosen
 export function roeSmartNow() {
@@ -866,6 +895,7 @@ function wire(box) {
     }
     if (!a) return;
     const act = a.dataset.a;
+    if (act == 'faor') return ST.bvrGo && ST.bvrGo('faor');
     if (act == 'clear') {
       setSel(emptySel(), false);
       return render();

@@ -86,7 +86,7 @@ try:
         check('the map shows the flights and units of the mission', pg.evaluate("()=>document.querySelectorAll('#mpbody .leaflet-marker-icon, #mpbody svg path, #mpbody canvas').length>0"))
         pg.click('[data-t=wp]'); pg.wait_for_timeout(1200)
         check('the weapons page opens from the mission', pg.is_visible('#wp') and pg.locator('#wp .wcard, #wp .wrow').count() > 0)
-        pg.click('[data-t=ms]') if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
+        (pg.click('[data-t=ms]'), pg.click('#bvrtabs [data-bsub=tl]')) if pg.locator('[data-t=ms]').count() else None; pg.wait_for_timeout(800)
         # the shape of the mission file against a reference (tests/mission-shape.json): a change must come with a decision about minReader
         def shape(v, d=0):
             if v is None: return None

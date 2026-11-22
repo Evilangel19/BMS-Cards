@@ -184,9 +184,9 @@ export async function init1() {
           $(i).classList.toggle('hide', i != b.dataset.t)
         );
         document.body.classList.toggle('onms', b.dataset.t == 'ms');
-        if (b.dataset.t != 'ms' && ST.msPage) ST.msPage.leave();
+        if (b.dataset.t != 'ms' && ST.bvrPage) ST.bvrPage.leave();
         if (b.dataset.t != 'wx' && typeof wxPage != 'undefined' && wxPage) wxPage.leave();
-        if (b.dataset.t == 'ms') ST.msPage.render();
+        if (b.dataset.t == 'ms') ST.bvrPage.render();
         if (b.dataset.t == 'dtc') view();
         if (b.dataset.t == 'sq') {
           sqPage.enter();

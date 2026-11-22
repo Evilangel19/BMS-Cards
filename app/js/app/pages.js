@@ -30,7 +30,7 @@ import {
   onFilesDropped,
 } from '../platform/desktop.js';
 import { createPerfPage } from '../core/perfpage.js';
-import { msaOfFlight, msaOfBase } from './msafill.js';
+import { msaOfFlight, msaOfBase, msaOfArea } from './msafill.js';
 import { dtcPoints, WT_N, FT_KM, sitMeta } from '../core/mapdtc.js';
 import { targetLine, readTarget } from '../core/targets.js';
 import { parseBombList, parseBombDat } from '../bmsdata/bombdata.js';
@@ -40,7 +40,12 @@ import {
   fromLL as mFromLL,
   fmtLL as mFmtLL,
   mapUnits,
+  mapAirbases,
+  airbaseSide,
+  allyOf,
 } from '../core/mapdata.js';
+import { createFaorPage } from '../core/faorpage.js';
+import { capKind } from '../core/faor.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
 export const nearName = (x, y) => {
@@ -89,7 +94,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
-import { roeDraw, roeAllCards, roeSmartNow } from './roepage.js';
+import { roeDraw, roeAllCards, roeSmartNow, roeOfFlight, roeFaorSet } from './roepage.js';
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
@@ -102,6 +107,7 @@ export let harmTab; // the HARM tab of the Weapons page: SEAD or Single shot
 // Squadron page: the pilot is read from the logbook (User\Config\*.lbk), the mission of the leader goes to the pilots peer to peer
 export let sqPage;
 export let pfPage;
+export let faorPage; // BVR > FAOR
 
 // run 6: statements that run when the program starts (in the order of the original file)
 export async function init6() {
@@ -123,6 +129,8 @@ export async function init6() {
     },
     // Display > HARM: the drawing of the HARM page of the flight (SEAD plan, DEAD tactic, else Single shot) in the group of the map
     harm: o => (seadPage.usable() ? seadPage : deadPage.usable() ? deadPage : harmPage).overlay(o),
+    // Display > FAOR: the FAOR of the CAP flight (BVR > FAOR)
+    faor: o => (faorPage ? faorPage.overlay(o) : false),
     attack: () => {
       const a = ST.wpPage && ST.wpPage.spec && ST.wpPage.spec();
       if (!a) return null;
@@ -917,6 +925,123 @@ async function smartRefs(b) {
 }
 
 // the fixed base of the combined Smart cards: the target of the Target page, the weather of the flight, its ROE / SOP (each null when it has none)
+// ---- BVR > FAOR: the CAP flight chosen (its CAP steerpoints, the enemy airbases, the other CAP flights of its side, the targets of its package)
+const ACT_B = [0, 1, 2, 3, 4, 7, 8],
+  ACT_ATK = [14, 15, 16, 17, 19];
+const capPts = f => {
+  const W = (f && f.wps) || [],
+    L = W.map((w, i) => ({ w, n: i + 1 })).filter(z => z.w.act == 12);
+  const T = L.length
+    ? L
+    : W.map((w, i) => ({ w, n: i + 1 }))
+        .filter(z => !ACT_B.includes(z.w.act))
+        .slice(0, 1);
+  return T.map(({ w, n }) => ({ x: w.x, y: w.y, n, arr: w.arr || 0, dep: w.dep || 0 }));
+};
+const AA = /AIM-|\bAA-\d|\bR-\d|\bPL-\d|MICA|Meteor|Python|Derby|IRIS-T|Magic|Super 530|Sky Sword/i;
+function faorCtx() {
+  if (!ST.C) return { ok: false, why: 'Open a campaign: the FAOR is planned for the CAP flights of its ATO.' };
+  const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+    e = x && ATOL.find(z => z.f === x.f);
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  const kind = capKind(e.mission);
+  if (!kind)
+    return { ok: false, why: e.callsign + ' flies ' + e.mission + ': the FAOR is planned for the CAP flights.' };
+  const C = ST.C,
+    D = C.D,
+    cap = capPts(e.f);
+  if (!cap.length) return { ok: false, why: e.callsign + ' has no CAP steerpoint.' };
+  let enemy = [];
+  try {
+    enemy = mapAirbases(D)
+      .filter(a => a.kind == 'ab' && airbaseSide(C, a.id, e.team) == 'enemy')
+      .map(a => ({ x: a.x, y: a.y, name: a.name }));
+    if (!enemy.length)
+      enemy = mapUnits(C, e.team)
+        .filter(m => m.hostile)
+        .map(m => ({ x: m.u.x, y: m.u.y, name: m.name }));
+  } catch (er) {
+    enemy = [];
+  }
+  const win = c => [c[0].arr || 0, c[c.length - 1].dep || c[c.length - 1].arr || 0],
+    w0 = win(cap),
+    mates = ATOL.filter(z => z.f !== e.f && capKind(z.mission) && (z.team == e.team || allyOf(C, z.team, e.team)))
+      .map(z => ({ z, c: capPts(z.f) }))
+      .filter(({ c }) => {
+        if (!c.length) return false;
+        const w = win(c);
+        return !w0[0] || !w[0] || (w[0] < w0[1] && w[1] > w0[0]); // on station at the same time
+      })
+      .map(({ z, c }) => ({
+        name: z.callsign,
+        anchor: { x: (c[0].x + c[c.length - 1].x) / 2, y: (c[0].y + c[c.length - 1].y) / 2 },
+      })),
+    targets = ATOL.filter(z => z.f !== e.f && z.pkg == e.pkg).flatMap(z =>
+      (z.f.wps || [])
+        .map((w, i) => ({ w, n: i + 1 }))
+        .filter(q => ACT_ATK.includes(q.w.act))
+        .slice(0, 1)
+        .map(q => ({ x: q.w.x, y: q.w.y, name: z.callsign + ' STPT ' + q.n }))
+    );
+  let aa = '';
+  try {
+    const g = CAM.loadGroups(e.f)[0];
+    aa = g
+      ? g.ids
+          .map((id, k) => [D.wn[id] || '', g.cn[k] || 0])
+          .filter(([n, c]) => c && AA.test(n))
+          .map(([n, c]) => c + '× ' + n)
+          .join(' · ')
+      : '';
+  } catch (er) {
+    aa = '';
+  }
+  return {
+    ok: true,
+    me: {
+      key: String(e.f.id.n),
+      name: e.callsign,
+      mission: e.mission,
+      kind,
+      n: e.n,
+      ac: e.ac,
+      pkgNo: e.pkgNo,
+      team: e.team,
+      tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
+    },
+    cap,
+    enemy,
+    bull: C.bull ? { x: C.bull.x, y: C.bull.y } : null,
+    mates,
+    targets,
+    joker: F.joker || '',
+    bingo: F.bingo || '',
+    aa,
+  };
+}
+function faorDeps() {
+  return {
+    esc,
+    toast: appToast,
+    ctx: faorCtx,
+    toLL: (x, y) => mapV.toLL(x, y),
+    attach: el => mapV.attach(el),
+    detach: () => mapV.detach(),
+    cyclePlan: () => mapV.cyclePlan(),
+    planMode: () => mapV.planMode(),
+    msa: poly => msaOfArea(poly),
+    roeGet: () => roeOfFlight(),
+    roeSet: fa => roeFaorSet(fa),
+    dtcLines: async (L, name) => {
+      if (!lines.length) return { msg: 'Open a DTC first: the lines are added to it.', bad: true };
+      await mapV.ensure();
+      return mapV.autoFaor(L, name);
+    },
+    timeline: () => (ST.msPage && ST.msPage.rowsReady ? ST.msPage.rowsReady() : []),
+    combo: () => comboBase(),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
+  };
+}
 async function comboBase() {
   let tgt = null,
     wx = null,
@@ -1348,6 +1473,68 @@ export async function init11() {
 
 // run 13: statements that run when the program starts (in the order of the original file)
 export async function init13() {
+  // BVR: two pages under tabs, as the Weapons page: FAOR (the area of a CAP flight) and Timeline (the BVR timeline of the datacard); the last one shown comes back
+  const host = $('ms'),
+    tlRoot = document.createElement('div');
+  tlRoot.id = 'bvrtl';
+  faorPage = createFaorPage(faorDeps());
+  const SUBS = [
+      ['faor', 'FAOR'],
+      ['tl', 'Timeline'],
+    ],
+    page = k => (k == 'faor' ? faorPage : ST.msPage),
+    rootOf = k => (k == 'faor' ? faorPage.root : tlRoot);
+  let sub = 'faor';
+  try {
+    if (localStorage.getItem('bvrsub') == 'tl') sub = 'tl';
+  } catch (e) {
+    /* none */
+  }
+  host.innerHTML = `<div class="wtabs" role="tablist" id="bvrtabs">${SUBS.map(([k, l]) => `<button type="button" role="tab" data-bsub="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-bcard title="Kneeboard cards of the FAOR: Smart BVR, Smart mission">Add card</button></div>`;
+  host.append(faorPage.root, tlRoot);
+  const show = () => {
+    host.querySelectorAll('[data-bsub]').forEach(b => b.classList.toggle('on', b.dataset.bsub == sub));
+    SUBS.forEach(([k]) => rootOf(k).classList.toggle('hide', k != sub));
+    host.querySelector('[data-bcard]').hidden = sub != 'faor';
+    document.body.classList.toggle('onfaor', sub == 'faor');
+  };
+  ST.bvrPage = {
+    render: () => {
+      show();
+      page(sub).render();
+    },
+    leave: () => {
+      faorPage.leave();
+      ST.msPage.leave();
+      document.body.classList.remove('onfaor');
+    },
+    sub: () => sub,
+  };
+  // another page (the ROE / SOP: Edit in FAOR) opens BVR on one of its tabs
+  ST.bvrGo = k => {
+    sub = k;
+    const t = /** @type {HTMLElement|null} */ (document.querySelector('.tab[data-t=ms]'));
+    if (t && !t.classList.contains('on')) t.click();
+    else ST.bvrPage.render();
+  };
+  host.querySelector('#bvrtabs').addEventListener('click', e => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    const b = /** @type {HTMLElement|null} */ (t.closest('[data-bsub]'));
+    if (b && b.dataset.bsub != sub) {
+      page(sub).leave();
+      sub = b.dataset.bsub;
+      try {
+        localStorage.setItem('bvrsub', sub);
+      } catch (er) {
+        /* none */
+      }
+      ST.bvrPage.render();
+    }
+    const c = /** @type {HTMLButtonElement|null} */ (t.closest('[data-bcard]'));
+    if (c) faorPage.addCard(c);
+  });
+  show();
+  KBX.src.faor = () => faorPage.allCards();
   ST.msPage = createMissilesPage({
     fillBvr: rows => bvrCells(rows).forEach(([k, v]) => setField(k, v)),
     bvrSame: rows => bvrCells(rows).every(([k, v]) => (F[k] || '') === v),
@@ -1356,7 +1543,7 @@ export async function init13() {
     ll: (n, e) => mapV.toLL(e / 3280.84, n / 3280.84),
     attach: el => mapV.attach(el),
     detach: () => mapV.detach(),
-    root: $('ms'),
+    root: tlRoot,
     missiles: misLoad,
     only: 'bvr',
     key: 'msmissiles1b',

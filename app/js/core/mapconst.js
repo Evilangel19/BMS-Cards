@@ -91,6 +91,7 @@ export const MAP_LAYERS = [
   ['msa', 'MSA and ERAA', false, 'Display'],
   ['da', 'Pop-up/HADB/TOSS', false, 'Display'],
   ['hm', 'HARM', false, 'Display'],
+  ['fa', 'FAOR', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];

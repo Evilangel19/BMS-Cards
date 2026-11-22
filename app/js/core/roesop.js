@@ -4,6 +4,8 @@
 // long form in the menu and in a short form on the card (only the topics marked "on card"). Values from the RoKAF F-16 Basic Employment Manual and the
 // 8th FW / 51st FW in-flight guides (Kunsan, Osan) and AFMAN 11-2F-16V3 (its values added as more options, "AFMAN" where the others differ); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
 
+import { cleanFaor, faorLines } from './faor.js';
+
 // [id, label, kind ('one' | 'many'), tag on the card, options [id, long, short]]
 export const ROE = [
   [
@@ -974,6 +976,7 @@ export const emptySel = () => ({
   sop: {},
   free: '', // other ROE lines
   sfree: '', // other SOP lines
+  faor: null, // the FAOR block, written by the FAOR page for a CAP flight (core/faor.js): its weapons control and commit win over those above
 });
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 // a choice that comes from outside (a file, a preset, the network) is checked: unknown ids are dropped
@@ -1005,6 +1008,7 @@ export function cleanSel(s) {
     }
   o.free = str(s.free, 600);
   o.sfree = str(s.sfree, 600);
+  o.faor = cleanFaor(s.faor);
   return o;
 }
 const joinLines = (a, b) => {
@@ -1027,6 +1031,9 @@ export function roeText(sel) {
     R = [];
   ROE.forEach(([id, , k, tag, opts]) => {
     const sh = x => (opts.find(p => p[0] === x) || [])[2];
+    // the FAOR block of the flight: its weapons control and commit in place of these (the same lines, so the box keeps its size)
+    if (s.faor && id == 'ws') return R.push('WPN ' + s.faor.wpn.toUpperCase());
+    if (s.faor && id == 'commit') return R.push('COMMIT ' + s.faor.commit + 'NM');
     if (k == 'many') {
       const v = s.roe[id].map(sh).filter(Boolean);
       if (!v.length) return;
@@ -1193,7 +1200,12 @@ export function cleanSqPresets(a) {
     (Array.isArray(a) ? a : [])
       .filter(p => p && typeof p.name == 'string' && p.name.trim())
       .slice(0, 50)
-      .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel), cats: catsOf(p.cats), std: !!p.std }))
+      .map(p => ({
+        name: str(p.name.trim(), 40),
+        sel: { ...cleanSel(p.sel), faor: null },
+        cats: catsOf(p.cats),
+        std: !!p.std,
+      }))
   );
   const i = Math.max(
     0,
@@ -1226,7 +1238,7 @@ export function cleanPresets(a) {
     (Array.isArray(a) ? a : [])
       .filter(p => p && typeof p.name == 'string' && p.name.trim())
       .slice(0, 50)
-      .map(p => ({ name: str(p.name.trim(), 40), sel: cleanSel(p.sel), cats: catsOf(p.cats) }))
+      .map(p => ({ name: str(p.name.trim(), 40), sel: { ...cleanSel(p.sel), faor: null }, cats: catsOf(p.cats) }))
   );
 }
 
@@ -1236,7 +1248,9 @@ export function fullText(sel) {
   const s = cleanSel(sel),
     roe = [],
     sop = [];
+  if (s.faor) roe.push(['FAOR' + (s.faor.kind ? ' · ' + s.faor.kind : ''), faorLines(s.faor, true)]);
   ROE.forEach(([id, lab, k, , opts]) => {
+    if (s.faor && (id == 'ws' || id == 'commit')) return; // in the FAOR block
     const L = (k == 'many' ? s.roe[id] : s.roe[id] ? [s.roe[id]] : [])
       .map(v => (opts.find(o => o[0] === v) || [])[1])
       .filter(Boolean);

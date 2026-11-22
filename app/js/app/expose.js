@@ -4,7 +4,7 @@ import { CAM } from '../core/cam-core.js';
 import { ST } from './state.js';
 import { MFD, draw, gapless } from './cardview.js';
 import { KBLIB, KBS, KBTH, dcPage, kbKept } from './kneeboard.js';
-import { harmPage, seadPage, deadPage, harmTab, mapV, pfPage, sqPage } from './pages.js';
+import { harmPage, seadPage, deadPage, harmTab, mapV, pfPage, sqPage, faorPage } from './pages.js';
 import { WXS, loadFmap, loadIFF, loadL16, loadTwx, wxAt, wxKey, wxKeys, wxPage } from './campaign.js';
 import { CYC, F, FD, TOPOWER, cycle, setField, ptChoices, ptPick, dtcChanged, dcSync } from './datacard.js';
 import { MSFSIG, msfBuild, msfLoad, msfSig, unsaved } from './mission.js';
@@ -136,6 +136,9 @@ export async function init19() {
     },
     get msPage() {
       return ST.msPage;
+    },
+    get faorPage() {
+      return faorPage;
     },
     get seadPage() {
       return seadPage;

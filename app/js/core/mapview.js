@@ -459,6 +459,7 @@ export function createMap(host, deps) {
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
     map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
+    map.on('zoomend', () => st.on.fa && !away && faorDraw());
     zc();
     host.addEventListener(
       'click',
@@ -520,7 +521,7 @@ export function createMap(host, deps) {
     uf: ['Friendly units', 'Friendly units · JTAC only'],
     sj: 'Only the JTAC of the flight',
   };
-  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS', hm: 'HARM' };
+  const DSPTXT = { rc: 'Enemy radar coverage', msa: 'MSA and ERAA', da: 'Pop-up/HADB/TOSS', hm: 'HARM', fa: 'FAOR' };
   // the details of the filters, in the tooltips (the rows stay on one line)
   const TIP = {
     nav: 'VOR and TACAN stations',
@@ -537,6 +538,7 @@ export function createMap(host, deps) {
     rc: 'Approximate coverage of the enemy radars at the chosen altitude',
     da: 'The attack worked out on the Weapons page: the lines of each phase and the marks (pop-up, HADB, toss)',
     hm: 'The drawing of Weapons > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
+    fa: 'The FAOR of the selected CAP flight (BVR > FAOR): the FEZ, COMMIT, STOP and the HARDWALL',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -830,7 +832,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['fa', DSPTXT.fa])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -1910,6 +1912,84 @@ export function createMap(host, deps) {
     dtc();
     toast(lnName(line) + ': bullseye L (' + lnRange(line, slot, 3) + ') added to the DTC.');
   }
+  // FAOR (BVR > FAOR): the FEZ (5 points), COMMIT / STOP (4) and the HARDWALL (2) as lines of the DTC. F-16: a whole LINE each, the lines written here
+  // before taken back first; F-15: the SIT line 8 (FEZ), the parts with a break between them. -> {msg, bad} or null (not wanted)
+  async function autoFaor(Fz, name) {
+    let P = deps.dtc && deps.dtc.points();
+    if (!P) return { msg: 'Open a DTC first: the lines are added to it.', bad: true };
+    const parts = [
+      ['fez', 'FEZ', Fz.fez],
+      ['cs', 'COMMIT / STOP', Fz.cs],
+      ...(Fz.hw ? [['hw', 'HARDWALL', Fz.hw]] : []),
+    ];
+    if (parts.some(([, , q]) => q.some(p => p.x < 0 || p.x > 1024 || p.y < 0 || p.y > 1024)))
+      return { msg: 'The FAOR reaches outside the theater.', bad: true };
+    if (sitOn()) {
+      const { a, len } = lineSpec(8),
+        seq = [];
+      parts.forEach(([, , q], k) => {
+        if (k) seq.push(null);
+        q.forEach(p => seq.push(p));
+      });
+      if (
+        lnUsed(P, 8) &&
+        !auUsed('faor:sit') &&
+        !(await confirm('SIT line 8 (FEZ) already has points: replace them with the FAOR?'))
+      )
+        return null;
+      addStop();
+      const have = new Set(lnPts(P, 8).map(q => q.slot));
+      for (let k = 0; k < len; k++) {
+        const p = seq[k];
+        if (p) deps.dtc.set('sit', a + k, { x: p.x, y: p.y });
+        else if (have.has(a + k)) deps.dtc.clear('sit', a + k);
+      }
+      if (deps.dtc.setMeta) deps.dtc.setMeta(8, { name: 'FEZ' });
+      AU['faor:sit'] = { line: 8, x: seq[0].x, y: seq[0].y };
+      showLayer('ds');
+      sync();
+      dtc();
+      return {
+        msg: 'SIT line 8 (FEZ): the FAOR of ' + name + ' (' + parts.map(z => z[1]).join(', ') + ') added to the DTC.',
+      };
+    }
+    addStop();
+    // the lines of an earlier FAOR are emptied first, so that the new one takes their place
+    parts.forEach(([k]) => {
+      const r = AU['faor:' + k];
+      if (r && auLine(P, r)) {
+        const { g, a, len } = lineSpec(r.line);
+        for (let i = a; i < a + len; i++) deps.dtc.clear(g, i);
+      }
+      delete AU['faor:' + k];
+    });
+    const done = [],
+      miss = [];
+    for (const [k, lab, q] of parts) {
+      P = deps.dtc.points();
+      const wl = lineFor(P, 'whole');
+      if (!wl || q.length > lineSpec(wl.n).len) {
+        miss.push(lab);
+        continue;
+      }
+      q.forEach((p, i) => deps.dtc.set(wl.g, wl.slot + i, { x: p.x, y: p.y, altFt: 0 }));
+      AU['faor:' + k] = { line: wl.n, x: q[0].x, y: q[0].y };
+      done.push(lnName(wl.n) + ' ' + lab);
+    }
+    showLayer(GROUPS.line.layer);
+    sync();
+    dtc();
+    if (!done.length) return { msg: 'No empty LINE left: each part of the FAOR needs a whole LINE.', bad: true };
+    return {
+      msg:
+        'FAOR of ' +
+        name +
+        ' added to the DTC: ' +
+        done.join(', ') +
+        (miss.length ? '. No empty LINE left for ' + miss.join(', ') + '.' : '.'),
+      bad: !!miss.length,
+    };
+  }
   // + LINEn adds points one click at a time; once the line is complete the same button is "- LINEn" and deletes the line (after asking)
   function lineTool(n) {
     const P = deps.dtc && deps.dtc.points();
@@ -2672,6 +2752,10 @@ export function createMap(host, deps) {
     if (!!st.on.hm !== HMON) {
       HMON = !!st.on.hm;
       harmDraw();
+    }
+    if (!!st.on.fa !== FAON) {
+      FAON = !!st.on.fa;
+      faorDraw();
     }
     objDraw();
     radarCov();
@@ -3788,6 +3872,7 @@ export function createMap(host, deps) {
     LNP = [];
     attackDraw();
     harmDraw();
+    faorDraw();
     const P = deps.dtc && deps.dtc.points();
     dtcInfo();
     sams(deps.getC(), deps.getSel());
@@ -3852,6 +3937,27 @@ export function createMap(host, deps) {
   // page draws it itself while it has the map. Drawn again at every zoom (the texts of DEAD are placed for the scale); the last call wins.
   let HMN = 0,
     HMON = false;
+  // Display > FAOR: the FAOR page draws the FAOR of the flight in a group given to it (deps.faor), as the HARM page does
+  let FAN = 0,
+    FAON = false;
+  function faorDraw() {
+    const n = ++FAN;
+    if (!G.fa) return;
+    G.fa.clearLayers();
+    if (away || !deps.faor || !st.on.fa) return;
+    const g = window.L.layerGroup();
+    new Promise(r => r(deps.faor({ L: window.L, map, WL: g })))
+      .then(ok => {
+        if (n !== FAN || away) return;
+        G.fa.clearLayers();
+        if (ok)
+          g.getLayers().forEach(l => {
+            g.removeLayer(l);
+            G.fa.addLayer(l);
+          });
+      })
+      .catch(() => {});
+  }
   function harmDraw() {
     const n = ++HMN;
     if (!G.hm) return;
@@ -5258,6 +5364,7 @@ export function createMap(host, deps) {
       if (map) dtcInfo();
     },
     autoPptFor: list => autoPptFor(list),
+    autoFaor: (Fz, name) => autoFaor(Fz, name),
     addPpt: m => addPpt(m),
     isSamPpt: n => !(PPT.length > 0) || isSamPpt(n),
     samRng: (name, rng) => samRng(name, rng),
@@ -5287,7 +5394,9 @@ export function createMap(host, deps) {
                 ? 'Front line (AUTO)'
                 : k.startsWith('tk:')
                   ? 'Tanker ' + k.slice(3)
-                  : k;
+                  : k.startsWith('faor:')
+                    ? 'FAOR (AUTO)'
+                    : k;
       });
       dtcLines({ line: P.line.filter(p => !p.empty) }).forEach(run => {
         const tk = (PREF.tanks || []).find(

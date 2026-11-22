@@ -493,6 +493,7 @@ const ALL_SRC = [
   ['sead', 'SEAD'],
   ['dead', 'DEAD'],
   ['atk', 'Attack'],
+  ['faor', 'FAOR'],
   ['wx', 'Weather'],
   ['tgt', 'Target'],
   ['roe', 'ROE / SOP'],
