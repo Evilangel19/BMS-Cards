@@ -5,6 +5,7 @@
 // 8th FW / 51st FW in-flight guides (Kunsan, Osan) and AFMAN 11-2F-16V3 (its values added as more options, "AFMAN" where the others differ); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
 
 import { cleanFaor, faorLines } from './faor.js';
+import { cleanAg, agLines } from './agrules.js';
 
 // [id, label, kind ('one' | 'many'), tag on the card, options [id, long, short]]
 export const ROE = [
@@ -976,7 +977,8 @@ export const emptySel = () => ({
   sop: {},
   free: '', // other ROE lines
   sfree: '', // other SOP lines
-  faor: null, // the FAOR block, written by the FAOR page for a CAP flight (core/faor.js): its weapons control and commit win over those above
+  faor: null, // the A-A block, written by A-A > DCA / OCA (core/faor.js): its weapons control and commit win over those above
+  ag: null, // the A-G block, written by the A-G pages (core/agrules.js): on the ROE card, not in the ROE box of the datacard
 });
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 // a choice that comes from outside (a file, a preset, the network) is checked: unknown ids are dropped
@@ -1009,6 +1011,7 @@ export function cleanSel(s) {
   o.free = str(s.free, 600);
   o.sfree = str(s.sfree, 600);
   o.faor = cleanFaor(s.faor);
+  o.ag = cleanAg(s.ag);
   return o;
 }
 // the short text of a SOP topic: the option, or what was typed for it
@@ -1195,7 +1198,7 @@ export function cleanSqPresets(a) {
       .slice(0, 50)
       .map(p => ({
         name: str(p.name.trim(), 40),
-        sel: { ...cleanSel(p.sel), faor: null },
+        sel: { ...cleanSel(p.sel), faor: null, ag: null },
         cats: catsOf(p.cats),
         std: !!p.std,
       }))
@@ -1231,7 +1234,11 @@ export function cleanPresets(a) {
     (Array.isArray(a) ? a : [])
       .filter(p => p && typeof p.name == 'string' && p.name.trim())
       .slice(0, 50)
-      .map(p => ({ name: str(p.name.trim(), 40), sel: { ...cleanSel(p.sel), faor: null }, cats: catsOf(p.cats) }))
+      .map(p => ({
+        name: str(p.name.trim(), 40),
+        sel: { ...cleanSel(p.sel), faor: null, ag: null },
+        cats: catsOf(p.cats),
+      }))
   );
 }
 
@@ -1242,9 +1249,11 @@ export function fullText(sel) {
     roe = [],
     sop = [];
   if (s.faor) roe.push(['A-A' + (s.faor.kind ? ' · ' + s.faor.kind : ''), faorLines(s.faor, true)]);
+  if (s.ag) roe.push(['A-G · ' + s.ag.kind, agLines(s.ag, true)]);
   ROE.forEach(([id, lab, k, , opts]) => {
-    if (s.faor && (id == 'ws' || id == 'commit')) return; // in the FAOR block
+    if (s.faor && (id == 'ws' || id == 'commit')) return; // in the A-A block
     const L = (k == 'many' ? s.roe[id] : s.roe[id] ? [s.roe[id]] : [])
+      .filter(v => !(s.ag && (v == 'minrls' || v == 'pid'))) // in the A-G block
       .map(v => (opts.find(o => o[0] === v) || [])[1])
       .filter(Boolean);
     if (L.length) roe.push([lab, L]);

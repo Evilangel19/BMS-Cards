@@ -905,6 +905,13 @@ export function createSeadPage(deps) {
     }
     fill();
     paint();
+    // the A-G block of the ROE of the flight: the HARM mode, preemptive, MAGNUM
+    if (X && X.ok && P && deps.roeAg)
+      try {
+        deps.roeAg({ kind: 'SEAD', harm: mode() == 'pos' ? 'POS ' + sub() : mode().toUpperCase() });
+      } catch (e) {
+        /* no flight */
+      }
   }
 
   // ---- the buttons

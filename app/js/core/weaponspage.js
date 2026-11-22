@@ -25,6 +25,7 @@ import {
   TOSS_LIMITS,
 } from './strike.js';
 import { toMag } from './magvar.js';
+import { agChecks, agAttack, TOSS_MAX } from './agrules.js';
 
 const KEY = 'wppopup3';
 const MODES = [
@@ -125,6 +126,7 @@ export function createWeaponsPage(deps) {
     r.fls = o.fls && typeof o.fls == 'object' ? o.fls : null;
     r.inMode = r.fls && ATK.includes(o.inMode) ? o.inMode : null;
     if (!r.inMode) r.fls = null;
+    if (r.toss.releaseAngle > TOSS_MAX) r.toss.releaseAngle = TOSS_MAX; // the toss of BMS: 45° at most (an older page allowed 60°)
     if (!r.inp.heading) r.inp.heading = 360;
     if (!MODES.some(m => m[0] === r.mode)) r.mode = keep.mode;
     return r;
@@ -148,7 +150,9 @@ export function createWeaponsPage(deps) {
     mapNote = '',
     el = null,
     elKey = '',
-    elTok = 0; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
+    elTok = 0,
+    AGC = { flags: {}, list: [] }, // the checks of the manuals (core/agrules.js)
+    WXB = null; // el: terrain elevations (ft MSL) of the points of the drawing, from HeightMap.raw when the BMS folder is known
 
   const cur = () => (st.mode == 'hadb' ? st.hadb : st.mode == 'toss' ? st.toss : st.inp);
   const ENG = m => (m == 'hadb' ? computeHadb : m == 'toss' ? computeToss : computePopup);
@@ -717,7 +721,24 @@ export function createWeaponsPage(deps) {
         keys = fzKeys();
       res.an = analyse(res, sel.env, sel.guided && st.fz.mode == 'c1' ? [] : keys.map(k => st.fz[k]));
       res.an.sel = sel;
-    }
+      // the rules of the manuals (pop-up speed, rack interval, ceiling): their sliders red with the others, their lines over the results
+      AGC = ATK.includes(st.mode)
+        ? agChecks({
+            mode: st.mode,
+            v: { ...(res.v || {}), ...cur() },
+            elev: el && has(el.tgt) ? el.tgt : null,
+            base: WXB,
+          })
+        : { flags: {}, list: [] };
+      res.an.flags = { ...(res.an.flags || {}), ...AGC.flags };
+      // the A-G block of the ROE of the flight
+      if (ATK.includes(st.mode) && deps.roeAg)
+        try {
+          deps.roeAg(agAttack(st.mode, res.an.mra ? res.an.mra.value : null, deps.night ? !!deps.night() : false));
+        } catch (e) {
+          /* no flight */
+        }
+    } else AGC = { flags: {}, list: [] };
     if (!noElev) loadElev();
   }
 
@@ -2807,7 +2828,7 @@ export function createWeaponsPage(deps) {
         k('TURN', v.side == 'left' ? 'Left' : 'Right');
     }
     const fzc = fuzeCard(v, r.fuze, turn);
-    return `<div class="wpt">${tiles}</div>${matResult(r)}
+    return `${AGC.list.length ? `<div class="wcard"><h3>Checks</h3>${AGC.list.map(t => `<div class="wbad">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wpt">${tiles}</div>${matResult(r)}
     <div class="wcard"><div class="wh"><h3>Vertical envelope</h3><span class="hint">altitudes AGL · distances to scale</span></div>${profile(r)}</div>
     <div class="wcard"><h3>NAV OFFSETS</h3><table class="dt"><tr><th></th><th>Bearing</th><th>Range ft</th><th>Elev.</th></tr>${rowsH}</table>
     <p class="hint wnote">${doneText() || (st.src == 'man' ? 'Manual entry: Apply writes the weapon settings only and clears the offsets of the DTC. Type these rows in the DED.' : 'Apply to the DTC (top right) writes these rows and the weapon settings, and clears the other offsets. Missing rows are created.')}</p></div>
@@ -2850,7 +2871,20 @@ export function createWeaponsPage(deps) {
       if (p && p.addCard) return p.addCard(b);
     };
   }
+  function wxAsk() {
+    if (!deps.wxBase) return;
+    Promise.resolve(deps.wxBase())
+      .then(v => {
+        const b = v == null ? null : v;
+        if (b !== WXB) {
+          WXB = b;
+          draw(true);
+        }
+      })
+      .catch(() => {});
+  }
   function draw(keepLeft) {
+    wxAsk();
     const sub = st.mode == 'harm' ? deps.harm : st.mode == 'tgt' ? deps.tgt : null;
     if (sub) {
       // the HARM shot and the target picture live on their own page objects, shown under the same mode tabs
@@ -3799,6 +3833,12 @@ export function createWeaponsPage(deps) {
         save();
         refresh();
       }
+    },
+    // the tests (tools/agrules-test.py): the A-G block, the night and the weather made up
+    _test: o => {
+      ['roeAg', 'night', 'wxBase'].forEach(k => o[k] && (deps[k] = o[k]));
+      WXB = null;
+      refresh();
     },
     spec,
     attack,

@@ -39,6 +39,7 @@ import { seatIdx } from './seat.js';
 import { flightTag } from './ato.js';
 import { chooseCards } from '../core/tgdlg.js';
 import { faorLines } from '../core/faor.js';
+import { agLines } from '../core/agrules.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
 // folded (bmsroeclosed2), Chosen only (bmsroeonly)
@@ -126,12 +127,14 @@ const R = {
   flightKey: null,
 };
 // the FAOR block (written by the FAOR page) is not a choice of this page: a preset with the same choices is still that preset
-const key = s => JSON.stringify({ ...cleanSel(s), faor: null });
+const key = s => JSON.stringify({ ...cleanSel(s), faor: null, ag: null });
 // a choice put in keeps the FAOR block of the flight (a preset, Clear, Discard do not touch it): only the FAOR page changes it
 const setSel = (s, kept = true) => {
-  const fa = R.sel && R.sel.faor;
+  const fa = R.sel && R.sel.faor,
+    ag = R.sel && R.sel.ag;
   R.sel = cleanSel(s);
   R.sel.faor = fa || null;
+  R.sel.ag = ag || null;
   R.cust = new Set(Object.keys(R.sel.sop).filter(k => R.sel.sop[k].t));
   if (kept) R.base = key(R.sel);
 };
@@ -176,6 +179,7 @@ function loadFlight() {
   R.sel = emptySel();
   setSel(flightSel(), false);
   R.sel.faor = cleanSel(flightSel()).faor;
+  R.sel.ag = cleanSel(flightSel()).ag;
   R.wrote = key(R.sel);
   matchPick();
 }
@@ -404,12 +408,13 @@ function render0(box) {
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
     return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
   };
-  const fa = R.sel.faor;
+  const fa = R.sel.faor,
+    ag = R.sel.ag;
   const roeCard = card(
     'roe',
     'ROE',
     `one rule a line on the card · ${BOX_MAX} lines at most`,
-    `${fa ? `<div class="rpfa"><div class="rpt rg">A-A · ${esc(fa.pos != null ? 'OCA' : 'DCA')}${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by A-A &gt; ${fa.pos != null ? 'OCA' : 'DCA'}</small><button type="button" class="btn g" data-a="faor" title="The page that writes this block">Edit in ${fa.pos != null ? 'OCA' : 'DCA'}</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
+    `${fa ? `<div class="rpfa"><div class="rpt rg">A-A · ${esc(fa.pos != null ? 'OCA' : 'DCA')}${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by A-A &gt; ${fa.pos != null ? 'OCA' : 'DCA'}</small><button type="button" class="btn g" data-a="faor" title="The page that writes this block">Edit in ${fa.pos != null ? 'OCA' : 'DCA'}</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ag ? `<div class="rpfa"><div class="rpt rg">A-G · ${esc(ag.kind)}<small>written by A-G</small><button type="button" class="btn g" data-a="agpage" title="The page that writes this block">Edit in A-G</button></div><div class="rpfl">${agLines(ag, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
       ([id, lab, kind, , opts]) =>
         fa && (id == 'ws' || id == 'commit')
           ? `<div class="rpt rg">${esc(lab)}<small>set by A-A</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
@@ -549,13 +554,20 @@ export function roeOfFlight() {
 // THE FAOR BLOCK of the flight, from the FAOR page (core/faor.js faorRoe, null: none): on the datacard at once, and on this page when it shows the flight.
 // false when there is no flight or nothing changed
 export function roeFaorSet(fa) {
+  return blockSet('faor', fa);
+}
+// THE A-G BLOCK of the flight, from the A-G pages (core/agrules.js); false when nothing changed
+export function roeAgSet(b) {
+  return blockSet('ag', b);
+}
+function blockSet(field, fa) {
   if (!flightOn()) return false;
   const seen = R.box && ST.CURK === R.flightKey,
     s = seen ? R.sel : flightSel(),
-    nx = cleanSel({ ...s, faor: fa });
-  if (JSON.stringify(nx.faor) === JSON.stringify(cleanSel(s).faor)) return false;
+    nx = cleanSel({ ...s, [field]: fa });
+  if (JSON.stringify(nx[field]) === JSON.stringify(cleanSel(s)[field])) return false;
   if (seen) {
-    R.sel.faor = nx.faor;
+    R.sel[field] = nx[field];
     writeCard();
     if (R.box.isConnected && !R.box.closest('.hide')) render();
   } else writeCard(nx);
@@ -895,6 +907,7 @@ function wire(box) {
     }
     if (!a) return;
     const act = a.dataset.a;
+    if (act == 'agpage') return ST.agGo && ST.agGo(R.sel.ag);
     if (act == 'faor') return ST.bvrGo && ST.bvrGo(R.sel.faor && R.sel.faor.pos != null ? 'oca' : 'faor');
     if (act == 'clear') {
       setSel(emptySel(), false);

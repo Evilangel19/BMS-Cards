@@ -71,7 +71,7 @@ export const HADB_LIMITS = {
   stickSpacing: [0, 1000, 25],
 };
 export const TOSS_LIMITS = {
-  releaseAngle: [5, 60, 1],
+  releaseAngle: [5, 45, 1], // TO 1F-16CM-34-1-1 BMS: the CCRP release angle 0-45°, max toss 45°
   ingressAltitude: [50, 2000, 50],
   ingressSpeed: [300, 650, 5],
   releaseSpeed: [300, 650, 5],

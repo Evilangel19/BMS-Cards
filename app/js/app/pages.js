@@ -49,6 +49,7 @@ import { createOcaPage } from '../core/ocapage.js';
 import { ocaKind } from '../core/oca.js';
 import { timed } from '../core/sead.js';
 import { sunAlt } from '../rules/ephemerides.js';
+import { wxAtTarget } from '../core/smartwx.js';
 import { capKind } from '../core/faor.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
@@ -98,7 +99,7 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
-import { roeDraw, roeAllCards, roeSmartNow, roeOfFlight, roeFaorSet } from './roepage.js';
+import { roeDraw, roeAllCards, roeSmartNow, roeOfFlight, roeFaorSet, roeAgSet } from './roepage.js';
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
@@ -638,8 +639,38 @@ function seadCtx() {
   };
 }
 const HARM_K = (t, n) => `THREAT ${t} ${n}`;
+// ---- what the A-G pages (attack, SEAD, DEAD) ask: the A-G block of the ROE of the flight (not for an air-to-air flight), the night over its task
+// (the date of the campaign on the Datacard), the cloud base over the target (the weather of the Weather page)
+const atoFlight = () => {
+  const f = curFlight();
+  return f ? ATOL.find(z => z.f === f) : null;
+};
+function agDeps() {
+  return {
+    roeAg: b => {
+      const e = atoFlight();
+      if (e && (capKind(e.mission) || ocaKind(e.mission))) return false; // an A-A flight: its block is the A-A one
+      return roeAgSet(b);
+    },
+    night: () => {
+      const e = atoFlight(),
+        t = e && taskOf(e.f.wps),
+        a = t ? sunAlt(t.x, t.y, t.t0) : null;
+      return a != null && a < -6;
+    },
+    wxBase: async () => {
+      try {
+        const D = wxPage && wxPage.smartData ? await wxPage.smartData() : null;
+        return D ? wxAtTarget(D, 3000).base : null;
+      } catch (e) {
+        return null;
+      }
+    },
+  };
+}
 function seadDeps() {
   return {
+    ...agDeps(),
     combo: () => comboBase(),
     esc,
     toast: appToast,
@@ -1227,6 +1258,14 @@ export async function init9() {
     }
     await wait(700); // the map in its place, its tiles
   };
+  // the ROE page (Edit in A-G): the A-G page of the block
+  ST.agGo = b => {
+    const k = b && b.kind;
+    wpGo(
+      k == 'SEAD' || k == 'DEAD' ? 'harm' : k == 'HADB' ? 'hadb' : k == 'TOSS' ? 'toss' : 'popup',
+      k == 'SEAD' ? 'sead' : k == 'DEAD' ? 'dead' : undefined
+    );
+  };
   let wp0 = null;
   KBX.begin = () => {
     let hs = null;
@@ -1273,6 +1312,7 @@ export async function init9() {
   // the desktop program takes the files dropped on its window: a picture dropped on A-G > Target is its screenshot
   if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));
   ST.wpPage = createWeaponsPage({
+    ...agDeps(),
     offs: OFFS,
     harm: harmTab,
     tgt: ST.tgPage,

@@ -1222,6 +1222,18 @@ export function createDeadPage(deps) {
     }
     fill();
     paint();
+    // the A-G block of the ROE of the flight: the tactic, the HARM mode (not for bombs / Maverick)
+    if (P && X && X.ok && deps.roeAg)
+      try {
+        const t = tactic();
+        deps.roeAg({
+          kind: 'DEAD',
+          tactic: { hs: 'HARM STANDOFF', hk: 'HUNTER-KILLER', bomb: 'BOMBS / MAVERICK' }[t] || '',
+          harm: t == 'bomb' ? '' : mode() == 'pos' ? 'POS ' + sub() : mode().toUpperCase(),
+        });
+      } catch (e) {
+        /* no flight */
+      }
   }
   function wire() {
     acts.onclick = e => root.onclick && root.onclick(e); // the buttons at the top (outside the page) work as the page's

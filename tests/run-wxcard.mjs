@@ -1,7 +1,7 @@
 // The Weather card of the Kneeboard (1.3.0-beta.13): the plain words of the METAR and of the TAF, and the card drawn on a context that only
 // records what is drawn (no browser): the chart, the profile, the big H and L, the small h and l, the reports, the contrails. Small maps made here.
 import { decodeWx, tafParts, drawWxCard, WXC_W, WXC_H, WIND_LEVELS } from '../app/js/core/wxcard.js';
-import { D, W } from './wxdata.mjs';
+import { D } from './wxdata.mjs';
 
 let n = 0,
   bad = 0;

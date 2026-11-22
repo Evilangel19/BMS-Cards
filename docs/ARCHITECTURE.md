@@ -86,6 +86,7 @@ preferences and the tests of before still work. Use this table to find a page in
 | A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
 | A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
 | The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA and OCA: an OCA block has `pos`, `lead`, `ta`), `cleanFaor` / `faorLines` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
+| The A-G block of the ROE | `sel.ag` in `core/roesop.js` (kind POP-UP, HADB, TOSS, SEAD, DEAD), `cleanAg` / `agLines` / `agAttack` in `core/agrules.js`, `roeAgSet` in `app/roepage.js` (both blocks through `blockSet`), `agDeps` in `app/pages.js`, `ST.agGo(block)` (Edit in A-G) |
 
 - **One plan, three drawings** (`core/aakit.js`): a page of A-A describes its plan once as a list of shapes in km (`spec()`: poly, ring, dot, label, arrow, each
   with an `ink` for the Smart card) and the same list is drawn on the Leaflet map (`drawLeaflet`: the page and Display > DCA / OCA), in the pixels of the
@@ -100,6 +101,18 @@ preferences and the tests of before still work. Use this table to find a page in
   page wrote before are replaced only after asking.
 - Shapes with `map: false` are drawn on the cards only (the SAM rings of OCA: the map shows the SAMs already).
 - Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`.
+
+## A-G rules of the manuals
+
+- `core/agrules.js` (pure): the limits of TO 1F-16CM-34-1-1 BMS and AFMAN 11-2F-16 Vol 3 (`POPUP_KCAS` 350, 300 above 10 000 ft AGL; `CEIL_AGL` 2 000;
+  `RACK_MS` 60; `TOSS_MAX` 45) and `agChecks`: a pop-up under the abort speed (the TAS as KCAS at the release altitude over the target) and a ripple under
+  the least interval of the racks turn their sliders red; a cloud base over the target under the ceiling (`deps.wxBase`: the Weather card of the flight,
+  `wxAtTarget`) is a red line of the Checks card of the page. The release angle of the toss ends at 45° (`TOSS_LIMITS`; a page saved with more is cut).
+- **The A-G block** (`sel.ag`): the attack pages (Pop-up, HADB, TOSS) and HARM > SEAD / DEAD write it in the ROE of the flight after each plan
+  (`deps.roeAg`, not for a CAP or OCA flight: its block is the A-A one); the night comes from the date of the campaign (`deps.night`, the Sun under -6°
+  over the task steerpoint). Like the A-A block it is kept out of the presets (`key()` in `app/roepage.js`); while it is there, the choices PID and MIN RLS
+  of the lists step aside on the card.
+- Tests: `tests/run-agrules.mjs`, `tools/agrules-test.py`.
 
 ## Docs page
 
