@@ -50,6 +50,7 @@ import { radarUnits } from '../core/radarcov.js';
 import { createFaorPage } from '../core/faorpage.js';
 import { createQraPage } from '../core/qrapage.js';
 import { qraKind } from '../core/qra.js';
+import { categoryOf } from '../core/ato.js';
 import { createOcaPage } from '../core/ocapage.js';
 import { ocaKind } from '../core/oca.js';
 import { timed } from '../core/sead.js';
@@ -654,11 +655,18 @@ const atoFlight = () => {
   const f = curFlight();
   return f ? ATOL.find(z => z.f === f) : null;
 };
+// the kind of A-G mission of a flight: SEAD, DEAD, an attack (strike, interdiction, CAS, an airfield strike, anti-ship) or null (A-A, support...)
+const agKindOf = m =>
+  m == 'SEAD' || m == 'DEAD'
+    ? m
+    : m == 'OCA STRIKE' || m == 'TASMO' || ['Airstrike', 'Air Interdiction', 'CAS'].includes(categoryOf(m))
+      ? 'ATK'
+      : null;
 function agDeps() {
   return {
     roeAg: b => {
       const e = atoFlight();
-      if (e && (capKind(e.mission) || ocaKind(e.mission) || qraKind(e.mission))) return false; // an A-A flight: its block is the A-A one
+      if (e && !agKindOf(e.mission)) return false; // an A-A or a support flight: no A-G block
       return roeAgSet(b);
     },
     night: () => {
@@ -1332,6 +1340,19 @@ export async function init9() {
       }
     }
     await wait(700); // the map in its place, its tiles
+  };
+  // THE ROE BLOCKS when a flight is chosen (app/selection.js apply): the page of its mission writes its block at once, without being opened
+  ST.roeBlocks = () => {
+    const e = atoFlight();
+    if (!e) return;
+    try {
+      if (capKind(e.mission) || qraKind(e.mission)) dcaPage().roeNow();
+      else if (ocaKind(e.mission)) ocaPage.roeNow();
+      else if (agKindOf(e.mission) == 'SEAD' || agKindOf(e.mission) == 'DEAD') roeAgSet({ kind: e.mission });
+      else if (agKindOf(e.mission) == 'ATK' && ST.wpPage) ST.wpPage.roeNow();
+    } catch (er) {
+      /* the page cannot plan this flight */
+    }
   };
   // the ROE page (Edit in A-G): the A-G page of the block
   ST.agGo = b => {

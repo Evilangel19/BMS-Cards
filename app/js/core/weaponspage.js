@@ -3170,7 +3170,7 @@ export function createWeaponsPage(deps) {
           ${oa1Row}
           <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
-        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
+        <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><span style="flex:1"></span><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
           <div class="wrow wmap"><label>Map layer</label>${seg(
             'mapon',
             [
@@ -3777,6 +3777,22 @@ export function createWeaponsPage(deps) {
       draw(true);
     },
     state: () => st,
+    // the A-G block of the ROE of the flight, without drawing the page (a flight chosen: pages.js ST.roeBlocks): the plan of the attack page last shown
+    // when it has a target, else its rules with no minimum release yet
+    roeNow: () => {
+      if (!deps.roeAg) return;
+      const m = ATK.includes(st.mode) ? st.mode : ATK.includes(st.amode) ? st.amode : 'popup',
+        keep = st.mode;
+      try {
+        st.mode = m;
+        compute(true);
+        if (!res || res.error) deps.roeAg(agAttack(m, null, deps.night ? !!deps.night() : false));
+      } catch (e) {
+        /* nothing to plan */
+      } finally {
+        st.mode = keep;
+      }
+    },
     // the horizontal drawing of an attack page (popup, hadb, toss) on the target steerpoint nearest to a point (x, y km: A-G > HARM > DEAD, its SAM),
     // with the settings of that page, in km: {label, segs [{k, name, col, dash, pts}], marks [{x, y, l, col}]} | {error} | null (no steerpoint within
     // 10 nm). The page is left as it was (its mode, its target, its result)

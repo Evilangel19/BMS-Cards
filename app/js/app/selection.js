@@ -175,6 +175,7 @@ export function apply(i, mode) {
   wxPrep(i);
   msaFill(i);
   bvrAuto(i);
+  if (ST.roeBlocks) ST.roeBlocks(); // the A-A or A-G block of the ROE, from the page of the mission (app/pages.js)
   roeRefresh(); // the page ROE / SOP shows this flight
 }
 // the flight the player chose in the campaign (a seat of it taken by a player, saved in the campaign file), else the next flight of the player's squadron

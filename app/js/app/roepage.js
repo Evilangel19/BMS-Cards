@@ -126,6 +126,7 @@ const R = {
   wrote: '', // the choices last written on the datacard
   cust: new Set(), // the SOP topics written with an own text
   flightKey: null,
+  stale: false, // a block of a page came while this page was hidden: drawn when it is shown
 };
 // the FAOR block (written by the FAOR page) is not a choice of this page: a preset with the same choices is still that preset
 const key = s => JSON.stringify({ ...cleanSel(s), faor: null, ag: null });
@@ -189,8 +190,13 @@ export function roeDraw(box, ctx) {
   const sig = JSON.stringify([ctx.squad, ctx.own, ctx.presets, ctx.sections]);
   R.ctx = ctx;
   syncCustom();
-  if (ST.CURK !== R.flightKey || !R.box) loadFlight();
-  if (box !== R.box || sig !== R.sig || !box.firstChild) {
+  let fresh = R.stale; // a block written while the page was hidden (blockSet): the page shows it now
+  if (ST.CURK !== R.flightKey || !R.box) {
+    loadFlight();
+    fresh = true;
+  }
+  if (box !== R.box || sig !== R.sig || !box.firstChild || fresh) {
+    R.stale = false;
     if (sig !== R.sig && R.box && !dirty()) matchPick(); // the lists changed (saved here, or by the commander): the preset of now again
     R.box = box;
     R.sig = sig;
@@ -571,6 +577,7 @@ function blockSet(field, fa) {
     R.sel = nx;
     writeCard();
     if (R.box.isConnected && !R.box.closest('.hide')) render();
+    else R.stale = true; // drawn when the page is shown (roeDraw)
   } else writeCard(nx);
   return true;
 }

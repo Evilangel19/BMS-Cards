@@ -716,6 +716,11 @@ export function createQraPage(deps) {
     allCards,
     addCard: b => addCard(b),
     dtcAuto,
+    // the A-A block of the ROE of the flight, without drawing the page (a flight chosen: pages.js ST.roeBlocks)
+    roeNow: () => {
+      compute();
+      roeWrite();
+    },
     render: async () => {
       shown = true;
       draw(false);

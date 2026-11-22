@@ -145,7 +145,8 @@ preferences and the tests of before still work. Use this table to find a page in
   `RACK_MS` 60; `TOSS_MAX` 45) and `agChecks`: a pop-up under the abort speed (the TAS as KCAS at the release altitude over the target) and a ripple under
   the least interval of the racks turn their sliders red; a cloud base over the target under the ceiling (`deps.wxBase`: the Weather card of the flight,
   `wxAtTarget`) is a red line of the Checks card of the page. The release angle of the toss ends at 45° (`TOSS_LIMITS`; a page saved with more is cut).
-- **The A-G block** (`sel.ag`): the attack pages (Pop-up, HADB, TOSS) and HARM > SEAD / DEAD write it in the ROE of the flight after each plan
+- **The A-G block** (`sel.ag`): the attack pages (Pop-up, HADB, TOSS) and HARM > SEAD / DEAD write it in the ROE of the flight after each plan,
+  and at once when a flight is chosen (`ST.roeBlocks` in `app/pages.js`: the page of its mission, `roeNow()`; the A-A pages the same);
   (`deps.roeAg`, not for a CAP or OCA flight: its block is the A-A one); the night comes from the date of the campaign (`deps.night`, the Sun under -6°
   over the task steerpoint). Like the A-A block it is kept out of the presets (`key()` in `app/roepage.js`); while it is there, the choices PID and MIN RLS
   of the lists step aside on the card and in the datacard box.

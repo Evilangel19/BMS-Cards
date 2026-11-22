@@ -45,6 +45,7 @@ This file says what the program does today, how far each part has been checked, 
 - NAV OFFSETS written to the DTC: that VRP, VIP, OA1 and OA2 appear in the DED.
 - The Squadron with more pilots than three: packages and flights edited at the same moment, templates, a card sent over the link, dragging on every PC.
 - Other theaters with more campaigns; the aircraft of those theaters.
+- Before the merge of 1.3: the animation of the map when it fits what an AUTO wrote (some seem to be missing).
 
 ## Assumptions made when reading BMS files
 
