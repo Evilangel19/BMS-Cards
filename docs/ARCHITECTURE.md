@@ -123,6 +123,31 @@ preferences and the tests of before still work. Use this table to find a page in
   of the lists step aside on the card.
 - Tests: `tests/run-agrules.mjs`, `tools/agrules-test.py`.
 
+## How a mission page is made
+
+The method of the pages of A-G (Pop-up, HADB, TOSS, SEAD, DEAD) and A-A (DCA, QRA, OCA), to follow for the next ones.
+
+1. **Doctrine first.** Public USAF and NATO documents (AFTTP, AFMAN 11-2F-16 Vol 3, ATP / AJP, the Multi-Service Brevity Codes, the BMS manuals);
+   the habits of the players only as a backup. The names on screen come from the documents (FEZ, scramble line, stern conversion); the minimums
+   and the standards of the sliders too, each one written in a comment with its source.
+2. **The BMS files next**, before planning the page: what the campaign really holds for that mission (the mission number in Strings.txt, the
+   waypoint actions and their `tid`, what is spotted by the side, the times). A probe in `/home/claude/work` over several campaigns (Korea and other
+   theaters) with `Falcon4_CT.xml` loaded into `CAM.D.ct`. When the files change the plan (QRA: no flight starts as an INTERCEPTION), say so and
+   decide with the user before writing code.
+3. **Only what the pilot could know**: the spotted enemy, the steerpoints of the flight, the date of the campaign; never the true route of the enemy.
+   What is missing falls back to something the page states (the BMS steerpoint, the threat axis of the DCA).
+4. **Agree the list first**: the sliders (defaults from the profile of the mission, the ranges inside the limits of the documents), the red checks,
+   the ROE lines, the DTC lines, the cards; then the code in one beta.
+5. **The shape of the code**:
+   - a pure module with the geometry, the checks `[text, red]`, the ROE block and the DTC lines (`core/faor.js`, `core/oca.js`, `core/qra.js`,
+     `core/agrules.js`), tested with made-up data in `tests/run-*.mjs`;
+   - a page `create...Page(deps)` with `ctx()` built in `app/pages.js` from the ATO (`...Ctx`), `spec()` as the one list of shapes for the map, the
+     classic card and the Smart card (`core/aakit.js`), `roeWrite` into its block of the ROE (`sel.faor` A-A, `sel.ag` A-G), `dtcAuto` through
+     `mapview.autoAA` (asks before replacing), `state` / `setState` in the mission (`app/mission.js`), `allCards` for Add all cards, `_test`;
+   - the cards: classic (`core/aacard.js` or the card of the page) with the picture of the map, Smart, and the module of the Smart mission card;
+   - a browser test `tools/<page>-test.py` with a made-up context, screenshots looked at before the commit.
+6. **Then** the docs (this file: the names in the code; BETALOG, CHANGELOG, the guide) and the version.
+
 ## Docs page
 
 `app/js/core/docspage.js` (`createDocsPage(deps)`, the PDF reading is handed in as `deps.pdf`). The viewer shows one page at a time, or (switch **Scroll**, off at the first start, remembered in `localStorage['bmsdocscroll']`) all the pages one below the other: a slot for every page (sized from the page; the sizes of the pages after the first are read in the background and the place in the document is kept), a page is drawn only while it is near the view and freed when it is far (a serial queue, at most 36 million pixels per page); the page in view is the current page (number box, arrows, thumbnail), so "Add page to cards" adds that one; the zoom applies to all the pages; the arrows, the thumbnails and the number box scroll to the page (smooth only with the animations on). **All pages** asks first above `ALL_WARN` (20) pages, then adds them with a strip under the toolbar (where it is, a bar, Cancel); opening another document stops the run. The thumbnails stay when the view is drawn again. Tests: `tools/docs-test.py` (with `SHOTS=<folder>` it saves screenshots).

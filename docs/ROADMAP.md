@@ -65,6 +65,12 @@ Nothing here is promised.
 - Adapting the program to future versions of Falcon BMS (new aircraft, data and theaters).
 - A calibration of the weapon and performance models as more readings from the game come in (the flap lift of the F/A-18, the AoA units of the F-15C).
 - More standard kneeboard cards, when there is a need.
+- Mission pages still to come (made with the method of ARCHITECTURE.md, "How a mission page is made"):
+  - **Air refuelling**: the tanker track of the campaign, ARIP / ARCP, the rendezvous time and the fuel on and off the boom.
+  - **TASMO**: the ships of the campaign, the ranges of the anti-ship missiles and of the ship SAMs, the launch point.
+  - **AI / BAI / SCAR** (maybe): a kill box on the area of the battalion, where a column on the move will be at the time on target (its route in the
+    campaign file, an area that grows with time), the search pattern of a SCAR; the attack itself with the A-G pages.
+  - CAS is left out on purpose: the JTAC gives the 9-line in flight, and the ground units are aggregated in the planning and not updated in flight.
 - Approach points from the ATC files (`Terrdata/atc/<airfield>.dat`) for an instrument or visual landing.
 
 ## Security
