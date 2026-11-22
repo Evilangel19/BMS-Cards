@@ -196,6 +196,8 @@ export function flightState(f, t) {
     y = a.y + (b.y - a.y) * k,
     km = Math.hypot(b.x - a.x, b.y - a.y);
   return {
+    x,
+    y,
     ll: toLL(x, y),
     hdg: ((Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI + 360) % 360,
     mhdg: toMag((Math.atan2(b.x - a.x, b.y - a.y) * 180) / Math.PI, x, y), // magnetic: what the pilot reads

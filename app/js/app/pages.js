@@ -43,8 +43,13 @@ import {
   mapAirbases,
   airbaseSide,
   allyOf,
+  spottedBy,
+  flightState,
 } from '../core/mapdata.js';
+import { radarUnits } from '../core/radarcov.js';
 import { createFaorPage } from '../core/faorpage.js';
+import { createQraPage } from '../core/qrapage.js';
+import { qraKind } from '../core/qra.js';
 import { createOcaPage } from '../core/ocapage.js';
 import { ocaKind } from '../core/oca.js';
 import { timed } from '../core/sead.js';
@@ -114,6 +119,9 @@ export let sqPage;
 export let pfPage;
 export let faorPage; // A-A > DCA (the FAOR)
 export let ocaPage; // A-A > OCA
+export let qraPage; // A-A > DCA for a QRA flight
+// the page of A-A > DCA for the flight chosen: the QRA page for a QRA flight, else the FAOR
+export const dcaPage = () => (qraPage && qraPage.usable() ? qraPage : faorPage);
 
 // run 6: statements that run when the program starts (in the order of the original file)
 export async function init6() {
@@ -136,12 +144,12 @@ export async function init6() {
     // Display > HARM: the drawing of the HARM page of the flight (SEAD plan, DEAD tactic, else Single shot) in the group of the map
     harm: o => (seadPage.usable() ? seadPage : deadPage.usable() ? deadPage : harmPage).overlay(o),
     // Display > FAOR: the FAOR of the CAP flight (A-A > DCA)
-    faor: o => (faorPage ? faorPage.overlay(o) : false),
+    faor: o => (faorPage ? dcaPage().overlay(o) : false),
     // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
     // AUTO > FEZ of the DTC editing: the lines of A-A > DCA (or OCA)
     aaAuto: k => {
-      const pg = k == 'dca' ? faorPage : ocaPage;
+      const pg = k == 'dca' ? dcaPage() : ocaPage;
       return pg && pg.dtcAuto ? pg.dtcAuto() : null;
     },
     attack: () => {
@@ -649,7 +657,7 @@ function agDeps() {
   return {
     roeAg: b => {
       const e = atoFlight();
-      if (e && (capKind(e.mission) || ocaKind(e.mission))) return false; // an A-A flight: its block is the A-A one
+      if (e && (capKind(e.mission) || ocaKind(e.mission) || qraKind(e.mission))) return false; // an A-A flight: its block is the A-A one
       return roeAgSet(b);
     },
     night: () => {
@@ -982,6 +990,20 @@ const capPts = f => {
   return T.map(({ w, n }) => ({ x: w.x, y: w.y, n, arr: w.arr || 0, dep: w.dep || 0 }));
 };
 const AA = /AIM-|\bAA-\d|\bR-\d|\bPL-\d|MICA|Meteor|Python|Derby|IRIS-T|Magic|Super 530|Sky Sword/i;
+// the threat of a side: the enemy ground units and SAMs (the spotted ones when there are any) and the enemy airbases; the pages weigh the nearest
+const enemyAbs = (C, team) =>
+  mapAirbases(C.D)
+    .filter(a => a.kind == 'ab' && airbaseSide(C, a.id, team) == 'enemy')
+    .map(a => ({ x: a.x, y: a.y, name: a.name }));
+function threatOf(C, team) {
+  try {
+    const H = mapUnits(C, team).filter(m => m.hostile && m.u.kind == 'gnd'),
+      S = H.filter(m => m.spotted);
+    return [...(S.length ? S : H).map(m => ({ x: m.u.x, y: m.u.y, name: m.name })), ...enemyAbs(C, team)];
+  } catch (er) {
+    return [];
+  }
+}
 function faorCtx() {
   if (!ST.C) return { ok: false, why: 'Open a campaign: the FAOR is planned for the CAP flights of its ATO.' };
   const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
@@ -991,32 +1013,13 @@ function faorCtx() {
   if (!kind)
     return {
       ok: false,
-      why:
-        e.callsign +
-        ' flies ' +
-        e.mission +
-        (/QRA|INTERCEPT/.test(e.mission)
-          ? ': INTERCEPT and QRA are not planned yet (they will be here, in DCA).'
-          : ': the FAOR is planned for the CAP flights.'),
+      why: e.callsign + ' flies ' + e.mission + ': the FAOR is planned for the CAP flights.',
     };
   const C = ST.C,
-    D = C.D,
     cap = capPts(e.f);
   if (!cap.length) return { ok: false, why: e.callsign + ' has no CAP steerpoint.' };
-  // the threat: the enemy ground units and SAMs (the spotted ones when there are any) and the enemy airbases; the page weighs the nearest
-  let enemy = [];
-  try {
-    const H = mapUnits(C, e.team).filter(m => m.hostile && m.u.kind == 'gnd'),
-      S = H.filter(m => m.spotted);
-    enemy = [
-      ...(S.length ? S : H).map(m => ({ x: m.u.x, y: m.u.y, name: m.name })),
-      ...mapAirbases(D)
-        .filter(a => a.kind == 'ab' && airbaseSide(C, a.id, e.team) == 'enemy')
-        .map(a => ({ x: a.x, y: a.y, name: a.name })),
-    ];
-  } catch (er) {
-    enemy = [];
-  }
+  const enemy = threatOf(C, e.team);
+
   const win = c => [c[0].arr || 0, c[c.length - 1].dep || c[c.length - 1].arr || 0],
     w0 = win(cap),
     mates = ATOL.filter(z => z.f !== e.f && capKind(z.mission) && (z.team == e.team || allyOf(C, z.team, e.team)))
@@ -1092,9 +1095,7 @@ function ocaCtx() {
         e.callsign +
         ' flies ' +
         e.mission +
-        (/QRA|INTERCEPT/.test(e.mission)
-          ? ': a DCA mission (A-A > DCA; INTERCEPT and QRA are not planned yet).'
-          : ': OCA plans the SWEEP and ESCORT flights.'),
+        (qraKind(e.mission) ? ': a DCA mission (A-A > DCA).' : ': OCA plans the SWEEP and ESCORT flights.'),
     };
   const mine = timed(e.f.wps);
   const others = ATOL.filter(
@@ -1155,6 +1156,75 @@ function ocaCtx() {
     indep,
     sun: (x, y, t) => sunAlt(x, y, t),
     sams,
+    bull: C.bull ? { x: C.bull.x, y: C.bull.y } : null,
+    joker: F.joker || '',
+    bingo: F.bingo || '',
+    aa: aaLoad(e.f),
+  };
+}
+// ---- A-A > DCA for a QRA flight: its base and take-off, the Intercept steerpoint once the campaign launched it and the enemy flight it names (its
+// state now only when the side of the flight has spotted it), the friendly radars and AWACS, the enemy airbases
+function qraCtx() {
+  if (!ST.C) return { ok: false, why: 'Open a campaign: the QRA is planned for the QRA flights of its ATO.' };
+  const e = atoFlight();
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  if (!qraKind(e.mission)) return { ok: false, why: e.callsign + ' flies ' + e.mission + ': not a QRA.' };
+  const C = ST.C,
+    w = timed(e.f.wps),
+    t0 = w.length ? w[0].dep || w[0].arr : 0,
+    k = e.f.wps.findIndex(p => p.act == 13),
+    ic = k >= 0 ? { x: w[k].x, y: w[k].y, n: k + 1, arr: w[k].arr } : null,
+    mates = [0, 1, 2, 3, 4, 5, 6, 7].filter(t => allyOf(C, t, e.team));
+  let tgt = null;
+  if (ic) {
+    const id = e.f.wps[k].tid,
+      u = id ? C.byId[id.n + ':' + id.c] : null;
+    if (!u || u.kind != 'flight') tgt = { name: 'gone', ac: '', gone: true, st: null };
+    else {
+      const z = ATOL.find(q => q.f === u),
+        s = spottedBy(u, mates) && C.now != null ? flightState(u, C.now) : null;
+      tgt = {
+        name: z ? z.callsign : 'enemy flight',
+        ac: z ? z.n + '× ' + z.ac : '',
+        gone: false,
+        st: s ? { x: s.x, y: s.y, t: C.now, hdg: s.hdg, gs: s.gsKt, alt: s.altFt } : null,
+      };
+    }
+  }
+  let radars = [];
+  try {
+    radars = radarUnits(mapUnits(C, e.team))
+      .filter(r => r.ally)
+      .map(r => ({ x: r.x, y: r.y, rng: r.rngAir }));
+  } catch (er) {
+    radars = [];
+  }
+  const awacs = ATOL.some(z => {
+    if (!/AWACS|AEW/.test(z.mission) || !(z.team == e.team || allyOf(C, z.team, e.team))) return false;
+    const q = timed(z.f.wps);
+    return q.length > 1 && q[0].arr <= t0 && q[q.length - 1].arr >= t0;
+  });
+  return {
+    ok: true,
+    me: {
+      key: String(e.f.id.n),
+      name: e.callsign,
+      mission: e.mission,
+      kind: 'QRA',
+      n: e.n,
+      ac: e.ac,
+      pkgNo: e.pkgNo,
+      team: e.team,
+      tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
+    },
+    base: { x: e.f.wps[0].x, y: e.f.wps[0].y, name: e.base || '' },
+    t0,
+    ic,
+    tgt,
+    enemy: threatOf(C, e.team),
+    abs: enemyAbs(C, e.team),
+    radars,
+    awacs,
     bull: C.bull ? { x: C.bull.x, y: C.bull.y } : null,
     joker: F.joker || '',
     bingo: F.bingo || '',
@@ -1632,13 +1702,14 @@ export async function init13() {
   tlRoot.id = 'bvrtl';
   faorPage = createFaorPage(faorDeps());
   ocaPage = createOcaPage({ ...faorDeps(), ctx: ocaCtx, msa: null });
+  qraPage = createQraPage({ ...faorDeps(), ctx: qraCtx, msa: null });
   const SUBS = [
       ['faor', 'DCA'],
       ['oca', 'OCA'],
       ['tl', 'Timeline'],
     ],
-    page = k => (k == 'faor' ? faorPage : k == 'oca' ? ocaPage : ST.msPage),
-    rootOf = k => (k == 'faor' ? faorPage.root : k == 'oca' ? ocaPage.root : tlRoot);
+    page = k => (k == 'faor' ? dcaPage() : k == 'oca' ? ocaPage : ST.msPage),
+    rootOf = k => (k == 'oca' ? ocaPage.root : k == 'tl' ? tlRoot : null);
   let sub = 'faor';
   try {
     const v = localStorage.getItem('aasub');
@@ -1647,20 +1718,27 @@ export async function init13() {
     /* none */
   }
   host.innerHTML = `<div class="wtabs" role="tablist" id="bvrtabs">${SUBS.map(([k, l]) => `<button type="button" role="tab" data-bsub="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-bcard title="Kneeboard cards of the page shown: with the map, Smart, Smart mission">Add card</button></div>`;
-  host.append(faorPage.root, ocaPage.root, tlRoot);
+  host.append(faorPage.root, qraPage.root, ocaPage.root, tlRoot);
   const show = () => {
     host.querySelectorAll('[data-bsub]').forEach(b => b.classList.toggle('on', b.dataset.bsub == sub));
-    SUBS.forEach(([k]) => rootOf(k).classList.toggle('hide', k != sub));
+    SUBS.forEach(([k]) => k != 'faor' && rootOf(k).classList.toggle('hide', k != sub));
+    const d = dcaPage(); // DCA: the QRA page or the FAOR, for the flight chosen
+    faorPage.root.classList.toggle('hide', sub != 'faor' || d != faorPage);
+    qraPage.root.classList.toggle('hide', sub != 'faor' || d != qraPage);
     host.querySelector('[data-bcard]').hidden = sub == 'tl';
     document.body.classList.toggle('onfaor', sub != 'tl');
   };
+  // DCA is two pages (the QRA one for a QRA flight): leaving it leaves both
+  const leaveSub = k => (k == 'faor' ? (faorPage.leave(), qraPage.leave()) : page(k).leave());
   ST.bvrPage = {
     render: () => {
       show();
+      if (sub == 'faor') (dcaPage() == qraPage ? faorPage : qraPage).leave(); // another flight: the other page lets the map go
       page(sub).render();
     },
     leave: () => {
       faorPage.leave();
+      qraPage.leave();
       ocaPage.leave();
       ST.msPage.leave();
       document.body.classList.remove('onfaor');
@@ -1669,7 +1747,7 @@ export async function init13() {
   };
   // another page (the ROE / SOP: Edit in DCA / OCA) opens A-A on one of its tabs
   ST.bvrGo = k => {
-    if (k != sub) page(sub).leave();
+    if (k != sub) leaveSub(sub);
     sub = k;
     const t = /** @type {HTMLElement|null} */ (document.querySelector('.tab[data-t=ms]'));
     if (t && !t.classList.contains('on')) t.click();
@@ -1679,7 +1757,7 @@ export async function init13() {
     const t = /** @type {HTMLElement} */ (e.target);
     const b = /** @type {HTMLElement|null} */ (t.closest('[data-bsub]'));
     if (b && b.dataset.bsub != sub) {
-      page(sub).leave();
+      leaveSub(sub);
       sub = b.dataset.bsub;
       try {
         localStorage.setItem('aasub', sub);

@@ -20,7 +20,7 @@ import { $, IO, appToast, enc8, esc, jclone } from './base.js';
 import { DTCTEXT, S, addSection, dtcOverwrite, dtcRevert, lines, parse, restoreDtc, view, openDtc } from './dtcfile.js';
 import { F, FD, XD } from './datacard.js';
 import { WXDIR, WXS, campCancel, dtcDir, setSel, wxKeys, wxLoadKeys } from './campaign.js';
-import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage, faorPage, ocaPage } from './pages.js';
+import { harmPage, seadPage, deadPage, mapV, pfPage, sqPage, faorPage, ocaPage, qraPage } from './pages.js';
 import { loadImg } from './cardview.js';
 import { acMemo, perfAcGet } from './gamefiles.js';
 import { apply, discardOk, hasMan, manClear, manDiff, markMan } from './selection.js';
@@ -98,6 +98,7 @@ export function msfWeapons() {
       bvr: jclone(ST.msPage.state()),
       faor: faorPage ? jclone(faorPage.state()) : null,
       oca: ocaPage ? jclone(ocaPage.state()) : null,
+      qra: qraPage ? jclone(qraPage.state()) : null,
     };
   } catch (e) {
     return null;
@@ -692,6 +693,7 @@ export async function msfLoad(text, file) {
         w.bvr && ST.msPage.setState(w.bvr);
         w.faor && faorPage && faorPage.setState(w.faor);
         w.oca && ocaPage && ocaPage.setState(w.oca);
+        w.qra && qraPage && qraPage.setState(w.qra);
       } catch (e) {}
     }
     const d = p.datacard;
@@ -795,6 +797,7 @@ export function msfRestore(s) {
     s.weapons && s.weapons.bvr && ST.msPage.setState(s.weapons.bvr);
     s.weapons && s.weapons.faor && faorPage && faorPage.setState(s.weapons.faor);
     s.weapons && s.weapons.oca && ocaPage && ocaPage.setState(s.weapons.oca);
+    s.weapons && s.weapons.qra && qraPage && qraPage.setState(s.weapons.qra);
   } catch (e) {}
   try {
     view();

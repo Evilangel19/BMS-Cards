@@ -83,6 +83,7 @@ preferences and the tests of before still work. Use this table to find a page in
 | A-G tab | `data-t="wp"`, `<section id="wp">`, `ST.wpPage` (`core/weaponspage.js`), body class `onwp`, mission field `weapons.wp`, the HARM tab `weapons.harm` / `sead` / `dead` |
 | A-A tab | `data-t="ms"`, `<section id="ms">`, body class `onms`; its tabs `#bvrtabs` (`data-bsub`), `ST.bvrPage` (render / leave), `ST.bvrGo(key)` (open a tab from another page), the tab shown `localStorage['aasub']` (init13 in `app/pages.js`) |
 | A-A > DCA | tab key `faor`, `faorPage` (`core/faorpage.js`, root `#fapage`), the geometry `core/faor.js`, `faorCtx` / `faorDeps` in `app/pages.js`, map layer `fa` (Display > DCA), mission field `weapons.faor`, `sessionStorage['dca1']`, `localStorage['faorcardkinds']`, body class `onfaor` (DCA or OCA shown) |
+| A-A > DCA, a QRA flight | the same tab (key `faor`): `dcaPage()` in `app/pages.js` gives `qraPage` (`core/qrapage.js`, root `#qrpage`) for a QRA flight, else `faorPage`; the geometry `core/qra.js`, `qraCtx` in `app/pages.js`, drawn by the map layer `fa`, mission field `weapons.qra`, `sessionStorage['qra1']`, `localStorage['qracardkinds']` |
 | A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
 | A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
 | The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA and OCA: an OCA block has `pos`, `lead`, `ta`), `cleanFaor` / `faorLines` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
@@ -100,7 +101,15 @@ preferences and the tests of before still work. Use this table to find a page in
 - The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page); the lines a
   page wrote before are replaced only after asking.
 - Shapes with `map: false` are drawn on the cards only (the SAM rings of OCA: the map shows the SAMs already).
-- Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`.
+- **QRA** (`core/qra.js`): in the ATO of BMS a QRA waits on its airbase (a route base -> base); when the campaign launches it, the same flight
+  gets the mission INTERCEPTION and an Intercept steerpoint (action 13) whose target id (`tid`) names the enemy flight. No flight starts as an
+  INTERCEPTION. ALERT (no Intercept steerpoint): the threat axis of the DCA from the base, the scramble line `rs = ri + vt * time to ri` (climb at
+  `CLIMB_KT`, then the dash), checked against the friendly radars (`coverNm`, `radarUnits`) unless an AWACS is on station, and the enemy airbases
+  on the axis. INTERCEPT: the target dead-reckoned from where the side of the flight sees it now (`spottedBy`, `flightState`, which also gives x / y),
+  the collision point (`qraIntercept`), the commit point, the aspect; not spotted, the steerpoint of BMS (`qraFromStpt`). With VID in the ROE, the
+  stern conversion (`stern`). The A-A block has `qra`, `vec`, `ri`, `rs`, `disp` (`cleanFaor` / `faorLines` in `core/faor.js`); the DTC lines use
+  the key `dca`, so they replace those of the FAOR of the flight.
+- Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`, `tests/run-qra.mjs`, `tools/qra-test.py`.
 
 ## A-G rules of the manuals
 

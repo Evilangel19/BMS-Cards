@@ -312,6 +312,16 @@ export function cleanFaor(f) {
     hw: String(f.hw || '')
       .replace(/[\r\n]/g, ' ')
       .slice(0, 24),
+    // QRA (core/qra.js): ALERT or INTERCEPT, the vector (magnetic), the intercept and scramble ranges (NM), the displacement of the stern conversion
+    ...(f.qra == 'ALERT' || f.qra == 'INTERCEPT'
+      ? {
+          qra: f.qra,
+          vec: n(f.vec, 0, 360),
+          ri: n(f.ri, 0, 300),
+          rs: n(f.rs, 0, 999),
+          disp: Math.round(clamp(+f.disp || 0, 0, 20) * 2) / 2,
+        }
+      : {}),
     // OCA (core/oca.js): the lead on the package (min), the position code, the target area (NM)
     ...(f.pos != null
       ? {
@@ -329,6 +339,28 @@ const isOca = f => f.pos != null;
 export function faorLines(f, long) {
   if (!f) return [];
   const W = f.wpn.toUpperCase();
+  if (f.qra) {
+    const al = f.qra == 'ALERT',
+      ang = Math.round(f.alt[0] / 1000),
+      v = String(f.vec % 360 || 360).padStart(3, '0');
+    return long
+      ? [
+          'Weapons ' + W,
+          'Commit: hostile group within ' + f.commit + ' NM',
+          al
+            ? 'Scramble line ' + f.rs + ' NM on the threat axis ' + v + '°: meet the raid ' + f.ri + ' NM from the base'
+            : 'Vector ' + v + '°, ANGELS ' + ang + ', BUSTER to the intercept',
+          ...(f.disp ? ['VID: stern conversion, displacement ' + f.disp + ' NM'] : []),
+          'Scramble on the order of the controller (CRC / AWACS)',
+        ]
+      : [
+          'WPN ' + W,
+          'COMMIT ' + f.commit + 'NM',
+          al ? 'SCRAMBLE LINE ' + f.rs + 'NM AXIS ' + v : 'VECTOR ' + v + ' ANGELS ' + ang,
+          al ? 'INTERCEPT ' + f.ri + 'NM FROM BASE' : 'BUSTER',
+          ...(f.disp ? ['VID: STERN CONV ' + f.disp + 'NM'] : []),
+        ];
+  }
   if (isOca(f)) {
     const sw = f.kind == 'SWEEP',
       ind = f.pos == 'FS-1D'; // an independent sweep: its own route, no package
