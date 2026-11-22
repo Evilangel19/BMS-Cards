@@ -1041,6 +1041,7 @@ function faorDeps() {
     },
     timeline: () => (ST.msPage && ST.msPage.rowsReady ? ST.msPage.rowsReady() : []),
     combo: () => comboBase(),
+    snap: scale => mapV.snap(scale),
     kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
   };
 }
@@ -1514,6 +1515,7 @@ export async function init13() {
   };
   // another page (the ROE / SOP: Edit in FAOR) opens BVR on one of its tabs
   ST.bvrGo = k => {
+    if (k != sub) page(sub).leave();
     sub = k;
     const t = /** @type {HTMLElement|null} */ (document.querySelector('.tab[data-t=ms]'));
     if (t && !t.classList.contains('on')) t.click();
@@ -1536,7 +1538,18 @@ export async function init13() {
     if (c) faorPage.addCard(c);
   });
   show();
-  KBX.src.faor = () => faorPage.allCards();
+  // Add all cards: the classic card takes the picture of the page's map, so the page is shown while it is made, then BVR as it was
+  KBX.src.faor = async () => {
+    if (!faorPage.usable()) return [];
+    const s0 = sub;
+    ST.bvrGo('faor');
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      return await faorPage.allCards();
+    } finally {
+      if (s0 != 'faor') ST.bvrGo(s0);
+    }
+  };
   ST.msPage = createMissilesPage({
     fillBvr: rows => bvrCells(rows).forEach(([k, v]) => setField(k, v)),
     bvrSame: rows => bvrCells(rows).every(([k, v]) => (F[k] || '') === v),

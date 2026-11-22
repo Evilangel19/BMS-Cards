@@ -4,7 +4,7 @@
 // profile of the kind of mission and stop at the minimums of BMS; the warnings in red. The FAOR block of the ROE of the flight follows the page (deps.roeSet),
 // the Map page draws it (Display > FAOR), its lines go into the DTC (deps.dtcLines), its cards go to the Kneeboard (Smart BVR, Smart mission).
 // deps: {esc, toast, ctx () -> X, attach, detach, toLL, cyclePlan, planMode, msa (km polygon) -> Promise<ft | null>, roeGet () -> sel, roeSet (faor),
-//        dtcLines ({fez, cs, hw}, name) -> {msg, bad}, timeline () -> Promise<rows>, combo () -> Promise<base>, kbAdd}
+//        dtcLines ({fez, cs, hw}, name) -> {msg, bad}, timeline () -> Promise<rows>, combo () -> Promise<base>, kbAdd, snap (scale) -> the picture of the map}
 // X: {ok, why, me {key, name, mission, kind, n, ac, pkgNo, tag}, cap [{x, y, n, arr, dep}], enemy [{x, y, name}], bull {x, y} | null, mates [{name, anchor}],
 //     targets [{x, y, name}], joker, bingo, aa (the A-A loadout, text)}
 import {
@@ -37,6 +37,8 @@ import { drawSmartFaor } from './smartbvr.js';
 import { drawSmartCombined } from './smartcombo.js';
 import { wxAtTarget } from './smartwx.js';
 import { toMag } from './magvar.js';
+import { drawFaorCard, faorBox, FAC_W, FAC_H } from './faorcard.js';
+import { busyRun } from './busy.js';
 
 const h3 = d => String(Math.round(((d % 360) + 360) % 360) || 360).padStart(3, '0');
 const hm = t => {
@@ -45,6 +47,7 @@ const hm = t => {
 };
 const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ffffff', cap: '#4cc38a', mate: '#9aa8b8' };
 const KINDS = [
+  ['map', 'With the map'],
   ['smart', 'Smart BVR'],
   ['combo', 'Smart mission'],
 ];
@@ -483,7 +486,6 @@ export function createFaorPage(deps) {
       be = p => (X.bull ? 'BE ' + h3(toMag(bearing(X.bull, p))) + '/' + Math.round(distNm(X.bull, p)) : ''),
       c0 = X.cap[0],
       c1 = X.cap[X.cap.length - 1],
-      fa = faorRoe(S, me.kind, HW ? HW.name : ''),
       id = roe && roe.roe.id.length ? roe.roe.id.map(v => v.toUpperCase()).join(' + ') : '',
       bo = roe && roe.roe.abort.length ? roe.roe.abort.map(v => v.toUpperCase()).join(' / ') : '';
     return {
@@ -536,6 +538,131 @@ export function createFaorPage(deps) {
       lastRed: W.some(w => w[1]),
     };
   }
+  // ---- the classic card: the picture of the page's map with the FAOR drawn in its pixels
+  function classicData() {
+    const me = X.me,
+      roe = roeNow(),
+      c0 = X.cap[0],
+      c1 = X.cap[X.cap.length - 1],
+      be = p => (X.bull ? 'BE ' + h3(toMag(bearing(X.bull, p))) + '/' + Math.round(distNm(X.bull, p)) : '--'),
+      msa = MSA.k == msaKey() ? MSA.v : null,
+      id = roe && roe.roe.id.length ? roe.roe.id.map(v => v.toUpperCase()).join(' + ') : 'none',
+      bo = roe && roe.roe.abort.length ? roe.roe.abort.map(v => v.toUpperCase()).join(' / ') : 'none',
+      cs = me.name.toUpperCase();
+    return {
+      kind: me.kind,
+      title: me.name + ' · ' + me.n + '× ' + me.ac,
+      sub: 'PKG ' + me.pkgNo + ' · CAP STPT ' + X.cap.map(p => p.n).join(' · ') + ' · ANCHOR ' + be(G.anchor),
+      box: [
+        ['THREAT AXIS', h3(toMag(G.brg)) + '°', S.axis == 'par' ? 'along the CAP leg' : 'square to the CAP leg'],
+        ['COMMIT', S.commit + ' NM', 'WPN ' + S.wpn.toUpperCase(), S.wpn == 'free'],
+        ['STOP', S.stop + ' NM', 'DROP ' + S.drop + ' NM cold', true],
+        [
+          'ON STATION',
+          S.stn + ' min',
+          c0 && c0.arr ? hm(c0.arr) + '–' + hm(c1.dep || c1.arr) : 'planned ' + planned() + ' min',
+        ],
+      ],
+      warn: W.filter(w => w[1]).map(w => w[0]),
+      rows: [
+        ['FEZ', S.w + ' × ' + S.d + ' NM'],
+        ['BLOCK', altBlock(S.alt)],
+        ['MSA FEZ', msa == null ? '--' : altTxt(msa), msa != null && S.alt[0] < msa],
+        ['ANCHOR', be(G.anchor)],
+        ['HARDWALL', HW ? HW.name + ' · 5 NM buffer' : 'none', !!HW && HW.gap < 5],
+        ['MAR / DOR', TL ? Math.round(TL.mar) + ' / ' + Math.round(TL.dor) + ' NM · ' + TL.cls : '--'],
+        ['WPN', S.wpn.toUpperCase() + ' · NO FIRE OUTSIDE FEZ'],
+        ['ID', id, id == 'none' && S.wpn == 'free'],
+        ['BUGOUT', bo],
+        ['JOKER / BINGO', (X.joker || '--') + ' / ' + (X.bingo || '--')],
+        ['A-A', X.aa || '--'],
+      ],
+      calls: [
+        '"' + cs + ', ON STATION, ' + be(G.anchor) + ', ' + altBlock(S.alt) + '"',
+        '"' + cs + ', COMMITTING" · ' + 'a hostile group inside ' + S.commit + ' NM toward ' + h3(toMag(G.brg)) + '°',
+        '"' + cs + ', OFF STATION" · at ' + (c1 && (c1.dep || c1.arr) ? hm(c1.dep || c1.arr) : '--') + ' or at JOKER',
+      ],
+      px: null,
+    };
+  }
+  // the map for the card: the page's map (opened out of sight when the page is not shown), the view as the pilot left it, the FAOR in its pixels
+  async function snapPlan(AR) {
+    if (!deps.snap) return null;
+    let keep = !!M;
+    if (!M) {
+      failed = false;
+      await ensureMap();
+      if (!M) return null;
+      keep = !fit;
+    }
+    M.map.invalidateSize();
+    paint();
+    const { L, map, WL } = M,
+      ll = p => deps.toLL(p.x, p.y),
+      t = G.at(0, G.front + Math.max(8, S.d / 3)),
+      pts = [...G.box, ...G.commit, ...G.stop, ...(HW ? [HW.a, HW.b] : []), t],
+      el = map.getContainer(),
+      cw = el.clientWidth,
+      ch = el.clientHeight,
+      bw = Math.min(cw, ch * AR),
+      bh = bw / AR,
+      ox = (cw - bw) / 2,
+      oy = (ch - bh) / 2,
+      c0 = map.getCenter(),
+      z0 = map.getZoom();
+    WL.remove();
+    try {
+      if (!keep)
+        map.fitBounds(L.latLngBounds(pts.map(ll)), {
+          paddingTopLeft: [ox + 20, oy + 20],
+          paddingBottomRight: [ox + 20, oy + 20],
+          animate: false,
+        });
+      await new Promise(r => setTimeout(r, keep ? 600 : 1200));
+      const shot = await deps.snap(2);
+      if (!shot) return null;
+      const k = shot.canvas.width / cw,
+        px = p => {
+          const q = map.latLngToContainerPoint(ll(p));
+          return [(q.x - ox) * k, (q.y - oy) * k];
+        },
+        a = px(G.anchor),
+        b = px(G.at(0, 10)),
+        nm = Math.hypot(b[0] - a[0], b[1] - a[1]) / 10,
+        crop = document.createElement('canvas');
+      crop.width = Math.round(bw * k);
+      crop.height = Math.round(bh * k);
+      crop.getContext('2d').drawImage(shot.canvas, -ox * k, -oy * k);
+      const c0p = X.cap[0],
+        c1p = X.cap[X.cap.length - 1];
+      return {
+        img: crop,
+        coast: shot.coast,
+        nm,
+        fez: G.box.map(px),
+        commit: G.commit.map(px),
+        stop: G.stop.map(px),
+        hw: HW ? [px(HW.a), px(HW.b)] : null,
+        hwName: HW ? HW.name : '',
+        cap: X.cap.map(px),
+        stn: STN_NM * nm,
+        threat: [px(G.anchor), px(t)],
+        labels: {
+          threat: 'THREAT ' + h3(toMag(G.brg)) + '°',
+          commit: 'COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(),
+          stop: 'STOP ' + S.stop + ' · DROP ' + S.drop,
+          fez: 'FEZ ' + altBlock(S.alt),
+          stn: 'ON STN ' + (c0p.arr ? hm(c0p.arr) + '-' + hm(c1p.dep || c1p.arr) + ' · ' : '') + S.stn + ' min',
+        },
+      };
+    } catch (e) {
+      return null;
+    } finally {
+      WL.addTo(map);
+      map.setView(c0, z0, { animate: false });
+    }
+  }
+  let CL = null; // the classic card data with its picture, made before the window opens
   let COMBO = null;
   async function comboLoad() {
     try {
@@ -594,16 +721,29 @@ export function createFaorPage(deps) {
     c.width = SC_W;
     c.height = SC_H;
     const x = /** @type {CanvasRenderingContext2D} */ (c.getContext('2d'));
-    if (k == 'combo') drawSmartCombined(x, comboData());
+    if (k == 'map') {
+      c.width = FAC_W;
+      c.height = FAC_H;
+      drawFaorCard(/** @type {CanvasRenderingContext2D} */ (c.getContext('2d')), CL || classicData());
+    } else if (k == 'combo') drawSmartCombined(x, comboData());
     else drawSmartFaor(x, smartData());
     return c;
   }
-  const cardName = k => (k == 'combo' ? 'Smart · Mission · ' : 'Smart · BVR · ') + X.me.name;
-  async function ready() {
+  const cardName = k => (k == 'map' ? 'FAOR · ' : k == 'combo' ? 'Smart · Mission · ' : 'Smart · BVR · ') + X.me.name;
+  async function ready(pic = true) {
     await tlLoad();
     compute();
     if (!X || !X.ok) return false;
     await comboLoad();
+    CL = classicData();
+    if (pic) {
+      const B = faorBox(CL);
+      try {
+        CL.px = await busyRun('Preparing the FAOR cards…', () => snapPlan(B.w / B.h));
+      } catch (e) {
+        CL.px = null;
+      }
+    }
     return true;
   }
   async function addCard(btn) {
@@ -616,7 +756,7 @@ export function createFaorPage(deps) {
     }
     const C = Object.fromEntries(KINDS.map(([k]) => [k, drawCard(k)])),
       on = {};
-    let pre = ['smart'];
+    let pre = ['map'];
     try {
       const v = JSON.parse(localStorage.getItem('faorcardkinds') || 'null');
       if (Array.isArray(v) && v.length) pre = v.filter(k => C[k]);
@@ -626,7 +766,7 @@ export function createFaorPage(deps) {
     pre.forEach(k => (on[k] = true));
     const d = document.createElement('dialog');
     d.className = 'tgdlg';
-    d.innerHTML = `<h3>Add FAOR cards to the Kneeboard</h3><p class="hint">Smart BVR: the FAOR, its lines and the calls. Smart mission: the FAOR over the weather and the ROE / SOP. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
+    d.innerHTML = `<h3>Add FAOR cards to the Kneeboard</h3><p class="hint">With the map: the picture of the map of the page with the FAOR, the FEZ, the ROE and the calls. Smart BVR: the FAOR, its lines and the calls. Smart mission: the FAOR over the weather and the ROE / SOP. The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
     document.body.append(d);
     const cnt = () => {
       const n = KINDS.filter(([k]) => on[k]).length,
@@ -743,7 +883,8 @@ export function createFaorPage(deps) {
     warnings: () => (compute(), W),
     smart: () => (compute(), X && X.ok ? smartData() : null),
     combo: () => (compute(), X && X.ok ? comboData() : null),
-    cardCanvas: async k => ((await ready()) ? drawCard(k || 'smart') : null),
+    cardCanvas: async k => ((await ready(k == 'map')) ? drawCard(k || 'smart') : null),
+    classic: () => (compute(), X && X.ok ? classicData() : null),
     _test: o => {
       if (o.ctx) deps.ctx = o.ctx;
       if (o.msa) deps.msa = o.msa;
