@@ -3023,7 +3023,7 @@ export function createMap(host, deps) {
       const s = flightState(f, C.now);
       if (!s) return;
       const ally = allyOf(C, f.owner, view);
-      if (!ally && !spottedBy(f, mates)) return;
+      if (!ally && !C.isTe && !spottedBy(f, mates)) return; // a TE has nothing spotted (no time has run): every flight
       if (ally && st.on.fs && !SUPPORT.has(deps.flightInfo(f).cat)) return; // "support only": tankers, AWACS, airlift, CSAR...
       const col = ally ? pal.trk : pal.foe,
         info = deps.flightInfo(f),

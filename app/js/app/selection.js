@@ -4,7 +4,7 @@ import { groupPackages } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, FD, XD, dEl, CYC, buildForm } from './datacard.js';
 import { $, esc } from './base.js';
-import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch } from './ato.js';
+import { ATOCAT, ATOL, ATOOPEN, PLAYER, atoCloseState, atoSearch, teSide } from './ato.js';
 import { wxApply, wxPrep, campDir } from './campaign.js';
 import { join as joinPath, listDir, readBytes, isDesktop } from '../platform/desktop.js';
 import { applyDTC, msfFreeze, dtcBtns } from './dtcapply.js';
@@ -79,6 +79,7 @@ export function apply(i, mode) {
   ST.MAPSHOT = null;
   ST.XBASE = undefined; // the other data of the mission (Weapons, HARM, BVR, tankers, map picture) start again from here
   ST.ATOSEL = ST.CL[i] && ST.CL[i].f;
+  if (ST.ATOSEL) teSide(ST.ATOSEL.owner);
   if (ST.ATOSEL && ST.ATOSEL.owner == PLAYER) {
     ATOOPEN.add(ST.ATOSEL.pkg.n);
     const pg = groupPackages(ATOL.filter(z => z.pkg == ST.ATOSEL.pkg.n))[0];

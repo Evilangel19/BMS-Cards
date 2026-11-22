@@ -219,9 +219,13 @@ export async function openSettings() {
     sw(
       'others',
       'Other factions',
-      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side.',
+      'See the ATO and the map of the other factions. In a squadron only its commander can. For immersion: in BMS you can start the campaign as the other side. A TE has every faction open, with or without this.',
       !!ST.OBSERVER
     ) +
+    // in a squadron, not its commander: the switch does nothing (ato.js); said here
+    (ST.SQROLE && ST.SQROLE() == 'member'
+      ? '<p class="hint wbad" id="s-obsno" style="margin:-4px 0 8px">You are in a squadron and not its commander: the other factions stay hidden whatever this says.</p>'
+      : '') +
     sw('mfd', 'MFD 3 and 4', 'Show them in the Data Cartridge MFD page (BMS does not use them yet)', !!ui.showMfd34) +
     '</div>';
   const kb = C.kneeboard || {},

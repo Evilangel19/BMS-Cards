@@ -72,6 +72,13 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 - **The card of the datacard** (`app/cardview.js`, `freeLayout` / `freeDraw`): a rule too long wraps at a space or right after "+" or "/", the size goes down half a pixel at a time (14 to 11 px) and the lines get closer before the text gets smaller. **The kneeboard card** (`app/roecard.js`): one card when everything fits, else two at most (ROE and SOP in one flow, the text smaller down to 0.6; what still does not fit is cut and the page says so).
 - Tests: `tests/run-roesop.mjs`, `tools/roesop-test.py`.
 
+## Factions
+
+- `PLAYER` (`app/ato.js`) is the side of the player, from the player squadron of the campaign; `ST.VIEW` the side looked at. Another side can be read
+  (Settings > Other factions with no squadron, or the commander of the squadron) but its flights do not load (`lock`). **A TE** (`C.isTe`) has no side of
+  the player: every faction is open, the one chosen in the ATO or the owner of the flight chosen (`teSide`) becomes `PLAYER`, and the map draws every
+  flight (in a campaign the other sides only when spotted).
+
 ## A-A (DCA, OCA) and the names in the code
 
 The tabs were renamed in 1.3 (Weapons is **A-G**, BVR is **A-A**, with **DCA**, **OCA** and **Timeline** under it; DCA was called FAOR in the first betas).
