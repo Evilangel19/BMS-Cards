@@ -95,8 +95,8 @@ ok(
 );
 const C = corridor(T, 20);
 ok(
-  'the corridor: 20 NM wide around the track',
-  C.length > 4 && near(Math.abs(C[0].x - C[C.length - 1].x) / K, 20, 0.01)
+  'the corridor: one rectangle 20 NM wide for each leg (north, then east) ' + C.length,
+  C.length == 2 && C.every(q => q.length == 4 && near(Math.hypot(q[0].x - q[3].x, q[0].y - q[3].y) / K, 20, 0.01))
 );
 // the checks
 const chk = (o, re) =>

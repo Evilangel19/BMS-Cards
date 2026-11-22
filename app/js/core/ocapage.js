@@ -186,19 +186,25 @@ export function createOcaPage(deps) {
         ink: { red: true, dash: [4, 3] },
       })),
       ...sams.map(c => ({ t: 'label', p: c, text: c.name, col: COL.sam, map: false, ink: { red: true } })),
-      ...tg.map(g => ({ t: 'ring', c: g, r: S.ta * KM_NM, col: COL.ta, w: 1.5, dash: [2, 5], ink: { dash: [2, 3] } })),
-      ...(m == 'sweep' && T.length > 1
-        ? [
-            {
-              t: 'poly',
-              pts: corridor(T, S.w),
-              close: true,
-              fill: true,
-              col: COL.cor,
-              w: 1.5,
-              ink: { w: 1.5, fill: 'rgba(0,0,0,0.05)' },
-            },
-          ]
+      ...(X.indep ? [] : tg).map(g => ({
+        t: 'ring',
+        c: g,
+        r: S.ta * KM_NM,
+        col: COL.ta,
+        w: 1.5,
+        dash: [2, 5],
+        ink: { dash: [2, 3] },
+      })),
+      ...(m == 'sweep'
+        ? corridor(T, S.w).map(q => ({
+            t: 'poly',
+            pts: q,
+            close: true,
+            fill: true,
+            col: COL.cor,
+            w: 1,
+            ink: { w: 1, fill: 'rgba(0,0,0,0.04)' },
+          }))
         : []),
       { t: 'poly', pts: WIN.pts, col: COL.pkg, w: 3, ink: { w: 4, round: true } },
       ...X.prot
@@ -244,19 +250,7 @@ export function createOcaPage(deps) {
       ...(fp
         ? [
             { t: 'ring', c: fp, r: S.commit * KM_NM, col: COL.commit, w: 1.5, dash: [8, 6], ink: { dash: [7, 4] } },
-            ...(X.indep
-              ? [
-                  {
-                    t: 'ring',
-                    c: fp,
-                    r: S.stop * KM_NM,
-                    col: COL.stop,
-                    w: 1.5,
-                    dash: [6, 6],
-                    ink: { red: true, dash: [5, 4] },
-                  },
-                ]
-              : []),
+
             { t: 'dot', p: fp, col: COL.me, k: 'tri', ink: { label: nm + ' ' + code(), bold: true } },
             {
               t: 'label',
@@ -357,7 +351,7 @@ export function createOcaPage(deps) {
           ['hold', 'HOLD', 'WEAPONS HOLD: fire only in self-defence or when ordered'],
         ],
         S.wpn
-      )}</div>${slider('commit', 'COMMIT', OCA_RANGE.commit, S.commit, val.commit(S.commit))}${slider('stop', X.indep ? 'STOP from route' : 'STOP from package', OCA_RANGE.stop, S.stop, val.stop(S.stop))}${slider('ta', 'Target area', OCA_RANGE.ta, S.ta, val.ta(S.ta))}${slider('a0', 'Block floor', OCA_RANGE.alt, S.alt[0], val.a0(S.alt[0]))}${slider('a1', 'Block ceiling', OCA_RANGE.alt, S.alt[1], val.a1(S.alt[1]))}<p class="hint">COMMIT: a hostile group closer than this to you. STOP: no pursuit further than this from the package. Target area: the air ${sw ? 'the sweep clears' : 'around the target'}.</p></div>
+      )}</div>${slider('commit', 'COMMIT', OCA_RANGE.commit, S.commit, val.commit(S.commit))}${slider('stop', X.indep ? 'STOP from route' : 'STOP from package', OCA_RANGE.stop, S.stop, val.stop(S.stop))}${X.indep ? '' : slider('ta', 'Target area', OCA_RANGE.ta, S.ta, val.ta(S.ta))}${slider('a0', 'Block floor', OCA_RANGE.alt, S.alt[0], val.a0(S.alt[0]))}${slider('a1', 'Block ceiling', OCA_RANGE.alt, S.alt[1], val.a1(S.alt[1]))}<p class="hint">COMMIT: a hostile group closer than this to you. STOP: no pursuit further than this from the package. Target area: the air ${sw ? 'the sweep clears' : 'around the target'}.</p></div>
       </div>
       <div class="wpc"><div class="wcard"><div class="wh"><h3>${sw ? 'SWEEP' : 'ESCORT'}</h3><span style="flex:1"></span><button class="btn g" type="button" data-ocfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-ocpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
       ${slider('cur', X.indep ? 'Time' : 'Package time', [0, span, 0.5], valOf('cur'), val.cur(valOf('cur')))}
@@ -440,12 +434,11 @@ export function createOcaPage(deps) {
         `<span><i style="border-top:2px ${dash ? 'dashed' : 'solid'} ${c};width:18px;display:inline-block;vertical-align:middle;margin-right:4px"></i>${t}</span>`;
     if (e)
       e.innerHTML = [
-        it(COL.pkg, 'PACKAGE'),
+        ...(X.indep ? [] : [it(COL.pkg, 'PACKAGE')]),
         it(COL.me, me.kind, true),
         ...(m == 'sweep' ? [it(COL.cor, 'CORRIDOR')] : []),
         it(COL.commit, 'COMMIT', true),
-        it(COL.stop, 'STOP', true),
-        it(COL.ta, 'TGT AREA', true),
+        ...(X.indep ? [] : [it(COL.stop, 'STOP', true), it(COL.ta, 'TGT AREA', true)]),
       ].join(' ');
   }
 

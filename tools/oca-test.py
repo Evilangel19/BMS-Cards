@@ -23,7 +23,11 @@ SETUP = r"""a => {
     bull: { x: 560, y: 380 }, joker: '6 000', bingo: '5 000', aa: '6× AIM-120C · 2× AIM-9M' };
   X.main = X.prot[0];
   if (o.sun != null) X.sun = () => o.sun;
-  if (o.indep) { X.prot = []; X.main = { name: 'Eagle 4', w: me, tgt: { x: 600, y: 400 + 104 * K, n: 3, t: T0 + 600000 }, end: 3 }; X.indep = true; }
+  if (o.indep) {
+    // a sweep alone in its package, three sweep steerpoints in a zig-zag (as BMS makes them)
+    const z = [mk(1, 590, 300, T0 - 900000, 1), mk(2, 600, 380, T0 - 300000, 2), mk(3, 620, 470, T0, 11), mk(4, 560, 520, T0 + 400000, 11), mk(5, 650, 540, T0 + 900000, 11), mk(6, 600, 300, T0 + 2400000, 7)];
+    X.me.w = z; X.prot = []; X.main = { name: 'Eagle 4', w: z, tgt: { x: 620, y: 470, n: 3, t: T0 }, end: 5 }; X.indep = true;
+  }
   __app.ocaPage._test({ ctx: () => X, timeline: () => [{ cls: 'MiG-29A', mar: 12, dr: 18, dor: 25 }],
     roeGet: () => ({ roe: { ws: 'tight', id: ['awacs'], commit: 'n40', abort: ['bingo'], extra: [], restr: [] } }), roeSet: fa => (window.__OC.roe = fa) });
 }"""

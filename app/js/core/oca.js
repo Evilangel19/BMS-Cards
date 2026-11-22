@@ -99,7 +99,8 @@ export function pkgWindow(R, tgtN, endN) {
         )
       : -1,
     pu = R.findIndex(p => p.act == 2),
-    a = pu >= 0 && pu < i ? pu : Math.max(0, i - 3),
+    // an independent sweep: from its first sweep steerpoint (the way in is not the sweep)
+    a = e >= 0 ? i : pu >= 0 && pu < i ? pu : Math.max(0, i - 3),
     b = Math.min(R.length - 1, e >= 0 ? e : i + 2);
   return { a, b, t0: R[a].arr, t1: R[b].dep > R[b].arr ? R[b].dep : R[b].arr, pts: R.slice(a, b + 1) };
 }
@@ -120,16 +121,38 @@ export function track(R, s, t0, t1, step = 30000) {
   }
   return o;
 }
-/** the corridor of the sweep: w NM wide around the track (the left side, then the right one back), every k-th point */
-export function corridor(T, w, k = 4) {
-  const P = T.filter((_, i) => i % k == 0 || i == T.length - 1),
-    h = (w / 2) * KM_NM,
-    side = sg =>
-      P.map(p => {
-        const r = (p.hdg * Math.PI) / 180;
-        return { x: p.x + sg * Math.cos(r) * h, y: p.y - sg * Math.sin(r) * h };
-      });
-  return P.length > 1 ? [...side(-1), ...side(1).reverse()] : [];
+/** the corridor of the sweep: a rectangle w NM wide around each leg of the track (a leg: the points with one heading), one polygon each, so that a
+ * sharp turn does not twist one outline */
+export function corridor(T, w) {
+  const h = (w / 2) * KM_NM,
+    legs = [];
+  let cur = null;
+  T.forEach(p => {
+    if (!cur || Math.abs(((p.hdg - cur.hdg + 540) % 360) - 180) > 2) {
+      if (cur) cur.pts.push(p);
+      cur = { hdg: p.hdg, pts: [p] };
+      legs.push(cur);
+    } else cur.pts.push(p);
+  });
+  return legs
+    .filter(
+      l =>
+        l.pts.length > 1 &&
+        Math.hypot(l.pts[l.pts.length - 1].x - l.pts[0].x, l.pts[l.pts.length - 1].y - l.pts[0].y) > KM_NM
+    )
+    .map(l => {
+      const a = l.pts[0],
+        b = l.pts[l.pts.length - 1],
+        r = (l.hdg * Math.PI) / 180,
+        dx = Math.cos(r) * h,
+        dy = -Math.sin(r) * h;
+      return [
+        { x: a.x - dx, y: a.y - dy },
+        { x: b.x - dx, y: b.y - dy },
+        { x: b.x + dx, y: b.y + dy },
+        { x: a.x + dx, y: a.y + dy },
+      ];
+    });
 }
 /** the times the track is inside a circle (cx, cy, r km): the first one, or null */
 const firstIn = (T, c) => {
