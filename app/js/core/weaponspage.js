@@ -745,6 +745,7 @@ export function createWeaponsPage(deps) {
   // ---------- horizontal view: the Map page's own Leaflet map (its chosen layer and flight plan) with the pop-up drawn over it ----------
   const FT_KM = 3280.84;
   // one colour and one dash style per phase of the attack, the same in every drawing
+  const RUNIN_DEG = 15; // AUTO ATTACK: the run-in V, either side of the axis IP -> target
   const PH = {
     ingress: ['Ingress', '#34d399', ''],
     climb: ['Climb', '#fbbf24', ''],
@@ -3791,6 +3792,57 @@ export function createWeaponsPage(deps) {
         /* nothing to plan */
       } finally {
         st.mode = keep;
+      }
+    },
+    // AUTO ATTACK of the Map page: the attack of the page now (its mode, its target) as two lines of the DTC, km: {label, path: the IP (the start of
+    // the ingress), the PUP, the apex, the release, the target, the end of the egress (6 points at most: the turns of the attack, the smallest go
+    // first), vee: the run-in V (a line from the IP side to the target and back, RUNIN_DEG either side of the axis IP -> target)} | {error}
+    attackLines: () => {
+      const m = ATK.includes(st.mode) ? st.mode : ATK.includes(st.amode) ? st.amode : 'popup',
+        keep = st.mode,
+        r0 = res,
+        c0 = ctx;
+      try {
+        st.mode = m;
+        compute(true);
+        const r = res;
+        if (!r || r.error)
+          return { error: (r && r.error) || 'choose a target on the ' + m.toUpperCase() + ' page first' };
+        const D = oa1Plan(r.draw || popupDraw(r, null), r),
+          km = p => ({ x: p.e / FT_KM, y: p.n / FT_KM }),
+          S = D.segs.filter(z => z[0] != 'ref' && z[1] && z[1].length),
+          K = [];
+        S.forEach(z => K.push(km(z[1][0])));
+        const last = S[S.length - 1][1];
+        K.push(km(last[last.length - 1]));
+        const P = K.filter((p, i) => !i || Math.hypot(p.x - K[i - 1].x, p.y - K[i - 1].y) > 0.05),
+          tri = (a, b, c) => Math.abs((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+        while (P.length > 6) {
+          let k = 1,
+            b = Infinity;
+          for (let i = 1; i < P.length - 1; i++) {
+            const v = tri(P[i - 1], P[i], P[i + 1]);
+            if (v < b) {
+              b = v;
+              k = i;
+            }
+          }
+          P.splice(k, 1);
+        }
+        const t = km(r.target),
+          ip = P[0],
+          d = Math.hypot(ip.x - t.x, ip.y - t.y),
+          a0 = Math.atan2(ip.x - t.x, ip.y - t.y),
+          at = a => ({ x: t.x + Math.sin(a) * d, y: t.y + Math.cos(a) * d }),
+          w = (RUNIN_DEG * Math.PI) / 180;
+        return { label: m.toUpperCase(), path: P, vee: [at(a0 - w), t, at(a0 + w)] };
+      } catch (e) {
+        return { error: (e && e.message) || String(e) };
+      } finally {
+        st.mode = keep; // the page is left as it was
+        sync();
+        res = r0;
+        ctx = c0;
       }
     },
     // the horizontal drawing of an attack page (popup, hadb, toss) on the target steerpoint nearest to a point (x, y km: A-G > HARM > DEAD, its SAM),

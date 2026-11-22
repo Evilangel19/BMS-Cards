@@ -246,6 +246,61 @@ export function distToRoute(route, x, y) {
 // A SAM site of range rng (km) "crosses" the flight plan when its range circle touches any leg of the route
 export const crossesRoute = (route, x, y, rng) => distToRoute(route, x, y) <= rng;
 
+// ---- the edge of the friendly SAMs ---------------------------------------------------------------
+// n points along the forward edge of the rings of the friendly SAMs within `near` km of the route: across the axis toward the enemy (from the
+// friendly SAMs to the middle of the enemy ground units), for each place along it the furthest point a ring reaches toward the enemy; the line
+// is that edge from end to end. `U` = mapUnits() of the viewed team; `route` [{x, y}] km. [{x, y}] (n) or null (no friendly SAM near the route, no
+// enemy to say which side is forward)
+export function samEdge(U, route, n = 6, near = 30 * 1.852) {
+  const S = U.filter(m => m.ally && m.sam && m.u.kind == 'gnd' && distToRoute(route, m.u.x, m.u.y) <= m.rng + near),
+    E = U.filter(m => m.hostile && m.u.kind == 'gnd');
+  if (!S.length || !E.length) return null;
+  const mid = A => ({ x: A.reduce((t, m) => t + m.u.x, 0) / A.length, y: A.reduce((t, m) => t + m.u.y, 0) / A.length }),
+    s0 = mid(S),
+    e0 = mid(E),
+    L = Math.hypot(e0.x - s0.x, e0.y - s0.y) || 1,
+    f = { x: (e0.x - s0.x) / L, y: (e0.y - s0.y) / L }, // forward
+    a = { x: -f.y, y: f.x }, // along the edge
+    R = S.map(m => ({
+      t: (m.u.x - s0.x) * a.x + (m.u.y - s0.y) * a.y,
+      s: (m.u.x - s0.x) * f.x + (m.u.y - s0.y) * f.y,
+      r: m.rng,
+    })),
+    t0 = Math.min(...R.map(q => q.t - q.r)),
+    t1 = Math.max(...R.map(q => q.t + q.r)),
+    K = 80,
+    E2 = [];
+  for (let i = 0; i <= K; i++) {
+    const t = t0 + ((t1 - t0) * i) / K;
+    let best = null;
+    R.forEach(q => {
+      const d = Math.abs(t - q.t);
+      if (d <= q.r) {
+        const v = q.s + Math.sqrt(q.r * q.r - d * d);
+        if (best == null || v > best) best = v;
+      }
+    });
+    if (best != null) E2.push({ t, s: best });
+  }
+  if (E2.length < 2) return null;
+  // n points: the two ends and the n - 2 points that keep the shape best (Visvalingam, the smallest triangles go first)
+  const P = E2.map(q => ({ x: s0.x + a.x * q.t + f.x * q.s, y: s0.y + a.y * q.t + f.y * q.s })),
+    tri = (p, q, r) => Math.abs((q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x));
+  while (P.length > n) {
+    let k = 1,
+      b = Infinity;
+    for (let i = 1; i < P.length - 1; i++) {
+      const v = tri(P[i - 1], P[i], P[i + 1]);
+      if (v < b) {
+        b = v;
+        k = i;
+      }
+    }
+    P.splice(k, 1);
+  }
+  return P;
+}
+
 // ---- front line ---------------------------------------------------------------------------------
 // n points along the front: among the friendly combat units, the ones closest to the (spotted) enemy ground units, spread from one end of the front to the other.
 // `U` = mapUnits() of the viewed team. The front axis is the main direction of those units (west -> east, or south -> north when it runs north-south).

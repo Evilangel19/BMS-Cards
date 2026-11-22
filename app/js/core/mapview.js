@@ -4,6 +4,7 @@ import { radarUnits, neededCells, coverage, CELL_KM } from './radarcov.js';
 import basemap from '../data/basemap.js';
 import { koreaCoasts, KOREA_COAST } from './coastsit.js';
 import { colorPicker } from './colorpick.js';
+import { lowPart, noeSamples, noeWalls, SEARCH_NM, LOW_FT } from './noe.js';
 import D0 from '../data/index.js';
 const PPT = new Proxy([], { get: (_, k) => D0.ppt[k], has: (_, k) => k in D0.ppt }); // the threat list is read from the BMS installation (Ppt.ini) when the program starts
 import { objState, featState } from '../parsers/cam.js';
@@ -47,6 +48,7 @@ import {
   allyOf,
   hostileOf,
   frontLine,
+  samEdge,
   spottedBy,
   crossesRoute,
   theaterBounds,
@@ -1168,7 +1170,10 @@ export function createMap(host, deps) {
         <div class="fly" id="pauto" style="display:none"><div class="fh fhrow">Automatic lines<button type="button" class="btn${PREF.aufit === false ? ' g' : ''}" id="mpdfit" title="Fit: after an AUTO the map shows what it wrote. Press to switch it off or on.">Fit</button></div><div class="tg">
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
-          <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
+                    <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
+          <button class="btn g bb tl" id="mpdsam" title="A whole LINE of 6 points: the forward edge of the rings of the friendly SAMs near the route of the selected flight (beyond it they do not cover you; on the way back: altitude and IFF)"><span>SAM FRIENDLY</span></button>
+          <button class="btn g bb tl" id="mpdatk" title="Two LINEs from the attack page of A-G (Pop-up, HADB, TOSS) with its target: the attack (IP, PUP, apex, release, target, egress) and the run-in V (the axis IP to target, 15° either side)"><span>ATTACK</span></button>
+          <button class="btn g bb tl" id="mpdnoe" title="Two LINEs, VALLEY L and VALLEY R: the walls of the valley of the low part of the flight plan (steerpoints under 5 000 ft, not the take-off nor the landing): where the terrain rises to the altitude of the leg, up to 5 NM each side. Needs the terrain of the BMS folder."><span>NOE</span></button>
           <button class="btn g bb tl" id="mpdfez" title="The plan of the A-A page of the selected flight as lines: a CAP flight (DCA: the FEZ, COMMIT / STOP, the HARDWALL), a QRA (the scramble line or the vector), a SWEEP or ESCORT (OCA: the track and the target area); a whole LINE each (F-15: a SIT line). The lines it wrote before are replaced, after asking."><span>FEZ</span></button>
           <button class="btn g bb tl sitrow" id="mpdcoast" title="F-15, Korea: the coast of the peninsula as the SIT lines ECOAST (6: the east coast and half of the south coast) and WCOAST (7: the other half and the west coast), 30 points each; lines 6 and 7 are replaced"><span>COAST</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
@@ -1274,6 +1279,9 @@ export function createMap(host, deps) {
       autoRefresh();
     });
     $('mpdfront').onclick = fitAfter(autoFront);
+    $('mpdsam').onclick = fitAfter(autoSam);
+    $('mpdatk').onclick = fitAfter(autoAttack);
+    $('mpdnoe').onclick = fitAfter(autoNoe);
     $('mpdcoast').onclick = fitAfter(autoCoast);
     $('mpdfit').onclick = e => {
       e.stopPropagation();
@@ -1287,6 +1295,9 @@ export function createMap(host, deps) {
       ['mpdbull', autoBull],
       ['mpdfront', autoFront],
       ['mpdcoast', autoCoast],
+      ['mpdsam', autoSam],
+      ['mpdatk', autoAttack],
+      ['mpdnoe', autoNoe],
       ['mpdfez', () => (deps.aaAuto ? deps.aaAuto() : null)],
     ].forEach(([id, run]) => {
       const b = $(id);
@@ -1675,6 +1686,9 @@ export function createMap(host, deps) {
       ['mpdbull', 'bull'],
       ['mpdfront', 'front'],
       ['mpdcoast', 'coast'],
+      ['mpdsam', 'sam'],
+      ['mpdatk', 'atk'],
+      ['mpdnoe', 'noe'],
     ].forEach(([id, k]) => {
       const b = $(id);
       if (b) {
@@ -2040,6 +2054,111 @@ export function createMap(host, deps) {
         lnRange(line, slot, 6) +
         ') on the friendly units closest to the enemy.'
     );
+  }
+  // LINES OF AN AUTO: each [AU key, name, points] in a whole free LINE (all or none: what was written is taken back when one does not fit) -> the
+  // names of the lines, or null (the message said)
+  function putLines(parts, what) {
+    const done = [];
+    for (const [key, , pts] of parts) {
+      const P = deps.dtc.points(),
+        wl = lineFor(P, 'whole');
+      if (!wl) {
+        done.forEach(d => d.slots.forEach(([g, sl]) => deps.dtc.clear(g, sl)));
+        toast('Not enough empty LINEs: ' + what + ' needs ' + parts.length + ' whole LINEs.', true);
+        return null;
+      }
+      pts.forEach((q, i) => deps.dtc.set(wl.g, wl.slot + i, { x: q.x, y: q.y, altFt: 0 }));
+      AU[key] = { line: wl.n, x: pts[0].x, y: pts[0].y };
+      done.push({ n: wl.n, g: wl.g, slots: pts.map((_, i) => [wl.g, wl.slot + i]) });
+    }
+    addStop();
+    done.forEach(d => showLayer(GROUPS[d.g].layer));
+    sync();
+    dtc();
+    return done.map(d => lnName(d.n));
+  }
+  const selRoute = () => {
+    const C = deps.getC(),
+      f = deps.getSel();
+    return C && f ? flightRoute(C, f) : [];
+  };
+  // SAM FRIENDLY: the forward edge of the rings of the friendly SAMs within 30 NM of the route (core/mapdata.js samEdge), 6 points
+  function autoSam() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the line is added to it.', true);
+    if (auUsed('sam')) return toast('The edge of the friendly SAMs is already in the DTC.', true);
+    const r = selRoute();
+    if (!r.length) return toast('Select a flight with a flight plan first: the friendly SAMs near it are used.', true);
+    const e = samEdge(UL, r, LINE_LEN);
+    if (!e) return toast('No friendly SAM near the route (or no enemy ground unit to tell the forward side).', true);
+    const n = putLines([['sam', 'SAM FRIENDLY', e]], 'SAM FRIENDLY');
+    if (n) toast(n[0] + ': the forward edge of the friendly SAMs near the route, 6 points.');
+  }
+  // ATTACK: the attack of the A-G page (deps.attackLines) and its run-in V, two LINEs
+  function autoAttack() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (auUsed('atk')) return toast('The attack is already in the DTC.', true);
+    const a = deps.attackLines ? deps.attackLines() : { error: 'the A-G page is not there' };
+    if (!a || a.error) return toast('ATTACK: ' + ((a && a.error) || 'no attack') + '.', true);
+    const n = putLines(
+      [
+        ['atk', 'ATTACK', a.path],
+        ['atk2', 'RUN-IN', a.vee],
+      ],
+      'ATTACK'
+    );
+    if (n) toast(n[0] + ': the ' + a.label + ' attack (IP to egress); ' + n[1] + ': the run-in V, 15° either side.');
+  }
+  // NOE: the walls of the valley of the low part of the flight plan (core/noe.js), two LINEs; the heights from the BMS folder (deps.elev)
+  let NOEH = null;
+  async function autoNoe() {
+    const P = deps.dtc && deps.dtc.points();
+    if (!P) return toast('Open a DTC first: the lines are added to it.', true);
+    if (auUsed('noe')) return toast('The valley is already in the DTC.', true);
+    const r = selRoute(),
+      part = r.length ? lowPart(r) : null;
+    if (!part)
+      return toast(
+        'The flight plan has no leg under ' + LOW_FT.toLocaleString('en-US') + ' ft (take-off and landing apart).',
+        true
+      );
+    if (!deps.elev) return toast('NOE needs the terrain of the BMS folder (the desktop app).', true);
+    const S = noeSamples(r, part),
+      hk = JSON.stringify([S.pts.length, S.pts[0], S.pts[S.pts.length - 1]]);
+    let H = NOEH && NOEH.k == hk ? NOEH.H : null; // the heights of this route read once (the preview of the button, then the button)
+    if (!H)
+      try {
+        H = await busyRun('NOE: reading the terrain…', () =>
+          deps.elev(S.pts.map(q => ({ e: q.x * FT_KM, n: q.y * FT_KM })))
+        );
+        if (H) NOEH = { k: hk, H };
+      } catch (e) {
+        H = null;
+      }
+    if (!H) return toast('NOE: the terrain heights could not be read (the HeightMap of the BMS folder).', true);
+    const W = noeWalls(S, H, LINE_LEN),
+      n = putLines(
+        [
+          ['noe', 'VALLEY L', W.L],
+          ['noe2', 'VALLEY R', W.R],
+        ],
+        'NOE'
+      );
+    if (n)
+      toast(
+        n[0] +
+          ' / ' +
+          n[1] +
+          ': the walls of the valley, steerpoints ' +
+          r[part.a].n +
+          '-' +
+          r[part.b].n +
+          (W.wide > 0.3
+            ? '; wider than ' + SEARCH_NM + ' NM in places: the line stays at ' + SEARCH_NM + ' NM there.'
+            : '.'),
+        W.wide > 0.3
+      );
   }
   // COAST (F-15, Korea): the coast of the peninsula as ECOAST (SIT line 6) and WCOAST (SIT line 7), 30 points each, always in those two lines so that
   // their names keep their meaning (what they hold is replaced, after asking)

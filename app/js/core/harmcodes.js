@@ -39,15 +39,16 @@ export const THREATS = [
   [430, 'AN/MPQ-50', 'HA', 'EWR'],
 ];
 
-// the HARM code of a SAM unit of the campaign (its name in the BMS data, "SA-6 Gainful", "Hawk", "ZSU-23/4"...): the system for a SAM, the fire
-// control radar for those that are listed by it (SA-8, SA-15, SA-19, Patriot, Nike, Skyguard); null when the HARM has no code for it (an IR system)
-const BY_SA = { 2: 102, 3: 103, 4: 104, 5: 105, 6: 106, 8: 608, 10: 110, 11: 111, 15: 615, 17: 117, 19: 619 };
+// the HARM code of a SAM unit of the campaign (its name in the BMS data, "SA-6 Gainful", "Hawk", "ZSU-23/4"...): its FIRE CONTROL RADAR, the one SEAD and
+// DEAD want to kill (SA-2 the Fan Song 202 "2T", SA-11 the Fire Dome of its TELARs 211...: the codes with a T on the HARM page of the DTC); the systems
+// listed by their radar already (SA-8, SA-15, SA-19, Patriot, Nike, Skyguard); null when the HARM has no code for it (an IR system)
+const BY_SA = { 2: 202, 3: 203, 4: 204, 5: 205, 6: 206, 8: 608, 10: 210, 11: 211, 15: 615, 17: 217, 19: 619 };
 /** @param {string} name @returns {number|null} */
 export function harmCode(name) {
   const n = String(name || '').toLowerCase(),
     m = n.match(/\bsa-?\s?(\d+)\b/);
   if (m) return BY_SA[+m[1]] || null;
-  if (/hawk/.test(n)) return 130;
+  if (/hawk/.test(n)) return 230; // AN/MPQ-46, HT
   if (/patriot|mpq-53/.test(n)) return 693;
   if (/nike/.test(n)) return 696;
   if (/skyguard|sky guard/.test(n)) return 695;

@@ -81,6 +81,8 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 - **Copy** (`copyMap`) and the screenshots share `mapPicture` (html2canvas, the offline coastlines when the base map cannot be exported). **Fit**
   after an AUTO (`fitAfter`, `PREF.aufit`).
 - `MSTY` is kept in the preferences of the map and in the mission (`mapstyle`; `mapV.style()` / `setStyle()`).
+- **AUTOs that write several lines** go through `putLines` (whole free LINEs, all or none). SAM FRIENDLY: `samEdge` (`core/mapdata.js`); ATTACK:
+  `attackLines()` of the A-G page; NOE: `core/noe.js` with the heights of `deps.elev`.
 - **The preview of an AUTO** (`autoPreview(run)`): the same function as the button, on a copy of the DTC; the helpers that draw, say or keep return
   at once while `DRY`; what it wrote is drawn on `G.au` (an SVG renderer: the map is on canvas), what it replaces blinks.
 

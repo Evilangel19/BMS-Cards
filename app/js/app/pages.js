@@ -150,6 +150,7 @@ export async function init6() {
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
     // AUTO > FEZ of the DTC editing: the lines of the A-A page of the flight (DCA, QRA or OCA)
     aaCan: () => [dcaPage(), ocaPage].some(p => p && p.usable()),
+    attackLines: () => (ST.wpPage ? ST.wpPage.attackLines() : null),
     aaAuto: () => {
       const pg = [dcaPage(), ocaPage].find(p => p && p.usable());
       return pg ? pg.dtcAuto() : { msg: 'AUTO > FEZ: choose a CAP, QRA, SWEEP or ESCORT flight.', bad: true };
