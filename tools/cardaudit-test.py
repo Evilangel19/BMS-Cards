@@ -87,7 +87,7 @@ try:
         T = open(os.path.join(R, 'tools', 'tgtpage-test.py')).read(); tg = {}
         exec(T[T.index('FT = 3280'):T.index('try:')], tg)
         pg.evaluate(tg['TD'], [list(f) for f in tg['FEATS']]); pg.evaluate("t=>__app.parse(t)", tg['INI']); pg.wait_for_timeout(300)
-        pg.click('[data-t=wp]'); pg.wait_for_timeout(400); pg.click('#wp .wtabs [data-mode=tgt]'); pg.wait_for_timeout(900); pg.click('.tgp .tgfill'); pg.wait_for_timeout(300)
+        pg.click('[data-t=wp]'); pg.wait_for_timeout(400); pg.click('#wp .wtabs [data-mode=tgt]'); pg.wait_for_timeout(900); (pg.click('.tgp .tgfill') if pg.locator('.tgp .tgfill').is_visible() else None); pg.wait_for_timeout(300)  # Fill from the datacard is on at first
         for st, looks in (('prog', [False, True]), ('paper', [False, True])):
             pg.click('.tgp [data-seg=pst] [data-v=%s]' % st); pg.wait_for_timeout(300)
             for dark in looks:

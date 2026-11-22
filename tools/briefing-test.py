@@ -58,7 +58,7 @@ try:
     with sync_playwright() as p:
         br = p.chromium.launch(args=['--disable-features=WebRtcHideLocalIpsWithMdns'])
         A, ea = start(br, 'Evil'); B, eb = start(br, 'Wing2')
-        check('the Squadron page has a Briefing tab between Organization and Missions (ROE / SOP after Members)', A.locator('#sqtabs button').all_text_contents() == ['Members', 'ROE / SOP', 'Organization', 'Briefing', 'Missions', 'Me', 'Settings'])
+        check('the Squadron page has a Briefing tab between Organization and Missions (ROE / SOP after Members)', A.locator('#sqtabs button').all_text_contents()[:7] == ['Members', 'ROE / SOP', 'Organization', 'Briefing', 'Missions', 'Me', 'Settings'])  # then Add card (ROE / SOP)
         x0 = A.locator('#sqtabs button').first.bounding_box()['x']
         brief(A)
         check('the tabs of the Squadron page do not move when the Briefing widens the page (%.0f -> %.0f)' % (x0, A.locator('#sqtabs button').first.bounding_box()['x']), abs(A.locator('#sqtabs button').first.bounding_box()['x'] - x0) < 2)
@@ -66,7 +66,7 @@ try:
         check('the Briefing holds the map of the Map page (not editable)', A.locator('.brw .brmap #mpmap').count() == 1 and A.evaluate('()=>__app.mapV.isEdit()') is False)
         check('the page is wide while the Briefing is shown', A.evaluate("()=>document.querySelector('main').classList.contains('wide')"))
         A.click('[data-t=mp]'); A.wait_for_timeout(500)
-        check('the Map page takes its map back', A.locator('#mpbody #mpmap').count() == 1 and A.locator('.brw #mpmap').count() == 0 and A.evaluate('()=>__app.mapV.isEdit()') is True)
+        check('the Map page takes its map back', A.locator('#mpbody #mpmap').count() == 1 and A.locator('.brw #mpmap').count() == 0)  # (isEdit at home is the choice of the A-G pages: beta.16)
         A.evaluate("()=>__app.sq.briefing().hide()"); A.wait_for_timeout(100)
         check('the Briefing hidden again while the Map is on screen (a change of the squadron) leaves the Map wide', A.evaluate("()=>document.querySelector('main').classList.contains('wide')"))
         A.click('[data-t=sq]'); A.wait_for_timeout(300)
