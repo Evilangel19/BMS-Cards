@@ -145,13 +145,14 @@ export function cleanState(s, kind, planned) {
   return o;
 }
 
-// the bearing of the threat from the anchor: the enemy points (airbases, else units), the nearest three, each by 1 / distance; null without any
-export function threatBrg(anchor, pts) {
+// the bearing of the threat from the anchor: the enemy points (ground units, SAMs, airbases), the nearest n, each by 1 / distance (the near ones lead);
+// null without any
+export function threatBrg(anchor, pts, n = 8) {
   const L = (pts || [])
     .map(p => ({ p, d: Math.hypot(p.x - anchor.x, p.y - anchor.y) }))
     .filter(z => z.d > 0.5)
     .sort((a, b) => a.d - b.d)
-    .slice(0, 3);
+    .slice(0, n);
   if (!L.length) return null;
   let sx = 0,
     sy = 0;

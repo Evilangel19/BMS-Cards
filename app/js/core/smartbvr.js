@@ -65,7 +65,7 @@ export function faorPlanView(x, P, box) {
   scLine(x, P.box.map(Q), { close: true, w: 2, fill: 'rgba(0,0,0,0.05)' });
   scLine(x, P.commit.map(Q), { w: 1.5, dash: [7, 4] });
   scLine(x, P.stop.map(Q), { w: 2, c: RED });
-  if (P.hw) scLine(x, [Q(P.hw.a), Q(P.hw.b)], { w: 3, c: RED });
+  if (P.hw) scLine(x, [Q(P.hw.a), Q(P.hw.b)], { w: 2.5, dash: [8, 5] });
   // the CAP points and the racetrack between them
   const C = P.cap.map(Q);
   if (C.length > 1) scLine(x, C, { w: 5, c: '#bbbbbb', cap: 'round' });
@@ -108,12 +108,25 @@ export function faorPlanView(x, P, box) {
   const lab = (p, t, o = {}) => L.put(p[0], p[1], t, { s: 11, box: lb, ...o });
   C.forEach((c, i) => lab(c, 'CAP' + (C.length > 1 ? i + 1 : ''), { w: 700 }));
   lab(t, 'THREAT ' + (P.axis || String(Math.round(P.brg) % 360).padStart(3, '0')) + '°', { c: RED, w: 700 });
-  lab(Q(P.commit[1]), 'COMMIT');
-  lab(Q(P.stop[0]), 'STOP', { c: RED, w: 700 });
-  if (P.hw)
-    lab([(V.X(P.hw.a.x) + V.X(P.hw.b.x)) / 2, (V.Y(P.hw.a.y) + V.Y(P.hw.b.y)) / 2], 'HARDWALL ' + P.hw.name, {
-      c: RED,
+  lab(Q(P.commit[1]), 'COMMIT' + (P.wpn ? ' · ' + P.wpn : ''));
+  lab(Q(P.stop[0]), 'STOP' + (P.drop ? ' · DROP ' + P.drop : ''), {
+    c: RED,
+    w: 700,
+    at: [
+      [6, -7],
+      [6, 15],
+    ],
+  });
+  if (P.stnTxt && C.length)
+    lab(C[C.length - 1], 'ON STN ' + P.stnTxt, {
+      s: 10,
+      at: [
+        [-30, 20],
+        [-30, -12],
+        [10, 20],
+      ],
     });
+  if (P.hw) lab([(V.X(P.hw.a.x) + V.X(P.hw.b.x)) / 2, (V.Y(P.hw.a.y) + V.Y(P.hw.b.y)) / 2], 'HARDWALL ' + P.hw.name);
   x.restore();
   if (!near && P.be) scText(x, box[0] + 4, box[1] + box[3] - 6, 11, P.be, { c: '#444444' });
   scLine(

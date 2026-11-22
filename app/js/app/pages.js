@@ -951,15 +951,17 @@ function faorCtx() {
     D = C.D,
     cap = capPts(e.f);
   if (!cap.length) return { ok: false, why: e.callsign + ' has no CAP steerpoint.' };
+  // the threat: the enemy ground units and SAMs (the spotted ones when there are any) and the enemy airbases; the page weighs the nearest
   let enemy = [];
   try {
-    enemy = mapAirbases(D)
-      .filter(a => a.kind == 'ab' && airbaseSide(C, a.id, e.team) == 'enemy')
-      .map(a => ({ x: a.x, y: a.y, name: a.name }));
-    if (!enemy.length)
-      enemy = mapUnits(C, e.team)
-        .filter(m => m.hostile)
-        .map(m => ({ x: m.u.x, y: m.u.y, name: m.name }));
+    const H = mapUnits(C, e.team).filter(m => m.hostile && m.u.kind == 'gnd'),
+      S = H.filter(m => m.spotted);
+    enemy = [
+      ...(S.length ? S : H).map(m => ({ x: m.u.x, y: m.u.y, name: m.name })),
+      ...mapAirbases(D)
+        .filter(a => a.kind == 'ab' && airbaseSide(C, a.id, e.team) == 'enemy')
+        .map(a => ({ x: a.x, y: a.y, name: a.name })),
+    ];
   } catch (er) {
     enemy = [];
   }

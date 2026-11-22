@@ -69,6 +69,18 @@ const en = [
 const anc = { x: 500 + 10 * KM_NM, y: 500 };
 const tb = threatBrg(anc, en);
 ok('the enemy airbases are about north ' + tb.toFixed(0), angDiff(tb, 0) < 15);
+ok(
+  'the enemy units near to the north-west lead over a far enemy airbase to the east',
+  angDiff(
+    threatBrg(anc, [
+      { x: anc.x - 40, y: anc.y + 40 },
+      { x: anc.x - 60, y: anc.y + 30 },
+      { x: anc.x - 30, y: anc.y + 60 },
+      { x: anc.x + 300, y: anc.y },
+    ]),
+    315
+  ) < 25
+);
 let s = { ...D };
 let G = faorGeo(cap, tb, s);
 ok('CAP leg 090: the axis 000 (north, the enemy side) ' + G.brg.toFixed(0), near(G.leg, 90) && angDiff(G.brg, 0) < 0.5);

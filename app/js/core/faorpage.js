@@ -43,7 +43,7 @@ const hm = t => {
   const m = Math.floor((t || 0) / 60000);
   return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 };
-const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ef4444', cap: '#4cc38a', mate: '#9aa8b8' };
+const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ffffff', cap: '#4cc38a', mate: '#9aa8b8' };
 const KINDS = [
   ['smart', 'Smart BVR'],
   ['combo', 'Smart mission'],
@@ -232,7 +232,7 @@ export function createFaorPage(deps) {
       h3(toMag(G.brg)) +
       '° magnetic' +
       (G.leg != null ? ' · CAP leg ' + h3(toMag(G.leg)) + '°' : ' · one CAP point: straight at the enemy') +
-      (en != null ? ' · enemy airbases ' + h3(toMag(en)) + '°' : ' · no enemy airbase known');
+      (en != null ? ' · nearest enemy ' + h3(toMag(en)) + '°' : ' · no enemy known');
     Object.entries(val).forEach(([k, f]) => {
       const e = q(`[data-fae="${k}"]`),
         v = k == 'a0' ? S.alt[0] : k == 'a1' ? S.alt[1] : S[k];
@@ -267,7 +267,7 @@ export function createFaorPage(deps) {
       it(COL.fez, 'FEZ'),
       it(COL.commit, 'COMMIT', true),
       it(COL.stop, 'STOP'),
-      it(COL.hw, 'HARDWALL'),
+      it(COL.hw, 'HARDWALL', true),
       it(COL.cap, 'CAP · ' + STN_NM + ' NM', true),
     ].join(' ');
   }
@@ -334,17 +334,21 @@ export function createFaorPage(deps) {
     if (X.cap.length > 1) line(X.cap, { color: COL.cap, weight: 4, opacity: 0.8 });
     line(G.commit, { color: COL.commit, weight: 2, dashArray: '8 6' });
     line(G.stop, { color: COL.stop, weight: 2.5 });
-    tag(G.commit[1], 'COMMIT ' + S.commit, COL.commit);
-    tag(G.stop[1], 'STOP ' + S.stop, COL.stop);
+    tag(G.commit[1], 'COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(), COL.commit);
+    tag(G.stop[1], 'STOP ' + S.stop + ' · DROP ' + S.drop, COL.stop);
     if (HW) {
-      line([HW.a, HW.b], { color: COL.hw, weight: 4 });
+      line([HW.a, HW.b], { color: COL.hw, weight: 2.5, dashArray: '10 7' });
       tag(HW.b, 'HARDWALL ' + HW.name, COL.hw);
     }
+    // the time on station, at the last CAP point
+    const c0 = X.cap[0],
+      c1 = X.cap[X.cap.length - 1];
+    tag(c1, 'ON STN ' + (c0.arr ? hm(c0.arr) + '-' + hm(c1.dep || c1.arr) + ' · ' : '') + S.stn + ' min', COL.cap);
     const f = G.at(0, G.front),
       t = G.at(0, G.front + Math.max(8, S.d / 3));
     line([G.anchor, t], { color: COL.stop, weight: 1, dashArray: '2 4' });
     tag(t, 'THREAT ' + h3(toMag(G.brg)) + '°', COL.stop);
-    tag(f, 'FEZ ' + altBlock(S.alt) + ' · ' + S.wpn.toUpperCase(), COL.fez);
+    tag(f, 'FEZ ' + altBlock(S.alt), COL.fez);
     return [...G.box, ...G.commit, ...G.stop, ...(HW ? [HW.a, HW.b] : []), t].map(ll);
   }
   function paint() {
@@ -453,6 +457,8 @@ export function createFaorPage(deps) {
 
   // ---- the cards
   function planData() {
+    const c0 = X.cap[0],
+      c1 = X.cap[X.cap.length - 1];
     return {
       box: G.box,
       cap: X.cap,
@@ -465,7 +471,10 @@ export function createFaorPage(deps) {
       axis: h3(toMag(G.brg)),
       front: G.at(0, G.front),
       stn: STN_NM,
-      legend: 'COMMIT dashed · STOP, HARDWALL red · rings ' + STN_NM + ' NM: station',
+      legend: 'COMMIT, HARDWALL dashed · STOP red · rings ' + STN_NM + ' NM: station',
+      wpn: S.wpn.toUpperCase(),
+      drop: S.drop,
+      stnTxt: c0 && c0.arr ? hm(c0.arr) + '-' + hm(c1.dep || c1.arr) : S.stn + ' min',
     };
   }
   function smartData() {
