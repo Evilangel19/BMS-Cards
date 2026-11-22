@@ -42,6 +42,7 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 ![The Weather page](docs/img/weather.png)
 ![The Squadron page: members](docs/img/squadron-members.png)
 ![The Squadron page: organization](docs/img/squadron-organization.png)
+![The Briefing room](<docs/img/Briefing Room.png>)
 
 ## Getting started
 
