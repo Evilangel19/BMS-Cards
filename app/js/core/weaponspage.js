@@ -2864,9 +2864,17 @@ export function createWeaponsPage(deps) {
   }
 
   // Add card at the right of the tabs: the cards of the page shown (an attack, the SEAD or DEAD page of the HARM tab, the pages of the target)
+  // dimmed when the page shown has nothing to put on a card (HARM: no SEAD or DEAD flight; Target: no target)
+  function cardSync() {
+    const b = /** @type {HTMLButtonElement|null} */ (deps.root && deps.root.querySelector('[data-tabcard]'));
+    if (!b) return;
+    const p = st.mode == 'tgt' ? deps.tgt : st.mode == 'harm' ? deps.harm : null;
+    b.disabled = ATK.includes(st.mode) ? !(res && !res.error && ctx && ctx.t) : !(p && (!p.canCard || p.canCard()));
+  }
   function wireTabCard(root) {
     const b = root.querySelector('[data-tabcard]');
     if (!b) return;
+    cardSync();
     b.onclick = () => {
       if (ATK.includes(st.mode)) return addAtkCards(b);
       const p = st.mode == 'tgt' ? deps.tgt : deps.harm;
@@ -2916,6 +2924,7 @@ export function createWeaponsPage(deps) {
         wireTabCard(root);
       }
       sub.render();
+      cardSync();
       return;
     }
     document.body.classList.remove('onharm');
@@ -2924,6 +2933,7 @@ export function createWeaponsPage(deps) {
     compute();
     GHO = ghost();
     DC = deconfNow();
+    cardSync();
     // the red sliders belong to the kind of conflict they were found for
     const dk = DC && DC.conflict ? DC.frag + '|' + !!DC.close : '';
     if (dk != DCK) SWEEP = {};
@@ -3757,6 +3767,7 @@ export function createWeaponsPage(deps) {
         }
       : null;
   return {
+    cardSync,
     mode: () => st.mode, // Add all cards of the Kneeboard: the tab to give back
     amode: () => (ATK.includes(st.mode) ? st.mode : ATK.includes(st.amode) ? st.amode : 'popup'), // the attack page last shown
     lethal,

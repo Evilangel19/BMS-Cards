@@ -195,7 +195,8 @@ export async function pickSeat(i) {
         return;
     } else
       appToast(
-        'Your name and callsign are not set (Squadron page, Me): the seat is chosen, but its name is not changed.'
+        'Your name and callsign are not set (Squadron page, Me): the seat is chosen, but its name is not changed.',
+        true
       );
     giveBack();
     if (me.text && !isMe(F[`fl${i}_0`])) setField(`fl${i}_0`, me.text);

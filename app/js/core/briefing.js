@@ -221,11 +221,12 @@ class Room {
   sendTo(uid, m) {
     this.d.sendTo(uid, { k: 'brf', ...m });
   }
-  toast(t, ms = 2600) {
+  // bad: a refusal or something missing (red)
+  toast(t, ms = 2600, bad = false) {
     const w = this.M && this.visible && this.wrap;
-    if (!w) return this.d.toast && this.d.toast(t);
+    if (!w) return this.d.toast && this.d.toast(t, bad);
     const d = document.createElement('div');
-    d.className = 'brtoast';
+    d.className = 'brtoast' + (bad ? ' bad' : '');
     d.textContent = t;
     w.appendChild(d);
     setTimeout(() => {
@@ -739,7 +740,7 @@ class Room {
         (b.onclick = () => {
           const a = b.dataset.a;
           if (a == 'card') this.startCard();
-          if (a == 'copy' && this.d.copy) this.d.copy({ toast: t => this.toast(t, 4000), el: this.wrap }); // the map with the drawings and the cursors
+          if (a == 'copy' && this.d.copy) this.d.copy({ toast: (t, bad) => this.toast(t, 4000, bad), el: this.wrap }); // the map with the drawings and the cursors
           if (a == 'close')
             this.ask(
               'Close the room for everyone?',
@@ -1044,8 +1045,8 @@ class Room {
               this.cursAll ? 'You see the cursors of everyone' : 'You see only the cursors of who can draw'
             );
           }
-          if (!this.me) return this.toast('Join the room first');
-          if (d[3] && !this.can()) return this.toast('Ask the briefer for the pen');
+          if (!this.me) return this.toast('Join the room first', 2600, true);
+          if (d[3] && !this.can()) return this.toast('Ask the briefer for the pen', 2600, true);
           if (k == 'undo') return this.undo();
           if (k == 'clear') return this.clearBoard();
           if (k == 'wx') return this.wxPanel ? this.closeWx() : this.openWx(b);
@@ -1207,7 +1208,7 @@ class Room {
     return this.uid() + '-' + Date.now().toString(36) + '-' + ++this.seq;
   }
   add(o) {
-    if (this.objs.size >= MAX_OBJS) return this.toast('The board is full: clear something first');
+    if (this.objs.size >= MAX_OBJS) return this.toast('The board is full: clear something first', 2600, true);
     this.objs.set(o.id, o);
     this.send({ t: 'add', o });
     this.undoS.push({ t: 'add', id: o.id });
@@ -1230,7 +1231,7 @@ class Room {
   }
   undo() {
     const u = this.undoS.pop();
-    if (!u) return this.toast('Nothing to undo');
+    if (!u) return this.toast('Nothing to undo', 2600, true);
     if (u.t == 'add' && this.objs.has(u.id)) {
       this.objs.delete(u.id);
       this.send({ t: 'del', id: u.id });
@@ -1741,7 +1742,7 @@ class Room {
     this.closeEd();
     this.shotTool = this.tool;
     this.setTool('pan');
-    this.d.shot({ toast: t => this.toast(t, 4000) });
+    this.d.shot({ toast: (t, bad) => this.toast(t, 4000, bad) });
   }
   // ------------------------------------------------------------------- painting
   P(ll) {

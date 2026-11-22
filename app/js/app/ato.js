@@ -344,7 +344,7 @@ export function atoList0() {
     }
     if (lock || e.heli) return;
     if (msLocked(e.f)) {
-      appToast('This mission was made for another flight: load a campaign to use the other flights.');
+      appToast('This mission was made for another flight: load a campaign to use the other flights.', true);
       return;
     }
     const k = ST.CL.findIndex(x => x.f === e.f);

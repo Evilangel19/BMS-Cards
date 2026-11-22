@@ -322,9 +322,13 @@ const curFlight = () => {
     return null;
   }
 };
+// the Add card buttons of the A-G and A-A tabs follow what the page shown can put on a card (dimmed otherwise)
+const wpCardSync = () => ST.wpPage && ST.wpPage.cardSync && ST.wpPage.cardSync(),
+  aaCardSync = () => ST.bvrPage && ST.bvrPage.cardSync && ST.bvrPage.cardSync();
 function tgtDeps() {
   const PLACES = [8, 28, 29]; // cities, towns, villages: a target is never put on them
   return {
+    cardSync: wpCardSync,
     esc,
     anim: animOn,
     toast: appToast,
@@ -495,7 +499,7 @@ function tgtDeps() {
     async pick() {
       const data = targetData();
       if (!data) {
-        appToast('The objectives are read from the BMS folder: set it in Settings > Folders.');
+        appToast('The objectives are read from the BMS folder: set it in Settings > Folders.', true);
         return null;
       }
       const t = await openTargetPicker({
@@ -688,6 +692,7 @@ function agDeps() {
 }
 function seadDeps() {
   return {
+    cardSync: wpCardSync,
     ...agDeps(),
     combo: () => comboBase(),
     esc,
@@ -703,6 +708,7 @@ function seadDeps() {
     layerOn: k => !!mapV.state().on[k],
     pal: () => mapV.palette(),
     dtc: {
+      open: () => lines.length > 0,
       harm: () =>
         lines.some(l => l.s == 'HARM')
           ? [0, 1, 2].map(t => [0, 1, 2, 3, 4].map(n => parseInt(G('HARM', HARM_K(t, n), ''), 10)))
@@ -803,12 +809,12 @@ function deadCtx() {
 function deadDeps() {
   const d = seadDeps();
   return {
+    cardSync: wpCardSync,
     ...d,
     ctx: deadCtx,
     dtc: {
       ...d.dtc,
       has: sec => lines.some(l => l.s == sec),
-      open: () => lines.length > 0, // a DTC is open
       setOA: (key, v) => {
         S('NAV OFFSETS', key, v);
         dtcChanged('NAV OFFSETS', key);
@@ -887,6 +893,7 @@ function makeHarmTab() {
     pg = p;
     if (p.acts) bar.append(p.acts()); // the buttons of the page (HARM tables, Auto PPT, Add card) at the right of this bar
     p.render();
+    wpCardSync();
   }
   return {
     root,
@@ -901,6 +908,7 @@ function makeHarmTab() {
       pg.refresh();
     },
     sub: () => cur(),
+    canCard: () => !!(pg && pg.addCard && (!pg.canCard || pg.canCard())),
     // Add card of the Weapons tabs: the card of the SEAD or DEAD page shown
     addCard: b =>
       pg && pg.addCard ? pg.addCard(b) : appToast('No card for this page: choose a SEAD or a DEAD flight.', true),
@@ -1247,6 +1255,7 @@ function qraCtx() {
 }
 function faorDeps() {
   return {
+    cardSync: aaCardSync,
     esc,
     toast: appToast,
     ctx: faorCtx,
@@ -1569,7 +1578,8 @@ export async function init11() {
               appToast(
                 r.issue == 'repaired'
                   ? 'The squadron file was damaged: it was restored from its copy.'
-                  : 'The squadron file could not be read. A copy of it was kept as squadron.json.bad in the program folder.'
+                  : 'The squadron file could not be read. A copy of it was kept as squadron.json.bad in the program folder.',
+                true
               ),
             1500
           );
@@ -1763,6 +1773,7 @@ export async function init13() {
       show();
       if (sub == 'faor') (dcaPage() == qraPage ? faorPage : qraPage).leave(); // another flight: the other page lets the map go
       page(sub).render();
+      ST.bvrPage.cardSync();
     },
     leave: () => {
       faorPage.leave();
@@ -1772,6 +1783,11 @@ export async function init13() {
       document.body.classList.remove('onfaor');
     },
     sub: () => sub,
+    cardSync: () => {
+      const b = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-bcard]')),
+        p = sub == 'faor' ? dcaPage() : page(sub);
+      if (b && sub != 'tl') b.disabled = !(p && p.canCard && p.canCard());
+    },
   };
   // another page (the ROE / SOP: Edit in DCA / OCA) opens A-A on one of its tabs
   ST.bvrGo = k => {

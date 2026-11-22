@@ -474,6 +474,10 @@
   white-space: nowrap;
   animation: br-pop 0.2s ease;
 }
+.brw .brtoast.bad {
+  border-color: #e5534b;
+  color: #ffb4ae;
+}
 .brw .brpal {
   position: absolute;
   z-index: 1300;

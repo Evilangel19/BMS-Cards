@@ -36,6 +36,7 @@ This file says what the program does today, how far each part has been checked, 
 
 ## Not yet verified in the game
 
+- Fit after the FEZ and tanker AUTOs (checked on the other AUTOs with Bear Trap).
 - Performance and weights of the F-15K, F/A-18, F-4E, AV-8B+ and EA-6B on the datacard; the refusal speed shown as `---` for take-offs from a ship.
 - Landing speeds: only the F-16 has a real approach alpha (13°); for the others it is 90% of the gear-down alpha limit of the file. The F/A-18 flies 8.1° with the flaps down, and the flap lift is not modelled (the file has the CL TEF table but not the way the game combines it): it keeps the estimate. The F-15C flies 20-22 AoA units, whose conversion to degrees is not known.
 - The take-off from a ship and the STOVL take-off roll against the length of the deck; a vertical landing is not modelled.
@@ -45,8 +46,6 @@ This file says what the program does today, how far each part has been checked, 
 - NAV OFFSETS written to the DTC: that VRP, VIP, OA1 and OA2 appear in the DED.
 - The Squadron with more pilots than three: packages and flights edited at the same moment, templates, a card sent over the link, dragging on every PC.
 - Other theaters with more campaigns; the aircraft of those theaters.
-- Before the merge of 1.3: the animation of the map when it fits what an AUTO wrote (some seem to be missing).
-- Before the merge of 1.3: Weapons > Target, Add card dimmed when it cannot write a card (no target, no picture).
 
 ## Assumptions made when reading BMS files
 

@@ -90,7 +90,13 @@ export function createQraPage(deps) {
   };
 
   // ---- the numbers
+  // the Add card of the tabs follows what the page can put on a card
   function compute() {
+    const r = compute0();
+    if (deps.cardSync) deps.cardSync();
+    return r;
+  }
+  function compute0() {
     X = deps.ctx();
     A = I = null;
     W = [];
@@ -712,6 +718,7 @@ export function createQraPage(deps) {
   }
 
   return {
+    canCard: () => !!(X && X.ok),
     root,
     allCards,
     addCard: b => addCard(b),

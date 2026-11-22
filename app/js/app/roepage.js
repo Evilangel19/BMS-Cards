@@ -381,6 +381,9 @@ function render() {
   );
   try {
     render0(box);
+    const kb = /** @type {HTMLButtonElement|null} */ (document.getElementById('sqroekb')),
+      n = counts();
+    if (kb) kb.disabled = !(n.r || n.s); // Add card: dimmed while nothing is chosen
     box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot').forEach(e => {
       if (seen.has(e.className + '|' + e.textContent)) e.style.animation = 'none';
     });
@@ -1013,7 +1016,8 @@ function limitText(ta) {
   if (L.length > room) {
     R.sel[f] = L.slice(0, room).join('\n');
     appToast(
-      `The ${f == 'free' ? 'ROE' : 'SOP'} box holds ${BOX_MAX} lines: the last ${L.length - room} line${L.length - room == 1 ? ' was' : 's were'} left out.`
+      `The ${f == 'free' ? 'ROE' : 'SOP'} box holds ${BOX_MAX} lines: the last ${L.length - room} line${L.length - room == 1 ? ' was' : 's were'} left out.`,
+      true
     );
   }
 }

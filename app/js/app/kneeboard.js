@@ -1309,7 +1309,7 @@ export function kbRender(keepMenu) {
             const to = over.getBoundingClientRect();
             fly(to, () => {
               if (card.kind == 'pic' && kbKept(card.item)) {
-                appToast('This card is used by another theater or by the default: kept in the library.');
+                appToast('This card is used by another theater or by the default: kept in the library.', true);
                 if (src.tray === undefined) KBS[src.r][src.s] = { kind: 'empty', mode: 'fill' };
               } else if (card.kind == 'pic') kbDelete(card.item);
               else if (src.tray === undefined) KBS[src.r][src.s] = { kind: 'empty', mode: 'fill' };

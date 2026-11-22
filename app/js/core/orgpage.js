@@ -166,7 +166,7 @@ export function wireLost(box, h) {
     if (!b || !('seat' in b.dataset)) return;
     const o = box.querySelector('[data-seatold]').value,
       n = box.querySelector('[data-seatnew]').value;
-    if (!o || !n) return h.toast('Choose the old pilot and the new one.');
+    if (!o || !n) return h.toast('Choose the old pilot and the new one.', true);
     if (await h.confirm('Give the seat of the old pilot to the new one? The old entry leaves the squadron.')) {
       const r = h.act({ t: 'seat', old: o, nu: n });
       if (!r.ok) h.toast(r.error, true);

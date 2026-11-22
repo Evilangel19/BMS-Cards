@@ -2509,7 +2509,7 @@ export function createSquadronPage(deps) {
   }
 
   // ----- MISSIONS: the missions saved by this program (the received ones too); deleting removes the folder here, never the copies of the pilots who got it -----
-  const toastMsg = t => (deps.toast ? deps.toast(t, true) : say(t));
+  const toastMsg = (t, bad = true) => (deps.toast ? deps.toast(t, bad) : say(t));
   // ----- SAVED MISSIONS: virtual folders (the index of the missions folder, core/misindex.js), search, groups; many missions: a hundred at a time -----
   let savedBusy = false,
     MS = [], // the missions (msfList)
@@ -2842,7 +2842,7 @@ export function createSquadronPage(deps) {
       r.querySelector('[data-open]').onclick = async () => {
         try {
           const ok = await deps.loadMission(await deps.mission.text(m.id));
-          toastMsg('Mission "' + m.label + '" ' + (ok === false ? 'not opened.' : 'loaded.'));
+          toastMsg('Mission "' + m.label + '" ' + (ok === false ? 'not opened.' : 'loaded.'), ok === false);
         } catch (e) {
           toastMsg('The mission could not be opened: ' + ((e && e.message) || e));
         }

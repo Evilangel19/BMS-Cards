@@ -1692,9 +1692,10 @@ export function createMap(host, deps) {
     ].forEach(([id, k]) => {
       const b = $(id);
       if (b) {
-        const u = auUsed(k);
+        const u = auUsed(k),
+          off = !P0 || (k == 'coast' && !koreaOn()); // no DTC to write into; COAST only in Korea
         b.classList.toggle('used', u);
-        b.disabled = u;
+        b.disabled = u || off;
       }
     });
     // FEZ: only for a flight an A-A page plans (CAP, QRA, SWEEP, ESCORT)
@@ -1702,11 +1703,11 @@ export function createMap(host, deps) {
     if (fz) {
       if (!fz.dataset.tip) fz.dataset.tip = fz.title;
       const ok = !!deps.aaCan && deps.aaCan();
-      fz.disabled = !ok;
+      fz.disabled = !ok || !P0;
       fz.classList.toggle('used', !ok);
       fz.title = ok ? fz.dataset.tip : 'Choose a CAP, QRA, SWEEP or ESCORT flight: ' + fz.dataset.tip;
     }
-    const noTk = !!P0 && !lineRoom(P0, true);
+    const noTk = !P0 || !lineRoom(P0, true);
     document.querySelectorAll('#mpdtkl [data-tk]').forEach(b => {
       const u = auUsed('tk:' + b.textContent) || noTk;
       b.classList.toggle('used', u);
@@ -1793,7 +1794,8 @@ export function createMap(host, deps) {
               ' pre-planned threats added' +
               (dup ? ' (' + dup + ' already in the DTC)' : '') +
               '.'
-          : 'The SAMs crossing the flight plan are already in the DTC.'
+          : 'The SAMs crossing the flight plan are already in the DTC.',
+        !added
       );
   }
   // the AUTO PPT for a list of SAMs chosen elsewhere (A-G > HARM > SEAD: the threats assigned): each one not in the DTC yet in a free PPT slot; the
@@ -2162,12 +2164,12 @@ export function createMap(host, deps) {
   }
   // COAST (F-15, Korea): the coast of the peninsula as ECOAST (SIT line 6) and WCOAST (SIT line 7), 30 points each, always in those two lines so that
   // their names keep their meaning (what they hold is replaced, after asking)
+  const koreaOn = () => !Object.values(KOREA_COAST).some(([lo, la]) => fromLL(la, lo).some(v => v < 0 || v > 1024));
   async function autoCoast() {
     const P = deps.dtc && deps.dtc.points();
     if (!P) return toast('Open a DTC first: the lines are added to it.', true);
     if (!sitOn()) return toast('The SIT lines are for the F-15.', true);
-    if (Object.values(KOREA_COAST).some(([lo, la]) => fromLL(la, lo).some(v => v < 0 || v > 1024)))
-      return toast('COAST is for the Korea theater only.', true);
+    if (!koreaOn()) return toast('COAST is for the Korea theater only.', true);
     const c = koreaCoasts(basemap.land, SIT_LEN);
     if (!c) return toast('The coast of Korea was not found in the map data.', true);
     const used = [6, 7].filter(n => lnUsed(P, n));

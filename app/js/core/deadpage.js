@@ -128,7 +128,19 @@ export function createDeadPage(deps) {
     if (!r || r.error) return { rTh: 0, vm: 0.36 };
     return { rTh: r.rTh / NM, vm: r.flight > 0 ? r.shot / NM / r.flight : 0.36 };
   }
+  // the Add card of the tabs follows what the page can put on a card
   function compute() {
+    const r = compute0();
+    if (deps.cardSync) deps.cardSync();
+    // HARM tables and Auto PPT: dimmed without a DTC (HARM tables: without its HARM section)
+    const d = deps.dtc,
+      bt = /** @type {HTMLButtonElement|null} */ (acts.querySelector('[data-ddtab]')),
+      bp = /** @type {HTMLButtonElement|null} */ (acts.querySelector('[data-ddppt]'));
+    if (bt) bt.disabled = !(d && d.harm && d.harm());
+    if (bp) bp.disabled = !(d && d.open && d.open());
+    return r;
+  }
+  function compute0() {
     X = deps.ctx();
     P = null;
     const s = sam();
@@ -1972,6 +1984,7 @@ export function createDeadPage(deps) {
     }));
   }
   return {
+    canCard: () => !!P,
     root,
     acts: () => acts,
     allCards,

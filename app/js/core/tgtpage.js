@@ -1783,6 +1783,7 @@ export function createTargetPage(deps) {
   function draw() {
     styleHint();
     if (!cv) return;
+    q('.tgdc').disabled = !!CROP || !rawPic(); // Put on datacard: a picture first
     x = cv.getContext('2d');
     x.setTransform(2, 0, 0, 2, 0, 0);
     IMG = { x: 10, y: 122, w: 1080, h: 520 };
@@ -2430,7 +2431,8 @@ export function createTargetPage(deps) {
           deps.toast(
             put == 'full'
               ? 'The DTC has no free weapon target: the target is kept in this list only.'
-              : 'No DTC is open: the target is kept in this list only.'
+              : 'No DTC is open: the target is kept in this list only.',
+            true
           );
       }
       await loadTargets();
@@ -2478,7 +2480,8 @@ export function createTargetPage(deps) {
             if (!R || R.hdg == null) {
               if (deps.toast)
                 deps.toast(
-                  'No attack heading: plan the attack on the Pop-up, HADB or TOSS tab, or fill from the datacard.'
+                  'No attack heading: plan the attack on the Pop-up, HADB or TOSS tab, or fill from the datacard.',
+                  true
                 );
               return;
             }
@@ -3080,6 +3083,7 @@ export function createTargetPage(deps) {
     }
   }
   function tlist() {
+    if (deps.cardSync) queueMicrotask(deps.cardSync); // Add card: dimmed with no target chosen
     const L = q('.tglist');
     const name = t => (t.pic && ST[t.key] && ST[t.key].fac) || t.name;
     if (!TL.length) {
@@ -3379,6 +3383,7 @@ export function createTargetPage(deps) {
     addCard() {
       return built ? addCards() : undefined;
     },
+    canCard: () => built && !!tgt(),
     async render() {
       if (!built) {
         build();
