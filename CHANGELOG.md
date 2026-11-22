@@ -16,6 +16,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ### All changes
 
+- Fixed: the A-A line of the DCA, OCA and QRA pages and the weapon of the A-G pages counted one missile or bomb per station ("1× AIM-120B · 1× AIM-120B…"); each weapon now has its total, as on the datacard.
 - Changed: the warnings that stop an action or say that something is missing are red everywhere (A-G > Target, ATO, ROE, Kneeboard, seat, Map, Squadron, Briefing room, Organization).
 - Changed: buttons with nothing to act on are dimmed: Add card of A-G (no attack, no SEAD or DEAD flight, no target), A-A (no flight for the page) and ROE / SOP (nothing chosen); Put on datacard without a picture; HARM tables and Auto PPT without a DTC; the AUTOs of the Map without a DTC (COAST outside Korea).
 - Fixed: Squadron > Missions said "loaded" in red; in the Briefing room a failed Copy or screenshot was not red.
