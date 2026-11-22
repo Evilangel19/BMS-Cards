@@ -905,10 +905,10 @@ export function createSeadPage(deps) {
     }
     fill();
     paint();
-    // the A-G block of the ROE of the flight: the HARM mode, preemptive, MAGNUM
+    // the A-G block of the ROE of the flight: the MAGNUM calls
     if (X && X.ok && P && deps.roeAg)
       try {
-        deps.roeAg({ kind: 'SEAD', harm: mode() == 'pos' ? 'POS ' + sub() : mode().toUpperCase() });
+        deps.roeAg({ kind: 'SEAD' });
       } catch (e) {
         /* no flight */
       }

@@ -64,7 +64,7 @@ try:
         check('INTERCEPT: the title, the displacement slider (VID)', 'QRA · INTERCEPT' in pg.inner_text('#qrpage .wpc h3') and pg.locator('#qrpage [data-qr=disp]').count() == 1)
         P = pg.evaluate("()=>{const P=__app.qraPage.plan(),I=P.I;return {mode:P.mode,vec:Math.round(I.vec),d:I.d,asp:I.aspect,conv:!!I.conv}}")
         check('INTERCEPT: head-on, vector north, HOT, a stern conversion %s' % P, P['mode'] == 'INTERCEPT' and (P['vec'] <= 1 or P['vec'] >= 359) and P['asp'] == 'HOT' and P['conv'] and 20 < P['d'] < 60)
-        check('the A-A block: INTERCEPT with the displacement %s' % pg.evaluate("()=>JSON.stringify(__QR.roe)"), pg.evaluate("()=>__QR.roe.qra=='INTERCEPT' && __QR.roe.disp==4"))
+        check('the A-A block: INTERCEPT, no tactic in it (the conversion is on the cards) %s' % pg.evaluate("()=>JSON.stringify(__QR.roe)"), pg.evaluate("()=>__QR.roe.qra=='INTERCEPT' && __QR.roe.disp==null"))
         check('the target in the data', '2× MiG-29A · spotted' in pg.inner_text('#qrdt'))
         sm = pg.evaluate("()=>{const D=__app.qraPage.smart();return {t:D.title,k:D.key.map(k=>k[0])}}")
         check('Smart QRA data %s' % sm, sm['t'] == 'A-A · DCA · QRA · INTERCEPT' and sm['k'][:3] == ['VECTOR', 'ANGELS', 'RANGE'])

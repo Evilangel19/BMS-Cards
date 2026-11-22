@@ -70,44 +70,29 @@ export function agChecks(o) {
   return { flags, list };
 }
 
-// THE A-G BLOCK of the ROE (core/roesop.js sel.ag): kind POP-UP | HADB | TOSS | SEAD | DEAD; mra (ft AGL), abort (KCAS), night, ceil (ft AGL),
-// harm ('POS EOM', 'HAS', 'HAD'...), tactic (DEAD)
+// THE A-G BLOCK of the ROE (core/roesop.js sel.ag): kind POP-UP | HADB | TOSS | SEAD | DEAD; mra (ft AGL), abort (KCAS), night, ceil (ft AGL).
+// No weapon and no tactic: they are on the datacard already (the HARM page, the attack, the stores)
 const KINDS = ['POP-UP', 'HADB', 'TOSS', 'SEAD', 'DEAD'];
 export function cleanAg(b) {
   if (!b || typeof b != 'object' || !KINDS.includes(b.kind)) return null;
-  const n = (x, a, c) => Math.max(a, Math.min(c, Math.round(+x || 0))),
-    t = (x, k) =>
-      String(x || '')
-        .replace(/[^A-Z0-9 /+-]/gi, '')
-        .toUpperCase()
-        .slice(0, k);
+  const n = (x, a, c) => Math.max(a, Math.min(c, Math.round(+x || 0)));
   return {
     kind: b.kind,
     mra: b.mra == null ? null : n(b.mra, 0, 60000),
     abort: b.abort == null ? null : n(b.abort, 0, 1000),
     night: !!b.night,
     ceil: b.ceil == null ? null : n(b.ceil, 0, 10000),
-    harm: t(b.harm, 10),
-    tactic: t(b.tactic, 16),
   };
 }
 const ft = v => Math.round(v).toLocaleString('en-US').replace(/,/g, ' ');
 /** its lines: short (the ROE page, the Smart ROE card) or long (the ROE card) */
 export function agLines(b, long) {
   if (!b) return [];
-  if (b.kind == 'SEAD')
-    return long
-      ? ['HARM ' + b.harm, 'Preemptive: the HARMs hit before the package enters the WEZ', 'MAGNUM call at every launch']
-      : ['HARM ' + b.harm, 'PREEMPTIVE: IMPACT BEFORE PKG IN WEZ', 'MAGNUM CALLS'];
+  if (b.kind == 'SEAD') return long ? ['MAGNUM call at every HARM launch'] : ['MAGNUM CALLS'];
   if (b.kind == 'DEAD')
     return long
-      ? [
-          'DEAD: ' + b.tactic,
-          ...(b.harm ? ['HARM ' + b.harm] : []),
-          'Positive ID of the SAM before the release',
-          'MAGNUM (HARM) / RIFLE (Maverick) call at every launch',
-        ]
-      : ['DEAD ' + b.tactic, ...(b.harm ? ['HARM ' + b.harm] : []), 'PID BEF RLS', 'MAGNUM / RIFLE CALLS'];
+      ? ['Positive ID of the SAM before the release', 'MAGNUM (HARM) / RIFLE (Maverick) call at every launch']
+      : ['PID BEF RLS', 'MAGNUM / RIFLE CALLS'];
   return long
     ? [
         ...(b.mra != null ? ['Minimum release altitude ' + ft(b.mra) + ' ft AGL'] : []),
@@ -123,6 +108,18 @@ export function agLines(b, long) {
         ...(b.night ? ['NIGHT: +1 CUE'] : []),
         ...(b.ceil ? ['CEILING ' + ft(b.ceil) + ' AGL'] : []),
       ];
+}
+/** the lines of the datacard box (core/roesop.js roeText): short, joined two by two */
+export function agBox(b) {
+  if (!b) return [];
+  if (b.kind == 'SEAD') return ['MAGNUM CALLS'];
+  if (b.kind == 'DEAD') return ['PID BEF RLS · MAGNUM/RIFLE'];
+  return [
+    [b.mra != null ? 'MIN RLS ' + ft(b.mra) : '', b.abort ? 'ABORT <' + b.abort + 'KCAS' : '']
+      .filter(Boolean)
+      .join(' · '),
+    'PID BEF RLS' + (b.night ? ' · NIGHT +1 CUE' : ''),
+  ].filter(Boolean);
 }
 /** the block of an attack page */
 export function agAttack(mode, mra, night) {

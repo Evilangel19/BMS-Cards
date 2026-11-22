@@ -86,7 +86,7 @@ preferences and the tests of before still work. Use this table to find a page in
 | A-A > DCA, a QRA flight | the same tab (key `faor`): `dcaPage()` in `app/pages.js` gives `qraPage` (`core/qrapage.js`, root `#qrpage`) for a QRA flight, else `faorPage`; the geometry `core/qra.js`, `qraCtx` in `app/pages.js`, drawn by the map layer `fa`, mission field `weapons.qra`, `sessionStorage['qra1']`, `localStorage['qracardkinds']` |
 | A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
 | A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
-| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA and OCA: an OCA block has `pos`, `lead`, `ta`), `cleanFaor` / `faorLines` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
+| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA, QRA and OCA: an OCA block has `pos`, `ta`), `cleanFaor` / `faorLines` / `faorBox` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
 | The A-G block of the ROE | `sel.ag` in `core/roesop.js` (kind POP-UP, HADB, TOSS, SEAD, DEAD), `cleanAg` / `agLines` / `agAttack` in `core/agrules.js`, `roeAgSet` in `app/roepage.js` (both blocks through `blockSet`), `agDeps` in `app/pages.js`, `ST.agGo(block)` (Edit in A-G) |
 
 - **One plan, three drawings** (`core/aakit.js`): a page of A-A describes its plan once as a list of shapes in km (`spec()`: poly, ring, dot, label, arrow, each
@@ -98,8 +98,14 @@ preferences and the tests of before still work. Use this table to find a page in
 - **OCA without a package**: a SWEEP alone in its package (as BMS makes them) is an independent sweep (FS-1D, `X.indep` from `ocaCtx`): the plan follows
   its own route to its last sweep steerpoint, without lead or side. **The night** of the embedded escort comes from the date of the campaign set on the
   Datacard (`sunAlt` in `rules/ephemerides.js`: the Sun under -6° over the target at its time); IMC / low level is a switch.
-- The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page); the lines a
-  page wrote before are replaced only after asking.
+- The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page of the
+  flight: DCA / QRA or OCA); the lines a page wrote before are replaced only after asking.
+- **The sweep area** of OCA (`sweepArea`): one outline at w / 2 from the track, traced with marching squares on a grid of the distance to it (not a box
+  per leg: short legs and turns made overlapping boxes).
+- **The ROE blocks have no weapon and no tactic** (the HARM mode, the DEAD tactic, the OCA position and lead, the stern conversion of the QRA are on the
+  pages, the cards and the datacard already). **In the datacard box** (`roeText`): the A-A block gives WPN, COMMIT and one line (`faorBox`), the A-G
+  block its lines (`agBox`); they are never cut: `blockSet` passes the choice through `capSel`, so the last choices of the lists make room.
+- A page builds itself when it has nothing yet (`!root.firstChild`): a page computed for the Map before it was shown stayed empty.
 - Shapes with `map: false` are drawn on the cards only (the SAM rings of OCA: the map shows the SAMs already).
 - **QRA** (`core/qra.js`): in the ATO of BMS a QRA waits on its airbase (a route base -> base); when the campaign launches it, the same flight
   gets the mission INTERCEPTION and an Intercept steerpoint (action 13) whose target id (`tid`) names the enemy flight. No flight starts as an
@@ -107,7 +113,7 @@ preferences and the tests of before still work. Use this table to find a page in
   `CLIMB_KT`, then the dash), checked against the friendly radars (`coverNm`, `radarUnits`) unless an AWACS is on station, and the enemy airbases
   on the axis. INTERCEPT: the target dead-reckoned from where the side of the flight sees it now (`spottedBy`, `flightState`, which also gives x / y),
   the collision point (`qraIntercept`), the commit point, the aspect; not spotted, the steerpoint of BMS (`qraFromStpt`). With VID in the ROE, the
-  stern conversion (`stern`). The A-A block has `qra`, `vec`, `ri`, `rs`, `disp` (`cleanFaor` / `faorLines` in `core/faor.js`); the DTC lines use
+  stern conversion (`stern`). The A-A block has `qra`, `vec`, `ri`, `rs` (`cleanFaor` / `faorLines` in `core/faor.js`); the DTC lines use
   the key `dca`, so they replace those of the FAOR of the flight.
 - Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`, `tests/run-qra.mjs`, `tools/qra-test.py`.
 
@@ -120,7 +126,7 @@ preferences and the tests of before still work. Use this table to find a page in
 - **The A-G block** (`sel.ag`): the attack pages (Pop-up, HADB, TOSS) and HARM > SEAD / DEAD write it in the ROE of the flight after each plan
   (`deps.roeAg`, not for a CAP or OCA flight: its block is the A-A one); the night comes from the date of the campaign (`deps.night`, the Sun under -6°
   over the task steerpoint). Like the A-A block it is kept out of the presets (`key()` in `app/roepage.js`); while it is there, the choices PID and MIN RLS
-  of the lists step aside on the card.
+  of the lists step aside on the card and in the datacard box.
 - Tests: `tests/run-agrules.mjs`, `tools/agrules-test.py`.
 
 ## How a mission page is made

@@ -51,7 +51,7 @@ try:
         check('the A-A block written to the ROE %s' % pg.evaluate("()=>JSON.stringify(__OC.roe)"), pg.evaluate("()=>__OC.roe && __OC.roe.kind=='SWEEP' && __OC.roe.pos=='FS-1A' && __OC.roe.wpn=='free' && __OC.roe.commit==40"))
         slide = lambda k, v: pg.evaluate("([k,v])=>{const e=document.querySelector('#ocpage [data-oc='+k+']');e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}", [k, str(v)])
         slide('lead', 1); pg.wait_for_timeout(300)
-        check('lead 1 min within 10 NM: an escort, not a sweep (red)', any('not a sweep' in t for t in P()['red']) and pg.evaluate("()=>__OC.roe.lead") == 1)
+        check('lead 1 min within 10 NM: an escort, not a sweep (red); the lead is not a line of the ROE', any('not a sweep' in t for t in P()['red']) and pg.evaluate("()=>__OC.roe.lead") is None)
         pg.click('#ocpage [data-ocset=side][data-v="1"]'); slide('off', 12); pg.wait_for_timeout(300)
         q = P()
         check('12 NM right: FS-1C, no longer an escort %s' % q['code'], q['code'] == 'FS-1C' and not any('not a sweep' in t for t in q['red']))

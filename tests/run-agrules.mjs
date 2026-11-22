@@ -1,6 +1,16 @@
 // The A-G rules of the manuals (core/agrules.js) and the A-G block of the ROE (core/roesop.js sel.ag). Made-up attacks, no campaign.
-import { agChecks, agLines, agAttack, cleanAg, casOf, POPUP_KCAS, CEIL_AGL, TOSS_MAX } from '../app/js/core/agrules.js';
-import { fullText, cleanSel, emptySel } from '../app/js/core/roesop.js';
+import {
+  agChecks,
+  agLines,
+  agAttack,
+  agBox,
+  cleanAg,
+  casOf,
+  POPUP_KCAS,
+  CEIL_AGL,
+  TOSS_MAX,
+} from '../app/js/core/agrules.js';
+import { fullText, cleanSel, emptySel, roeText, capSel } from '../app/js/core/roesop.js';
 import { TOSS_LIMITS } from '../app/js/core/strike.js';
 
 let n = 0,
@@ -78,11 +88,23 @@ ck('toss release angle ends at ' + TOSS_MAX + '°', TOSS_LIMITS.releaseAngle[1] 
   );
   ck('no release heading, push time or attack axis', !L.some(x => /RLS HDG|PUSH|ATTACK AXIS/.test(x)));
   ck('toss lines: no night, no abort', !agLines(t, false).some(x => /NIGHT|ABORT/.test(x)));
-  ck('SEAD lines', agLines(cleanAg({ kind: 'SEAD', harm: 'POS EOM' }), false)[0] == 'HARM POS EOM');
-  const d = agLines(cleanAg({ kind: 'DEAD', tactic: 'shooter-cover', harm: '' }), true);
-  ck('DEAD lines: tactic, no HARM line without HARM', d[0] == 'DEAD: SHOOTER-COVER' && !d.some(x => /^HARM/.test(x)));
+  ck(
+    'SEAD lines: the MAGNUM calls only (no weapon, no tactic)',
+    agLines(cleanAg({ kind: 'SEAD', harm: 'POS EOM' }), false).join() == 'MAGNUM CALLS'
+  );
+  const d = agLines(cleanAg({ kind: 'DEAD', tactic: 'hk', harm: 'POS' }), false);
+  ck('DEAD lines: PID and the calls, no tactic, no HARM', d.join('|') == 'PID BEF RLS|MAGNUM / RIFLE CALLS');
   ck('an unknown kind is no block', cleanAg({ kind: 'NUKE' }) == null && cleanAg(null) == null);
-  ck('text is cleaned', cleanAg({ kind: 'SEAD', harm: '<img src=x>' }).harm == 'IMG SRCX');
+  ck('a field from outside is dropped', cleanAg({ kind: 'SEAD', harm: '<img src=x>' }).harm == null);
+  ck(
+    'the datacard box: two lines for an attack',
+    agBox(agAttack('popup', 1200, true)).join('|') == 'MIN RLS 1 200 · ABORT <350KCAS|PID BEF RLS · NIGHT +1 CUE'
+  );
+  ck(
+    'the datacard box: SEAD, DEAD',
+    agBox(cleanAg({ kind: 'SEAD' })).join() == 'MAGNUM CALLS' &&
+      agBox(cleanAg({ kind: 'DEAD' })).join() == 'PID BEF RLS · MAGNUM/RIFLE'
+  );
 }
 
 // the ROE: the block goes to the card, the PID and MIN RLS choices of the lists step aside
@@ -112,5 +134,23 @@ ck('toss release angle ends at ' + TOSS_MAX + '°', TOSS_LIMITS.releaseAngle[1] 
   );
 }
 
+// the datacard box: the A-G lines, never cut; the PID / MIN RLS choices step aside; the last choices of the lists make room
+{
+  const s = emptySel();
+  s.roe.ws = 'tight';
+  s.roe.id = ['vid', 'awacs'];
+  s.roe.commit = 'n40';
+  s.roe.abort = ['bingo', 'winch'];
+  s.roe.extra = ['pid'];
+  s.roe.restr = ['minrls'];
+  s.ag = agAttack('popup', 900, false);
+  const c = capSel(s),
+    L = roeText(c).split('\n');
+  ck(
+    'the box: 5 lines, the A-G ones kept ' + L.join('|'),
+    L.length == 5 && L.includes('MIN RLS 900 · ABORT <350KCAS') && L.includes('PID BEF RLS')
+  );
+  ck('the box: no MIN RLS 15K, no PID twice', !L.includes('MIN RLS 15K') && L.filter(x => /PID/.test(x)).length == 1);
+}
 console.log(bad ? 'FAIL - ' + bad + ' of ' + n : 'OK - ' + n + ' A-G rule checks');
 process.exit(bad ? 1 : 0);

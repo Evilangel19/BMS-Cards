@@ -127,7 +127,6 @@ export function createQraPage(deps) {
       vec: toMag(mode == 'ALERT' ? A.brg : I ? I.vec : 0),
       ri: A ? A.ri : I ? I.d : 0,
       rs: A ? A.rs : 0,
-      vid: vid(),
     });
   function roeWrite() {
     if (!X || !X.ok || !deps.roeSet) return;
@@ -218,7 +217,7 @@ export function createQraPage(deps) {
     const roe = roeNow(),
       id = roe && roe.roe.id.length ? roe.roe.id.join(' + ').toUpperCase() : 'none';
     q('#qrroe').innerHTML =
-      `<h3>ROE · A-A block</h3><div class="hint">${faorLines(block(), false).map(esc).join(' · ')}</div><div class="kv">${kv('ID', esc(id), id == 'none' && S.wpn == 'free' ? 'wbad' : '')}</div><p class="hint wnote">Written in the ROE of the flight (Squadron > ROE / SOP). VID among the ID criteria adds the stern conversion.</p>`;
+      `<h3>ROE · A-A block</h3><div class="hint">${faorLines(block(), false).map(esc).join(' · ')}</div><div class="kv">${kv('ID', esc(id), id == 'none' && S.wpn == 'free' ? 'wbad' : '')}</div><p class="hint wnote">Written in the ROE of the flight (Squadron > ROE / SOP). VID among the ID criteria adds the stern conversion to the page and the cards.</p>`;
     legend();
   }
   function legend() {
@@ -379,7 +378,7 @@ export function createQraPage(deps) {
       rebuild = true;
     }
     const want = X && X.ok ? mode + (vid() ? 'v' : '') : '';
-    if (rebuild || want !== built) {
+    if (rebuild || !root.firstChild || want !== built) {
       detachMap(true);
       failed = false;
       pend = null;

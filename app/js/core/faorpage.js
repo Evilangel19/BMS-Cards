@@ -412,7 +412,7 @@ export function createFaorPage(deps) {
       fit = true;
       rebuild = true;
     }
-    if (rebuild || !root.querySelector('.fag') !== !(X && X.ok) || was !== (X && X.ok)) {
+    if (rebuild || !root.firstChild || !root.querySelector('.fag') !== !(X && X.ok) || was !== (X && X.ok)) {
       detachMap(true);
       failed = false;
       pend = null;

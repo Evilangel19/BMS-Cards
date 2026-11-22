@@ -147,10 +147,10 @@ export async function init6() {
     faor: o => (faorPage ? dcaPage().overlay(o) : false),
     // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
-    // AUTO > FEZ of the DTC editing: the lines of A-A > DCA (or OCA)
-    aaAuto: k => {
-      const pg = k == 'dca' ? dcaPage() : ocaPage;
-      return pg && pg.dtcAuto ? pg.dtcAuto() : null;
+    // AUTO > FEZ of the DTC editing: the lines of the A-A page of the flight (DCA, QRA or OCA)
+    aaAuto: () => {
+      const pg = [dcaPage(), ocaPage].find(p => p && p.usable());
+      return pg ? pg.dtcAuto() : { msg: 'AUTO > FEZ: choose a CAP, QRA, SWEEP or ESCORT flight.', bad: true };
     },
     attack: () => {
       const a = ST.wpPage && ST.wpPage.spec && ST.wpPage.spec();
@@ -1013,7 +1013,11 @@ function faorCtx() {
   if (!kind)
     return {
       ok: false,
-      why: e.callsign + ' flies ' + e.mission + ': the FAOR is planned for the CAP flights.',
+      why:
+        e.callsign +
+        ' flies ' +
+        e.mission +
+        (ocaKind(e.mission) ? ': an OCA mission (A-A > OCA).' : ': the FAOR is planned for the CAP flights.'),
     };
   const C = ST.C,
     cap = capPts(e.f);

@@ -546,7 +546,7 @@ export function createMap(host, deps) {
     da: 'The attack worked out on the A-G page: the lines of each phase and the marks (pop-up, HADB, toss)',
     hm: 'The drawing of A-G > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
     fa: 'The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT, STOP and the HARDWALL',
-    oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the corridor, COMMIT, STOP and the target area',
+    oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the sweep area, COMMIT, STOP and the target area',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -1153,7 +1153,7 @@ export function createMap(host, deps) {
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
           <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
-          <button class="btn g bb tl" id="mpdfez" title="The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT / STOP and the HARDWALL, a whole LINE each (F-15: the SIT line FEZ). The lines it wrote before are replaced, after asking."><span>FEZ</span></button>
+          <button class="btn g bb tl" id="mpdfez" title="The plan of the A-A page of the selected flight as lines: a CAP flight (DCA: the FEZ, COMMIT / STOP, the HARDWALL), a QRA (the scramble line or the vector), a SWEEP or ESCORT (OCA: the track and the target area); a whole LINE each (F-15: a SIT line). The lines it wrote before are replaced, after asking."><span>FEZ</span></button>
           <button class="btn g bb tl sitrow" id="mpdcoast" title="F-15, Korea: the coast of the peninsula as the SIT lines ECOAST (6: the east coast and half of the south coast) and WCOAST (7: the other half and the west coast), 30 points each; lines 6 and 7 are replaced"><span>COAST</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
@@ -1230,7 +1230,7 @@ export function createMap(host, deps) {
     $('mpdppt').onclick = autoPpt;
     $('mpdbull').onclick = autoBull;
     $('mpdfez').onclick = async () => {
-      const r = deps.aaAuto ? await deps.aaAuto('dca') : null;
+      const r = deps.aaAuto ? await deps.aaAuto() : null;
       if (r && r.msg) toast(r.msg, !!r.bad);
       autoRefresh();
     };

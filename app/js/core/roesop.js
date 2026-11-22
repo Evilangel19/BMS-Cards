@@ -4,8 +4,8 @@
 // long form in the menu and in a short form on the card (only the topics marked "on card"). Values from the RoKAF F-16 Basic Employment Manual and the
 // 8th FW / 51st FW in-flight guides (Kunsan, Osan) and AFMAN 11-2F-16V3 (its values added as more options, "AFMAN" where the others differ); the field altitudes of the patterns are left to the field ("the pattern altitude of the field").
 
-import { cleanFaor, faorLines } from './faor.js';
-import { cleanAg, agLines } from './agrules.js';
+import { cleanFaor, faorLines, faorBox } from './faor.js';
+import { cleanAg, agLines, agBox } from './agrules.js';
 
 // [id, label, kind ('one' | 'many'), tag on the card, options [id, long, short]]
 export const ROE = [
@@ -1027,16 +1027,20 @@ export function roeText(sel) {
     R = [];
   ROE.forEach(([id, , k, tag, opts]) => {
     const sh = x => (opts.find(p => p[0] === x) || [])[2];
-    // the FAOR block of the flight: its weapons control and commit in place of these (the same lines, so the box keeps its size)
+    // the A-A block of the flight: its weapons control and commit in place of these, then its main rule
     if (s.faor && id == 'ws') return R.push('WPN ' + s.faor.wpn.toUpperCase());
-    if (s.faor && id == 'commit') return R.push('COMMIT ' + s.faor.commit + 'NM');
+    if (s.faor && id == 'commit') return R.push('COMMIT ' + s.faor.commit + 'NM', faorBox(s.faor));
     if (k == 'many') {
-      const v = s.roe[id].map(sh).filter(Boolean);
+      const v = s.roe[id]
+        .filter(x => !(s.ag && (x == 'minrls' || x == 'pid'))) // in the A-G block
+        .map(sh)
+        .filter(Boolean);
       if (!v.length) return;
       if (tag) R.push(tag + ': ' + v.join(id == 'abort' ? '/' : '+'));
       else R.push(...v);
     } else if (s.roe[id]) R.push((tag ? tag + ' ' : '') + sh(s.roe[id]));
   });
+  R.push(...agBox(s.ag)); // the A-G block of the flight
   if (s.free.trim()) R.push(...s.free.split('\n').filter(l => l.trim()));
   return R.join('\n');
 }

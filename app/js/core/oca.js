@@ -121,38 +121,105 @@ export function track(R, s, t0, t1, step = 30000) {
   }
   return o;
 }
-/** the corridor of the sweep: a rectangle w NM wide around each leg of the track (a leg: the points with one heading), one polygon each, so that a
- * sharp turn does not twist one outline */
-export function corridor(T, w) {
-  const h = (w / 2) * KM_NM,
-    legs = [];
-  let cur = null;
-  T.forEach(p => {
-    if (!cur || Math.abs(((p.hdg - cur.hdg + 540) % 360) - 180) > 2) {
-      if (cur) cur.pts.push(p);
-      cur = { hdg: p.hdg, pts: [p] };
-      legs.push(cur);
-    } else cur.pts.push(p);
+/** the sweep area: one outline around the track, w NM wide (every point within w / 2 of it, round ends and turns), so that turns and short legs
+ * make no overlapping boxes. Traced on a grid of the distance to the track (marching squares): km points, closed (no repeated first point); the
+ * longest outline when the track closes on itself */
+export function sweepArea(T, w) {
+  const r = (w / 2) * KM_NM,
+    P = T.filter((p, i) => !i || Math.hypot(p.x - T[i - 1].x, p.y - T[i - 1].y) > 1e-6);
+  if (!P.length || r <= 0) return [];
+  const xs = P.map(p => p.x),
+    ys = P.map(p => p.y),
+    x0 = Math.min(...xs) - r * 1.3,
+    y0 = Math.min(...ys) - r * 1.3,
+    W = Math.max(...xs) + r * 1.3 - x0,
+    H = Math.max(...ys) + r * 1.3 - y0,
+    c = Math.max(r / 6, Math.max(W, H) / 240), // the cell: 1/6 of the half width, 240 cells at most a side
+    nx = Math.ceil(W / c) + 1,
+    ny = Math.ceil(H / c) + 1,
+    dist = (x, y) => {
+      let m = Infinity;
+      for (let k = 0; k < P.length; k++) {
+        const a = P[k],
+          b = P[Math.min(k + 1, P.length - 1)],
+          vx = b.x - a.x,
+          vy = b.y - a.y,
+          L = vx * vx + vy * vy,
+          t = L ? Math.max(0, Math.min(1, ((x - a.x) * vx + (y - a.y) * vy) / L)) : 0;
+        m = Math.min(m, Math.hypot(x - a.x - t * vx, y - a.y - t * vy));
+      }
+      return m;
+    },
+    F = [];
+  for (let j = 0; j < ny; j++) for (let i = 0; i < nx; i++) F.push(r - dist(x0 + i * c, y0 + j * c)); // > 0 inside
+  const f = (i, j) => F[j * nx + i],
+    pt = {}, // the crossing of an edge of the grid: h i j (from (i, j) to (i+1, j)), v i j (to (i, j+1))
+    at = (k, i, j) => {
+      const id = k + i + ',' + j;
+      if (!pt[id]) {
+        const a = f(i, j),
+          b = k == 'h' ? f(i + 1, j) : f(i, j + 1),
+          t = a / (a - b);
+        pt[id] = k == 'h' ? { x: x0 + (i + t) * c, y: y0 + j * c } : { x: x0 + i * c, y: y0 + (j + t) * c };
+      }
+      return id;
+    },
+    nb = {},
+    link = (a, b) => {
+      (nb[a] = nb[a] || []).push(b);
+      (nb[b] = nb[b] || []).push(a);
+    };
+  for (let j = 0; j < ny - 1; j++)
+    for (let i = 0; i < nx - 1; i++) {
+      const q =
+        (f(i, j) > 0 ? 1 : 0) | (f(i + 1, j) > 0 ? 2 : 0) | (f(i + 1, j + 1) > 0 ? 4 : 0) | (f(i, j + 1) > 0 ? 8 : 0);
+      if (!q || q == 15) continue;
+      const B = () => at('h', i, j),
+        R = () => at('v', i + 1, j),
+        Tp = () => at('h', i, j + 1),
+        L = () => at('v', i, j);
+      const E = {
+        1: [[L, B]],
+        2: [[B, R]],
+        3: [[L, R]],
+        4: [[R, Tp]],
+        5: [
+          [L, Tp],
+          [B, R],
+        ],
+        6: [[B, Tp]],
+        7: [[L, Tp]],
+        8: [[Tp, L]],
+        9: [[Tp, B]],
+        10: [
+          [B, L],
+          [Tp, R],
+        ],
+        11: [[Tp, R]],
+        12: [[R, L]],
+        13: [[R, B]],
+        14: [[B, L]],
+      }[q];
+      E.forEach(([a, b]) => link(a(), b()));
+    }
+  // the loops
+  const seen = new Set(),
+    loops = [];
+  Object.keys(nb).forEach(s0 => {
+    if (seen.has(s0)) return;
+    const L = [];
+    let prev = null,
+      cur = s0;
+    while (cur && !seen.has(cur)) {
+      seen.add(cur);
+      L.push(pt[cur]);
+      const nx2 = (nb[cur] || []).find(z => z !== prev && !seen.has(z));
+      prev = cur;
+      cur = nx2;
+    }
+    loops.push(L);
   });
-  return legs
-    .filter(
-      l =>
-        l.pts.length > 1 &&
-        Math.hypot(l.pts[l.pts.length - 1].x - l.pts[0].x, l.pts[l.pts.length - 1].y - l.pts[0].y) > KM_NM
-    )
-    .map(l => {
-      const a = l.pts[0],
-        b = l.pts[l.pts.length - 1],
-        r = (l.hdg * Math.PI) / 180,
-        dx = Math.cos(r) * h,
-        dy = -Math.sin(r) * h;
-      return [
-        { x: a.x - dx, y: a.y - dy },
-        { x: b.x - dx, y: b.y - dy },
-        { x: b.x + dx, y: b.y + dy },
-        { x: a.x + dx, y: a.y + dy },
-      ];
-    });
+  return loops.sort((a, b) => b.length - a.length)[0] || [];
 }
 /** the times the track is inside a circle (cx, cy, r km): the first one, or null */
 const firstIn = (T, c) => {
@@ -210,7 +277,6 @@ export function ocaRoe(s, kind, code, altf) {
     drop: 0,
     alt: [Math.round(s.alt[0]), Math.round(s.alt[1])],
     hw: '',
-    lead: s.lead,
     pos: code,
     ta: Math.round(s.ta),
     ...(altf || {}),

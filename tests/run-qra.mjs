@@ -170,12 +170,12 @@ ck('reach and time are inverse', near(timeTo(reachNm(7.5, S), S), 7.5, 1e-6));
   const a = cleanFaor(qraRoe(S, 'ALERT', { vec: 5, ri: 40, rs: 85, vid: true })),
     L = faorLines(a, false);
   ck(
-    'alert block: QRA, the lines',
+    'alert block: QRA, the lines, no tactic (no stern conversion)',
     a.kind == 'QRA' &&
       a.qra == 'ALERT' &&
       L.includes('SCRAMBLE LINE 85NM AXIS 005') &&
       L.includes('INTERCEPT 40NM FROM BASE') &&
-      L.includes('VID: STERN CONV 4NM')
+      !L.some(x => /STERN/.test(x))
   );
   const b = cleanFaor(qraRoe(S, 'INTERCEPT', { vec: 0, ri: 30, vid: false })),
     M = faorLines(b, true);

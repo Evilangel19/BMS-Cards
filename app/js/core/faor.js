@@ -312,20 +312,18 @@ export function cleanFaor(f) {
     hw: String(f.hw || '')
       .replace(/[\r\n]/g, ' ')
       .slice(0, 24),
-    // QRA (core/qra.js): ALERT or INTERCEPT, the vector (magnetic), the intercept and scramble ranges (NM), the displacement of the stern conversion
+    // QRA (core/qra.js): ALERT or INTERCEPT, the vector (magnetic), the intercept and scramble ranges (NM)
     ...(f.qra == 'ALERT' || f.qra == 'INTERCEPT'
       ? {
           qra: f.qra,
           vec: n(f.vec, 0, 360),
           ri: n(f.ri, 0, 300),
           rs: n(f.rs, 0, 999),
-          disp: Math.round(clamp(+f.disp || 0, 0, 20) * 2) / 2,
         }
       : {}),
-    // OCA (core/oca.js): the lead on the package (min), the position code, the target area (NM)
+    // OCA (core/oca.js): the position code (it marks an OCA block; the tactic is not a line of the ROE), the target area (NM)
     ...(f.pos != null
       ? {
-          lead: Math.round(clamp(+f.lead || 0, 0, 30) * 2) / 2,
           pos: String(f.pos)
             .replace(/[^A-Z0-9-]/gi, '')
             .slice(0, 6),
@@ -335,6 +333,15 @@ export function cleanFaor(f) {
   };
 }
 const isOca = f => f.pos != null;
+// THE LINE OF THE DATACARD BOX (core/roesop.js roeText) after WPN and COMMIT: the one rule of the block that matters most
+export function faorBox(f) {
+  if (f.qra)
+    return f.qra == 'ALERT'
+      ? 'SCRAMBLE LINE ' + f.rs + 'NM'
+      : 'VECTOR ' + String(f.vec % 360 || 360).padStart(3, '0') + ' ANGELS ' + Math.round(f.alt[0] / 1000);
+  if (isOca(f)) return 'STOP ' + f.stop + 'NM FROM ' + (f.pos == 'FS-1D' ? 'ROUTE' : 'PKG');
+  return 'STOP ' + f.stop + 'NM · FEZ ' + altBlock(f.alt);
+}
 // its lines: short (the card, the ROE box) or long (the ROE page, the ROE card)
 export function faorLines(f, long) {
   if (!f) return [];
@@ -350,7 +357,7 @@ export function faorLines(f, long) {
           al
             ? 'Scramble line ' + f.rs + ' NM on the threat axis ' + v + '°: meet the raid ' + f.ri + ' NM from the base'
             : 'Vector ' + v + '°, ANGELS ' + ang + ', BUSTER to the intercept',
-          ...(f.disp ? ['VID: stern conversion, displacement ' + f.disp + ' NM'] : []),
+
           'Scramble on the order of the controller (CRC / AWACS)',
         ]
       : [
@@ -358,7 +365,6 @@ export function faorLines(f, long) {
           'COMMIT ' + f.commit + 'NM',
           al ? 'SCRAMBLE LINE ' + f.rs + 'NM AXIS ' + v : 'VECTOR ' + v + ' ANGELS ' + ang,
           al ? 'INTERCEPT ' + f.ri + 'NM FROM BASE' : 'BUSTER',
-          ...(f.disp ? ['VID: STERN CONV ' + f.disp + 'NM'] : []),
         ];
   }
   if (isOca(f)) {
@@ -368,9 +374,7 @@ export function faorLines(f, long) {
       ? [
           'Weapons ' + W,
           'Commit: hostile group within ' + f.commit + ' NM',
-          ind
-            ? 'Independent sweep (' + f.pos + '): your own route'
-            : 'Position ' + f.pos + ', ' + f.lead + ' min ahead of the package',
+
           'No pursuit beyond ' + f.stop + ' NM from ' + (ind ? 'your route' : 'the package'),
           'Altitude block ' + altBlock(f.alt),
           sw ? 'Clear the air ' + f.ta + ' NM around the target' : 'Stay between the threat and the package',
@@ -378,7 +382,7 @@ export function faorLines(f, long) {
       : [
           'WPN ' + W,
           'COMMIT ' + f.commit + 'NM',
-          ind ? 'INDEPENDENT ' + f.pos : 'LEAD ' + f.lead + 'MIN ' + f.pos,
+
           'STOP ' + f.stop + 'NM FROM ' + (ind ? 'ROUTE' : 'PKG'),
           'BLOCK ' + altBlock(f.alt),
           sw ? 'TGT AREA ' + f.ta + 'NM' : 'STAY WITH THE PACKAGE',

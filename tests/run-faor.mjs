@@ -198,8 +198,12 @@ const sel = cleanSel({
 });
 const txt = roeText(sel).split('\n');
 ok(
-  'the ROE box: the FAOR weapons control and commit in place of the chosen ones, same number of lines ' + txt,
-  txt[0] == 'WPN TIGHT' && txt.includes('COMMIT 35NM') && !txt.includes('COMMIT 20NM') && txt.length == 4
+  'the ROE box: the FAOR weapons control and commit in place of the chosen ones, then STOP and the FEZ block ' + txt,
+  txt[0] == 'WPN TIGHT' &&
+    txt.includes('COMMIT 35NM') &&
+    !txt.includes('COMMIT 20NM') &&
+    txt[txt.indexOf('COMMIT 35NM') + 1].startsWith('STOP ') &&
+    txt.length == 5
 );
 const ft = fullText(sel);
 ok(

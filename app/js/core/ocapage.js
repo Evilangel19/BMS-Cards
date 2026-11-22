@@ -1,6 +1,6 @@
 // @ts-check
 // A-A > OCA: the SWEEP or the ESCORT of a package (core/oca.js). The route and the times of the package from the ATO, where the fighter should be
-// (the lead on the package, the side and the offset: the codes FS-1 / FS-2 / FS-3 of the NATO manual), the corridor of the sweep, the commit around the
+// (the lead on the package, the side and the offset: the codes FS-1 / FS-2 / FS-3 of the NATO manual), the sweep area, the commit around the
 // fighter, the stop around the package, the target area; a time slider moves them along the route. The warnings in red; the A-A block of the ROE of the
 // flight (deps.roeSet), Display > OCA on the Map page, the DTC lines, the cards (with the map, Smart OCA, Smart mission). One list of shapes for the map
 // and the cards (core/aakit.js).
@@ -18,7 +18,7 @@ import {
   pkgWindow,
   fighterAt,
   track,
-  corridor,
+  sweepArea,
   ocaChecks,
   ocaRoe,
   ocaDtcLines,
@@ -196,15 +196,17 @@ export function createOcaPage(deps) {
         ink: { dash: [2, 3] },
       })),
       ...(m == 'sweep'
-        ? corridor(T, S.w).map(q => ({
-            t: 'poly',
-            pts: q,
-            close: true,
-            fill: true,
-            col: COL.cor,
-            w: 1,
-            ink: { w: 1, fill: 'rgba(0,0,0,0.04)' },
-          }))
+        ? [
+            {
+              t: 'poly',
+              pts: sweepArea(T, S.w),
+              close: true,
+              fill: true,
+              col: COL.cor,
+              w: 1,
+              ink: { w: 1, fill: 'rgba(0,0,0,0.04)' },
+            },
+          ]
         : []),
       { t: 'poly', pts: WIN.pts, col: COL.pkg, w: 3, ink: { w: 4, round: true } },
       ...X.prot
@@ -329,7 +331,7 @@ export function createOcaPage(deps) {
             )}</div>${slider('lead', 'Lead on package', OCA_RANGE.lead, S.lead, val.lead(S.lead))}${slider('off', 'Offset', OCA_RANGE.off, S.off, val.off(S.off))}`
       }${
         sw
-          ? slider('w', 'Corridor width', OCA_RANGE.w, S.w, val.w(S.w))
+          ? slider('w', 'Sweep width', OCA_RANGE.w, S.w, val.w(S.w))
           : `<div class="wrow"><label>IMC / low level</label>${seg(
               'night',
               [
@@ -436,7 +438,7 @@ export function createOcaPage(deps) {
       e.innerHTML = [
         ...(X.indep ? [] : [it(COL.pkg, 'PACKAGE')]),
         it(COL.me, me.kind, true),
-        ...(m == 'sweep' ? [it(COL.cor, 'CORRIDOR')] : []),
+        ...(m == 'sweep' ? [it(COL.cor, 'SWEEP AREA')] : []),
         it(COL.commit, 'COMMIT', true),
         ...(X.indep ? [] : [it(COL.stop, 'STOP', true), it(COL.ta, 'TGT AREA', true)]),
       ].join(' ');
@@ -505,7 +507,7 @@ export function createOcaPage(deps) {
       fit = true;
       rebuild = true;
     }
-    if (rebuild || !root.querySelector('.ocg') !== !(X && X.ok) || was !== (X && X.ok)) {
+    if (rebuild || !root.firstChild || !root.querySelector('.ocg') !== !(X && X.ok) || was !== (X && X.ok)) {
       detachMap(true);
       failed = false;
       pend = null;

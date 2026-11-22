@@ -10,7 +10,7 @@ import {
   pkgWindow,
   fighterAt,
   track,
-  corridor,
+  sweepArea,
   ocaChecks,
   ocaRoe,
   ocaDtcLines,
@@ -93,10 +93,38 @@ ok(
   'the track ends with the route (no point past the last steerpoint)',
   T.length > 10 && T[T.length - 1].t <= Wn.t1 - 3 * 60000
 );
-const C = corridor(T, 20);
+const C = sweepArea(T, 20),
+  dSeg = (p, a, b) => {
+    const vx = b.x - a.x,
+      vy = b.y - a.y,
+      t = Math.max(0, Math.min(1, ((p.x - a.x) * vx + (p.y - a.y) * vy) / (vx * vx + vy * vy || 1)));
+    return Math.hypot(p.x - a.x - t * vx, p.y - a.y - t * vy);
+  };
 ok(
-  'the corridor: one rectangle 20 NM wide for each leg (north, then east) ' + C.length,
-  C.length == 2 && C.every(q => q.length == 4 && near(Math.hypot(q[0].x - q[3].x, q[0].y - q[3].y) / K, 20, 0.01))
+  'the sweep area: one outline, every point of it 10 NM from the track (north, then east) ' + C.length,
+  C.length > 20 && C.every(p => near(Math.min(...T.slice(1).map((q, i) => dSeg(p, T[i], q))) / K, 10, 0.4))
+);
+ok(
+  'the sweep area does not fill the inside of the turn: a point 20 NM inside the corner is out of it',
+  (() => {
+    const c = { x: T[0].x + 20 * K, y: T[T.length - 1].y - 20 * K };
+    let inside = false;
+    for (let i = 0, k = C.length - 1; i < C.length; k = i++)
+      if (C[i].y > c.y != C[k].y > c.y && c.x < ((C[k].x - C[i].x) * (c.y - C[i].y)) / (C[k].y - C[i].y) + C[i].x)
+        inside = !inside;
+    return !inside;
+  })()
+);
+ok(
+  'one point: a circle; two: a capsule 20 NM wide',
+  sweepArea([{ x: 0, y: 0 }], 20).every(p => near(Math.hypot(p.x, p.y) / K, 10, 0.4)) &&
+    sweepArea(
+      [
+        { x: 0, y: 0 },
+        { x: 0, y: 50 },
+      ],
+      20
+    ).every(p => near(dSeg(p, { x: 0, y: 0 }, { x: 0, y: 50 }) / K, 10, 0.4))
 );
 // the checks
 const chk = (o, re) =>
@@ -171,11 +199,13 @@ ok(
 );
 // the ROE block
 const b = cleanFaor(ocaRoe(sw, 'SWEEP', 'FS-1A'));
-ok('the block keeps the lead, the position and the target area', b.lead == 3 && b.pos == 'FS-1A' && b.ta == 30);
 ok(
-  'its lines',
-  faorLines(b, false).join('|') ==
-    'WPN FREE|COMMIT 40NM|LEAD 3MIN FS-1A|STOP 30NM FROM PKG|BLOCK FL250-350|TGT AREA 30NM'
+  'the block keeps the position (an OCA block) and the target area, no lead',
+  b.lead == null && b.pos == 'FS-1A' && b.ta == 30
+);
+ok(
+  'its lines: no tactic (no lead, no position)',
+  faorLines(b, false).join('|') == 'WPN FREE|COMMIT 40NM|STOP 30NM FROM PKG|BLOCK FL250-350|TGT AREA 30NM'
 );
 ok('escort lines', faorLines(cleanFaor(ocaRoe(det, 'ESCORT', 'FS-2A')), false).includes('STAY WITH THE PACKAGE'));
 const sel = cleanSel({
@@ -183,7 +213,10 @@ const sel = cleanSel({
   roe: { ws: 'tight', id: [], commit: 'n20', abort: [], extra: [], restr: [] },
   faor: b,
 });
-ok('the ROE box: WPN FREE and COMMIT 40NM in place of the chosen ones', roeText(sel) == 'WPN FREE\nCOMMIT 40NM');
+ok(
+  'the ROE box: WPN FREE and COMMIT 40NM in place of the chosen ones, then STOP',
+  roeText(sel) == 'WPN FREE\nCOMMIT 40NM\nSTOP 30NM FROM PKG'
+);
 ok('the ROE card: the A-A · SWEEP block', fullText(sel).roe[0][0] == 'A-A · SWEEP');
 // the DTC lines
 const L = ocaDtcLines(T, { x: 500, y: 300 + 80 * K }, sw);

@@ -230,7 +230,8 @@ export function qraChecks(S, base, c) {
   return W;
 }
 
-// THE A-A BLOCK of the ROE (core/faor.js cleanFaor / faorLines, field qra): vec and axis magnetic, as the pilot reads them
+// THE A-A BLOCK of the ROE (core/faor.js cleanFaor / faorLines, field qra): vec and axis magnetic, as the pilot reads them; no tactic (the stern
+// conversion is on the page and the cards)
 export function qraRoe(S, mode, o) {
   return {
     kind: 'QRA',
@@ -244,7 +245,6 @@ export function qraRoe(S, mode, o) {
     vec: Math.round(o.vec || 0),
     ri: Math.round(o.ri || 0),
     rs: Math.round(o.rs || 0),
-    disp: o.vid ? S.disp : 0,
   };
 }
 // THE DTC LINES: ALERT the scramble line and the intercept line; INTERCEPT the vector (base -> intercept) and the track of the target

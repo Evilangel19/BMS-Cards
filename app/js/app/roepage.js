@@ -16,6 +16,7 @@ import {
   sopShort,
   pickDefault,
   BOX_MAX,
+  capSel,
   sopPhaseOn,
   sopAll,
   topicsAll,
@@ -564,10 +565,10 @@ function blockSet(field, fa) {
   if (!flightOn()) return false;
   const seen = R.box && ST.CURK === R.flightKey,
     s = seen ? R.sel : flightSel(),
-    nx = cleanSel({ ...s, [field]: fa });
+    nx = capSel({ ...s, [field]: fa }); // the block lines are never cut: the last choices of the lists make room for them
   if (JSON.stringify(nx[field]) === JSON.stringify(cleanSel(s)[field])) return false;
   if (seen) {
-    R.sel[field] = nx[field];
+    R.sel = nx;
     writeCard();
     if (R.box.isConnected && !R.box.closest('.hide')) render();
   } else writeCard(nx);
