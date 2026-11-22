@@ -283,16 +283,61 @@ export function ocaRoe(s, kind, code, altf) {
   };
 }
 
-// THE LINES OF THE DTC: the track of the fighter (6 points at most), the area of the target (a pentagon, closed: 6 points)
-export function ocaDtcLines(T, tgt, s) {
+/** a polygon as k vertices around it (a LINE of the DTC holds 6 points: 5 and the first again): its convex hull, then, edge by edge, the edge whose
+ * removal adds the least area is taken out by meeting its two neighbours (the greedy enclosing k-gon): every point of the polygon stays inside */
+export function enclose(A, k) {
+  const P = [...A].sort((a, b) => a.x - b.x || a.y - b.y),
+    cr = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x),
+    half = Q =>
+      Q.reduce((h, p) => {
+        while (h.length > 1 && cr(h[h.length - 2], h[h.length - 1], p) <= 0) h.pop();
+        h.push(p);
+        return h;
+      }, []);
+  if (P.length < 3) return P;
+  let H = [...half(P).slice(0, -1), ...half([...P].reverse()).slice(0, -1)]; // counter-clockwise
+  while (H.length > k) {
+    const n = H.length;
+    let best = null;
+    for (let i = 0; i < n; i++) {
+      const a = H[(i - 1 + n) % n],
+        b = H[i],
+        c = H[(i + 1) % n],
+        d = H[(i + 2) % n],
+        u = { x: b.x - a.x, y: b.y - a.y },
+        v = { x: c.x - d.x, y: c.y - d.y },
+        den = u.x * v.y - u.y * v.x;
+      if (Math.abs(den) < 1e-12) continue; // parallel neighbours: they never meet
+      const t = ((d.x - a.x) * v.y - (d.y - a.y) * v.x) / den,
+        X = { x: a.x + u.x * t, y: a.y + u.y * t },
+        w = (X.x - d.x) * v.x + (X.y - d.y) * v.y;
+      if (t <= 1 || w <= 0) continue; // they meet behind the edge
+      const add = Math.abs(cr(b, X, c)) / 2;
+      if (!best || add < best.add) best = { i, X, add };
+    }
+    if (!best) break;
+    H = [...H.slice(0, best.i), best.X, ...H.slice(best.i + 2)];
+    if (best.i == n - 1) H = [best.X, ...H.slice(1, -1)]; // the edge from the last vertex to the first
+  }
+  return H;
+}
+
+// THE LINES OF THE DTC: the track of the fighter (6 points at most); a sweep its sweep area, an escort the target area, as 5 vertices around it,
+// closed (6 points)
+export function ocaDtcLines(T, tgt, s, sweep) {
   const n = Math.min(6, T.length),
     tr = n > 1 ? Array.from({ length: n }, (_, i) => T[Math.round((i * (T.length - 1)) / (n - 1))]) : [],
     r = s.ta * KM_NM,
-    pent = tgt
-      ? Array.from({ length: 6 }, (_, i) => {
-          const a = ((i % 5) * 2 * Math.PI) / 5;
-          return { x: tgt.x + Math.sin(a) * r, y: tgt.y + Math.cos(a) * r };
-        })
-      : null;
-  return { track: tr.map(p => ({ x: p.x, y: p.y })), area: pent };
+    ring =
+      !sweep && tgt
+        ? Array.from({ length: 36 }, (_, i) => ({
+            x: tgt.x + Math.sin(i / 5.73) * r,
+            y: tgt.y + Math.cos(i / 5.73) * r,
+          }))
+        : null,
+    E = sweep ? (T.length ? enclose(sweepArea(T, s.w), 5) : []) : ring ? enclose(ring, 5) : [];
+  return {
+    track: tr.map(p => ({ x: p.x, y: p.y })),
+    area: E.length > 2 ? [...E, E[0]].map(p => ({ x: p.x, y: p.y })) : null,
+  };
 }

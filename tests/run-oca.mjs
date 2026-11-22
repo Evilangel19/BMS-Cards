@@ -11,6 +11,7 @@ import {
   fighterAt,
   track,
   sweepArea,
+  enclose,
   ocaChecks,
   ocaRoe,
   ocaDtcLines,
@@ -219,13 +220,43 @@ ok(
 );
 ok('the ROE card: the A-A · SWEEP block', fullText(sel).roe[0][0] == 'A-A · SWEEP');
 // the DTC lines
-const L = ocaDtcLines(T, { x: 500, y: 300 + 80 * K }, sw);
+const inPoly = (c, C) => {
+  let r = false;
+  for (let i = 0, k = C.length - 1; i < C.length; k = i++)
+    if (C[i].y > c.y != C[k].y > c.y && c.x < ((C[k].x - C[i].x) * (c.y - C[i].y)) / (C[k].y - C[i].y) + C[i].x) r = !r;
+  return r;
+};
+const L = ocaDtcLines(T, { x: 500, y: 300 + 80 * K }, sw, false);
 ok(
-  'DTC: the track in 6 points, the target area a closed pentagon',
+  'DTC, escort: the track in 6 points, the target area 5 points around its circle, closed',
   L.track.length == 6 &&
     L.area.length == 6 &&
     near(L.area[0].x, L.area[5].x, 1e-9) &&
-    near(Math.hypot(L.area[1].x - 500, L.area[1].y - 300 - 80 * K) / K, 30, 0.01)
+    L.area.slice(0, 5).every(p => Math.hypot(p.x - 500, p.y - 300 - 80 * K) / K >= 30)
+);
+const LS = ocaDtcLines(T, null, { ...sw, w: 20 }, true),
+  SA = sweepArea(T, 20);
+ok(
+  'DTC, sweep: the sweep area as 5 points, closed, the whole area inside it',
+  LS.area.length == 6 &&
+    near(LS.area[0].y, LS.area[5].y, 1e-9) &&
+    SA.every(
+      p =>
+        inPoly(p, LS.area.slice(0, 5)) ||
+        Math.min(...LS.area.slice(0, 5).map((q, i, A) => dSeg(p, q, A[(i + 1) % 5]))) < 0.01
+    )
+);
+ok(
+  'enclose: a square stays itself',
+  enclose(
+    [
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+      { x: 1, y: 1 },
+      { x: 0, y: 1 },
+    ],
+    5
+  ).length == 4
 );
 
 if (bad) {

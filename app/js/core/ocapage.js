@@ -380,7 +380,7 @@ export function createOcaPage(deps) {
               'PLAN LEAD',
               pl == null ? 'no steerpoint near the target' : (pl >= 0 ? '+' : '') + Math.round(pl * 2) / 2 + ' min'
             )
-      }</div><div class="wbtns"><button class="btn g" type="button" data-ocdtc title="Your track and the target area as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>`;
+      }</div><div class="wbtns"><button class="btn g" type="button" data-ocdtc title="Your track and the sweep area (an escort: the target area), 5 points around it, as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>`;
     const sn = q('#ocsun'),
       su = sun();
     if (sn)
@@ -590,12 +590,12 @@ export function createOcaPage(deps) {
     compute();
     if (!X || !X.ok) return { msg: 'OCA: ' + (X ? X.why : 'no SWEEP or ESCORT flight'), bad: true };
     if (!deps.dtcLines) return null;
-    const L = ocaDtcLines(T, X.main.tgt, S);
+    const L = ocaDtcLines(T, X.main.tgt, S, mode() == 'sweep');
     return deps.dtcLines(
       {
         parts: [
           ...(L.track.length > 1 ? [['track', X.me.kind == 'SWEEP' ? 'SWEEP TRACK' : 'ESCORT TRACK', L.track]] : []),
-          ...(L.area ? [['area', 'TGT AREA', L.area]] : []),
+          ...(L.area ? [['area', mode() == 'sweep' ? 'SWEEP AREA' : 'TGT AREA', L.area]] : []),
         ],
         sit: 9,
         sitName: 'MISC',
