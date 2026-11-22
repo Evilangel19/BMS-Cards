@@ -539,7 +539,7 @@ export function createMap(host, deps) {
     rc: 'Enemy radar coverage',
     msa: 'MSA and ERAA',
     da: 'Pop-up/HADB/TOSS',
-    hm: 'HARM',
+    hm: 'SEAD/DEAD',
     fa: 'DCA',
     oc: 'OCA',
   };
@@ -1363,7 +1363,9 @@ export function createMap(host, deps) {
         flyShow(b, open);
       };
     });
-    m.querySelectorAll('.fly button:not(#mpdsnap)').forEach(x => x.addEventListener('click', () => foldAll()));
+    m.querySelectorAll('.fly button:not(#mpdsnap):not(#mpdfit)').forEach(x =>
+      x.addEventListener('click', () => foldAll())
+    );
     m.querySelectorAll('[data-clr]').forEach(b => (b.onclick = () => clearPoints(b.dataset.clr)));
     // Snap to points: lit (green) when on, dark when off, like Names
     const snw = m.querySelector('#mpdsnap');
@@ -5324,17 +5326,19 @@ export function createMap(host, deps) {
   }
   // THE PICTURE OF THE MAP (html2canvas) of a box of #mpmap {x, y, width, height} ({}: all of it) at a scale: {c, warn}. A base map that cannot be exported (a
   // cross-origin picture: html2canvas leaves it blank without an error) is replaced by the offline coastlines, with a warning
-  async function mapPicture(box, scale) {
+  async function mapPicture(box, scale, el) {
     const h2c = await loadH2C(),
       mp = $('mpmap');
     const run = () =>
-      h2c(mp, {
+      h2c(el || mp, {
         ...box,
         scale,
         useCORS: true,
         logging: false,
         backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
-        ignoreElements: e => e.classList && (e.classList.contains('leaflet-control-container') || e.id == 'mpfr'),
+        ignoreElements: e =>
+          e.classList &&
+          (e.classList.contains('leaflet-control-container') || e.classList.contains('brhdr') || e.id == 'mpfr'),
         onclone: doc => {
           // SVG symbols take their colours from the page style sheet: copy them into the SVG so they survive the conversion
           const w = doc.defaultView,
@@ -5350,7 +5354,7 @@ export function createMap(host, deps) {
               'font-size',
               'font-weight',
             ];
-          doc.querySelectorAll('#mpmap svg *').forEach(e => {
+          doc.querySelectorAll('#mpmap svg *, .brcurs svg *').forEach(e => {
             const cs = w.getComputedStyle(e);
             props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
           });
@@ -5389,19 +5393,26 @@ export function createMap(host, deps) {
     }
     return { c, warn };
   }
-  // COPY (the button by the screenshots, also on the Briefing): the whole map as it is shown, as a picture in the clipboard
-  async function copyMap(say) {
+  // COPY (the button by the screenshots, also in the Briefing room: el, the box of its map, with the cursors of the pilots): the whole map as it is
+  // shown, as a picture in the clipboard
+  async function copyMap(say, el) {
     const t = say || toast;
     if (!map) return;
+    let warn = '';
     try {
       if (!navigator.clipboard || !window.ClipboardItem)
         throw new Error('this browser cannot put a picture in the clipboard');
       const mp = $('mpmap'),
-        { c, warn } = await mapPicture(
-          { x: 0, y: 0, width: mp.clientWidth, height: mp.clientHeight },
-          Math.max(1, window.devicePixelRatio || 1)
-        ),
-        blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        blob = await busyRun('Copying the map…', async () => {
+          const box = el || mp,
+            { c, warn: w } = await mapPicture(
+              { x: 0, y: 0, width: box.clientWidth, height: box.clientHeight },
+              Math.max(1, window.devicePixelRatio || 1),
+              el
+            );
+          warn = w;
+          return new Promise(r => c.toBlob(r, 'image/png'));
+        });
       await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
       t(
         warn
@@ -5858,7 +5869,7 @@ export function createMap(host, deps) {
       }
     },
     detach: () => detach(),
-    copy: o => copyMap(o && o.toast),
+    copy: o => copyMap(o && o.toast, o && o.el),
     zoomLock,
     toggleEdit: () => {
       const r = setEdit(!EDIT);

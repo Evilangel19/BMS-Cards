@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.3.0 (not released yet)
 
+- Fixed: Copy the map in the Briefing room did nothing; it copies the map with the drawings and the cursors (for every pilot in the room, with or without the pen), with a progress bar. Fit keeps the AUTO menu open. Map > Display: HARM is now SEAD/DEAD.
 - Added: Copy on the Map and in the Briefing room: the map as it is shown, with the drawings, in the clipboard. The VHF preset of your flight (VHF 15 for the first flight of the package, 16 for the second...) in the empty cell left of Callsign on the datacard. A User Guide button next to Settings. Fit next to Automatic lines: after an AUTO the map shows what it wrote. Your own flight can have a colour too (click its label), and the labels of the package flights can be dragged along their route.
 - Changed: AUTO > FEZ is dimmed for a flight that no A-A page plans; the combined Smart mission card comes first when cards are chosen.
 - Added: on the Map, the label of the flight and of the tanker tracks can be dragged along its route (double click: back to its place); the other flights of the package can have a colour of their own (click one of them with the editing on, Colour); the pointer on an AUTO button previews what it will write, and what it would replace blinks red. The labels moved and the colours are kept with the mission.

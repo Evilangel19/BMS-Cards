@@ -3934,6 +3934,7 @@ export function createSquadronPage(deps) {
       attach: el => (B.attach ? B.attach(el) : Promise.resolve(null)),
       detach: () => B.detach && B.detach(),
       shot: o => B.shot && B.shot(o),
+      copy: o => B.copy && B.copy(o),
       mission: () => (B.mission ? B.mission() : ''),
       theater: () => (B.theater ? B.theater() : ''),
       wide: b => B.wide && B.wide(b),

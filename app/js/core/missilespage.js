@@ -1303,7 +1303,7 @@ export function createMissilesPage(deps) {
     },
     root: deps.root,
     leave: detachMap,
-    // the drawing of the HARM page on the Map page (its Display > HARM switch): the same layers, in the group given, without moving the view or fading the map
+    // the drawing of the HARM page on the Map page (its Display > SEAD/DEAD switch): the same layers, in the group given, without moving the view or fading the map
     overlay: async o => {
       if (st.mode != 'harm') return false;
       await load();

@@ -1994,7 +1994,7 @@ export function createDeadPage(deps) {
       const c = deps.ctx();
       return !!(c && c.ok && c.sams && c.sams.length);
     },
-    // the drawing of the page on the Map page (its Display > HARM switch): the same layers, in the group given, without moving the view; false: nothing to draw
+    // the drawing of the page on the Map page (its Display > SEAD/DEAD switch): the same layers, in the group given, without moving the view; false: nothing to draw
     overlay: async o => {
       if (!H && deps.harm) {
         try {

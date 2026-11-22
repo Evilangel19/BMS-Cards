@@ -739,7 +739,7 @@ class Room {
         (b.onclick = () => {
           const a = b.dataset.a;
           if (a == 'card') this.startCard();
-          if (a == 'copy' && this.d.copy) this.d.copy({ toast: t => this.toast(t, 4000) });
+          if (a == 'copy' && this.d.copy) this.d.copy({ toast: t => this.toast(t, 4000), el: this.wrap }); // the map with the drawings and the cursors
           if (a == 'close')
             this.ask(
               'Close the room for everyone?',
