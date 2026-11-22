@@ -330,21 +330,24 @@ export function faorLines(f, long) {
   if (!f) return [];
   const W = f.wpn.toUpperCase();
   if (isOca(f)) {
-    const sw = f.kind == 'SWEEP';
+    const sw = f.kind == 'SWEEP',
+      ind = f.pos == 'FS-1D'; // an independent sweep: its own route, no package
     return long
       ? [
           'Weapons ' + W,
           'Commit: hostile group within ' + f.commit + ' NM',
-          'Position ' + f.pos + ', ' + f.lead + ' min ahead of the package',
-          'No pursuit beyond ' + f.stop + ' NM from the package',
+          ind
+            ? 'Independent sweep (' + f.pos + '): your own route'
+            : 'Position ' + f.pos + ', ' + f.lead + ' min ahead of the package',
+          'No pursuit beyond ' + f.stop + ' NM from ' + (ind ? 'your route' : 'the package'),
           'Altitude block ' + altBlock(f.alt),
           sw ? 'Clear the air ' + f.ta + ' NM around the target' : 'Stay between the threat and the package',
         ]
       : [
           'WPN ' + W,
           'COMMIT ' + f.commit + 'NM',
-          'LEAD ' + f.lead + 'MIN ' + f.pos,
-          'STOP ' + f.stop + 'NM FROM PKG',
+          ind ? 'INDEPENDENT ' + f.pos : 'LEAD ' + f.lead + 'MIN ' + f.pos,
+          'STOP ' + f.stop + 'NM FROM ' + (ind ? 'ROUTE' : 'PKG'),
           'BLOCK ' + altBlock(f.alt),
           sw ? 'TGT AREA ' + f.ta + 'NM' : 'STAY WITH THE PACKAGE',
         ];

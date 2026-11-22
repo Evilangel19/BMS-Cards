@@ -33,10 +33,15 @@ export const OCA_RANGE = {
 // the commit of the manual: the most for each mode
 export const COMMIT_MAX = { sweep: 40, det: 30, emb: 30 };
 export const modeOf = (kind, s) => (kind == 'SWEEP' ? 'sweep' : s && s.esc == 'emb' ? 'emb' : 'det');
-export const posCode = (mode, side, off) =>
-  'FS-' +
-  (mode == 'sweep' ? 1 : mode == 'det' ? 2 : 3) +
-  (side == 0 || (mode != 'emb' && !off) ? 'A' : side < 0 ? 'B' : 'C');
+export const posCode = (mode, side, off, indep) =>
+  indep
+    ? 'FS-1D'
+    : 'FS-' +
+      (mode == 'sweep' ? 1 : mode == 'det' ? 2 : 3) +
+      (side == 0 || (mode != 'emb' && !off) ? 'A' : side < 0 ? 'B' : 'C');
+// what the codes mean (the tooltips of the page)
+export const POS_HELP =
+  'NATO manual, Sweep and Escort: FS-1 sweep (2 min or more ahead of the package, or more than 10 NM aside), FS-2 detached escort (under 2 min and 10 NM), FS-3 embedded escort (with the package, in sight of it). A: on the route of the package, B: left of it, C: right of it, D: independent (a sweep on its own route).';
 
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const r1k = v => Math.round(v / 1000) * 1000;
@@ -81,14 +86,21 @@ export function cleanOca(s, kind, planned, cruiseFt) {
 }
 
 // the window of the package: from its push (else three steerpoints before the target) to two steerpoints after the target; tgt: the first attack
-export function pkgWindow(R, tgtN) {
+// (endN: the last steerpoint of the task of an independent sweep: the window ends there)
+export function pkgWindow(R, tgtN, endN) {
   const i = Math.max(
       0,
       R.findIndex(p => p.n == tgtN)
     ),
+    e = endN
+      ? Math.max(
+          i,
+          R.findIndex(p => p.n == endN)
+        )
+      : -1,
     pu = R.findIndex(p => p.act == 2),
     a = pu >= 0 && pu < i ? pu : Math.max(0, i - 3),
-    b = Math.min(R.length - 1, i + 2);
+    b = Math.min(R.length - 1, e >= 0 ? e : i + 2);
   return { a, b, t0: R[a].arr, t1: R[b].dep > R[b].arr ? R[b].dep : R[b].arr, pts: R.slice(a, b + 1) };
 }
 /** where the fighter should be at time t: the package lead min ahead along its route, off NM to the side (side -1 left, 1 right); null off the route */
@@ -125,12 +137,13 @@ const firstIn = (T, c) => {
   return p ? p.t : null;
 };
 
-// THE WARNINGS: [text, red]. o: {kind, s, track, sams [{x, y, r, name}], dor, idOk, bingo, planned (the lead of the flight plan, min) | null, hm (time text)}
+// THE WARNINGS: [text, red]. o: {kind, s, track, sams [{x, y, r, name}], dor, idOk, bingo, planned (the lead of the flight plan, min) | null, hm (time text),
+// indep (an independent sweep), dark (night over the target: the Sun under -6°), sun (its height)}
 export function ocaChecks(o) {
   const W = [],
     s = o.s,
     m = modeOf(o.kind, s);
-  if (m == 'sweep' && s.lead < 2 && s.off < 10)
+  if (m == 'sweep' && !o.indep && s.lead < 2 && s.off < 10)
     W.push(['Lead under 2 min and within 10 NM of the package: a detached escort, not a sweep', true]);
   if (m == 'det' && (s.lead >= 2 || s.off >= 10))
     W.push(['Lead of 2 min or more, or 10 NM aside: a sweep, the package is left alone', true]);
@@ -146,7 +159,8 @@ export function ocaChecks(o) {
     ]);
   if (o.dor && s.commit < o.dor)
     W.push(['COMMIT ' + s.commit + ' NM < DOR ' + Math.round(o.dor) + ' NM: no room to defend', true]);
-  if (m == 'emb' && s.night) W.push(['Night, IMC or low level: no close escort', true]);
+  if (m == 'emb' && o.dark) W.push(['Night over the target (Sun ' + Math.round(o.sun) + '°): no close escort', true]);
+  if (m == 'emb' && s.night) W.push(['IMC or low level: no close escort', true]);
   const hit = (o.sams || [])
     .map(c => ({ c, t: firstIn(o.track || [], c) }))
     .filter(z => z.t != null)

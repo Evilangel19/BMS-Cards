@@ -1153,6 +1153,7 @@ export function createMap(host, deps) {
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
           <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
+          <button class="btn g bb tl" id="mpdfez" title="The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT / STOP and the HARDWALL, a whole LINE each (F-15: the SIT line FEZ). The lines it wrote before are replaced, after asking."><span>FEZ</span></button>
           <button class="btn g bb tl sitrow" id="mpdcoast" title="F-15, Korea: the coast of the peninsula as the SIT lines ECOAST (6: the east coast and half of the south coast) and WCOAST (7: the other half and the west coast), 30 points each; lines 6 and 7 are replaced"><span>COAST</span></button></div>
           <div class="fh">Tankers ${ICON.fuel}</div><div class="tg" id="mpdtkl"></div></div></div></div>`;
     $('mpdfun').innerHTML =
@@ -1228,6 +1229,11 @@ export function createMap(host, deps) {
     $('mpdrect').onclick = () => rectStart();
     $('mpdppt').onclick = autoPpt;
     $('mpdbull').onclick = autoBull;
+    $('mpdfez').onclick = async () => {
+      const r = deps.aaAuto ? await deps.aaAuto('dca') : null;
+      if (r && r.msg) toast(r.msg, !!r.bad);
+      autoRefresh();
+    };
     $('mpdfront').onclick = autoFront;
     $('mpdcoast').onclick = autoCoast;
     // hamburgers: a button is replaced by its sub-buttons (150 ms fade); opening one closes the others; a leaf button, or a click on an empty spot of the map, closes them all
@@ -1972,8 +1978,22 @@ export function createMap(host, deps) {
           ') added to the DTC.',
       };
     }
+    // the lines written before by this page are emptied first, so that the new plan takes their place (after asking)
+    const old = Object.keys(AU).filter(k => k.startsWith(K + ':') && k != K + ':sit' && AU[k] && auLine(P, AU[k]));
+    if (
+      old.length &&
+      !(await confirm(
+        old.map(k => lnName(AU[k].line)).join(', ') +
+          (old.length > 1 ? ' hold' : ' holds') +
+          ' the plan written before: replace ' +
+          (old.length > 1 ? 'them' : 'it') +
+          ' with the plan of ' +
+          name +
+          '?'
+      ))
+    )
+      return null;
     addStop();
-    // the lines written before by this page are emptied first, so that the new plan takes their place
     Object.keys(AU)
       .filter(k => k.startsWith(K + ':') && k != K + ':sit')
       .forEach(k => {

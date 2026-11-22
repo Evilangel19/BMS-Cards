@@ -85,9 +85,17 @@ try:
         pg.click('#fapage [data-fadtc]'); pg.wait_for_timeout(1500)
         cnt = [used('lineSTPT_', 6 * i, 6) for i in range(4)]
         check('F-16: LINE1 kept, LINE2 the FEZ (5), LINE3 COMMIT / STOP (4), LINE4 the HARDWALL (2) %s' % cnt, cnt == [2, 5, 4, 2])
+        msgs = []
+        pg.once('dialog', lambda d: (msgs.append(d.message), d.accept()))
         pg.click('#fapage [data-fadtc]'); pg.wait_for_timeout(1500)
         cnt2 = [used('lineSTPT_', 6 * i, 6) for i in range(4)]
-        check('written again: the same lines, nothing more %s' % cnt2, cnt2 == cnt)
+        check('written again, after asking: the same lines, nothing more %s %s' % (cnt2, msgs), cnt2 == cnt and msgs and 'hold the plan written before' in msgs[0])
+        check('DTC lines and Reset profile under the flight', pg.locator('#fafl [data-fadtc]').count() == 1 and pg.locator('#fafl [data-fareset]').count() == 1)
+        msgs = []
+        pg.once('dialog', lambda d: (msgs.append(d.message), d.accept()))
+        pg.evaluate("()=>document.getElementById('mpdfez').click()"); pg.wait_for_timeout(1500)
+        cnt3 = [used('lineSTPT_', 6 * i, 6) for i in range(4)]
+        check('Map, DTC editing, AUTO > FEZ: asks, then the same lines written again %s' % cnt3, cnt3 == cnt and len(msgs) == 1)
         pg.evaluate("t=>{window.__sitOn=true;__app.parse(t)}", INI); pg.wait_for_timeout(400)
         pg.click('#fapage [data-fadtc]'); pg.wait_for_timeout(1500)
         n8 = used('SITLINE_8_', 0, 30)

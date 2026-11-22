@@ -4,7 +4,7 @@
 // of the map for the classic card (core/aacard.js), and in ink on the Smart card (core/smartaa.js).
 // A shape: {t: 'poly', pts, col, w, dash, close, fill} | {t: 'ring', c, r (km), col, w, dash} | {t: 'dot', p, col, k: 'dot' | 'sq' | 'tri'} |
 //          {t: 'label', p, text, col} | {t: 'arrow', from, to, text, col}; ink: how the Smart card draws it ({w, dash, red, grey, fill, round, label, bold,
-//          p, text, at}: another place or text for a label), false: not on the Smart card.
+//          p, text, at}: another place or text for a label), false: not on the Smart card; map: false: not on the map (the cards only).
 import { chooseCards } from './tgdlg.js';
 import { otherLook, cardDark } from './cardink.js';
 
@@ -26,6 +26,7 @@ export function drawLeaflet(L, RN, WL, toLL, S, esc) {
     dash = d => (d && d.length ? d.join(' ') : undefined),
     fit = [];
   S.forEach(s => {
+    if (s.map === false) return; // the cards only
     if (s.t == 'poly') {
       const o = { renderer: RN, interactive: false, color: s.col, weight: s.w || 2, dashArray: dash(s.dash) };
       (s.close

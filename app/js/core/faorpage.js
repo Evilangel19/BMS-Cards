@@ -209,7 +209,7 @@ export function createFaorPage(deps) {
       )}</div>${slider('w', 'FEZ width', RANGE.w, S.w, val.w(S.w))}${slider('d', 'FEZ depth', RANGE.d, S.d, val.d(S.d))}${slider('a0', 'FEZ floor', RANGE.alt, S.alt[0], val.a0(S.alt[0]))}${slider('a1', 'FEZ ceiling', RANGE.alt, S.alt[1], val.a1(S.alt[1]))}</div>
       <div class="wcard"><h3>Lines</h3>${slider('commit', 'COMMIT', RANGE.commit, S.commit, val.commit(S.commit))}${slider('stop', 'STOP', RANGE.stop, S.stop, val.stop(S.stop))}${slider('drop', 'DROP', RANGE.drop, S.drop, val.drop(S.drop))}${slider('stn', 'On station', L.stn, S.stn, val.stn(S.stn))}<p class="hint">COMMIT: a hostile group closer than this toward the threat. STOP: no pursuit beyond it. DROP: a group running cold further than this is let go. On station: not less than planned (BMS fails the mission).</p></div>
       </div>
-      <div class="wpc"><div class="wcard"><div class="wh"><h3>FAOR</h3><span style="flex:1"></span><button class="btn g" type="button" data-fafit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-fapf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button class="btn g" type="button" data-fadtc title="The FEZ, COMMIT / STOP and the HARDWALL as lines of the DTC (LINE1-4 of the F-16; the SIT line FEZ of the F-15). Lines written here before are replaced.">DTC lines</button><button class="btn g" type="button" data-fareset title="The values of the profile of the kind of mission">Reset profile</button></div>
+      <div class="wpc"><div class="wcard"><div class="wh"><h3>FAOR</h3><span style="flex:1"></span><button class="btn g" type="button" data-fafit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-fapf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
       <div id="famap" class="wmapbox"></div><div class="wleg" id="faleg"></div></div></div>
       <div class="wpr"><div class="wcard" id="fadt"></div><div class="wcard" id="fawn"></div><div class="wcard" id="faroe"></div></div></div>`;
     wire();
@@ -223,7 +223,7 @@ export function createFaorPage(deps) {
       c0 = X.cap[0],
       c1 = X.cap[X.cap.length - 1];
     q('#fafl').innerHTML =
-      `<h3>${esc(me.name)} · ${esc(me.kind)}</h3><div class="kv">${kv('FLIGHT', esc(me.n + '× ' + me.ac + ' · PKG ' + me.pkgNo))}${kv('CAP', X.cap.length ? 'STPT ' + X.cap.map(p => p.n).join(' · ') : 'no CAP steerpoint', X.cap.length ? '' : 'wbad')}${kv('ON STATION', c0 && c0.arr ? hm(c0.arr) + ' – ' + hm(c1.dep || c1.arr) + (pl ? ' · ' + pl + ' min' : '') : '--')}${kv('ANCHOR', esc(P.anchor))}</div>`;
+      `<h3>${esc(me.name)} · ${esc(me.kind)}</h3><div class="kv">${kv('FLIGHT', esc(me.n + '× ' + me.ac + ' · PKG ' + me.pkgNo))}${kv('CAP', X.cap.length ? 'STPT ' + X.cap.map(p => p.n).join(' · ') : 'no CAP steerpoint', X.cap.length ? '' : 'wbad')}${kv('ON STATION', c0 && c0.arr ? hm(c0.arr) + ' – ' + hm(c1.dep || c1.arr) + (pl ? ' · ' + pl + ' min' : '') : '--')}${kv('ANCHOR', esc(P.anchor))}</div><div class="wbtns"><button class="btn g" type="button" data-fadtc title="The FEZ, COMMIT / STOP and the HARDWALL as lines of the DTC (LINE1-4 of the F-16; the SIT line FEZ of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-fareset title="The values of the profile of the kind of mission">Reset profile</button></div>`;
     const en = G.enemy;
     q('#faax').textContent =
       'Threat ' +
@@ -477,18 +477,24 @@ export function createFaorPage(deps) {
     if (po) po.textContent = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'][deps.planMode ? deps.planMode() : 0];
   }
   async function dtc() {
-    if (!deps.dtcLines) return;
-    const L = faorDtcLines(G, HW),
-      r = await deps.dtcLines(
-        {
-          parts: [['fez', 'FEZ', L.fez], ['cs', 'COMMIT / STOP', L.cs], ...(L.hw ? [['hw', 'HARDWALL', L.hw]] : [])],
-          sit: 8,
-          sitName: 'FEZ',
-          key: 'dca',
-        },
-        X.me.name
-      );
+    const r = await dtcAuto();
     if (r && r.msg) deps.toast(r.msg, !!r.bad);
+  }
+  // the lines of the FAOR into the DTC (also AUTO > FEZ of the Map page): {msg, bad} or null
+  async function dtcAuto() {
+    compute();
+    if (!X || !X.ok) return { msg: 'FEZ: ' + (X ? X.why : 'no CAP flight'), bad: true };
+    if (!deps.dtcLines) return null;
+    const L = faorDtcLines(G, HW);
+    return deps.dtcLines(
+      {
+        parts: [['fez', 'FEZ', L.fez], ['cs', 'COMMIT / STOP', L.cs], ...(L.hw ? [['hw', 'HARDWALL', L.hw]] : [])],
+        sit: 8,
+        sitName: 'FEZ',
+        key: 'dca',
+      },
+      X.me.name
+    );
   }
 
   // ---- the cards
@@ -727,6 +733,7 @@ export function createFaorPage(deps) {
     root,
     allCards,
     addCard: b => addCard(b),
+    dtcAuto,
     render: async () => {
       shown = true;
       await tlLoad();

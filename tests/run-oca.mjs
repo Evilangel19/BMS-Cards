@@ -17,6 +17,7 @@ import {
 } from '../app/js/core/oca.js';
 import { faorLines, cleanFaor } from '../app/js/core/faor.js';
 import { cleanSel, roeText, fullText, emptySel } from '../app/js/core/roesop.js';
+import { setBase, sunAlt } from '../app/js/rules/ephemerides.js';
 let bad = 0,
   n = 0;
 const ok = (m, c) => {
@@ -142,6 +143,31 @@ ok(
 ok(
   'modes',
   modeOf('SWEEP', {}) == 'sweep' && modeOf('ESCORT', { esc: 'emb' }) == 'emb' && modeOf('ESCORT', {}) == 'det'
+);
+ok(
+  'an independent sweep: FS-1D, no lead rule',
+  posCode('sweep', 0, 0, true) == 'FS-1D' &&
+    !ocaChecks({ kind: 'SWEEP', s: { ...sw, lead: 0 }, track: T, indep: true }).some(w => /not a sweep/.test(w[0]))
+);
+ok(
+  'night over the target: no embedded escort, with the height of the Sun',
+  ocaChecks({ kind: 'ESCORT', s: emb, track: T, dark: true, sun: -14.4 }).some(
+    w => w[1] && w[0] == 'Night over the target (Sun -14°): no close escort'
+  )
+);
+ok('an independent sweep: the window ends at its last sweep steerpoint', pkgWindow(R, 3, 4).b == 3);
+// the night from the date of the campaign (the Datacard): the middle of the theater (Korea, 38.5 N 127.5 E) on 21 June
+ok('no date: no Sun', sunAlt(512, 512, 3 * 3600000) === null);
+setBase('2026-06-21');
+const noon = sunAlt(512, 512, 3.5 * 3600000),
+  midnight = sunAlt(512, 512, 15.5 * 3600000);
+ok(
+  '21 June over Korea: the Sun high at 03:30Z (' +
+    Math.round(noon) +
+    '°), under the horizon at 15:30Z (' +
+    Math.round(midnight) +
+    '°)',
+  noon > 70 && noon < 78 && midnight < -20
 );
 // the ROE block
 const b = cleanFaor(ocaRoe(sw, 'SWEEP', 'FS-1A'));

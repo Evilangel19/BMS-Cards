@@ -93,6 +93,12 @@ preferences and the tests of before still work. Use this table to find a page in
   of the Smart mission card, `core/smartcombo.js`). `addCards` / `allOf` are the Add card window and Add all cards of both pages.
 - **DTC lines**: `autoAA` in `core/mapview.js` (DCA: the FEZ, COMMIT / STOP, the HARDWALL, F-15 SIT line 8 FEZ; OCA: the track and the target area, SIT
   line 9 MISC); the lines written by a page are remembered under `AU['dca:...']` / `AU['oca:...']` and replaced when the page writes again.
+- **OCA without a package**: a SWEEP alone in its package (as BMS makes them) is an independent sweep (FS-1D, `X.indep` from `ocaCtx`): the plan follows
+  its own route to its last sweep steerpoint, without lead or side. **The night** of the embedded escort comes from the date of the campaign set on the
+  Datacard (`sunAlt` in `rules/ephemerides.js`: the Sun under -6° over the target at its time); IMC / low level is a switch.
+- The DTC lines of a page are also written by **AUTO > FEZ** of the DTC editing of the Map page (`deps.aaAuto` -> `dtcAuto()` of the page); the lines a
+  page wrote before are replaced only after asking.
+- Shapes with `map: false` are drawn on the cards only (the SAM rings of OCA: the map shows the SAMs already).
 - Tests: `tests/run-faor.mjs`, `tests/run-oca.mjs`, `tools/dca-test.py`, `tools/oca-test.py`.
 
 ## Docs page

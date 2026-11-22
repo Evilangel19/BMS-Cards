@@ -14,6 +14,7 @@ import {
   KM_NM,
   modeOf,
   posCode,
+  POS_HELP,
   pkgWindow,
   fighterAt,
   track,
@@ -83,13 +84,15 @@ export function createOcaPage(deps) {
   const cruise = () => (X && X.main ? Math.max(0, ...X.main.w.map(p => Math.abs(p.z || 0) * 10)) : 0);
   // the lead of the flight plan: the package over its target minus my time at my steerpoint nearest to it (within 15 NM), min; null without one
   const plannedLead = () => {
-    if (!X || !X.main || !X.main.tgt || !X.me.w.length) return null;
+    if (!X || !X.main || !X.main.tgt || !X.me.w.length || X.indep) return null;
     const g = X.main.tgt,
       n = X.me.w.map(p => ({ p, d: distNm(p, g) })).sort((a, b) => a.d - b.d)[0];
     return n && n.d <= 15 ? (g.t - n.p.arr) / 60000 : null;
   };
   const mode = () => modeOf(X.me.kind, S);
-  const code = () => posCode(mode(), S.side, S.off);
+  const code = () => posCode(mode(), S.side, S.off, X.indep);
+  // the Sun over the target at its time (the date of the campaign set on the Datacard); null without it
+  const sun = () => (X.sun ? X.sun(X.main.tgt.x, X.main.tgt.y, X.main.tgt.t) : null);
   const now = () =>
     S.cur == null ? Math.min(WIN.t1, Math.max(WIN.t0, X.main.tgt.t - 5 * 60000)) : WIN.t0 + S.cur * 60000;
   const roeNow = () => {
@@ -115,9 +118,12 @@ export function createOcaPage(deps) {
       st.f[X.me.key] = { ...S };
       save();
     }
-    WIN = pkgWindow(X.main.w, X.main.tgt.n);
+    // an independent sweep flies its own route: no lead, no side
+    if (X.indep) S = { ...S, lead: 0, side: 0, off: 0 };
+    WIN = pkgWindow(X.main.w, X.main.tgt.n, X.main.end);
     T = track(X.main.w, S, WIN.t0, WIN.t1);
-    const roe = roeNow();
+    const roe = roeNow(),
+      su = sun();
     W = ocaChecks({
       kind: k,
       s: S,
@@ -128,6 +134,9 @@ export function createOcaPage(deps) {
       bingo: roe ? roe.roe.abort.includes('bingo') : null,
       planned: plannedLead(),
       hm,
+      indep: X.indep,
+      dark: su != null && su < -6,
+      sun: su,
     });
   }
   async function tlLoad() {
@@ -165,6 +174,7 @@ export function createOcaPage(deps) {
         ...new Map(X.prot.filter(f => f.tgt).map(f => [f.tgt.x.toFixed(1) + ',' + f.tgt.y.toFixed(1), f.tgt])).values(),
       ];
     return [
+      // the SAMs on the cards only: the map shows them already (its SAM layers, AUTO PPT)
       ...sams.map(c => ({
         t: 'ring',
         c,
@@ -172,9 +182,10 @@ export function createOcaPage(deps) {
         col: COL.sam,
         w: 1.5,
         dash: [4, 4],
+        map: false,
         ink: { red: true, dash: [4, 3] },
       })),
-      ...sams.map(c => ({ t: 'label', p: c, text: c.name, col: COL.sam, ink: { red: true } })),
+      ...sams.map(c => ({ t: 'label', p: c, text: c.name, col: COL.sam, map: false, ink: { red: true } })),
       ...tg.map(g => ({ t: 'ring', c: g, r: S.ta * KM_NM, col: COL.ta, w: 1.5, dash: [2, 5], ink: { dash: [2, 3] } })),
       ...(m == 'sweep' && T.length > 1
         ? [
@@ -200,7 +211,7 @@ export function createOcaPage(deps) {
           fit: false,
           ink: { grey: true },
         })),
-      ...(X.me.w.length > 1
+      ...(X.me.w.length > 1 && !X.indep
         ? [
             {
               t: 'poly',
@@ -215,7 +226,7 @@ export function createOcaPage(deps) {
         : []),
       { t: 'poly', pts: T, col: COL.me, w: 2.5, dash: [8, 5], ink: { w: 1.5, dash: [6, 4] } },
       ...tg.map(g => ({ t: 'dot', p: g, col: COL.stop, k: 'tri', ink: { label: 'TGT', bold: true } })),
-      ...(pk
+      ...(pk && !X.indep
         ? [
             {
               t: 'ring',
@@ -233,11 +244,32 @@ export function createOcaPage(deps) {
       ...(fp
         ? [
             { t: 'ring', c: fp, r: S.commit * KM_NM, col: COL.commit, w: 1.5, dash: [8, 6], ink: { dash: [7, 4] } },
+            ...(X.indep
+              ? [
+                  {
+                    t: 'ring',
+                    c: fp,
+                    r: S.stop * KM_NM,
+                    col: COL.stop,
+                    w: 1.5,
+                    dash: [6, 6],
+                    ink: { red: true, dash: [5, 4] },
+                  },
+                ]
+              : []),
             { t: 'dot', p: fp, col: COL.me, k: 'tri', ink: { label: nm + ' ' + code(), bold: true } },
             {
               t: 'label',
               p: fp,
-              text: nm + ' ' + code() + ' · +' + S.lead + ' min · COMMIT ' + S.commit + ' · WPN ' + S.wpn.toUpperCase(),
+              text:
+                nm +
+                ' ' +
+                code() +
+                (X.indep ? '' : ' · +' + S.lead + ' min') +
+                ' · COMMIT ' +
+                S.commit +
+                ' · WPN ' +
+                S.wpn.toUpperCase(),
               col: COL.me,
               ink: false,
             },
@@ -283,32 +315,40 @@ export function createOcaPage(deps) {
                 [
                   'det',
                   'Detached',
-                  'Detached escort: less than 2 min ahead or 10 NM aside; the package in sight or not',
+                  'Detached escort (FS-2): less than 2 min ahead or 10 NM aside; the package in sight or not',
                 ],
-                ['emb', 'Embedded', 'Close (embedded) escort: with the package, in sight of it'],
+                ['emb', 'Embedded', 'Close (embedded) escort (FS-3): with the package, in sight of it'],
               ],
               S.esc
             )
-      }</div><div class="wrow"><label>Side</label>${seg(
-        'side',
-        [
-          ['-1', 'Left', 'B: left of the route'],
-          ['0', 'On route', 'A: on the route'],
-          ['1', 'Right', 'C: right of the route'],
-        ],
-        S.side
-      )}</div>${slider('lead', 'Lead on package', OCA_RANGE.lead, S.lead, val.lead(S.lead))}${slider('off', 'Offset', OCA_RANGE.off, S.off, val.off(S.off))}${
+      }</div>${
+        X.indep
+          ? `<p class="hint">Independent sweep (FS-1D): no other flight in package ${esc(String(X.me.pkgNo))}, the plan follows your own sweep steerpoints.</p>`
+          : `<div class="wrow"><label>Side</label>${seg(
+              'side',
+              [
+                ['-1', 'Left', 'B: left of the route of the package'],
+                ['0', 'On route', 'A: on the route of the package'],
+                ['1', 'Right', 'C: right of the route of the package'],
+              ],
+              S.side
+            )}</div>${slider('lead', 'Lead on package', OCA_RANGE.lead, S.lead, val.lead(S.lead))}${slider('off', 'Offset', OCA_RANGE.off, S.off, val.off(S.off))}`
+      }${
         sw
           ? slider('w', 'Corridor width', OCA_RANGE.w, S.w, val.w(S.w))
-          : `<div class="wrow"><label>Night / IMC / low</label>${seg(
+          : `<div class="wrow"><label>IMC / low level</label>${seg(
               'night',
               [
                 ['false', 'No'],
-                ['true', 'Yes', 'Night, IMC or low level over rolling ground: no close escort (NATO)'],
+                [
+                  'true',
+                  'Yes',
+                  'IMC, or low level over rolling ground: no close escort (NATO). The night comes from the date of the campaign.',
+                ],
               ],
               S.night
-            )}</div>`
-      }<p class="hint" id="occode"></p></div>
+            )}</div><p class="hint" id="ocsun"></p>`
+      }<p class="hint" id="occode" title="${esc(POS_HELP)}"></p></div>
       <div class="wcard"><div class="wh"><h3>Engagement</h3><span style="flex:1"></span>${seg(
         'wpn',
         [
@@ -317,10 +357,10 @@ export function createOcaPage(deps) {
           ['hold', 'HOLD', 'WEAPONS HOLD: fire only in self-defence or when ordered'],
         ],
         S.wpn
-      )}</div>${slider('commit', 'COMMIT', OCA_RANGE.commit, S.commit, val.commit(S.commit))}${slider('stop', 'STOP from package', OCA_RANGE.stop, S.stop, val.stop(S.stop))}${slider('ta', 'Target area', OCA_RANGE.ta, S.ta, val.ta(S.ta))}${slider('a0', 'Block floor', OCA_RANGE.alt, S.alt[0], val.a0(S.alt[0]))}${slider('a1', 'Block ceiling', OCA_RANGE.alt, S.alt[1], val.a1(S.alt[1]))}<p class="hint">COMMIT: a hostile group closer than this to you. STOP: no pursuit further than this from the package. Target area: the air ${sw ? 'the sweep clears' : 'around the target'}.</p></div>
+      )}</div>${slider('commit', 'COMMIT', OCA_RANGE.commit, S.commit, val.commit(S.commit))}${slider('stop', X.indep ? 'STOP from route' : 'STOP from package', OCA_RANGE.stop, S.stop, val.stop(S.stop))}${slider('ta', 'Target area', OCA_RANGE.ta, S.ta, val.ta(S.ta))}${slider('a0', 'Block floor', OCA_RANGE.alt, S.alt[0], val.a0(S.alt[0]))}${slider('a1', 'Block ceiling', OCA_RANGE.alt, S.alt[1], val.a1(S.alt[1]))}<p class="hint">COMMIT: a hostile group closer than this to you. STOP: no pursuit further than this from the package. Target area: the air ${sw ? 'the sweep clears' : 'around the target'}.</p></div>
       </div>
-      <div class="wpc"><div class="wcard"><div class="wh"><h3>${sw ? 'SWEEP' : 'ESCORT'}</h3><span style="flex:1"></span><button class="btn g" type="button" data-ocfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-ocpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button><button class="btn g" type="button" data-ocdtc title="Your track along the package and the target area as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines written here before are replaced.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>
-      ${slider('cur', 'Package time', [0, span, 0.5], valOf('cur'), val.cur(valOf('cur')))}
+      <div class="wpc"><div class="wcard"><div class="wh"><h3>${sw ? 'SWEEP' : 'ESCORT'}</h3><span style="flex:1"></span><button class="btn g" type="button" data-ocfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-ocpf title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">Map filters</button></div>
+      ${slider('cur', X.indep ? 'Time' : 'Package time', [0, span, 0.5], valOf('cur'), val.cur(valOf('cur')))}
       <div id="ocmap" class="wmapbox"></div><div class="wleg" id="ocleg"></div></div></div>
       <div class="wpr"><div class="wcard" id="ocdt"></div><div class="wcard" id="ocwn"></div><div class="wcard" id="ocroe"></div></div></div>`;
     wire();
@@ -332,17 +372,44 @@ export function createOcaPage(deps) {
       g = X.main.tgt,
       pl = plannedLead();
     q('#ocfl').innerHTML =
-      `<h3>${esc(me.name)} · ${esc(me.kind)}</h3><div class="kv">${kv('FLIGHT', esc(me.n + '× ' + me.ac + ' · PKG ' + me.pkgNo))}${kv('PROTECTS', esc(X.prot.map(f => f.name).join(', ')))}${kv('PKG TOT', hm(g.t) + ' · ' + esc(X.main.name) + ' STPT ' + g.n)}${kv('PLAN LEAD', pl == null ? 'no steerpoint near the target' : (pl >= 0 ? '+' : '') + Math.round(pl * 2) / 2 + ' min')}</div>`;
+      `<h3>${esc(me.name)} · ${esc(me.kind)}</h3><div class="kv">${kv('FLIGHT', esc(me.n + '× ' + me.ac + ' · PKG ' + me.pkgNo))}${
+        X.indep
+          ? kv(
+              'SWEEP',
+              'independent · STPT ' + g.n + (X.main.end && X.main.end != g.n ? '-' + X.main.end : '') + ' · ' + hm(g.t)
+            )
+          : kv('PROTECTS', esc(X.prot.map(f => f.name).join(', '))) +
+            kv('PKG TOT', hm(g.t) + ' · ' + esc(X.main.name) + ' STPT ' + g.n) +
+            kv(
+              'PLAN LEAD',
+              pl == null ? 'no steerpoint near the target' : (pl >= 0 ? '+' : '') + Math.round(pl * 2) / 2 + ' min'
+            )
+      }</div><div class="wbtns"><button class="btn g" type="button" data-ocdtc title="Your track and the target area as lines of the DTC (LINE1-4 of the F-16; the SIT line MISC of the F-15). Lines this page wrote before are replaced, after asking.">DTC lines</button><button class="btn g" type="button" data-ocreset title="The values of the NATO manual for this mission">Reset profile</button></div>`;
+    const sn = q('#ocsun'),
+      su = sun();
+    if (sn)
+      sn.textContent =
+        su == null
+          ? 'Night: set the date of the campaign on the Datacard (ephemerides) to know it.'
+          : 'Sun over the target at ' +
+            hm(g.t) +
+            ': ' +
+            Math.round(su) +
+            '° (' +
+            (su < -6 ? 'night' : su < 0 ? 'twilight' : 'day') +
+            ')';
     const m = mode();
     q('#occode').textContent =
       code() +
       ' · ' +
-      (m == 'sweep'
-        ? 'sweep: 2 min ahead or 10 NM aside, at least'
-        : m == 'det'
-          ? 'detached escort: under 2 min and 10 NM'
-          : 'embedded escort: with the package, in sight') +
-      ' (NATO)';
+      (X.indep
+        ? 'independent sweep'
+        : m == 'sweep'
+          ? 'sweep: 2 min ahead or 10 NM aside, at least'
+          : m == 'det'
+            ? 'detached escort: under 2 min and 10 NM'
+            : 'embedded escort: with the package, in sight') +
+      ' (NATO) ⓘ';
     Object.keys(val).forEach(k => {
       const e = q(`[data-oce="${k}"]`),
         v = valOf(k);
@@ -360,7 +427,7 @@ export function createOcaPage(deps) {
       fp = fighterAt(X.main.w, S, now()),
       pk = posAt(X.main.w, now());
     q('#ocdt').innerHTML =
-      `<h3>Data</h3><div class="kv">${kv('POSITION', code() + ' · +' + S.lead + ' min · ' + S.off + ' NM')}${kv('NOW', fp && pk ? hm(now()) + ' · ' + Math.round(distNm(fp, pk)) + ' NM from the package' : hm(now()))}${kv('BLOCK', esc(altBlock(S.alt)))}${kv('WPN', S.wpn.toUpperCase())}${kv('JOKER / BINGO', esc((X.joker || '--') + ' / ' + (X.bingo || '--')))}${kv('MAR / DOR', TL ? Math.round(TL.mar) + ' / ' + Math.round(TL.dor) + ' NM · ' + esc(TL.cls) : '--')}${kv('A-A', esc(X.aa || '--'))}${kv('BMS', me.kind == 'SWEEP' ? 'success: one kill' : 'success: no loss in the package')}</div>`;
+      `<h3>Data</h3><div class="kv">${kv('POSITION', X.indep ? code() + ' · your own route' : code() + ' · +' + S.lead + ' min · ' + S.off + ' NM')}${kv('NOW', fp && pk && !X.indep ? hm(now()) + ' · ' + Math.round(distNm(fp, pk)) + ' NM from the package' : hm(now()))}${kv('BLOCK', esc(altBlock(S.alt)))}${kv('WPN', S.wpn.toUpperCase())}${kv('JOKER / BINGO', esc((X.joker || '--') + ' / ' + (X.bingo || '--')))}${kv('MAR / DOR', TL ? Math.round(TL.mar) + ' / ' + Math.round(TL.dor) + ' NM · ' + esc(TL.cls) : '--')}${kv('A-A', esc(X.aa || '--'))}${kv('BMS', me.kind == 'SWEEP' ? 'success: one kill' : 'success: no loss in the package')}</div>`;
     q('#ocwn').innerHTML =
       `<h3>Checks</h3>${W.length ? W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('') : '<div class="sdok">No problem found.</div>'}`;
     q('#ocroe').innerHTML = `<h3>ROE · A-A block</h3><div class="hint">${faorLines(ocaRoe(S, me.kind, code()), false)
@@ -520,21 +587,27 @@ export function createOcaPage(deps) {
     if (po) po.textContent = ['Map filters', 'No filters', 'Plan', 'Plan + PPT'][deps.planMode ? deps.planMode() : 0];
   }
   async function dtc() {
-    if (!deps.dtcLines) return;
-    const L = ocaDtcLines(T, X.main.tgt, S),
-      r = await deps.dtcLines(
-        {
-          parts: [
-            ...(L.track.length > 1 ? [['track', X.me.kind == 'SWEEP' ? 'SWEEP TRACK' : 'ESCORT TRACK', L.track]] : []),
-            ...(L.area ? [['area', 'TGT AREA', L.area]] : []),
-          ],
-          sit: 9,
-          sitName: 'MISC',
-          key: 'oca',
-        },
-        X.me.name
-      );
+    const r = await dtcAuto();
     if (r && r.msg) deps.toast(r.msg, !!r.bad);
+  }
+  // the lines of the plan into the DTC (also the AUTO menu of the Map page): {msg, bad} or null
+  async function dtcAuto() {
+    compute();
+    if (!X || !X.ok) return { msg: 'OCA: ' + (X ? X.why : 'no SWEEP or ESCORT flight'), bad: true };
+    if (!deps.dtcLines) return null;
+    const L = ocaDtcLines(T, X.main.tgt, S);
+    return deps.dtcLines(
+      {
+        parts: [
+          ...(L.track.length > 1 ? [['track', X.me.kind == 'SWEEP' ? 'SWEEP TRACK' : 'ESCORT TRACK', L.track]] : []),
+          ...(L.area ? [['area', 'TGT AREA', L.area]] : []),
+        ],
+        sit: 9,
+        sitName: 'MISC',
+        key: 'oca',
+      },
+      X.me.name
+    );
   }
 
   // ---- the cards
@@ -587,9 +660,9 @@ export function createOcaPage(deps) {
       }),
       blocks: [
         [
-          'PACKAGE',
+          X.indep ? 'SWEEP' : 'PACKAGE',
           [
-            X.prot.map(f => f.name.toUpperCase()).join(', '),
+            X.indep ? 'INDEPENDENT · OWN ROUTE' : X.prot.map(f => f.name.toUpperCase()).join(', '),
             'TGT ' + be(g) + ' · ' + hm(g.t),
             me.kind == 'SWEEP' ? 'TGT AREA ' + S.ta + ' NM' : 'STAY WITH THE PACKAGE',
           ],
@@ -635,7 +708,12 @@ export function createOcaPage(deps) {
       head: 'A-A · OCA · ' + me.kind,
       rowsHead: 'PACKAGE · ROE',
       title: me.name + ' · ' + me.n + '× ' + me.ac,
-      sub: 'PKG ' + me.pkgNo + ' · PROTECTS ' + X.prot.map(f => f.name).join(', ') + ' · TGT ' + be(g),
+      sub:
+        'PKG ' +
+        me.pkgNo +
+        (X.indep ? ' · INDEPENDENT SWEEP' : ' · PROTECTS ' + X.prot.map(f => f.name).join(', ')) +
+        ' · TGT ' +
+        be(g),
       box: [
         ['POSITION', code(), m == 'sweep' ? 'sweep' : m == 'det' ? 'detached escort' : 'embedded escort'],
         [
@@ -648,7 +726,7 @@ export function createOcaPage(deps) {
       ],
       warn: W.filter(w => w[1]).map(w => w[0]),
       rows: [
-        ['PACKAGE', X.prot.map(f => f.name).join(', ')],
+        ['PACKAGE', X.indep ? 'none: independent sweep' : X.prot.map(f => f.name).join(', ')],
         ['PUSH / TOT', hm(WIN.t0) + ' / ' + hm(g.t)],
         ['BLOCK', altBlock(S.alt)],
         ['TGT AREA', S.ta + ' NM · ' + be(g)],
@@ -722,7 +800,9 @@ export function createOcaPage(deps) {
           'PKG TOT ' + hm(X.main.tgt.t),
           ...(TL ? ['DOR ' + Math.round(TL.dor) + ' NM'] : []),
         ],
-        line: 'PROTECTS ' + X.prot.map(f => f.name.toUpperCase()).join(', '),
+        line: X.indep
+          ? 'INDEPENDENT SWEEP · OWN ROUTE'
+          : 'PROTECTS ' + X.prot.map(f => f.name.toUpperCase()).join(', '),
       },
       tgt: null,
       sam: null,
@@ -783,6 +863,7 @@ export function createOcaPage(deps) {
     root,
     allCards,
     addCard: b => addCard(b),
+    dtcAuto,
     render: async () => {
       shown = true;
       await tlLoad();

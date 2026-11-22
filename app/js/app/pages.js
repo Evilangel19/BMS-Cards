@@ -48,6 +48,7 @@ import { createFaorPage } from '../core/faorpage.js';
 import { createOcaPage } from '../core/ocapage.js';
 import { ocaKind } from '../core/oca.js';
 import { timed } from '../core/sead.js';
+import { sunAlt } from '../rules/ephemerides.js';
 import { capKind } from '../core/faor.js';
 import { nearAb, nearObj } from '../core/flight.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
@@ -137,6 +138,11 @@ export async function init6() {
     faor: o => (faorPage ? faorPage.overlay(o) : false),
     // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
+    // AUTO > FEZ of the DTC editing: the lines of A-A > DCA (or OCA)
+    aaAuto: k => {
+      const pg = k == 'dca' ? faorPage : ocaPage;
+      return pg && pg.dtcAuto ? pg.dtcAuto() : null;
+    },
     attack: () => {
       const a = ST.wpPage && ST.wpPage.spec && ST.wpPage.spec();
       if (!a) return null;
@@ -952,7 +958,16 @@ function faorCtx() {
   if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
   const kind = capKind(e.mission);
   if (!kind)
-    return { ok: false, why: e.callsign + ' flies ' + e.mission + ': the FAOR is planned for the CAP flights.' };
+    return {
+      ok: false,
+      why:
+        e.callsign +
+        ' flies ' +
+        e.mission +
+        (/QRA|INTERCEPT/.test(e.mission)
+          ? ': INTERCEPT and QRA are not planned yet (they will be here, in DCA).'
+          : ': the FAOR is planned for the CAP flights.'),
+    };
   const C = ST.C,
     D = C.D,
     cap = capPts(e.f);
@@ -1040,7 +1055,17 @@ function ocaCtx() {
   if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
   const kind = ocaKind(e.mission);
   if (!kind)
-    return { ok: false, why: e.callsign + ' flies ' + e.mission + ': OCA plans the SWEEP and ESCORT flights.' };
+    return {
+      ok: false,
+      why:
+        e.callsign +
+        ' flies ' +
+        e.mission +
+        (/QRA|INTERCEPT/.test(e.mission)
+          ? ': a DCA mission (A-A > DCA; INTERCEPT and QRA are not planned yet).'
+          : ': OCA plans the SWEEP and ESCORT flights.'),
+    };
+  const mine = timed(e.f.wps);
   const others = ATOL.filter(
       z => z.f !== e.f && z.pkg == e.pkg && !capKind(z.mission) && !ocaKind(z.mission) && !SUPPORT.test(z.mission)
     ),
@@ -1052,9 +1077,24 @@ function ocaCtx() {
       })
       .filter(f => f.w.length > 1),
     prot = withTgt.some(f => f.tgt) ? withTgt.filter(f => f.tgt) : withTgt;
-  if (!prot.length) return { ok: false, why: e.callsign + ': no flight to protect in package ' + e.pkgNo + '.' };
-  const main = [...prot].filter(f => f.tgt).sort((a, b) => a.tgt.t - b.tgt.t)[0];
-  if (!main) return { ok: false, why: 'No flight of package ' + e.pkgNo + ' has a target steerpoint with a time.' };
+  let main = [...prot].filter(f => f.tgt).sort((a, b) => a.tgt.t - b.tgt.t)[0],
+    indep = false;
+  // a SWEEP alone in its package (as BMS makes them): an independent sweep (FS-1D) along its own sweep steerpoints
+  if (!main && kind == 'SWEEP') {
+    const sw = mine.filter(p => p.act == 11),
+      a = sw[0] || mine.find(p => ACT_ATK.includes(p.act));
+    if (a && a.arr) {
+      main = { name: e.callsign, w: mine, tgt: { x: a.x, y: a.y, n: a.n, t: a.arr }, end: (sw[sw.length - 1] || a).n };
+      indep = true;
+    }
+  }
+  if (!main)
+    return {
+      ok: false,
+      why: prot.length
+        ? 'No flight of package ' + e.pkgNo + ' has a target steerpoint with a time.'
+        : e.callsign + ': no flight to protect in package ' + e.pkgNo + '.',
+    };
   let sams = [];
   try {
     sams = mapUnits(ST.C, e.team)
@@ -1077,10 +1117,12 @@ function ocaCtx() {
       pkgNo: e.pkgNo,
       team: e.team,
       tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
-      w: timed(e.f.wps),
+      w: mine,
     },
-    prot,
+    prot: indep ? [] : prot,
     main,
+    indep,
+    sun: (x, y, t) => sunAlt(x, y, t),
     sams,
     bull: C.bull ? { x: C.bull.x, y: C.bull.y } : null,
     joker: F.joker || '',

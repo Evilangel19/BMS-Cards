@@ -12,7 +12,8 @@ ok = True
 def check(n, c):
     global ok; ok &= bool(c); print('OK  ' if c else 'FAIL', n)
 # strikers north at 480 kt from the push (09:00) to the target (09:10), egress east; my sweep 3 min ahead; an SA-6 on the way; the bullseye south-west
-SETUP = r"""kind => {
+SETUP = r"""a => {
+  const [kind, o] = Array.isArray(a) ? a : [a, {}];
   const K = 1.852, T0 = 9 * 3600000, mk = (n, x, y, t, act) => ({ x, y, z: -2500, arr: t, dep: t, act, n }),
     R = [mk(1, 600, 300, T0 - 600000, 1), mk(2, 600, 400, T0, 2), mk(3, 600, 400 + 40 * K, T0 + 300000, 0), mk(4, 600, 400 + 80 * K, T0 + 600000, 17), mk(5, 600 + 40 * K, 400 + 80 * K, T0 + 900000, 0), mk(6, 600 + 80 * K, 400 + 80 * K, T0 + 1200000, 0)],
     me = [mk(1, 590, 300, T0 - 900000, 1), mk(2, 590, 400 + 24 * K, T0, 2), mk(3, 600, 400 + 104 * K, T0 + 600000, 11), mk(4, 600, 300, T0 + 2400000, 7)];
@@ -21,6 +22,8 @@ SETUP = r"""kind => {
     prot: [{ name: 'Hammer 6', w: R, tgt: { x: 600, y: 400 + 80 * K, n: 4, t: T0 + 600000 } }], sams: [{ x: 620, y: 400 + 60 * K, r: 15 * K, name: 'SA-6' }],
     bull: { x: 560, y: 380 }, joker: '6 000', bingo: '5 000', aa: '6× AIM-120C · 2× AIM-9M' };
   X.main = X.prot[0];
+  if (o.sun != null) X.sun = () => o.sun;
+  if (o.indep) { X.prot = []; X.main = { name: 'Eagle 4', w: me, tgt: { x: 600, y: 400 + 104 * K, n: 3, t: T0 + 600000 }, end: 3 }; X.indep = true; }
   __app.ocaPage._test({ ctx: () => X, timeline: () => [{ cls: 'MiG-29A', mar: 12, dr: 18, dor: 25 }],
     roeGet: () => ({ roe: { ws: 'tight', id: ['awacs'], commit: 'n40', abort: ['bingo'], extra: [], restr: [] } }), roeSet: fa => (window.__OC.roe = fa) });
 }"""
@@ -80,11 +83,22 @@ try:
         q = P()
         check('ESCORT: detached, FS-2A, 1 min %s' % q, q['code'] == 'FS-2A' and q['lead'] == 1 and pg.evaluate("()=>__OC.roe.kind") == 'ESCORT')
         pg.click('#ocpage [data-ocset=esc][data-v=emb]'); pg.wait_for_timeout(300)
+        check('no date of the campaign: the page says how to know the night', 'set the date of the campaign' in pg.locator('#ocsun').inner_text())
         pg.click('#ocpage [data-ocset=night][data-v=true]'); pg.wait_for_timeout(300)
         q = P()
-        check('embedded at night: FS-3C, no close escort (red) %s' % q['code'], q['code'] == 'FS-3C' and any('no close escort' in t for t in q['red']))
+        check('embedded in IMC: FS-3C, no close escort (red) %s' % q['code'], q['code'] == 'FS-3C' and 'IMC or low level: no close escort' in q['red'])
+        pg.evaluate(SETUP, ['ESCORT', {'sun': -15}]); pg.click('#bvrtabs [data-bsub=faor]'); pg.wait_for_timeout(300); pg.click('#bvrtabs [data-bsub=oca]'); pg.wait_for_timeout(800)
+        q = P()
+        check('the Sun at -15° over the target: night, no close escort %s' % q['red'], 'Night over the target (Sun -15°): no close escort' in q['red'] and 'night' in pg.locator('#ocsun').inner_text())
+        check('the position codes have their meaning as a tooltip', 'FS-1 sweep' in (pg.locator('#occode').get_attribute('title') or ''))
+        check('DTC lines and Reset profile under the flight', pg.locator('#ocfl [data-ocdtc]').count() == 1 and pg.locator('#ocfl [data-ocreset]').count() == 1)
+        # an independent sweep (alone in its package, as BMS makes them): its own route, FS-1D
+        pg.evaluate(SETUP, ['SWEEP', {'indep': True}]); pg.evaluate("()=>__app.ocaPage.setState({f:{}})"); pg.click('#bvrtabs [data-bsub=faor]'); pg.wait_for_timeout(300); pg.click('#bvrtabs [data-bsub=oca]'); pg.wait_for_timeout(800)
+        q = P()
+        check('independent sweep: FS-1D, a track, the page says so %s' % q['code'], q['code'] == 'FS-1D' and q['n'] > 2 and 'Independent sweep (FS-1D)' in pg.locator('#ocpage').inner_text())
         if OUT: pg.screenshot(path=os.path.join(OUT, 'oca_escort.png'))
         check('Map, Display > OCA: off by default', pg.evaluate("()=>!__app.mapV.state().on.oc"))
+        check('the SAMs are not drawn on the map of the page (the map has them): no SA-6 tag', pg.locator('#ocmap .sdtag', has_text='SA-6').count() == 0)
         check('no page errors %s' % errs[:3], not errs)
         b.close()
 finally:
