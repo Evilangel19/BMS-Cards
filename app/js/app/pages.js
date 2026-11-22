@@ -148,6 +148,7 @@ export async function init6() {
     // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
     // AUTO > FEZ of the DTC editing: the lines of the A-A page of the flight (DCA, QRA or OCA)
+    aaCan: () => [dcaPage(), ocaPage].some(p => p && p.usable()),
     aaAuto: () => {
       const pg = [dcaPage(), ocaPage].find(p => p && p.usable());
       return pg ? pg.dtcAuto() : { msg: 'AUTO > FEZ: choose a CAP, QRA, SWEEP or ESCORT flight.', bad: true };
@@ -1561,6 +1562,7 @@ export async function init11() {
       attach: el => mapV.attach(el, true),
       detach: () => mapV.detach(),
       shot: o => mapV.shotStart('kb', o),
+      copy: o => mapV.copy(o),
       mission: () => {
         const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
           e = x && ATOL.find(z => z.f === x.f);

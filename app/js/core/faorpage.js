@@ -42,9 +42,9 @@ import { h3, hm, drawLeaflet, toPx, toInk, snapMap, addCards, allOf } from './aa
 
 const COL = { fez: '#4aa3ff', commit: '#f0b040', stop: '#ef4444', hw: '#ffffff', cap: '#4cc38a', mate: '#9aa8b8' };
 const KINDS = [
-  ['map', 'With the map'],
-  ['smart', 'Smart DCA'],
   ['combo', 'Smart mission'],
+  ['smart', 'Smart DCA'],
+  ['map', 'With the map'],
 ];
 
 export function createFaorPage(deps) {

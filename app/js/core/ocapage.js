@@ -46,9 +46,9 @@ const COL = {
   plan: '#ffffff',
 };
 const KINDS = [
-  ['map', 'With the map'],
-  ['smart', 'Smart OCA'],
   ['combo', 'Smart mission'],
+  ['smart', 'Smart OCA'],
+  ['map', 'With the map'],
 ];
 
 export function createOcaPage(deps) {

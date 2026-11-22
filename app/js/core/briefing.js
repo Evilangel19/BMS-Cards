@@ -5,7 +5,7 @@
 // The messages go to the pilots of the squadron through its peer-to-peer swarm (core/squadron.js), {k: 'brf', t: ...}. The rules are in core/briefroom.js.
 //
 // deps: {root, esc, me() -> uid, name(uid), role(uid) -> {role, lead}, online() -> [uid], send(msg), sendTo(uid, msg), attach(el) -> Promise<{L, map} | null>,
-//        detach(), shot({toast}) (the kneeboard frame of the map), mission() -> text, theater() -> text, toast(text), wide(bool), squad() -> id | null}
+//        detach(), shot({toast}) (the kneeboard frame of the map), copy({toast}) (the map with the drawings to the clipboard), mission() -> text, theater() -> text, toast(text), wide(bool), squad() -> id | null}
 import {
   NM,
   dist,
@@ -724,7 +724,7 @@ class Room {
       A.innerHTML = '';
       return;
     }
-    const card = `<button class="btn g gn" data-a="card">Save a kneeboard card</button>`;
+    const card = `<button class="btn g gn" data-a="card">Save a kneeboard card</button><button class="btn g" data-a="copy" title="Copy the map with the drawings to the clipboard, to paste it elsewhere">Copy the map</button>`;
     const note = `<div class="brnote">Drawings live only in the room: a card keeps them.</div>`;
     if (this.isBriefer()) {
       A.innerHTML = `<div class="brtog"><span>Everyone follows my view</span><button class="brsw ${this.room.follow ? 'on' : ''}" aria-label="Everyone follows my view"></button></div>${card}<button class="btn g brred" data-a="close">Close the room</button>${note}`;
@@ -739,6 +739,7 @@ class Room {
         (b.onclick = () => {
           const a = b.dataset.a;
           if (a == 'card') this.startCard();
+          if (a == 'copy' && this.d.copy) this.d.copy({ toast: t => this.toast(t, 4000) });
           if (a == 'close')
             this.ask(
               'Close the room for everyone?',

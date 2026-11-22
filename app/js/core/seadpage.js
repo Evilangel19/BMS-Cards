@@ -1216,10 +1216,10 @@ export function createSeadPage(deps) {
     }
   }
   const KINDS = [
+    ['combo', 'Smart mission'],
+    ['smart', 'Smart'],
     ['map', 'With the map'],
     ['sch', 'With the scheme'],
-    ['smart', 'Smart'],
-    ['combo', 'Smart mission'],
   ];
   // the Smart SEAD card (core/smartsead.js): the key numbers, the timeline of the SAMs, the plan, the launches
   function smartData() {

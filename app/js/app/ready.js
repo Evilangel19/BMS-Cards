@@ -87,7 +87,7 @@ function draw(force) {
     b.id = 'rdy';
     b.type = 'button';
     b.onclick = pop;
-    const cfg = $('cfgbtn');
+    const cfg = $('guidebtn') || $('cfgbtn'); // the chips go before the buttons on the right
     if (cfg && cfg.parentNode) cfg.parentNode.insertBefore(b, cfg);
     else document.body.append(b);
   }
@@ -163,7 +163,7 @@ export function verShow(v) {
     b.id = 'verchip';
     b.type = 'button';
     b.className = 'verchip';
-    const cfg = $('cfgbtn');
+    const cfg = $('guidebtn') || $('cfgbtn'); // the chips go before the buttons on the right
     if (cfg && cfg.parentNode) cfg.parentNode.insertBefore(b, cfg);
     else document.body.append(b);
     b.onclick = () => {

@@ -105,8 +105,8 @@
 .rdy[hidden] {
   display: none;
 }
-.rdy:not([hidden]) ~ #cfgbtn,
-.verchip:not([hidden]) ~ #cfgbtn {
+.rdy:not([hidden]) ~ #guidebtn,
+.verchip:not([hidden]) ~ #guidebtn {
   margin-left: 0 !important;
 }
 .rdypop {

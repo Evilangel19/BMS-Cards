@@ -40,9 +40,9 @@ const COL = {
   grey: '#9aa8b8',
 };
 const KINDS = [
-  ['map', 'With the map'],
-  ['smart', 'Smart QRA'],
   ['combo', 'Smart mission'],
+  ['smart', 'Smart QRA'],
+  ['map', 'With the map'],
 ];
 const ang = ft => 'ANGELS ' + Math.round(ft / 1000);
 

@@ -70,7 +70,7 @@ try:
                 open(os.path.join(OUT, 'faor_%s.png' % n), 'wb').write(base64.b64decode(r['png'][i].split(',')[1]))
         # Add card: the window offers the classic card with the map first
         pg.click('#bvrtabs [data-bcard]'); pg.wait_for_timeout(4000)
-        check('Add card: With the map (chosen), Smart DCA, Smart mission', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['With the map', 'Smart DCA', 'Smart mission'] and pg.locator('dialog.tgdlg .tgcard.on').count() >= 1)
+        check('Add card: Smart mission first, then Smart DCA, With the map (chosen)', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['Smart mission', 'Smart DCA', 'With the map'] and pg.locator('dialog.tgdlg .tgcard.on').count() >= 1)
         pg.click('dialog.tgdlg [data-a=no]'); pg.wait_for_timeout(300)
         # the Timeline tab: the BVR timeline as before, remembered
         pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(1200)

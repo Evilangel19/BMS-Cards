@@ -722,9 +722,12 @@ dialog[open]::backdrop {
   cursor: grabbing;
   animation: none;
 }
-/* a flight of the package in the colour the pilot gave it (the popup of the flight, Colour): also on the BMS palette of the map */
-.wps.dim > span {
+/* a flight in the colour the pilot gave it (the selected one from its label, one of the package from its popup): also on the BMS palette of the map */
+.wps > span {
   display: contents;
+}
+:is(#mpbody, .mpx).game .wps:not(.dim) > span[style] .wpi {
+  fill: var(--plan);
 }
 :is(#mpbody, .mpx).game .wps.dim > span[style] .wpi {
   fill: var(--mate);
@@ -754,4 +757,19 @@ dialog[open]::backdrop {
   .aublink {
     animation: none;
   }
+}
+/* the Fit switch next to "Automatic lines" (the look of Names and Clear filters) */
+.fly .fh.fhrow {
+  display: flex;
+  align-items: center;
+}
+#mpdfit {
+  padding: 2px 8px;
+  font-size: 11px;
+  margin: 0 0 0 auto;
+  text-transform: none;
+  letter-spacing: 0;
+  transition:
+    background-color 0.15s,
+    color 0.15s;
 }

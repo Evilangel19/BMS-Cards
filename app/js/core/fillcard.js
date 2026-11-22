@@ -27,6 +27,7 @@ import { mapUnits } from './mapdata.js';
 import { wezOf, wezText, wezSams } from './wez.js';
 import { escShort, csShort } from './mdcfill.js';
 import { rackLoad, weaponClass } from '../bmsdata/bmsdata.js';
+import { vhfPreset } from './radioplan.js';
 import { toMag } from './magvar.js';
 // ld: which group of aircraft with the same loadout the loadout rows, weights and drag describe (see loadGroups); the label goes into F.ldsel when there is more than one
 // a target in the notes: the long words of the unit names shortened, so that the line holds at a size that reads
@@ -139,6 +140,7 @@ function fillCard(C, f, ld = 0) {
       S[300 + e.omis] || '',
     ].forEach((v, j) => (F[`pk${i}_${j}`] = v));
   });
+
   // the intra-flight UHF (UHF2, backup) of the first flight of the package: UHF preset 15 of the DTC (core/radioplan.js)
   F.rd_u15 = els.length ? rmf(C, csOf(C, els[0]))[2] || '' : '';
   // MDC format, mission timing: the flights of the package (callsign, aircraft, hold, altitude, frequency, push, target, time on target); the times and the altitude
@@ -299,6 +301,7 @@ function fillCard(C, f, ld = 0) {
     }
   }
   F.cs = csOf(C, f);
+  F.vhfp = vhfPreset(F); // the VHF preset of the flight, by its place in the package table (VHF 15 the first): the cell left of Callsign
   F.pkg = P ? String(P.campId) : '';
   F.mis = C.name;
   const hm = ms => {

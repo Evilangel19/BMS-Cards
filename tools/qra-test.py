@@ -85,7 +85,7 @@ try:
         cnt = [used('lineSTPT_', 6 * i, 6) for i in range(4)]
         check('DTC, launched: after asking, the vector and the target track in place of the alert lines %s %s' % (cnt, msgs), cnt == [2, 2, 0, 0] and len(msgs) == 1)
         pg.click('#bvrtabs [data-bcard]'); pg.wait_for_timeout(4000)
-        check('Add card: With the map, Smart QRA, Smart mission', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['With the map', 'Smart QRA', 'Smart mission'])
+        check('Add card: Smart mission first, then Smart QRA, With the map', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['Smart mission', 'Smart QRA', 'With the map'])
         pg.click('dialog.tgdlg [data-a=no]'); pg.wait_for_timeout(300)
         # not a QRA flight any more: back to the FAOR page
         pg.evaluate("()=>__app.qraPage._test({ctx:()=>({ok:false,why:'x'})})")

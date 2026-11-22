@@ -1687,10 +1687,10 @@ export function createDeadPage(deps) {
     }
   }
   const KINDS = [
+    ['combo', 'Smart mission'],
+    ['smart', 'Smart'],
     ['map', 'With the map'],
     ['sch', 'With the scheme'],
-    ['smart', 'Smart'],
-    ['combo', 'Smart mission'],
   ];
   // the Smart DEAD card (core/smartsead.js): the key numbers of the tactic, the plan around the SAM, the events, the roles
   function smartData() {

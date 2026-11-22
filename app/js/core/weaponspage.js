@@ -1656,7 +1656,8 @@ export function createWeaponsPage(deps) {
             label: (z.sk == 'combo' ? 'Smart mission · ' : 'Smart · ') + z.name.split(' · ')[2],
             on: z.sk == 'combo' ? keep.combo : keep.smart,
           });
-        return o;
+        const rank = { combo: 0, smart: 1 }; // the Smart mission first, then the Smart cards, then the others
+        return o.sort((a, b) => (rank[a.kind] ?? 2) - (rank[b.kind] ?? 2));
       });
       btn.disabled = false;
       const pick = await chooseCards(list, 'Add Attack cards to the Kneeboard');

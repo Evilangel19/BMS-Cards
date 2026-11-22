@@ -73,7 +73,7 @@ try:
             for i, n in enumerate(('smart', 'combo', 'map')):
                 open(os.path.join(OUT, 'oca_%s.png' % n), 'wb').write(base64.b64decode(r['png'][i].split(',')[1]))
         pg.click('#bvrtabs [data-bcard]'); pg.wait_for_timeout(4000)
-        check('Add card: With the map, Smart OCA, Smart mission', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['With the map', 'Smart OCA', 'Smart mission'])
+        check('Add card: Smart mission first, then Smart OCA, With the map', pg.locator('dialog.tgdlg .tgcard span').all_inner_texts() == ['Smart mission', 'Smart OCA', 'With the map'])
         pg.click('dialog.tgdlg [data-a=no]'); pg.wait_for_timeout(300)
         # DTC lines (F-16): the track and the target area
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(400)

@@ -790,6 +790,11 @@ async function askMotion() {
 // run 18: statements that run when the program starts (in the order of the original file)
 export async function init18() {
   $('cfgbtn').onclick = openSettings;
+  // the User Guide of the main bar: Settings open on it
+  $('guidebtn').onclick = () => {
+    LAST = 'help';
+    openSettings();
+  };
   const boot = loadConfig()
     .then(async r => {
       ST.CFG = r.config;

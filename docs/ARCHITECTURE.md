@@ -76,7 +76,10 @@ A card and its DTC are made for one pilot of the flight. `app/js/app/seat.js` ho
 
 - **Labels** (`label()` in `core/mapview.js`): `placeLabels()` puts each on the leg nearest the centre of the view; one with a `key` (`f:<callsign>` the
   flight, `tk:<callsign>` a tanker track) can be dragged along its route and stays there (`MSTY.lbl`: leg and fraction); double click forgets it.
-- **Colours of the package** (`MSTY.col`: flight id `n:c` -> RRGGBB), from the popup of a flight of the package (editing on).
+- **Colours** (`MSTY.col`: flight id `n:c` -> RRGGBB): a flight of the package from its popup (editing on), the selected flight from its label
+  (`ownColour`); labels of the package drag too (`m:<id>`).
+- **Copy** (`copyMap`) and the screenshots share `mapPicture` (html2canvas, the offline coastlines when the base map cannot be exported). **Fit**
+  after an AUTO (`fitAfter`, `PREF.aufit`).
 - `MSTY` is kept in the preferences of the map and in the mission (`mapstyle`; `mapV.style()` / `setStyle()`).
 - **The preview of an AUTO** (`autoPreview(run)`): the same function as the button, on a copy of the DTC; the helpers that draw, say or keep return
   at once while `DRY`; what it wrote is drawn on `G.au` (an SVG renderer: the map is on canvas), what it replaces blinks.

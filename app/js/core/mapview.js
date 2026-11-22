@@ -332,7 +332,7 @@ export function createMap(host, deps) {
     }
     mergeTanks();
     host.innerHTML =
-      '<div id="mpmap"></div><div id="mpfilw"><button class="btn" id="mpfilb">FILTERS <i>▾</i></button><div id="mpbar" class="mpp" style="display:none"></div></div><div id="mpnote" class="mpp" style="display:none"></div><div id="mpll" class="mpp"><span id="mpllc"></span><span id="mptm"></span></div><div id="mptm" class="mpp"></div><div id="mptoast" class="mpp" style="display:none"></div><div id="mpbasew"><button class="btn" id="mpbaseb">LEVELS <i>▾</i></button><div id="mpbase" class="mpp" style="display:none"></div></div><div id="mpdtcw"><div id="mpdtc" style="display:none"></div><div id="mpdrow"><button class="btn" id="mpdtcb">DTC <i>▴</i></button><div id="mpdfun"></div></div></div><div id="mpshots"><button class="btn" id="mpshotkb" title="Take a picture of the map as a new kneeboard card (1 : 2)">Screenshot for kneeboard</button><button class="btn" id="mpshot" title="Take a picture of the map for the empty space of the datacard (page 2)">Screenshot for datacard</button></div><input type="file" id="mpfile" accept="image/*" style="display:none">';
+      '<div id="mpmap"></div><div id="mpfilw"><button class="btn" id="mpfilb">FILTERS <i>▾</i></button><div id="mpbar" class="mpp" style="display:none"></div></div><div id="mpnote" class="mpp" style="display:none"></div><div id="mpll" class="mpp"><span id="mpllc"></span><span id="mptm"></span></div><div id="mptm" class="mpp"></div><div id="mptoast" class="mpp" style="display:none"></div><div id="mpbasew"><button class="btn" id="mpbaseb">LEVELS <i>▾</i></button><div id="mpbase" class="mpp" style="display:none"></div></div><div id="mpdtcw"><div id="mpdtc" style="display:none"></div><div id="mpdrow"><button class="btn" id="mpdtcb">DTC <i>▴</i></button><div id="mpdfun"></div></div></div><div id="mpshots"><button class="btn" id="mpshotkb" title="Take a picture of the map as a new kneeboard card (1 : 2)">Screenshot for kneeboard</button><button class="btn" id="mpshot" title="Take a picture of the map for the empty space of the datacard (page 2)">Screenshot for datacard</button><button class="btn" id="mpcopy" title="Copy the map as it is shown (with everything on it) to the clipboard, to paste it elsewhere">Copy</button></div><input type="file" id="mpfile" accept="image/*" style="display:none">';
     map = L.map('mpmap', {
       preferCanvas: true,
       zoomControl: true,
@@ -957,6 +957,7 @@ export function createMap(host, deps) {
     );
     $('mpshot').onclick = () => shotStart('dc');
     $('mpshotkb').onclick = () => shotStart('kb');
+    $('mpcopy').onclick = () => copyMap();
     $('mpfa').onclick = () => {
       // every section open, or - when all are open - every section folded
       const hs = [...el.querySelectorAll('.mps:not(.mpo)')],
@@ -1164,7 +1165,7 @@ export function createMap(host, deps) {
           <div class="fh">Lines</div><span class="mrow">${ln4('data-del', 'rb', n => `Remove the 6 steerpoints of LINE${n}. Red = full, green = partly used, white = empty.`)}${sqAll('line', 'Remove every steerpoint of the 4 lines')}</span>
           <div class="fh sitrow">SIT lines 6-12 · F-15</div><span class="mrow sitrow">${ln4('data-del', 'rb', n => `Remove the points of SIT line ${n}. Red = full, green = partly used, white = empty.`, S7)}${sqAll('sit', 'Remove every point of the SIT lines 6-12')}</span>
           <button class="btn g rd tl wide" data-clr="all" title="Remove every pre-planned threat, precision target and line steerpoint">${ICON.trash}<span>CLEAR DTC</span></button></div>
-        <div class="fly" id="pauto" style="display:none"><div class="fh">Automatic lines</div><div class="tg">
+        <div class="fly" id="pauto" style="display:none"><div class="fh fhrow">Automatic lines<button type="button" class="btn${PREF.aufit === false ? ' g' : ''}" id="mpdfit" title="Fit: after an AUTO the map shows what it wrote. Press to switch it off or on.">Fit</button></div><div class="tg">
           <button class="btn g bb tl" id="mpdppt" title="Replace the SAM pre-planned threats of the DTC with one for every enemy SAM crossing the flight plan of the selected flight">${ICON.ppt}<span>PPT</span></button>
           <button class="btn g bb tl" id="mpdbull" title="A whole LINE with 3 points shaped like an L: 30 NM east of the bullseye, the bullseye, 60 NM north">${ICON.bull}<span>BULLSEYE</span></button>
           <button class="btn g bb tl" id="mpdfront" title="A whole LINE of 6 points along the front: the friendly units closest to the enemy, from end to end"><span>FLOT</span></button>
@@ -1175,6 +1176,7 @@ export function createMap(host, deps) {
       `<div class="mpcol"><button class="btn g" id="mpdopen" title="Open a DTC .ini" style="display:none">DTC</button><button class="btn g rd" id="mpdrev" disabled title="Undo every change made to the DTC since it was opened or last saved" style="display:none">↺ Reset</button></div><div class="mpcol" id="mpdcol2" style="display:none"><button class="btn g bl" id="mpdsave" disabled title="Write the changes into the open DTC file (the original is kept once in the program folder, backup\\dtc)">${ICON.save} DTC</button><button class="btn g bl" id="mpmsave" title="Save the mission: a folder with the mission file (package, DTC, datacard and weapons data) and the settings">${ICON.save} Mission</button></div>`;
     $('mpshotkb').innerHTML = ICON.cam + ' Screenshot for kneeboard';
     $('mpshot').innerHTML = ICON.cam + ' Screenshot for datacard';
+    $('mpcopy').innerHTML = ICON.cam + ' Copy';
     // closing the Filters macro switches every DTC filter off (the points disappear), opening it brings back what was on
     const keys = rows.map(l => l[0]),
       mst = () => {};
@@ -1242,15 +1244,43 @@ export function createMap(host, deps) {
       }
     };
     $('mpdrect').onclick = () => rectStart();
-    $('mpdppt').onclick = autoPpt;
-    $('mpdbull').onclick = autoBull;
-    $('mpdfez').onclick = async () => {
+    // Fit (the switch next to "Automatic lines"): after an AUTO the map shows the points it wrote (a threat with its ring)
+    const fitAfter = fn => async () => {
+      const P0 = deps.dtc && deps.dtc.points(),
+        was = P0 ? JSON.stringify(P0) : '';
+      await fn();
+      const P1 = deps.dtc && deps.dtc.points();
+      if (PREF.aufit === false || !P1 || !map || JSON.stringify(P1) == was) return;
+      const old = new Map(),
+        B = [];
+      if (P0) Object.keys(P0).forEach(g => P0[g].forEach(p => old.set(g + p.slot, JSON.stringify(p))));
+      Object.keys(P1).forEach(g =>
+        P1[g].forEach(p => {
+          if (p.empty || old.get(g + p.slot) == JSON.stringify(p)) return;
+          const c = toLL(p.x, p.y);
+          if (g == 'ppt' && p.rngNm) {
+            const b = window.L.latLng(c).toBounds(p.rngNm * 1852 * 2); // the ring of the threat
+            B.push(b.getSouthWest(), b.getNorthEast());
+          } else B.push(c);
+        })
+      );
+      if (B.length) map.fitBounds(window.L.latLngBounds(B).pad(0.25), { maxZoom: 10 });
+    };
+    $('mpdppt').onclick = fitAfter(autoPpt);
+    $('mpdbull').onclick = fitAfter(autoBull);
+    $('mpdfez').onclick = fitAfter(async () => {
       const r = deps.aaAuto ? await deps.aaAuto() : null;
       if (r && r.msg) toast(r.msg, !!r.bad);
       autoRefresh();
+    });
+    $('mpdfront').onclick = fitAfter(autoFront);
+    $('mpdcoast').onclick = fitAfter(autoCoast);
+    $('mpdfit').onclick = e => {
+      e.stopPropagation();
+      PREF.aufit = PREF.aufit === false;
+      persist();
+      $('mpdfit').classList.toggle('g', PREF.aufit === false);
     };
-    $('mpdfront').onclick = autoFront;
-    $('mpdcoast').onclick = autoCoast;
     // the pointer on an AUTO: what it would write, on the map (autoPreview)
     [
       ['mpdppt', autoPpt],
@@ -1651,6 +1681,15 @@ export function createMap(host, deps) {
         b.disabled = u;
       }
     });
+    // FEZ: only for a flight an A-A page plans (CAP, QRA, SWEEP, ESCORT)
+    const fz = $('mpdfez');
+    if (fz) {
+      if (!fz.dataset.tip) fz.dataset.tip = fz.title;
+      const ok = !!deps.aaCan && deps.aaCan();
+      fz.disabled = !ok;
+      fz.classList.toggle('used', !ok);
+      fz.title = ok ? fz.dataset.tip : 'Choose a CAP, QRA, SWEEP or ESCORT flight: ' + fz.dataset.tip;
+    }
     const noTk = !!P0 && !lineRoom(P0, true);
     document.querySelectorAll('#mpdtkl [data-tk]').forEach(b => {
       const u = auUsed('tk:' + b.textContent) || noTk;
@@ -1966,7 +2005,7 @@ export function createMap(host, deps) {
     showLayer(GROUPS[lg].layer);
     sync();
     dtc();
-    map.fitBounds(window.L.latLngBounds(cs).pad(0.5));
+    if (PREF.aufit !== false && !DRY) map.fitBounds(window.L.latLngBounds(cs).pad(0.5));
     toast(lnName(line) + ': track of ' + deps.flightInfo(f).cs + ' (' + lnRange(line, slot, 5) + ') added to the DTC.');
   }
   // FRONT LINE: a whole empty LINE of 6 points along the front (friendly units closest to the enemy, end to end)
@@ -3399,7 +3438,8 @@ export function createMap(host, deps) {
       .forEach((m, i) => member(C, m, i));
     const mn = C.D.S[300 + f.omis] || '',
       lg = legs(r),
-      ll = r.map(p => p.ll);
+      ll = r.map(p => p.ll),
+      oc = colOf(f); // the colour the pilot gave the selected flight
     // from the first landing steerpoint on (recovery, diversion) the line is dashed
     const li = r.findIndex(p => p.act == 7),
       parts2 =
@@ -3421,7 +3461,7 @@ export function createMap(host, deps) {
         }).addTo(G.fp);
       L.polyline(pl, {
         renderer: PRM,
-        color: pal.plan,
+        color: oc || pal.plan,
         weight: 2.5,
         opacity: 0.95,
         dashArray: dash,
@@ -3439,7 +3479,7 @@ export function createMap(host, deps) {
       const mk = L.marker(p.ll, {
         icon: L.divIcon({
           className: 'wps',
-          html: `<svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b>`,
+          html: `<span${oc ? ` style="--plan:${oc}"` : ''}><svg width="18" height="18" viewBox="0 0 18 18">${shape}</svg><b>${p.n}</b></span>`,
           iconSize: [18, 18],
         }),
         zIndexOffset: 1000,
@@ -3477,11 +3517,11 @@ export function createMap(host, deps) {
       G.fd,
       ll,
       `<b>${deps.esc(info.cs)}</b><i>${deps.esc(parts.slice(1, 3).join(' · '))}</i>${t0 ? '<i>T/O ' + hms(t0.arr).slice(0, 8) + 'Z</i>' : ''}${wzLine(f)}`,
-      '',
+      'clk',
       0,
       null,
-      null,
-      { key: 'f:' + info.cs }
+      ev => ownColour(f, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0]),
+      { key: 'f:' + info.cs, ...(oc ? { sty: '--plan:' + oc } : {}) }
     );
     placeLabels();
     msaDraw();
@@ -3810,13 +3850,55 @@ export function createMap(host, deps) {
 
   // other flights of the selected package: white, dimmer, dashed after the first landing; a click selects the flight (when it can be loaded)
   const fid = m => m.id.n + ':' + m.id.c;
+  // THE COLOUR OF A FLIGHT (the selected one or one of its package): a row of a popup, the colour picker of the program under it
+  const colOf = m => (/^[0-9A-F]{6}$/i.test(MSTY.col[fid(m)] || '') ? '#' + MSTY.col[fid(m)] : null);
+  const colRow = cur =>
+    `<div class="bar" style="margin:6px 0 0;align-items:center;gap:6px"><span class="hint" style="min-height:0;margin:0">Colour</span><button class="btn g" type="button" data-a="col" title="The colour of this flight on the map and on its pictures (kept with the mission)" style="min-width:34px;padding:4px 8px;background:${cur ? '#' + cur : 'transparent'}">${cur ? '&nbsp;' : 'Pick'}</button><button class="btn g" type="button" data-a="cold"${cur ? '' : ' disabled'} title="The colour of the map palette again">Default</button></div><div class="sitpk" data-a="colpk" hidden></div>`;
+  function colWire(w, m, cur, grown) {
+    const setCol = h => {
+      if (h) MSTY.col[fid(m)] = h.toUpperCase();
+      else delete MSTY.col[fid(m)];
+      PREF.msty = MSTY;
+      persist();
+      refresh();
+    };
+    const cb = /** @type {HTMLElement} */ (w.querySelector('[data-a=col]')),
+      cw = /** @type {HTMLElement} */ (w.querySelector('[data-a=colpk]'));
+    let PK = null;
+    cb.onclick = () => {
+      cw.hidden = !cw.hidden;
+      if (!PK && !cw.hidden)
+        PK = colorPicker(cw, cur || 'FFFFFF', {
+          live: h => (cb.style.background = '#' + h),
+          pick: h => setCol(h),
+        });
+      grown();
+    };
+    /** @type {HTMLElement} */ (w.querySelector('[data-a=cold]')).onclick = later(() => {
+      map.closePopup();
+      setCol('');
+    });
+  }
+  // the label of the selected flight clicked: a small window with its colour
+  function ownColour(f, at) {
+    const w = document.createElement('div'),
+      cur = MSTY.col[fid(f)] || '';
+    w.className = 'dtp';
+    w.innerHTML = `<div><b>${deps.esc(deps.flightInfo(f).cs)}</b></div>${colRow(cur)}`;
+    let pop = null;
+    colWire(w, f, cur, () => pop && pop.update());
+    pop = window.L.popup({ className: 'mpop', closeButton: false, autoPan: true, minWidth: 236, offset: [0, -6] })
+      .setLatLng(at)
+      .setContent(w)
+      .openOn(map);
+  }
   function member(C, m, k) {
     const L = window.L,
       r = flightRoute(C, m),
       info = deps.flightInfo(m),
       pick = ev => EDIT && mateOpen(m, ev && ev.latlng),
       ll = r.map(p => p.ll),
-      cc = /^[0-9A-F]{6}$/i.test(MSTY.col[fid(m)] || '') ? '#' + MSTY.col[fid(m)] : null; // the colour the pilot gave it
+      cc = colOf(m); // the colour the pilot gave it
     // solid up to the first landing steerpoint, dashed from there on (same rule as the selected flight)
     const li = r.findIndex(p => p.act == 7);
     (li > 0 && li < r.length - 1
@@ -3863,7 +3945,7 @@ export function createMap(host, deps) {
       k,
       null,
       ev => mateOpen(m, ev && (ev.clientX || ev.clientY) ? map.mouseEventToLatLng(ev) : ll[0]),
-      cc ? { sty: '--plan:' + cc + ';--mate:' + cc } : {}
+      { key: 'm:' + fid(m), ...(cc ? { sty: '--plan:' + cc + ';--mate:' + cc } : {}) } // dragged along its route too; a click opens it
     );
   }
   // a flight of the package is clicked: with the editing on a small window offers to select it or to add it to the Link 16 files of the DTC; otherwise it is just selected
@@ -3908,30 +3990,8 @@ export function createMap(host, deps) {
           : ''
       }<div class="bar bar3" style="margin:6px 0 0"><button class="btn g" type="button" data-a="sel" title="Load this flight on the Datacard">Select flight</button><button class="btn g" type="button" data-a="l16"${
         d ? '' : ' disabled'
-      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div><div class="bar" style="margin:6px 0 0;align-items:center;gap:6px"><span class="hint" style="min-height:0;margin:0">Colour</span><button class="btn g" type="button" data-a="col" title="The colour of this flight on the map and on its pictures (kept with the mission)" style="min-width:34px;padding:4px 8px;background:${cur ? '#' + cur : 'transparent'}">${cur ? '&nbsp;' : 'Pick'}</button><button class="btn g" type="button" data-a="cold"${cur ? '' : ' disabled'} title="The colour of the map palette again">Default</button></div><div class="sitpk" data-a="colpk" hidden></div>`;
-      const setCol = h => {
-        if (h) MSTY.col[fid(m)] = h.toUpperCase();
-        else delete MSTY.col[fid(m)];
-        PREF.msty = MSTY;
-        persist();
-        refresh();
-      };
-      const cb = w.querySelector('[data-a=col]'),
-        cw = /** @type {HTMLElement} */ (w.querySelector('[data-a=colpk]'));
-      let PK = null;
-      cb.onclick = () => {
-        cw.hidden = !cw.hidden;
-        if (!PK && !cw.hidden)
-          PK = colorPicker(cw, cur || 'FFFFFF', {
-            live: h => (cb.style.background = '#' + h),
-            pick: h => setCol(h),
-          });
-        grown();
-      };
-      w.querySelector('[data-a=cold]').onclick = later(() => {
-        map.closePopup();
-        setCol('');
-      });
+      } title="${esc(d ? (can.ok ? 'Put this flight in file A or B of the Link 16 of the DTC (team or donor)' : can.why) : 'This flight has no STN in the Link 16 file of the campaign')}">Add Link 16</button></div>${colRow(cur)}`;
+      colWire(w, m, cur, grown);
       w.querySelector('[data-a=sel]').onclick = later(() => {
         map.closePopup();
         if (deps.selectFlight && deps.selectFlight(m) === false) toast('That flight cannot be selected.', true);
@@ -5254,53 +5314,104 @@ export function createMap(host, deps) {
   // a picture of the whole map as it is (base map, flight plan, objects), for a card of another page (the Attack card): scale times its size.
   // A base map that cannot be copied (cross-origin) is replaced by the offline coastlines, as for the screenshots. -> {canvas, coast} or null
   async function snap(scale = 2) {
-    const mp = $('mpmap');
-    if (!mp || !map) return null;
-    const h2c = await loadH2C(),
-      run = () =>
-        h2c(mp, {
-          scale,
-          useCORS: true,
-          logging: false,
-          backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
-          ignoreElements: e => e.classList && (e.classList.contains('leaflet-control-container') || e.id == 'mpfr'),
-          onclone: doc => {
-            const w = doc.defaultView;
-            doc.querySelectorAll('#mpmap svg *').forEach(e => {
-              const cs = w.getComputedStyle(e);
-              [
-                'fill',
-                'fill-opacity',
-                'stroke',
-                'stroke-width',
-                'stroke-opacity',
-                'stroke-dasharray',
-                'opacity',
-              ].forEach(pp => e.style.setProperty(pp, cs.getPropertyValue(pp)));
-            });
-          },
-        });
-    let c = OV && OV._url && tainted(OV._url) ? null : await run();
-    if (c && !tainted(c)) return { canvas: c, coast: false };
-    const base = OV || TL,
-      lt = pal !== PAL.dark,
-      cg = lt ? G.coastL : G.coastD,
-      bg = (lt ? COAST.light : COAST.dark).sea,
-      ob = mp.style.background;
-    if (base) map.removeLayer(base);
-    cg.addTo(map);
-    mp.style.background = bg;
+    if (!$('mpmap') || !map) return null;
     try {
-      c = await run();
-    } finally {
-      map.removeLayer(cg);
-      mp.style.background = ob;
-      if (base) {
-        base.addTo(map);
-        base.bringToBack();
-      }
+      const { c, warn } = await mapPicture({}, scale);
+      return { canvas: c, coast: !!warn };
+    } catch (e) {
+      return null;
     }
-    return c && !tainted(c) ? { canvas: c, coast: true } : null;
+  }
+  // THE PICTURE OF THE MAP (html2canvas) of a box of #mpmap {x, y, width, height} ({}: all of it) at a scale: {c, warn}. A base map that cannot be exported (a
+  // cross-origin picture: html2canvas leaves it blank without an error) is replaced by the offline coastlines, with a warning
+  async function mapPicture(box, scale) {
+    const h2c = await loadH2C(),
+      mp = $('mpmap');
+    const run = () =>
+      h2c(mp, {
+        ...box,
+        scale,
+        useCORS: true,
+        logging: false,
+        backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
+        ignoreElements: e => e.classList && (e.classList.contains('leaflet-control-container') || e.id == 'mpfr'),
+        onclone: doc => {
+          // SVG symbols take their colours from the page style sheet: copy them into the SVG so they survive the conversion
+          const w = doc.defaultView,
+            props = [
+              'fill',
+              'fill-opacity',
+              'stroke',
+              'stroke-width',
+              'stroke-opacity',
+              'stroke-dasharray',
+              'opacity',
+              'font-family',
+              'font-size',
+              'font-weight',
+            ];
+          doc.querySelectorAll('#mpmap svg *').forEach(e => {
+            const cs = w.getComputedStyle(e);
+            props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
+          });
+        },
+      });
+    let c,
+      warn = '';
+    if (OV && OV._url && tainted(OV._url)) c = null;
+    else {
+      c = await run();
+      if (tainted(c)) c = null;
+    }
+    if (!c) {
+      // the coastlines map (light or dark, as the flight-plan colours) takes the place of the base map
+      const base = OV || TL,
+        lt = pal !== PAL.dark,
+        cg = lt ? G.coastL : G.coastD,
+        bg = (lt ? COAST.light : COAST.dark).sea,
+        ob = mp.style.background;
+      if (base) map.removeLayer(base);
+      cg.addTo(map);
+      mp.style.background = bg;
+      try {
+        c = await run();
+      } finally {
+        map.removeLayer(cg);
+        mp.style.background = ob;
+        if (base) {
+          base.addTo(map);
+          base.bringToBack();
+        }
+      }
+      if (tainted(c)) throw new Error('the map contains an image that cannot be exported.');
+      warn =
+        'WARNING: the base map is not in the screenshot (its server does not allow copying, a browser security rule): the offline coastlines map was used instead. To include it, import the picture: Base map → Imported map picture.';
+    }
+    return { c, warn };
+  }
+  // COPY (the button by the screenshots, also on the Briefing): the whole map as it is shown, as a picture in the clipboard
+  async function copyMap(say) {
+    const t = say || toast;
+    if (!map) return;
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem)
+        throw new Error('this browser cannot put a picture in the clipboard');
+      const mp = $('mpmap'),
+        { c, warn } = await mapPicture(
+          { x: 0, y: 0, width: mp.clientWidth, height: mp.clientHeight },
+          Math.max(1, window.devicePixelRatio || 1)
+        ),
+        blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      await navigator.clipboard.write([new window.ClipboardItem({ 'image/png': blob })]);
+      t(
+        warn
+          ? warn + ' The map was copied to the clipboard.'
+          : 'The map was copied to the clipboard: paste it where you want.',
+        !!warn
+      );
+    } catch (e) {
+      t('Copy failed: ' + ((e && e.message) || e), true);
+    }
   }
   async function shotTake() {
     const fr = $('mpfr'),
@@ -5309,45 +5420,12 @@ export function createMap(host, deps) {
     cap.disabled = true;
     cap.textContent = 'Capturing…';
     try {
-      const h2c = await loadH2C(),
-        mp = $('mpmap'),
+      const mp = $('mpmap'),
         fb = fr.getBoundingClientRect(),
         mb = mp.getBoundingClientRect(),
         fw = fb.width,
         fh = fb.height,
         cw = parseFloat($('mpfi').style.width); // fb: the box around the turned frame, cw: the width of the frame itself
-      const run = () =>
-        h2c(mp, {
-          x: fb.left - mb.left,
-          y: fb.top - mb.top,
-          width: fw,
-          height: fh,
-          scale: shotDim().out / cw,
-          useCORS: true,
-          logging: false,
-          backgroundColor: st.base == 'coast' ? (st.cl ? COAST.light : COAST.dark).sea : '#000',
-          ignoreElements: e => e.classList && e.classList.contains('leaflet-control-zoom'),
-          onclone: doc => {
-            // SVG symbols take their colours from the page style sheet: copy them into the SVG so they survive the conversion
-            const w = doc.defaultView,
-              props = [
-                'fill',
-                'fill-opacity',
-                'stroke',
-                'stroke-width',
-                'stroke-opacity',
-                'stroke-dasharray',
-                'opacity',
-                'font-family',
-                'font-size',
-                'font-weight',
-              ];
-            doc.querySelectorAll('#mpmap svg *').forEach(e => {
-              const cs = w.getComputedStyle(e);
-              props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
-            });
-          },
-        });
       const to =
         shotK == 'tg'
           ? 'the target picture (A-G > Target)'
@@ -5356,39 +5434,10 @@ export function createMap(host, deps) {
             : deps.mdcShot && deps.mdcShot()
               ? 'the datacard (MDC format, the big white box)'
               : 'the datacard (page 2, bottom left)';
-      let c,
-        warn = '';
-      // html2canvas leaves a picture it cannot read (cross-origin) blank without any error, so it is checked first
-      if (OV && OV._url && tainted(OV._url)) c = null;
-      else {
-        c = await run();
-        if (tainted(c)) c = null;
-      }
-      if (!c) {
-        // the base picture cannot be exported: take the shot again without it
-        // the coastlines map (light or dark, as the flight-plan colours) takes the place of the base map
-        const base = OV || TL,
-          lt = pal !== PAL.dark,
-          cg = lt ? G.coastL : G.coastD,
-          bg = (lt ? COAST.light : COAST.dark).sea,
-          ob = mp.style.background;
-        if (base) map.removeLayer(base);
-        cg.addTo(map);
-        mp.style.background = bg;
-        try {
-          c = await run();
-        } finally {
-          map.removeLayer(cg);
-          mp.style.background = ob;
-          if (base) {
-            base.addTo(map);
-            base.bringToBack();
-          }
-        }
-        if (tainted(c)) throw new Error('the map contains an image that cannot be exported.');
-        warn =
-          'WARNING: the base map is not in the screenshot (its server does not allow copying, a browser security rule): the offline coastlines map was used instead. To include it, import the picture: Base map → Imported map picture.';
-      }
+      let { c, warn } = await mapPicture(
+        { x: fb.left - mb.left, y: fb.top - mb.top, width: fw, height: fh },
+        shotDim().out / cw
+      );
       if (shotAng && c) {
         // straighten: turn the picture back by the angle of the frame and keep the middle, of the proportions of the card
         const ow = shotDim().out,
@@ -5809,6 +5858,7 @@ export function createMap(host, deps) {
       }
     },
     detach: () => detach(),
+    copy: o => copyMap(o && o.toast),
     zoomLock,
     toggleEdit: () => {
       const r = setEdit(!EDIT);

@@ -1,4 +1,5 @@
 import { makeDatacardTemplate } from '../core/dctemplate.js';
+import { vhfPreset } from '../core/radioplan.js';
 import { CLASSES as BVR_CLASSES } from '../core/bvrtimeline.js';
 import { savePrefs } from '../platform/desktop.js';
 import { readTarget } from '../core/targets.js';
@@ -275,6 +276,12 @@ export function setField(k, v, from) {
     return;
   }
   F[k] = v;
+  // the VHF preset of the flight follows its place in the package table (unless typed by hand)
+  if ((k == 'cs' || /^pk\d_0$/.test(k)) && !(ST.MANK && ST.MANK.has('vhfp'))) {
+    F.vhfp = vhfPreset(F);
+    const ev = dEl('vhfp');
+    if (ev && ev.el) ev.el.value = F.vhfp;
+  }
   // what the performance figures depend on: the take-off data (weights, drag, runway, field elevation) and the landing steerpoints of Direct (elevation of the landing and alternate fields)
   if (['gw', 'fuel', 'drag', 'ab0_5', 'ab0_4', 'ab1_4', 'ab2_4'].includes(k)) perfLater();
   if (/^bv\d_0$/.test(k)) {
@@ -498,6 +505,7 @@ export async function init4() {
       ['Formation', 7, 9],
     ].forEach(([c, j, col]) => add(`fp${i}_${j}`, c, fpStart(col) + 1, 542 + 28 * i, fpSpan(col) - 2, 'Flightplan'));
   [
+    ['vhfp', 'VHF preset', 843, 39, 76],
     ['cs', 'Callsign', 985, 39, 120],
     ['pkg', 'Package', 1192, 39, 66],
     ['mis', 'Mission', 1350, 39, 240],
