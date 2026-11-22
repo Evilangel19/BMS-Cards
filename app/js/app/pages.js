@@ -1090,13 +1090,14 @@ function aaLoad(f) {
   try {
     const g = CAM.loadGroups(f)[0],
       D = ST.C.D;
-    return g
-      ? g.ids
-          .map((id, k) => [D.wn[id] || '', g.cn[k] || 0])
-          .filter(([n, c]) => c && AA.test(n))
-          .map(([n, c]) => c + '× ' + n)
-          .join(' · ')
-      : '';
+    if (!g) return '';
+    const ws = new Map(); // one count per missile (the loadout is read station by station, as on the datacard)
+    g.ids.forEach((id, k) => {
+      const n = D.wn[id] || '',
+        c = g.cn[k] || 0;
+      if (c && AA.test(n)) ws.set(n, (ws.get(n) || 0) + c);
+    });
+    return [...ws].map(([n, c]) => c + '× ' + n).join(' · ');
   } catch (er) {
     return '';
   }
@@ -1485,8 +1486,10 @@ export async function init9() {
         if (!L || !Dd) return [];
         const o = [];
         L.ids.forEach((id, k) => {
-          const c = L.cn[k];
-          if (id && c && id != 492) o.push({ name: Dd.wn[id] || '', n: c });
+          const c = L.cn[k],
+            name = Dd.wn[id] || '',
+            w = o.find(z => z.name == name); // one count per weapon (the loadout is read station by station)
+          if (id && c && id != 492) w ? (w.n += c) : o.push({ name, n: c });
         });
         return o;
       } catch (e) {
