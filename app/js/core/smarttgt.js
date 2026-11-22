@@ -3,7 +3,20 @@
 // sketch of the target area north up (the buildings of the objective at their size, the DMPIs numbered in red, the way in and out of the attack, the
 // attack heading), the list of the DMPIs and of the components, the remarks.
 // D: {title, right, key, cx, cy (km), feats [{x, y, kind, st, name}], dmpis [{x, y, n, short}], ing [[[x, y]...]], egr, hdg, comps [text], notes [text]}
-import { scFrame, scKey, scSec, scEnd, scText, scLine, scTri, scArrow, labeller, wrap } from './smartcard.js';
+import {
+  scFrame,
+  scKey,
+  scSec,
+  scEnd,
+  scText,
+  scLine,
+  scTri,
+  scArrow,
+  scRing,
+  refSymbol,
+  labeller,
+  wrap,
+} from './smartcard.js';
 import { KSIZE } from './tgtdraw.js';
 
 /** @param {CanvasRenderingContext2D} x */
@@ -71,6 +84,41 @@ export function drawSmartTarget(x, D) {
     );
     L.block(a, b, Math.max(pw, ph) / 2);
   });
+  // what the page shows with Fill from the datacard: the impacts, the SAMs (their ring, or an arrow at the edge toward them), the enemy units
+  const inBox = (a, b, m = 0) => a > BX + m && a < BX + BW - m && b > BY + m && b < BY + BH - m,
+    edges = [];
+  const edge = (gx, gy, label) => {
+    // where the line from the middle toward (gx, gy) leaves the box (14 units in)
+    const mx = BX + BW / 2,
+      my = BY + BH / 2,
+      dx = PX(gx) - mx,
+      dy = PY(gy) - my,
+      k = Math.min((BW / 2 - 14) / Math.abs(dx || 1e-9), (BH / 2 - 14) / Math.abs(dy || 1e-9)),
+      a = mx + dx * k,
+      b = my + dy * k;
+    scArrow(x, a, b, Math.atan2(dy, dx), 9);
+    edges.push([a, b, label]);
+  };
+  (D.imp || []).forEach(p => scRing(x, PX(p[0]), PY(p[1]), 4, { c: '#cc0000', w: 1.5 }));
+  (D.sams || []).forEach(z => {
+    const a = PX(z.x),
+      b = PY(z.y);
+    scRing(x, a, b, z.r * sc, { c: '#cc0000', w: 1.5, dash: [8, 5] });
+    if (inBox(a, b, 8)) {
+      refSymbol(x, 'sam', a, b);
+      L.block(a, b, 9);
+      edges.push([a, b, String(z.name).toUpperCase()]);
+    } else edge(z.x, z.y, String(z.name).toUpperCase() + ' ' + z.nm.toFixed(1) + ' NM');
+  });
+  (D.units || []).forEach(u => {
+    const a = PX(u.x),
+      b = PY(u.y);
+    if (inBox(a, b, 10)) {
+      refSymbol(x, 'unit', a, b);
+      L.block(a, b, 10);
+      edges.push([a, b, String(u.name).toUpperCase()]);
+    } else edge(u.x, u.y, String(u.name).toUpperCase() + ' ' + u.nm.toFixed(1) + ' NM');
+  });
   D.dmpis.forEach(d => {
     scTri(x, PX(d.x), PY(d.y), 8);
     L.block(PX(d.x), PY(d.y), 9);
@@ -98,6 +146,7 @@ export function drawSmartTarget(x, D) {
       L.put(PX(d.x), PY(d.y), String(d.n), { s: 15, w: 700, c: '#cc0000', box, r: 10 }) ||
       L.put(PX(d.x), PY(d.y), String(d.n), { s: 15, w: 700, c: '#cc0000', r: 10, force: true })
   );
+  edges.forEach(([a, b, t]) => L.put(a, b, t, { s: 11, c: '#cc0000', box, r: 11 }));
   x.restore();
   scLine(
     x,

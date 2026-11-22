@@ -26,7 +26,7 @@ export function pickAll(d) {
 export function chooseCards(list, title = 'Add cards to the Kneeboard') {
   return new Promise(res => {
     const d = document.createElement('dialog');
-    d.className = 'tgdlg';
+    d.className = 'tgdlg' + (list.length > 4 ? ' kball' : ''); // many cards: smaller, in rows (as Add all cards)
     d.innerHTML = `<h3></h3><p class="hint">The cards go into the free slots of the Kneeboard; when there is no free slot, among the unused cards.</p><div class="tgcards"></div><div class="tgbar"><span class="hint tgn"></span><span class="tgsp"></span><button type="button" class="btn g" data-a="no">Cancel</button><button type="button" class="btn" data-a="ok">Add</button></div>`;
     /** @type {HTMLElement} */ (d.querySelector('h3')).textContent = title;
     document.body.append(d);

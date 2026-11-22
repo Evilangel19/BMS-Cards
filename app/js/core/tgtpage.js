@@ -168,7 +168,7 @@ export function createTargetPage(deps) {
         map: null,
         ann: { plan: [], map: [], shot: [] },
         fac: t.name.toUpperCase(),
-        auto: false,
+        auto: true, // Fill from the datacard on at first
         rem: '',
         bv: 0,
       })
@@ -1948,6 +1948,7 @@ export function createTargetPage(deps) {
     if (!t) return null;
     const i = deps.info ? deps.info() : {},
       R = attackRoute(t),
+      D0 = s && s.auto ? dc() : null,
       d0 = t.dmpis[0],
       elv = t.dmpis.find(d => d.altFt),
       ll = String(deps.geoLL ? deps.geoLL(d0 ? d0.x : t.x, d0 ? d0.y : t.y) : '').split(/\s+(?=[EW]\s?\d)/),
@@ -1966,6 +1967,24 @@ export function createTargetPage(deps) {
           (t.dmpis[d.n - 1].altFt ? '  ELEV ' + t.dmpis[d.n - 1].altFt : '')
       ),
       ...[...names.entries()].slice(0, 6).map(([n, c]) => '   ' + c + ' × ' + String(n).toUpperCase()),
+      ...(D0 && PF.show.sam
+        ? D0.sams
+            .slice(0, 3)
+            .map(z => [
+              String(z.name).toUpperCase() +
+                ' ' +
+                z.nm.toFixed(1) +
+                ' NM ' +
+                String(Math.round(toMag(z.brg)) % 360 || 360).padStart(3, '0') +
+                '° · WEZ ' +
+                z.rNm.toFixed(0) +
+                (z.inside ? ' · TGT INSIDE' : ''),
+              z.inside,
+            ])
+        : []),
+      ...(D0 && PF.show.unit
+        ? D0.units.slice(0, 2).map(z => String(z.name).toUpperCase() + ' ' + z.nm.toFixed(1) + ' NM')
+        : []),
     ];
     return {
       title: 'TARGET' + (t.refs.length ? ' · ' + t.refs[0] : ''),
@@ -1984,8 +2003,27 @@ export function createTargetPage(deps) {
       cy: t.y,
       feats: feats.map(q => ({ x: q.x, y: q.y, kind: featKind(q.name), st: q.st, name: q.name })),
       dmpis: dm,
-      ing: R && R.ing ? R.ing : [],
-      egr: R && R.egr ? R.egr : [],
+      ing: R && R.ing && (!s || !s.auto || PF.show.route) ? R.ing : [],
+      egr: R && R.egr && (!s || !s.auto || PF.show.egr) ? R.egr : [],
+      // Fill from the datacard on: what the page shows of it (SAMs, units, impacts)
+      sams:
+        s && s.auto && PF.show.sam && D0
+          ? D0.sams.map(z => ({
+              x: z.x,
+              y: z.y,
+              r: z.r,
+              name: z.name,
+              nm: z.nm,
+              brg: z.brg,
+              rNm: z.rNm,
+              inside: z.inside,
+            }))
+          : [],
+      units:
+        s && s.auto && PF.show.unit && D0
+          ? D0.units.map(z => ({ x: z.x, y: z.y, name: z.name, nm: z.nm, brg: z.brg }))
+          : [],
+      imp: s && s.auto && PF.show.imp && R && R.imp ? R.imp : [],
       hdg: hdgT != null ? hdg : null,
       hdgTrue: hdgT,
       comps,

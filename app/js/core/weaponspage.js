@@ -1223,17 +1223,24 @@ export function createWeaponsPage(deps) {
     const t = String(l || '').split(' · ')[0];
     return SHORT[t] !== undefined ? SHORT[t] : t.toUpperCase();
   };
-  // the weapon of the key box: the bomb chosen, else the first bomb of the loadout (number × name), short
+  // the weapon of the key box: the bomb chosen, else the first bomb of the loadout (number × name); a long name gives its designation (AGM-88 HARM -> AGM-88)
+  const wpnName = n => {
+    const t = String(n || '')
+      .replace(/\s*\(.*\)$/, '')
+      .trim();
+    if (t.length <= 9) return t.toUpperCase();
+    const code = /^[A-Z]{1,4}-?\d+[A-Z]{0,2}(?:\/[A-Z])?/i.exec(t);
+    return (code ? code[0] : t.split(/\s+/)[0]).toUpperCase().slice(0, 9);
+  };
   function wpnShort() {
     const b = bombSel();
-    if (b.loadout || b.manual)
-      return String(b.label)
-        .replace(/\s*\(.*\)$/, '')
-        .toUpperCase()
-        .slice(0, 12);
+    if (b.manual) return wpnName(b.label);
     const L = (deps.loadout && deps.loadout(0)) || [],
-      w = L.find(z => /MK|GBU|CBU|BDU|BLU|AGM|JDAM|GBU|SDB|BOMB|M117|KAB|FAB/i.test(z.name)) || L[0];
-    return w ? (w.n > 1 ? w.n + '×' : '') + String(w.name).replace(/\s+/g, '').toUpperCase().slice(0, 9) : '--';
+      w =
+        (b.loadout && L.find(z => wpnName(z.name) == wpnName(b.label))) ||
+        L.find(z => /MK|GBU|CBU|BDU|BLU|AGM|JDAM|SDB|BOMB|M117|KAB|FAB/i.test(z.name)) ||
+        L[0];
+    return w ? (w.n > 1 ? w.n + '×' : '') + wpnName(w.name) : b.loadout ? wpnName(b.label) : '--';
   }
   function smartBase(r, PD0, spec, mra, offs, c, who) {
     const v = r.v,
@@ -1340,7 +1347,22 @@ export function createWeaponsPage(deps) {
       .slice(0, 2)
       .map(o => o[0] + ' ' + o[1] + ' ' + o[2] + ' ft')
       .join(' · ');
+    // the view of the map of this page when the card is made (the zoom the pilot chose): the plan of the card shows the same ground
+    let view = null;
+    try {
+      if (M && M.map && deps.fromLL && M.map.getContainer().clientWidth) {
+        const b = M.map.getBounds(),
+          K = 3280.84,
+          P = [b.getSouthWest(), b.getNorthEast(), b.getNorthWest(), b.getSouthEast()]
+            .map(q => deps.fromLL(q.lat, q.lng))
+            .map(([gx, gy]) => ({ n: gy * K, e: gx * K }));
+        view = P;
+      }
+    } catch (e) {
+      view = null;
+    }
     return {
+      view,
       kind,
       title: 'ATK · ' + (c.label || kind.toUpperCase()) + (who == 'lead' ? ' · A' : who == 'elem' ? ' · B' : ''),
       right: (deps.tag && deps.tag()) || ((deps.title && deps.title()) || '').split(' · ')[0] || '',
@@ -1370,7 +1392,7 @@ export function createWeaponsPage(deps) {
   async function smartCard(sm) {
     const T = sm.T,
       pts = [...sm.segs.flatMap(z => z[1]), ...sm.marks.map(m => m[0]), T].filter(p => p && isFinite(p.n)),
-      [e0, e1, n0, n1] = planBox(pts, PLAN_AR),
+      [e0, e1, n0, n1] = sm.view ? planBox(sm.view, PLAN_AR, 0) : planBox(pts, PLAN_AR), // the zoom of the page, else the attack
       nx = 120,
       ny = Math.round(nx / PLAN_AR),
       G = { e0, e1, n0, n1, nx, ny, h: /** @type {number[]} */ ([]) },

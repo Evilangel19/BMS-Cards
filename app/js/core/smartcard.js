@@ -216,6 +216,8 @@ export function labeller(x) {
   return {
     /** a box that labels must keep off (a mark) */
     block: (a, b, r = 5) => used.push([a - r, b - r, a + r, b + r]),
+    /** a rectangle that labels must keep off (the scale, the north) */
+    rect: (a, b, c, d) => used.push([a, b, c, d]),
     /** places t near (a, b): the offsets tried in turn; false when none is free (box: the area it must stay in) */
     put(a, b, t, o = {}) {
       const s = o.s || 12,
@@ -588,7 +590,9 @@ export function scSide(x, S, box) {
   });
   tri(x, SX(0), SY(0) - 5);
   L.block(SX(0), SY(0) - 5, 9);
-  (S.labels || []).forEach(([a, h, t]) => L.put(SX(a), SY(h), t, { s: 11 }));
+  (S.labels || []).forEach(([a, h, t]) =>
+    L.put(SX(a), SY(h), t, { s: 11, box: [bx - 18, by - 14, bx + bw + 18, by + bh + 16] })
+  );
   return { SX, SY };
 }
 
@@ -608,6 +612,13 @@ export function scPlan(x, P, box) {
     PY = p => by + (n1 - p.n) * sc,
     L = labeller(x),
     lbox = [bx + 2, by + 2, bx + bw - 2, by + bh - 2];
+  // the scale and the north kept free
+  {
+    const u = 6076.12 * sc,
+      w0 = u * (u > 30 ? 1 : u * 5 > 30 ? 5 : 10);
+    L.rect(bx + bw - 16 - w0, by, bx + bw, by + 34);
+    L.rect(bx, by, bx + 40, by + 24);
+  }
   x.save();
   x.beginPath();
   x.rect(bx, by, bw, bh);

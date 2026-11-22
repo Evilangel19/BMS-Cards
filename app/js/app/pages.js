@@ -869,6 +869,7 @@ async function smartRefs(b) {
     out = [],
     nm = t =>
       String(t || '')
+        .replace(/\s*\(.*$/, '')
         .replace(/\s+\d+$/, '')
         .toUpperCase()
         .slice(0, 14);
@@ -1130,6 +1131,7 @@ export async function init9() {
       }
     },
     refs: box => smartRefs(box),
+    fromLL: (lat, lon) => mFromLL(lat, lon),
     tag: () => flightTag(),
     combo: () => comboBase(),
     changed: (sec, key) => dtcChanged(sec, key),

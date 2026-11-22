@@ -357,7 +357,10 @@
   border: 1px solid #3a4758;
   border-radius: 10px;
   padding: 14px 16px;
-  width: min(620px, 94vw);
+  /* as wide as its cards (four in a row), never with a bar to scroll sideways */
+  width: fit-content;
+  min-width: min(620px, 94vw);
+  max-width: 96vw;
 }
 .tgdlg::backdrop {
   background: #0008;
@@ -371,6 +374,7 @@
 }
 .tgdlg .tgcards {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   justify-content: center;
   margin: 12px 0;
