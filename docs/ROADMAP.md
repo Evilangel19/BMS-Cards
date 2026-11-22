@@ -11,28 +11,33 @@ This file says what the program does today, how far each part has been checked, 
 
 ## Status by area
 
-| Area                                                                               | Status                                                                                           |
-| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| Korea campaigns: datacard, ATO, map, kneeboard, DTC                                | Verified                                                                                         |
-| MDC format (drawn from the measures of the BMS blank)                              | Implemented; filled automatically                                                                |
-| Other theaters (Balkans, Israel, Hellas)                                           | Implemented, few campaigns and Tactical Engagements tried                                        |
-| Tactical Engagement files                                                          | Implemented, few samples                                                                         |
-| Objective owners (from the scenario file the campaign was saved from)              | Verified on one campaign                                                                         |
-| Friend, foe and neutral (map, ATO, support data): one rule in `core/coalitions.js` | Implemented                                                                                      |
-| DTC editing and writing, the campaign `.ini` written like BMS does                 | Verified on files written by BMS                                                                 |
-| NAV OFFSETS (OA1, OA2, VRP, VIP and pull-up points)                                | Implemented; the DED check is still open                                                         |
-| Kneeboard: F-16 and F-15 files, one folder per theater, backups                    | Verified for F-16 and F-15; other aircraft not yet                                               |
-| Performance, weights and take-off data for every aircraft that has a data file     | Calculated the same way for all; F-16 and F-15 are the most checked                              |
-| Weapons (pop-up, HADB, TOSS, HARM), BVR timeline and MAR                           | Estimated                                                                                        |
-| Weather (campaign maps, wind, conditions) and the fuel plan                        | Implemented, Estimated for the fuel                                                              |
-| Radar coverage                                                                     | Estimated: one detection range per unit                                                          |
-| Squadron: roster, organization, missions, kneeboard cards, logbook                 | Implemented; tested with three pilots at the same time                                           |
-| Squadron Briefing (live room on the map)                                           | Implemented; tested with the squadron                                                            |
-| ROE / SOP (presets, Standard, defaults by kind of mission, kneeboard card)         | Implemented; options from the RoKAF BEM, the 8th / 51st FW in-flight guides and AFMAN 11-2F-16V3 |
-| Pilot seat (laser, IFF, Link 16 and loadout of the chosen aircraft)                | Implemented; Link 16 and IFF follow the files BMS saves                                          |
-| Link 16 and radio presets in the DTC                                               | Implemented, few campaigns tried                                                                 |
-| Map objects of the campaign, political layer, MSA and ERAA                         | Implemented; the owners are verified on one campaign                                             |
-| Landing (Overhead or Direct), ships, STOVL                                         | Estimated                                                                                        |
+| Area                                                                                       | Status                                                                                           |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| Korea campaigns: datacard, ATO, map, kneeboard, DTC                                        | Verified                                                                                         |
+| MDC format (drawn from the measures of the BMS blank)                                      | Implemented; filled automatically                                                                |
+| Other theaters (Balkans, Israel, Hellas)                                                   | Implemented, few campaigns and Tactical Engagements tried                                        |
+| Tactical Engagement files                                                                  | Implemented, few samples                                                                         |
+| Objective owners (from the scenario file the campaign was saved from)                      | Verified on one campaign                                                                         |
+| Friend, foe and neutral (map, ATO, support data): one rule in `core/coalitions.js`         | Implemented                                                                                      |
+| DTC editing and writing, the campaign `.ini` written like BMS does                         | Verified on files written by BMS                                                                 |
+| NAV OFFSETS (OA1, OA2, VRP, VIP and pull-up points)                                        | Implemented; the DED check is still open                                                         |
+| Kneeboard: F-16 and F-15 files, one folder per theater, backups                            | Verified for F-16 and F-15; other aircraft not yet                                               |
+| Performance, weights and take-off data for every aircraft that has a data file             | Calculated the same way for all; F-16 and F-15 are the most checked                              |
+| A-G: pop-up, HADB, TOSS, HARM; the checks of the manuals                                   | Estimated (weapon models); the checks follow the manuals                                         |
+| SEAD and DEAD (HARM shots, ALIC on the fire control radar)                                 | Implemented; ALIC codes from the HARM page of the DTC                                            |
+| Target picture (plan, map, screenshot, filters, cards)                                     | Implemented                                                                                      |
+| A-A: DCA, QRA, OCA, BVR timeline and MAR                                                   | Implemented; the timeline and MAR Estimated                                                      |
+| DTC AUTOs on the Map (PPT, BULLSEYE, FLOT, SAM FRIENDLY, ATTACK, NOE, FEZ, COAST, tankers) | Implemented                                                                                      |
+| Smart and dark Kneeboard cards                                                             | Implemented                                                                                      |
+| Weather (campaign maps, wind, conditions) and the fuel plan                                | Implemented, Estimated for the fuel                                                              |
+| Radar coverage                                                                             | Estimated: one detection range per unit                                                          |
+| Squadron: roster, organization, missions, kneeboard cards, logbook                         | Implemented; tested with three pilots at the same time                                           |
+| Squadron Briefing (live room on the map)                                                   | Implemented; tested with the squadron                                                            |
+| ROE / SOP (presets, Standard, defaults by kind of mission, kneeboard card)                 | Implemented; options from the RoKAF BEM, the 8th / 51st FW in-flight guides and AFMAN 11-2F-16V3 |
+| Pilot seat (laser, IFF, Link 16 and loadout of the chosen aircraft)                        | Implemented; Link 16 and IFF follow the files BMS saves                                          |
+| Link 16 and radio presets in the DTC                                                       | Implemented, few campaigns tried                                                                 |
+| Map objects of the campaign, political layer, MSA and ERAA                                 | Implemented; the owners are verified on one campaign                                             |
+| Landing (Overhead or Direct), ships, STOVL                                                 | Estimated                                                                                        |
 
 ## Not yet verified in the game
 
@@ -96,3 +101,4 @@ Nothing here is promised.
 - **1.0** - the first official release (no longer a beta): the security work (CSP, file permissions) and the loading bars.
 - **1.1** - the pilot seat, Link 16 and radio presets in the DTC, objects of the campaign on the map, Overhead or Direct landing, ships and STOVL, a redone Settings window with import and export of your data (the import copies the missions of an older copy into this one). See `CHANGELOG.md`.
 - **1.2** - a faster map with all the objects and the political layer; the live Briefing room of the squadron; ROE and SOP on the datacard, with presets, a Standard and a full kneeboard card; the AWACS and JSTARS rule; MDC format filled automatically; the datacard notes and ephemerides redone; the User Guide (Settings > Help). See `CHANGELOG.md`.
+- **1.3** - the A-A pages (DCA, QRA, OCA) and the A-G pages for SEAD, DEAD and the target picture, each with an A-A or A-G block in the ROE; Smart and dark kneeboard cards; the DTC AUTOs of the Map with a preview, Fit and Copy; missions in folders; Tactical Engagements with every faction and the training missions.

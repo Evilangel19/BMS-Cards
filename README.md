@@ -18,14 +18,14 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 
 - **Datacard and MDC** - steerpoints, times, fuel, weights, take-off and landing performance, radios, airbases, threats, IFF and Link 16.
 - **Data Cartridge** - opens a DTC `.ini`, edits it (steerpoints, targets, PPTs, lines, avionics settings) and writes it back. The first original of each file is kept in the program folder.
-- **Kneeboard** - arranges cards, imported pictures and PDF pages on the kneeboard pages and writes them as DDS files for the theater you fly. The previous files can be restored.
-- **Map** - the campaign on a map: flight plans, package, airbases, objectives, units, SAM rings and an estimate of the radar coverage. Offline coastlines for Korea, the Balkans and the Mediterranean theaters, the official BMS map, your own picture, or online satellite and topographic layers.
-- **Weapons** - pop-up, HADB, TOSS and HARM geometry, navigation offsets (OA1, OA2, VRP, VIP, pull-up points) that can be placed on the map and written into the DTC.
-- **BVR Timeline** - missile range, MAR and the engagement timeline against a target you describe.
+- **Kneeboard** - arranges cards, imported pictures and PDF pages on the kneeboard pages and writes them as DDS files for the theater you fly. The pages of the program make their own cards, classic or Smart (the plan in one picture), light or dark for the cockpit. The previous files can be restored.
+- **Map** - the campaign on a map: flight plans, package, airbases, objectives, units, SAM rings and an estimate of the radar coverage. Offline coastlines for Korea, the Balkans and the Mediterranean theaters, the official BMS map, your own picture, or online satellite and topographic layers. Automatic DTC lines and points (threats, bullseye, front line, friendly SAMs, the attack, a low-level valley, the FEZ, tanker tracks), shown before they are written.
+- **A-G** - pop-up, HADB and TOSS geometry with the limits of the manuals, navigation offsets (OA1, OA2, VRP, VIP, pull-up points) that can be placed on the map and written into the DTC; SEAD and DEAD with the HARM; the target picture (Basic Target Graphic) from the plan of the objective, the map or a screenshot.
+- **A-A** - DCA (the area of a CAP flight and its FEZ), QRA (scramble and intercept), OCA (SWEEP and ESCORT of a package), and the BVR timeline: missile range, MAR and the engagement against a target you describe.
 - **Performance** - turn and Ps charts, cruise, take-off and landing, fuel plan with joker and bingo.
 - **Weather** - the campaign weather drawn on the map, with wind and conditions by altitude.
 - **Docs** - the PDFs and charts of the Docs folder of your BMS, with pages you can send to the kneeboard.
-- **Squadron** - a squadron profile and roster, missions saved as `.bcrd` files and sent to the other pilots, packages and flights, logbook.
+- **Squadron** - a squadron profile and roster, missions saved as `.bcrd` files (kept in folders) and sent to the other pilots, packages and flights, logbook.
 - **ROE / SOP** - rules of engagement and SOP by phase of flight, written in short form on the datacard: your presets and the squadron's, a default for each kind of mission, and a full ROE / SOP card for the kneeboard.
 - **Briefing** - a live room on the map for the squadron: the briefer draws, the pilots follow his view, and a kneeboard card keeps the result.
 

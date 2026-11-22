@@ -2,13 +2,25 @@
 
 What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
 
-## 1.3.0 (not released yet)
+## 1.3.0 (2026-11-22)
+
+### Highlights
+
+- **A-A page**: DCA (the area of a CAP flight, the FEZ on the threat axis and its DTC lines), QRA (the scramble line on alert, the vector and the intercept once launched) and OCA (the SWEEP or ESCORT of a package: position, commit, stop, target area), each writing an A-A block in the ROE of the flight.
+- **A-G page** (the Weapons page): HARM with a SEAD planner (the shots that protect the package) and a DEAD planner (HARM standoff, Hunter-Killer, bombs), the ALIC codes on the fire control radar; the checks of the manuals and an A-G block in the ROE.
+- **Target picture** (A-G > Target): the plan of the objective, a picture of the map or a screenshot, with the DMPI of the DTC, threats, sensor filters and drawn symbols; pictures without a target; Put on datacard.
+- **Smart cards** and dark cards for the cockpit: Attack, SEAD, DEAD, DCA, OCA, QRA, Weather and ROE / SOP, and the Smart mission card; Cockpit tone for the kneeboard.
+- **DTC AUTOs on the Map**: PPT, BULLSEYE, FLOT, SAM FRIENDLY, ATTACK, NOE, FEZ, COAST (F-15 SIT lines) and tanker tracks, with a preview before writing and Fit after; labels and colours of the package flights; Copy of the map.
+- **Missions in folders** on Squadron > Missions; Tactical Engagements with every faction open; the BMS training missions.
+- Warnings that stop an action are red, and buttons with nothing to act on are dimmed.
+
+### All changes
 
 - Changed: the warnings that stop an action or say that something is missing are red everywhere (A-G > Target, ATO, ROE, Kneeboard, seat, Map, Squadron, Briefing room, Organization).
 - Changed: buttons with nothing to act on are dimmed: Add card of A-G (no attack, no SEAD or DEAD flight, no target), A-A (no flight for the page) and ROE / SOP (nothing chosen); Put on datacard without a picture; HARM tables and Auto PPT without a DTC; the AUTOs of the Map without a DTC (COAST outside Korea).
 - Fixed: Squadron > Missions said "loaded" in red; in the Briefing room a failed Copy or screenshot was not red.
 - Fixed: a Picture of the Target page no longer shows the threats, the units and the DMPI boxes of its place, nor the Target information page and the From the datacard card; Put on datacard brings its frame bar (under the picture) into view.
-- Added: Weapons > Target, ＋ Picture: a screenshot with no target (an aircraft to know in A-A, a view of the area), named as you like, with the Screenshot and Map views and the drawing tools; Add card makes one Picture card; Put on datacard puts it on the datacard, which goes with the mission (the entry itself is kept for the session, as the other Target pictures).
+- Added: A-G > Target, ＋ Picture: a screenshot with no target (an aircraft to know in A-A, a view of the area), named as you like, with the Screenshot and Map views and the drawing tools; Add card makes one Picture card; Put on datacard puts it on the datacard, which goes with the mission (the entry itself is kept for the session, as the other Target pictures).
 - Added: three AUTOs of the DTC editing: SAM FRIENDLY (the forward edge of the friendly SAM rings near the route, one LINE), ATTACK (from the A-G attack page: IP, PUP, apex, release, target, egress, and the run-in V, two LINEs) and NOE (the walls of the valley of the low part of the flight plan, where the terrain rises to the altitude of the leg, two LINEs; needs the terrain of the BMS folder).
 - Changed: SEAD and DEAD aim the HARM at the fire control radar of a SAM (ALIC 202 Fan Song for the SA-2, 203, 204, 205, 206, 210, 211 and 217 for the TELARs of the SA-11 and SA-17, 230 for the Hawk), as the HARM page of the DTC lists them with a T.
 - Fixed: the A-A and A-G blocks of the ROE are written as soon as a flight is chosen (no need to open its page) and the ROE page shows them when it is opened; only A-G missions get an A-G block. On the A-G pages the Edit points button sits on the left, Fit view and the map filters on the right (as on the A-A pages).
