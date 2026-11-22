@@ -1,6 +1,6 @@
 # BMS Cards: status and plans
 
-This file says what the program does today, how far each part has been checked, what is left, and what may come later. Everything outside "Possible later" exists in the code. The history of the changes is in the git log; on the `dev` branch, `docs/archive/` keeps the old roadmaps with the log of every beta.
+This file says what the program does today, how far each part has been checked, what is left, and what may come later. Everything outside "Possible later" exists in the code. The history of the changes is in the git log.
 
 ## How to read the status
 
