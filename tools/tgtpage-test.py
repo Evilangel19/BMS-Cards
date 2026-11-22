@@ -214,6 +214,7 @@ try:
         # a Picture: a screenshot with no target (an aircraft to know in A-A)
         pg.click('.tgp .tgpic'); pg.wait_for_timeout(400)
         check('＋ Picture: PICTURE 1 in the list, with no place', T('t.list().length') == 1 and 'PICTURE 1' in pg.inner_text('.tgp .tgrowt') and 'no place' in pg.inner_text('.tgp .tgrowt'))
+        check('...no Target information page, no From the datacard card', pg.locator('.tgp [data-seg=page] [data-v=t]').is_disabled() and not pg.locator('.tgp .tgfrom').is_visible() and T('t.state().view') == 'shot')
         check('...its view is the Screenshot, the plan view is off', T('t.state().view') == 'shot' and pg.locator('.tgp [data-seg=view] [data-v=plan]').is_disabled())
         pg.click('#wp [data-tabcard]'); pg.wait_for_timeout(600)
         check('...Add card gives one card, the Picture', pg.locator('.tgdlg .tgcard').count() == 1 and 'Picture' in pg.inner_text('.tgdlg .tgcard'))
@@ -221,11 +222,14 @@ try:
         pg.evaluate("""()=>new Promise(r=>{const c=document.createElement('canvas');c.width=900;c.height=600;const g=c.getContext('2d');g.fillStyle='#a52';g.fillRect(0,0,900,600);
           c.toBlob(b=>{const dt=new DataTransfer();dt.items.add(new File([b],'p.png',{type:'image/png'}));document.dispatchEvent(new ClipboardEvent('paste',{clipboardData:dt,bubbles:true}));setTimeout(r,500)})})""")
         pg.wait_for_timeout(4500)  # the toast of the earlier Put on datacard
-        pg.evaluate('()=>{window.__ms0=__app.ST.MAPSHOT}'); pg.click('.tgp .tgdc'); pg.wait_for_timeout(300); pg.click('.tgp .tgcropok'); pg.wait_for_timeout(400)
+        pg.evaluate('()=>{window.__ms0=__app.ST.MAPSHOT;scrollTo(0,0)}'); pg.click('.tgp .tgdc'); pg.wait_for_timeout(900)
+        check('...the frame bar (under the picture) comes into view', pg.evaluate("()=>{const r=document.querySelector('.tgp .tgcropbar').getBoundingClientRect();return r.bottom<=innerHeight&&r.top>=0}"))
+        if shots: pg.screenshot(path=shots + '/tgt-pic.png')
+        pg.click('.tgp .tgcropok'); pg.wait_for_timeout(400)
         check('...Put on datacard: the picture becomes the map screenshot of the datacard (saved with the mission)', pg.evaluate("()=>window.__ms0!==__app.ST.MAPSHOT&&!!__app.ST.MAPSHOT"))
         pg.once('dialog', lambda d: d.accept())
         pg.click('.tgp .tgrowt .tgx'); pg.wait_for_timeout(400)
-        check('...its × removes it', T('t.list().length') == 0)
+        check('...its × removes it', T('t.list().length') == 0 and pg.locator('.tgp .tgfrom').is_visible())
         # the other tabs take the map back
         pg.click('#wp .wtabs [data-mode=popup]'); pg.wait_for_timeout(500)
         check('back to Pop-up: the apply buttons are shown again', not pg.evaluate("()=>document.body.classList.contains('onharm')"))

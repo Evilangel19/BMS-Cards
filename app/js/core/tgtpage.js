@@ -556,7 +556,7 @@ export function createTargetPage(deps) {
     PLACED = [];
     DEFER = [];
     SYMS = [];
-    if (!D) {
+    if (!D || (tgt() && tgt().pic)) {
       DEFER = SYMS = null;
       return;
     }
@@ -1552,12 +1552,13 @@ export function createTargetPage(deps) {
   const boxX = (i, by = 652) => [10 + i * ((PW - 20) / 6) + (PW - 20) / 6 - 6 - 14, by + 156 - 14];
   function graphic() {
     const p = P();
-    hdr('BASIC TARGET GRAPHIC');
+    const pic = !!(tgt() && tgt().pic);
+    hdr(pic ? 'PICTURE' : 'BASIC TARGET GRAPHIC');
     picture();
     x.strokeStyle = p.line;
     x.lineWidth = PF.pst == 'prog' ? 1 : 2;
     x.strokeRect(IMG.x, IMG.y, IMG.w, IMG.h);
-    boxes(652);
+    if (!pic) boxes(652);
   }
   // the text page: description, components, DMPI, threats, attack, remarks; the detail pictures on the right
   // o: where the text goes and how big (the page, or a Kneeboard card), and where the detail pictures go (null: none)
@@ -2178,6 +2179,7 @@ export function createTargetPage(deps) {
     q('.tgcropbar').hidden = false;
     q('.tgdc').disabled = true;
     appear(q('.tgcropbar'));
+    q('.tgcropbar').scrollIntoView({ block: 'nearest', behavior: deps.anim && !deps.anim() ? 'auto' : 'smooth' });
     q('.tgcropn').textContent =
       CROP.name + ' format (' + CROP.dim + '): drag the frame; the wheel or the slider changes its size.';
     q('.tgcrops').max = String(Math.round(w * 100)); // the largest frame that fits
@@ -2260,7 +2262,7 @@ export function createTargetPage(deps) {
     <p class="hint">The map of the Map page: choose what it shows (LEVELS, Edit points, Map filters above it; the zoom is the Width above), then Take picture: the frame can be zoomed; press Capture. The picture is then drawn on as the others.</p></div>
    <div class="tgsec" data-sec="shot"><label class="tgdrop"><b>Paste a screenshot</b> (Ctrl+V), drop it here or <u>choose a file</u><input type="file" accept="image/*" hidden><br><span class="hint">BMS Recon view, a map screenshot, a picture of the target</span></label>
     <p class="hint">North is up. The scale is not known: the route and the threats show as arrows at the edge.</p></div></div>
-  <div class="wcard"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
+  <div class="wcard tgfrom"><h3>From the datacard</h3><button type="button" class="btn tgfill">⤓ Fill from the datacard</button>
    <div class="tgfset" hidden><div class="tgok">✓ <span class="tgsrc"></span></div><div class="tgchips tgshow"></div><div class="tgrow tgnrow"><button type="button" class="btn g tgnames${PF.names ? ' on' : ''}" title="Names of the sub-objectives on the picture">Names</button><span class="tgnsc"${PF.names ? '' : ' hidden'}>${seg(
      'nscope',
      [
@@ -3187,6 +3189,12 @@ export function createTargetPage(deps) {
     q('.tgfac').value = s ? s.fac : '';
     q('.tgremt').value = s ? s.rem : '';
     qa('[data-seg=view] [data-v=plan]').forEach(b => (b.disabled = !!(t && t.pic))); // a picture has no objective
+    qa('[data-seg=page] [data-v=t]').forEach(b => (b.disabled = !!(t && t.pic))); // ...nor target information
+    q('.tgfrom').hidden = !!(t && t.pic); // ...nor DTC points
+    if (t && t.pic && page != 'g') {
+      page = 'g';
+      segSet('page', 'g');
+    }
     fillUI();
     if (t) loadPlan(t);
     if (s) setView(s.view);
