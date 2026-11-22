@@ -38,7 +38,7 @@ Pick a campaign (or a Tactical Engagement) and a flight from the ATO. The progra
 ## More screenshots
 
 ![The Docs page with the charts of the BMS folder](docs/img/docs.png)
-![The BVR Timeline page](docs/img/bvr.png)
+![The A-A page: the DCA of a CAP flight](docs/img/aa-dca.png)
 ![The Performance page](docs/img/performance.png)
 ![The Weather page](docs/img/weather.png)
 ![The Squadron page: members](docs/img/squadron-members.png)
