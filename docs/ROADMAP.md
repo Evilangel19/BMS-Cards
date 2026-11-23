@@ -72,6 +72,10 @@ This file says what the program does today, how far each part has been checked, 
     refuelling page below).
   - **Smart Threat**: the SAMs along the route in the order of time, the WEZ exposure minute by minute, the PPTs.
   - **Smart Recovery**: the landing and alternate fields, the approaches, the frequencies, the divert fuel, the weather on arrival.
+- **For 1.4, export to OpenKneeboard**: the cards of the Kneeboard written as PNG files at full size into a folder that the pilot chooses
+  (`Left/01 ….png`, `Right/01 ….png`, the order of the pages), light or dark; an OpenKneeboard "Folder" tab pointed there reloads by itself at
+  every save. Only files are written (OpenKneeboard is GPLv2, none of its code is used); the third-party cards are exported as the DDS save
+  already does.
 
 Nothing here is promised.
 
