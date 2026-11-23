@@ -74,6 +74,8 @@ This file says what the program does today, how far each part has been checked, 
   - **Smart Recovery**: the landing and alternate fields, the approaches, the frequencies, the divert fuel, the weather on arrival.
 - **For 1.4, the Smart ROE / SOP card reworked**: the pilot chooses which parameters of the SOP go on the card (for example JOKER / BINGO,
   the comm plan, the recovery, the tactics), instead of the whole text; the A-A and A-G blocks of the ROE stay.
+- **For 1.4, bigger annotations on the target picture** (A-G > Target): a size for the symbols, the text and the labels of the threats and
+  units (on the page and on the cards), so that they stay readable on the kneeboard in the cockpit and in VR.
 - **For 1.4, export to OpenKneeboard**: the cards of the Kneeboard written as PNG files at full size into a folder that the pilot chooses
   (`Left/01 ….png`, `Right/01 ….png`, the order of the pages), light or dark; an OpenKneeboard "Folder" tab pointed there reloads by itself at
   every save. Only files are written (OpenKneeboard is GPLv2, none of its code is used); the third-party cards are exported as the DDS save
