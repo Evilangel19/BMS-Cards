@@ -274,6 +274,10 @@ export async function openSettings() {
       'The kneeboard pages written darker and with more contrast (all of them: cards, pictures, datacard, documents; the mipmaps too). The cards are kept as they are: change the values and write the kneeboard again.',
       kb.toneOn !== false
     ) +
+    // the values of the Cockpit tone: shown only when it is on
+    '<div class="s-xp' +
+    (kb.toneOn !== false ? ' open' : '') +
+    '" id="tonebox"><div>' +
     slider(
       'c-tb',
       'Brightness',
@@ -298,6 +302,7 @@ export async function openSettings() {
     ) +
     '<div class="s-rw"><div class="tx"><div class="tt">Preview</div><p class="hint">The top of the left page of the Kneeboard row chosen: as it is, and as it is written.</p></div><button type="button" class="btn g" data-a="tonedef" title="Brightness -50, Contrast 100: the values tried in the cockpit">Default (−50 / 100)</button></div>' +
     '<div class="s-tonepv"><canvas id="c-tpv0" width="360" height="250"></canvas><canvas id="c-tpv1" width="360" height="250"></canvas></div>' +
+    '</div></div>' +
     '<div class="s-rw"><div class="tx"><div class="tt">Save to OpenKneeboard</div><p class="hint">Shows the Save to OpenKneeboard button on the Kneeboard page. Automatic: the button shows when the program finds OpenKneeboard on this computer (' +
     (OKB.settings ? 'found' : 'not found') +
     '). Always: use this when the program does not find OpenKneeboard. Never: the button does not show.</p></div><span class="seg" id="c-okb">' +
@@ -671,6 +676,7 @@ export async function openSettings() {
       const on = !b.classList.contains('on');
       setSwitch(b, on);
       if (b.dataset.k === 'sat') setOpen(q('satbox'), on);
+      if (b.dataset.k === 'toneOn') setOpen(q('tonebox'), on);
       if (b.dataset.k === 'toneOn' || b.dataset.k === 'toneDark') tonePreview();
       refresh();
     } else if (a === 'report') {

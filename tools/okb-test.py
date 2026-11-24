@@ -46,6 +46,12 @@ try:
         check('the next save does not ask for the folder again %s' % msgs[n:], not any('kneeboard pages as pictures' in m for m in msgs[n:]))
         pg.click('#cfgbtn') if pg.locator('#cfgbtn').count() else pg.click('[data-a=settings]'); pg.wait_for_timeout(600)
         check('Settings: Save to OpenKneeboard (Automatic / Always / Never) and the OpenKneeboard folder', pg.locator('#c-okb button').count() == 3 and pg.locator('#f-okbDir').count() == 1)
+        pg.click('#nv-kneeboard'); pg.wait_for_timeout(300)
+        vis_t = lambda: pg.locator('#c-tb').is_visible()
+        on0 = vis_t(); pg.click('[data-a=sw][data-k=toneOn]'); pg.wait_for_timeout(600)
+        check('Cockpit tone off: Brightness, Contrast, Also on dark pages and Preview hide', on0 and not vis_t() and not pg.locator('#c-tpv0').is_visible())
+        pg.click('[data-a=sw][data-k=toneOn]'); pg.wait_for_timeout(600)
+        check('...on again: they show', vis_t())
         check('no page errors %s' % errs, not errs)
         br.close()
 finally:
