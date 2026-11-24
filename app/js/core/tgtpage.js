@@ -61,8 +61,9 @@ const TOOLS = [
 ];
 const HINT = {
   select:
-    'Drag a symbol to move it. Click a symbol to select it, double-click it to change its text. Delete removes the selected symbol.',
-  callout: 'Click the point, then click where the label goes, then type the text.',
+    'Drag a symbol to move it. Drag the label of a callout to move only the label. Click a symbol to select it, double-click it to change its text. Delete removes the selected symbol.',
+  callout:
+    'Push on the point and drag to the place of the label, then type the text. A click puts the label above and to the right. The line goes to the nearest side of the label: select the callout and use Line to choose the side.',
   dmpi: 'Click the aim point: a red triangle with its DMPI number. The boxes under the picture fill themselves.',
   num: 'Click: a black disc with the next number.',
   box: 'Drag to draw a box around a building or a group.',
@@ -105,6 +106,13 @@ const SIZES = [
 ];
 const szK = s => (SIZES.find(z => z[0] == s) || SIZES[0])[2];
 const szNext = s => SIZES[(SIZES.findIndex(z => z[0] == s) + 1) % SIZES.length][0];
+// the side of the label where the line of a callout goes, and the icon of the Line button (the label, the line out of that side)
+const SIDES = ['auto', 'l', 't', 'r', 'b'];
+const lnIcon = s =>
+  '<svg viewBox="0 0 24 24"><rect x="7" y="8" width="10" height="8" rx="1.5"/>' +
+  ({ l: '<path d="M7 12H1"/>', r: '<path d="M17 12h6"/>', t: '<path d="M12 8V2"/>', b: '<path d="M12 16v6"/>' }[s] ||
+    '<text x="12" y="14.5" text-anchor="middle" font-size="7" font-weight="700" fill="currentColor" stroke="none">A</text>') +
+  '</svg>';
 // the icon of the Size button: the letter of the size
 const szIcon = s =>
   `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" font-size="${s == 'xl' ? 11 : 14}" font-weight="700" fill="currentColor" stroke="none">${(SIZES.find(z => z[0] == s) || SIZES[0])[1]}</text></svg>`;
@@ -161,10 +169,10 @@ export function createTargetPage(deps) {
     tool = 'select',
     col = '#ffffff',
     sz = 's', // the size of the next symbol
+    LBOX = new Map(), // the label boxes of the callouts as drawn last (index -> [x, y, w, h]): to drag a label alone
     selA = -1,
     drag = null,
     mv = null,
-    pend = null,
     framing = false,
     built = false;
   // PICTURES: entries with no place (a screenshot to recognise an aircraft in an A-A mission...): only the Screenshot and Map views, the Graphic card
@@ -297,14 +305,34 @@ export function createTargetPage(deps) {
   };
 
   // ---- labels and symbols
-  function tag(t, lx, ly, o = {}) {
-    if (DEFER) return void DEFER.push([t, lx, ly, o]);
+  // where a label goes: its font set, its box [bx, by, w, h] (kept inside the view on the cards and when asked)
+  function tagBox(t, lx, ly, o = {}) {
     const pen = o.pen,
-      ls = o.ls || PF.lsty,
       k = o.k || szK(PF.lsz); // a symbol drawn by hand gives its own size; the labels of the program take the one of the Page card
     x.font = pen ? 21 * k + 'px ' + PEN : '600 ' + 14 * k + 'px ' + FONT;
     const w = x.measureText(t).width + 14 * k,
       h = (pen ? 30 : 22) * k;
+    let bx = lx - (o.al == 'c' ? w / 2 : o.al == 'r' ? w : 0),
+      by = ly - h / 2;
+    if (o.clamp || CARDM) {
+      const r = vr();
+      bx = Math.max(r.x + 4, Math.min(r.x + r.w - w - 4, bx));
+      by = Math.max(r.y + 4, Math.min(r.y + r.h - h - 4, by));
+    }
+    return { bx, by, w, h, k };
+  }
+  // a light text on the dark box of the program for a dark colour (black stays readable)
+  const dark = c => {
+    const m = /^#([0-9a-f]{6})$/i.exec(c || '');
+    if (!m) return false;
+    const n = parseInt(m[1], 16);
+    return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) < 70;
+  };
+  function tag(t, lx, ly, o = {}) {
+    if (DEFER) return void DEFER.push([t, lx, ly, o]);
+    const pen = o.pen,
+      ls = o.ls || PF.lsty,
+      { w, h, k } = tagBox(t, lx, ly, { ...o, clamp: false });
     let bx = lx - (o.al == 'c' ? w / 2 : o.al == 'r' ? w : 0),
       by = ly - h / 2;
     const cl = () => {
@@ -358,17 +386,19 @@ export function createTargetPage(deps) {
     if (ls == 'prog') {
       x.fillStyle = 'rgba(15,20,25,.88)';
       x.fillRect(bx, by, w, h);
-      x.strokeStyle = c || '#e6edf3';
-      x.lineWidth = 1.2;
+      x.strokeStyle = c && !dark(c) ? c : '#e6edf3';
+      x.lineWidth = 1.2 * k;
       x.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
-      x.fillStyle = c || '#e6edf3';
+      x.fillStyle = c && !dark(c) ? c : '#e6edf3';
     } else {
+      // white box: the colour of the symbol on its frame and text (white or a very light colour: black)
+      const ink = ls == 'red' ? '#d01818' : c && c != '#ffffff' ? c : '#000';
       x.fillStyle = '#fff';
       x.fillRect(bx, by, w, h);
-      x.strokeStyle = ls == 'red' ? '#d01818' : c && c != '#ffffff' ? c : '#000';
-      x.lineWidth = 1.4;
+      x.strokeStyle = ink;
+      x.lineWidth = 1.4 * k;
       x.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
-      x.fillStyle = ls == 'red' ? '#d01818' : '#000';
+      x.fillStyle = ink;
     }
     x.fillText(t, bx + 7 * k, by + h / 2 + 1);
   }
@@ -1167,6 +1197,14 @@ export function createTargetPage(deps) {
     x.fillText('0.0  VS', cx + rr + 70 * u, by - 18 * u);
     x.restore();
   }
+  // the Line button: only with a callout selected, its icon the side of that callout
+  function lineShow() {
+    const b = q('.tglnb'),
+      a = selA >= 0 && A()[selA];
+    if (!b) return;
+    b.hidden = !(a && a.k == 'callout');
+    if (!b.hidden) b.querySelector('svg').outerHTML = lnIcon(a.side || 'auto');
+  }
   // the symbols drawn by hand
   function drawSym(a, i) {
     // the notes: handwritten as typed, else in capitals (the choice of the Filter card)
@@ -1176,7 +1214,7 @@ export function createTargetPage(deps) {
       p2 = a.u2 !== undefined ? toP(a.u2, a.v2) : null,
       c = a.col || '#fff',
       k = szK(a.sz), // the size of the symbol: its lines, heads and texts (not its place)
-      lo = { pen: a.pen, col: a.pen ? c : undefined, k };
+      lo = { pen: a.pen, col: c, k }; // the label of a symbol in its colour (box and text)
     x.save();
     x.lineCap = 'round';
     x.lineJoin = 'round';
@@ -1189,14 +1227,33 @@ export function createTargetPage(deps) {
       x.stroke();
     };
     if (a.k == 'callout') {
-      const [lx, ly] = toP(a.lu, a.lv);
+      // the label centred on (lu, lv); the line to the middle of the side chosen (Line), else of the side nearest to the point
+      const [lx, ly] = toP(a.lu, a.lv),
+        t = a.t || '…',
+        R = tagBox(t, lx, ly, { ...lo, al: 'c' }),
+        cx = R.bx + R.w / 2,
+        cy = R.by + R.h / 2,
+        dx = p1x - cx,
+        dy = p1y - cy,
+        sd =
+          a.side && a.side != 'auto'
+            ? a.side
+            : Math.abs(dx) / (R.w / 2) >= Math.abs(dy) / (R.h / 2)
+              ? dx < 0
+                ? 'l'
+                : 'r'
+              : dy < 0
+                ? 't'
+                : 'b',
+        [ex, ey] = { l: [R.bx, cy], r: [R.bx + R.w, cy], t: [cx, R.by], b: [cx, R.by + R.h] }[sd];
+      if (i >= 0 && x.canvas === cv) LBOX.set(i, [R.bx, R.by, R.w, R.h]); // the page only (not a card drawn after it)
       x.strokeStyle = PF.lsty == 'red' ? '#d01818' : c;
       x.lineWidth = 2.4 * k;
       x.beginPath();
       x.moveTo(p1x, p1y);
-      x.lineTo(lx, ly);
+      x.lineTo(ex, ey);
       x.stroke();
-      tag(a.t, lx, ly, { ...lo, al: lx < p1x ? 'r' : 'l' });
+      tag(t, lx, ly, { ...lo, al: 'c' });
     } else if (a.k == 'dmpi') {
       tri(p1x, p1y, k);
       tag(a.t, p1x + 16 * k, p1y - 16 * k, { k });
@@ -1313,6 +1370,18 @@ export function createTargetPage(deps) {
     x.restore();
   }
   function bbox(a) {
+    if (a.k == 'callout') {
+      const p = toP(a.u, a.v),
+        i = A().indexOf(a),
+        b = LBOX.get(i);
+      if (b)
+        return [
+          Math.min(p[0] - 10, b[0]),
+          Math.min(p[1] - 10, b[1]),
+          Math.max(p[0] + 10, b[0] + b[2]),
+          Math.max(p[1] + 10, b[1] + b[3]),
+        ];
+    }
     const k = szK(a.sz),
       p = toP(a.u, a.v),
       q = a.u2 !== undefined ? toP(a.u2, a.v2) : a.lu !== undefined ? toP(a.lu, a.lv) : [p[0] + 30 * k, p[1] + 20 * k];
@@ -1354,6 +1423,7 @@ export function createTargetPage(deps) {
         } finally {
           DEFER = SYMS = null;
         }
+      if (x.canvas === cv) LBOX.clear();
       A().forEach((a, i) => drawSym(a, i));
       if (drag && drag.k) drawSym(drag, -1);
     } else {
@@ -1803,6 +1873,7 @@ export function createTargetPage(deps) {
   }
   function draw() {
     styleHint();
+    lineShow();
     if (!cv) return;
     q('.tgdc').disabled = !!CROP || !rawPic(); // Put on datacard: a picture first
     x = cv.getContext('2d');
@@ -2340,7 +2411,7 @@ export function createTargetPage(deps) {
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
   ).join(
     ''
-  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}<i data-col="${PF.ccol}" style="background:${PF.ccol || 'transparent'}" class="tgccol${PF.ccol && PF.ccol == col ? ' on' : ''}" title="Your colour"${PF.ccol ? '' : ' hidden'}></i><button type="button" class="tgcpk" title="Choose a different colour. The colour stays as a swatch."></button></span><i class="vs"></i><button type="button" class="t tgszb" title="Size of the symbol (S, M, L, XL). Click to change the size. Select a symbol to change its size.">${szIcon(sz)}<span>Size</span></button><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
+  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}<i data-col="${PF.ccol}" style="background:${PF.ccol || 'transparent'}" class="tgccol${PF.ccol && PF.ccol == col ? ' on' : ''}" title="Your colour"${PF.ccol ? '' : ' hidden'}></i><button type="button" class="tgcpk" title="Choose a different colour. The colour stays as a swatch."></button></span><i class="vs"></i><button type="button" class="t tgszb" title="Size of the symbol (S, M, L, XL). Click to change the size. Select a symbol to change its size.">${szIcon(sz)}<span>Size</span></button><button type="button" class="t tglnb" title="The side of the label where the line of the callout goes: Auto (the nearest side), left, top, right, bottom. Click to change the side." hidden>${lnIcon('auto')}<span>Line</span></button><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
   <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div></div>`;
@@ -2423,7 +2494,6 @@ export function createTargetPage(deps) {
         (b.onclick = () => {
           tool = b.dataset.tool;
           selA = -1;
-          pend = null;
           qa('[data-tool]').forEach(z => z.classList.toggle('on', z == b));
           q('.tgthint').textContent = HINT[tool];
           draw();
@@ -2441,6 +2511,15 @@ export function createTargetPage(deps) {
         pfSave();
         s.click();
       });
+    // Line: shown with a callout selected; each click goes Auto, left, top, right, bottom
+    const lnb = /** @type {HTMLElement} */ (q('.tglnb'));
+    lnb.onclick = () => {
+      const a = selA >= 0 && A()[selA];
+      if (!a || a.k != 'callout') return;
+      a.side = SIDES[(SIDES.indexOf(a.side || 'auto') + 1) % SIDES.length];
+      lineShow();
+      draw();
+    };
     // Size: one button that goes S, M, L, XL, S…; for the symbol selected, else for the next one
     const szb = /** @type {HTMLElement} */ (q('.tgszb'));
     szb.onclick = () => {
@@ -2720,26 +2799,24 @@ export function createTargetPage(deps) {
           sz = A()[selA].sz || 's'; // the Size button shows the size of the symbol chosen
           const sb = q('.tgszb svg');
           if (sb) sb.outerHTML = szIcon(sz);
-          mv = { i: selA, u, v, o: JSON.parse(JSON.stringify(A()[selA])) };
+          const a = A()[selA],
+            b = a.k == 'callout' && LBOX.get(selA);
+          // on the label of a callout: the label alone moves; elsewhere the whole symbol
+          mv = {
+            i: selA,
+            u,
+            v,
+            o: JSON.parse(JSON.stringify(a)),
+            lab: !!b && px >= b[0] && px <= b[0] + b[2] && py >= b[1] && py <= b[1] + b[3],
+          };
           cv.setPointerCapture(e.pointerId);
         }
         draw();
         return;
       }
       if (tool == 'callout') {
-        if (!pend) {
-          pend = { k: 'callout', u, v, col, sz };
-          return;
-        }
-        const a = { ...pend, lu: u, lv: v };
-        pend = null;
-        ask(px, py, '', t => {
-          if (t) {
-            a.t = t;
-            A().push(a);
-            draw();
-          }
-        });
+        drag = { k: 'callout', u, v, lu: u, lv: v, col, sz, side: 'auto', px, py };
+        cv.setPointerCapture(e.pointerId);
         return;
       }
       if (tool == 'dmpi') {
@@ -2784,16 +2861,19 @@ export function createTargetPage(deps) {
         const a = A()[mv.i],
           du = u - mv.u,
           dv = v - mv.v;
-        ['u', 'u2', 'lu'].forEach(k => {
+        (mv.lab ? ['lu'] : ['u', 'u2', 'lu']).forEach(k => {
           if (mv.o[k] !== undefined) a[k] = mv.o[k] + du;
         });
-        ['v', 'v2', 'lv'].forEach(k => {
+        (mv.lab ? ['lv'] : ['v', 'v2', 'lv']).forEach(k => {
           if (mv.o[k] !== undefined) a[k] = mv.o[k] + dv;
         });
         draw();
         return;
       }
-      if (drag.k == 'north') {
+      if (drag.k == 'callout') {
+        drag.lu = u;
+        drag.lv = v;
+      } else if (drag.k == 'north') {
         drag.rot = Math.round((Math.atan2(px - drag.px, -(py - drag.py)) * 180) / Math.PI - nUp());
         if (Math.hypot(px - drag.px, py - drag.py) < 12) drag.rot = 0;
       } else {
@@ -2808,6 +2888,19 @@ export function createTargetPage(deps) {
       const a = drag;
       drag = null;
       const [px, py] = pos(e);
+      if (a.k == 'callout') {
+        // a click without a drag: the label above and to the right of the point
+        if (Math.hypot(px - a.px, py - a.py) < 8) [a.lu, a.lv] = toU(a.px + 90, a.py - 50);
+        delete a.px;
+        delete a.py;
+        return ask(px, py, '', t => {
+          if (t) {
+            a.t = t;
+            A().push(a);
+          }
+          draw();
+        });
+      }
       if (a.k != 'north') {
         const p1 = toP(a.u, a.v),
           p2 = toP(a.u2, a.v2);
@@ -3241,7 +3334,6 @@ export function createTargetPage(deps) {
     if (framing) unframe();
     sel = k;
     selA = -1;
-    pend = null;
     tlist();
     const s = st(),
       t = tgt();

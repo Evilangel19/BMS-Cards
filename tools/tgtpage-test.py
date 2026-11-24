@@ -77,7 +77,8 @@ try:
         # a callout by hand
         cb = pg.locator('.tgp canvas').bounding_box()
         pt = lambda u, v: (cb['x'] + cb['width'] * (10 + u * 1080) / 1100, cb['y'] + cb['height'] * (122 + v * 520) / 850)
-        pg.click('.tgp [data-tool=callout]'); pg.mouse.click(*pt(0.62, 0.6)); pg.mouse.click(*pt(0.75, 0.75)); pg.wait_for_timeout(150)
+        # one gesture: push on the point, drag to the label, let go
+        pg.click('.tgp [data-tool=callout]'); pg.mouse.move(*pt(0.62, 0.6)); pg.mouse.down(); pg.mouse.move(*pt(0.7, 0.7), steps=4); pg.mouse.move(*pt(0.75, 0.75), steps=4); pg.mouse.up(); pg.wait_for_timeout(150)
         pg.fill('.tgp .tged input', 'fuel storage'); pg.press('.tgp .tged input', 'Enter'); pg.wait_for_timeout(150)
         pg.click('.tgp [data-tool=select]'); pg.mouse.move(*pt(0.05, 0.9)); pg.wait_for_timeout(100)
         cur0 = pg.evaluate("()=>document.querySelector('.tgp canvas').style.cursor")
@@ -85,6 +86,21 @@ try:
         cur1 = pg.evaluate("()=>document.querySelector('.tgp canvas').style.cursor")
         check('the pointer: plain on the empty picture (%s), the move cross on a symbol (%s)' % (cur0, cur1), cur0 == 'default' and cur1 == 'move')
         check('a callout drawn by hand: kept as typed (shown in capitals unless Handwritten notes)', T("t.state().ann.plan.map(a=>a.k+':'+a.t).join()") == 'callout:fuel storage')
+        a0 = T('t.state().ann.plan[0]')
+        check('...the label where the drag ended', abs(a0['lu'] - 0.75) < 0.02 and abs(a0['lv'] - 0.75) < 0.02)
+        # Line: shown with a callout selected; it goes Auto, left, top, right, bottom
+        pg.mouse.click(*pt(0.75, 0.75)); pg.wait_for_timeout(150)
+        check('Line shows with the callout selected', pg.locator('.tgp .tglnb').is_visible() and pg.locator('.tgp canvas').bounding_box()['y'] == cb['y'])  # the tool bar stays on one line
+        pg.click('.tgp .tglnb'); pg.click('.tgp .tglnb'); pg.wait_for_timeout(100)
+        check('...two clicks: the line goes to the top side', T('t.state().ann.plan[0].side') == 't')
+        # drag the label alone: the point stays
+        pg.mouse.move(*pt(0.75, 0.75)); pg.mouse.down(); pg.mouse.move(*pt(0.8, 0.65), steps=5); pg.mouse.up(); pg.wait_for_timeout(150)
+        a1 = T('t.state().ann.plan[0]')
+        check('drag the label: the label moves, the point stays', abs(a1['u'] - a0['u']) < 0.001 and abs(a1['lu'] - 0.8) < 0.02)
+        [pg.click('.tgp .tglnb') for _ in range(3)]
+        check('...Line back to Auto', T('t.state().ann.plan[0].side') == 'auto')
+        pg.mouse.click(*pt(0.05, 0.9)); pg.wait_for_timeout(100)
+        check('...Line hides with nothing selected', not pg.locator('.tgp .tglnb').is_visible())
         pg.click('.tgp [data-tool=select]')
         check('the select tool is a mouse pointer', pg.locator('.tgp [data-tool=select] svg').count() == 1)
         # the zoom of the plan: the symbols drawn by hand stay on their ground

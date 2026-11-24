@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: A-G > Target, a callout is one gesture: push on the point, drag to the place of the label, let go, then type the text (a click puts the label above and to the right). The line goes to the side of the label nearest to the point; a **Line** button (shown with a callout selected) sets the side: Auto, left, top, right, bottom. With Select, drag the label to move only the label.
+- Fixed: A-G > Target, the colour of a symbol (a swatch or the colour picker) now colours its label too (frame and text), not only its line.
 - Added: A-G > Target, a **Size** button in the tool bar: each click goes S, M, L, XL. It sets the size of the next symbol, or of the symbol that you select. Its lines, heads and text change, not its place.
 - Added: A-G > Target, Page card, **Label size** (S, M, L, XL) for the labels that the program writes (threats, units, names).
 - Added: the colour picker of the program (as on the Map page) in the tool bars of A-G > Target and of the Briefing room. The colour that you choose stays as a swatch; in the Briefing room it goes to the other pilots as the other colours do.
