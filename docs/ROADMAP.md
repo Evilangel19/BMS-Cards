@@ -75,7 +75,7 @@ This file says what the program does today, how far each part has been checked, 
   the comm plan, the recovery, the tactics), instead of the whole text; the A-A and A-G blocks of the ROE stay.
 - **For 1.4, bigger annotations on the target picture** (A-G > Target): a size for the symbols, the text and the labels of the threats and
   units (on the page and on the cards), so that they stay readable on the kneeboard in the cockpit and in VR.
-- **For 1.4, the labels of a turned map screenshot follow the turn**: the screenshot of the Map page taken with a turned frame (for the
+- **For 1.4, the labels of a turned map screenshot follow the turn** (done in 1.4.0-beta.6): the screenshot of the Map page taken with a turned frame (for the
   kneeboard, the datacard, the target picture) is straightened into the card, so the names and labels (places, steerpoints, flights, threats)
   end up tilted. They should be written level in the picture, turned with the frame.
 - **For 1.4, export to OpenKneeboard** (done in 1.4.0-beta.1): the cards of the Kneeboard written as PNG files at full size into a folder that the pilot chooses

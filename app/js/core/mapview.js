@@ -5447,7 +5447,9 @@ export function createMap(host, deps) {
   }
   // THE PICTURE OF THE MAP (html2canvas) of a box of #mpmap {x, y, width, height} ({}: all of it) at a scale: {c, warn}. A base map that cannot be exported (a
   // cross-origin picture: html2canvas leaves it blank without an error) is replaced by the offline coastlines, with a warning
-  async function mapPicture(box, scale, el) {
+  // turn: the angle of a turned screenshot frame (degrees). The picture is turned back by it to straighten the frame, so the names and labels are
+  // turned by it first, each round its point (a label of the map) or its middle (a text next to a symbol): they come out level in the card
+  async function mapPicture(box, scale, el, turn = 0) {
     const h2c = await loadH2C(),
       mp = $('mpmap');
     const run = () =>
@@ -5479,6 +5481,22 @@ export function createMap(host, deps) {
             const cs = w.getComputedStyle(e);
             props.forEach(p => e.style.setProperty(p, cs.getPropertyValue(p)));
           });
+          if (turn) {
+            const rot = (e, origin) => {
+              const t = w.getComputedStyle(e).transform;
+              e.style.transformOrigin = origin;
+              e.style.transform = (t && t != 'none' ? t + ' ' : '') + 'rotate(' + turn + 'deg)';
+            };
+            doc.querySelectorAll('#mpmap .leaflet-marker-icon').forEach(ic => {
+              const e = /** @type {HTMLElement} */ (ic);
+              if (e.style.width == '0px' && !e.querySelector('svg')) rot(e, '0 0');
+              else
+                e.querySelectorAll('span, b, i.nm').forEach(t => {
+                  if (!t.querySelector('svg')) rot(t, 'center');
+                });
+            });
+            doc.querySelectorAll('#mpmap .leaflet-tooltip').forEach(t => rot(t, 'center'));
+          }
         },
       });
     let c,
@@ -5566,9 +5584,13 @@ export function createMap(host, deps) {
             : deps.mdcShot && deps.mdcShot()
               ? 'the datacard (MDC format, the big white box)'
               : 'the datacard (page 2, bottom left)';
-      let { c, warn } = await mapPicture(
-        { x: fb.left - mb.left, y: fb.top - mb.top, width: fw, height: fh },
-        shotDim().out / cw
+      let { c, warn } = await busyRun('Taking the screenshot…', () =>
+        mapPicture(
+          { x: fb.left - mb.left, y: fb.top - mb.top, width: fw, height: fh },
+          shotDim().out / cw,
+          undefined,
+          shotAng
+        )
       );
       if (shotAng && c) {
         // straighten: turn the picture back by the angle of the frame and keep the middle, of the proportions of the card

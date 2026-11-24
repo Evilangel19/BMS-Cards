@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: Map, a screenshot taken with a turned frame (for the datacard, the kneeboard or the target picture): the names and labels come out level in the picture, turned with the frame, each at its point. A loading bar shows while the screenshot is taken.
 - Changed: Settings > Kneeboard, the values of the Cockpit tone (Brightness, Contrast, Also on dark pages, Preview) show only when Cockpit tone is on.
 - Changed: A-G > Target, a callout is one gesture: push on the point, drag to the place of the label, let go, then type the text (a click puts the label above and to the right). The line goes to the side of the label nearest to the point; a **Line** button (shown with a callout selected) sets the side: Auto, left, top, right, bottom. With Select, drag the label to move only the label.
 - Fixed: A-G > Target, the colour of a symbol (a swatch or the colour picker) now colours its label too (frame and text), not only its line.
