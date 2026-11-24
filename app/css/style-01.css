@@ -357,6 +357,7 @@ textarea {
   width: 60px;
 }
 .wpg .seg,
+#cfg .seg,
 #wx .seg {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -364,6 +365,7 @@ textarea {
   overflow: hidden;
 }
 .wpg .seg button,
+#cfg .seg button,
 #wx .seg button {
   padding: 3px 10px;
   color: var(--mu);
@@ -378,15 +380,18 @@ textarea {
     color 0.15s;
 }
 .wpg .seg button:last-child,
+#cfg .seg button:last-child,
 #wx .seg button:last-child {
   border-right: 0;
 }
 .wpg .seg button.on,
+#cfg .seg button.on,
 #wx .seg button.on {
   background: #1f7a46;
   color: #fff;
 }
 .wpg .seg button:not(.on):hover,
+#cfg .seg button:not(.on):hover,
 #wx .seg button:not(.on):hover {
   background: #1a212b;
   color: var(--tx);

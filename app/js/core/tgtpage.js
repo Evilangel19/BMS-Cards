@@ -95,6 +95,14 @@ const TICON = {
 };
 const tico = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${TICON[k]}</svg>`;
 const COLS = ['#ffffff', '#ff3b30', '#f5d142', '#111111', '#38d6f2', '#4cc38a'];
+// the four sizes of the symbols and of the labels: S, M, L, XL
+const SIZES = [
+  ['s', 'S', 1],
+  ['m', 'M', 1.25],
+  ['l', 'L', 1.5],
+  ['xl', 'XL', 2],
+];
+const szK = s => (SIZES.find(z => z[0] == s) || SIZES[0])[2];
 const SHOWS = [
   ['dmpi', 'DMPI'],
   ['route', 'Route'],
@@ -128,6 +136,8 @@ export function createTargetPage(deps) {
     banner: 'CLASSIFIED', // the top line of the UAV FLIR display
     nscope: 'dmpi', // the names of the sub-objectives: of the DMPIs or all
     pen: false, // handwritten notes: the notes of the picture and the remarks in handwriting (the font only)
+    lsz: 's', // the size of the labels drawn by the program (threats, units, names): S, M, L, XL
+    ccol: '', // the colour chosen with the colour picker (a seventh swatch)
   };
   let pfT = 0;
   const pfSave = () => {
@@ -145,6 +155,7 @@ export function createTargetPage(deps) {
     page = 'g',
     tool = 'select',
     col = '#ffffff',
+    sz = 's', // the size of the next symbol
     selA = -1,
     drag = null,
     mv = null,
@@ -284,10 +295,11 @@ export function createTargetPage(deps) {
   function tag(t, lx, ly, o = {}) {
     if (DEFER) return void DEFER.push([t, lx, ly, o]);
     const pen = o.pen,
-      ls = o.ls || PF.lsty;
-    x.font = pen ? '21px ' + PEN : '600 14px ' + FONT;
-    const w = x.measureText(t).width + 14,
-      h = pen ? 30 : 22;
+      ls = o.ls || PF.lsty,
+      k = o.k || szK(PF.lsz); // a symbol drawn by hand gives its own size; the labels of the program take the one of the Page card
+    x.font = pen ? 21 * k + 'px ' + PEN : '600 ' + 14 * k + 'px ' + FONT;
+    const w = x.measureText(t).width + 14 * k,
+      h = (pen ? 30 : 22) * k;
     let bx = lx - (o.al == 'c' ? w / 2 : o.al == 'r' ? w : 0),
       by = ly - h / 2;
     const cl = () => {
@@ -334,7 +346,7 @@ export function createTargetPage(deps) {
     x.textBaseline = 'middle';
     if (pen) {
       x.fillStyle = o.col || '#fff';
-      x.fillText(t, bx + 7, by + h / 2 + 1);
+      x.fillText(t, bx + 7 * k, by + h / 2 + 1);
       return;
     }
     const c = o.col;
@@ -353,17 +365,17 @@ export function createTargetPage(deps) {
       x.strokeRect(bx + 0.5, by + 0.5, w - 1, h - 1);
       x.fillStyle = ls == 'red' ? '#d01818' : '#000';
     }
-    x.fillText(t, bx + 7, by + h / 2 + 1);
+    x.fillText(t, bx + 7 * k, by + h / 2 + 1);
   }
-  function tri(px, py) {
-    if (SYMS) SYMS.push([px - 12, py - 14, 24, 22]);
+  function tri(px, py, k = 1) {
+    if (SYMS) SYMS.push([px - 12 * k, py - 14 * k, 24 * k, 22 * k]);
     x.fillStyle = COL.dmpi;
     x.strokeStyle = '#fff';
-    x.lineWidth = 1.5;
+    x.lineWidth = 1.5 * k;
     x.beginPath();
-    x.moveTo(px, py - 14);
-    x.lineTo(px + 12, py + 8);
-    x.lineTo(px - 12, py + 8);
+    x.moveTo(px, py - 14 * k);
+    x.lineTo(px + 12 * k, py + 8 * k);
+    x.lineTo(px - 12 * k, py + 8 * k);
     x.closePath();
     x.fill();
     x.stroke();
@@ -1158,13 +1170,14 @@ export function createTargetPage(deps) {
     const [p1x, p1y] = toP(a.u, a.v),
       p2 = a.u2 !== undefined ? toP(a.u2, a.v2) : null,
       c = a.col || '#fff',
-      lo = { pen: a.pen, col: a.pen ? c : undefined };
+      k = szK(a.sz), // the size of the symbol: its lines, heads and texts (not its place)
+      lo = { pen: a.pen, col: a.pen ? c : undefined, k };
     x.save();
     x.lineCap = 'round';
     x.lineJoin = 'round';
     const line = (a1, b1, a2, b2, w) => {
       x.strokeStyle = c;
-      x.lineWidth = w || 2.5;
+      x.lineWidth = (w || 2.5) * k;
       x.beginPath();
       x.moveTo(a1, b1);
       x.lineTo(a2, b2);
@@ -1173,47 +1186,47 @@ export function createTargetPage(deps) {
     if (a.k == 'callout') {
       const [lx, ly] = toP(a.lu, a.lv);
       x.strokeStyle = PF.lsty == 'red' ? '#d01818' : c;
-      x.lineWidth = 2.4;
+      x.lineWidth = 2.4 * k;
       x.beginPath();
       x.moveTo(p1x, p1y);
       x.lineTo(lx, ly);
       x.stroke();
       tag(a.t, lx, ly, { ...lo, al: lx < p1x ? 'r' : 'l' });
     } else if (a.k == 'dmpi') {
-      tri(p1x, p1y);
-      tag(a.t, p1x + 16, p1y - 16, {});
+      tri(p1x, p1y, k);
+      tag(a.t, p1x + 16 * k, p1y - 16 * k, { k });
     } else if (a.k == 'num') {
       x.fillStyle = '#111';
       x.strokeStyle = '#fff';
-      x.lineWidth = 2;
+      x.lineWidth = 2 * k;
       x.beginPath();
-      x.arc(p1x, p1y, 14, 0, 7);
+      x.arc(p1x, p1y, 14 * k, 0, 7);
       x.fill();
       x.stroke();
       x.fillStyle = '#fff';
-      x.font = 'bold 16px ' + FONT;
+      x.font = 'bold ' + 16 * k + 'px ' + FONT;
       x.textAlign = 'center';
       x.textBaseline = 'middle';
       x.fillText(a.t, p1x, p1y + 1);
     } else if (a.k == 'box' && p2) {
       x.strokeStyle = c;
-      x.lineWidth = 3;
+      x.lineWidth = 3 * k;
       x.strokeRect(Math.min(p1x, p2[0]), Math.min(p1y, p2[1]), Math.abs(p2[0] - p1x), Math.abs(p2[1] - p1y));
-      if (a.t) tag(a.t, Math.min(p1x, p2[0]), Math.min(p1y, p2[1]) - 14, lo);
+      if (a.t) tag(a.t, Math.min(p1x, p2[0]), Math.min(p1y, p2[1]) - 14 * k, lo);
     } else if (a.k == 'circle' && p2) {
       x.strokeStyle = c;
-      x.lineWidth = 3;
+      x.lineWidth = 3 * k;
       x.beginPath();
       x.ellipse((p1x + p2[0]) / 2, (p1y + p2[1]) / 2, Math.abs(p2[0] - p1x) / 2, Math.abs(p2[1] - p1y) / 2, 0, 0, 7);
       x.stroke();
-      if (a.t) tag(a.t, (p1x + p2[0]) / 2, Math.max(p1y, p2[1]) + 16, { ...lo, al: 'c' });
+      if (a.t) tag(a.t, (p1x + p2[0]) / 2, Math.max(p1y, p2[1]) + 16 * k, { ...lo, al: 'c' });
     } else if (a.k == 'area' && p2) {
       const cx = (p1x + p2[0]) / 2,
         cy = (p1y + p2[1]) / 2,
         rx = Math.abs(p2[0] - p1x) / 2,
         ry = Math.abs(p2[1] - p1y) / 2;
       x.strokeStyle = c;
-      x.lineWidth = 3.5;
+      x.lineWidth = 3.5 * k;
       x.beginPath();
       x.moveTo(cx, cy - ry);
       x.lineTo(cx + rx, cy);
@@ -1223,21 +1236,23 @@ export function createTargetPage(deps) {
       x.stroke();
     } else if (a.k == 'arrow' && p2) {
       line(p1x, p1y, p2[0], p2[1], 3);
-      head(p1x, p1y, p2[0], p2[1], 16, c);
+      head(p1x, p1y, p2[0], p2[1], 16 * k, c);
       if (a.t) tag(a.t, p1x, p1y, { ...lo, al: 'r' });
     } else if (a.k == 'axis' && p2) {
       x.setLineDash([14, 8]);
       line(p1x, p1y, p2[0], p2[1], 3.5);
       x.setLineDash([]);
-      head(p1x, p1y, p2[0], p2[1], 20, c);
+      head(p1x, p1y, p2[0], p2[1], 20 * k, c);
       const hd = (Math.atan2(p2[0] - p1x, -(p2[1] - p1y)) * 180) / Math.PI - nUp(); // a heading on the ground
-      tag('RUN-IN ' + brgM(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20, {
+      tag('RUN-IN ' + brgM(hd) + (a.t ? ' · ' + a.t : ''), (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 20 * k, {
         col: c,
         al: 'c',
+        k,
       });
     } else if (a.k == 'north') {
       const r = (((a.rot || 0) + nUp()) * Math.PI) / 180; // turned by hand from the true north of the picture
       x.translate(p1x, p1y);
+      x.scale(k, k);
       x.rotate(r);
       x.fillStyle = c;
       x.strokeStyle = c;
@@ -1263,21 +1278,21 @@ export function createTargetPage(deps) {
       x.fillText('N', Math.sin(r) * 44, -Math.cos(r) * 44);
     } else if (a.k == 'scale' && p2) {
       line(p1x, p1y, p2[0], p2[1], 3.5);
-      [[p1x, p1y], p2].forEach(([qx, qy]) => line(qx, qy - 8, qx, qy + 8, 3.5));
-      x.font = 'bold 14px ' + FONT;
+      [[p1x, p1y], p2].forEach(([qx, qy]) => line(qx, qy - 8 * k, qx, qy + 8 * k, 3.5));
+      x.font = 'bold ' + 14 * k + 'px ' + FONT;
       x.fillStyle = c;
       x.textAlign = 'center';
       x.textBaseline = 'alphabetic';
-      x.fillText(a.t || '', (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 12);
-      x.fillText('0', p1x, p1y - 12);
+      x.fillText(a.t || '', (p1x + p2[0]) / 2, (p1y + p2[1]) / 2 - 12 * k);
+      x.fillText('0', p1x, p1y - 12 * k);
     } else if (a.k == 'text') {
-      x.font = a.pen ? '25px ' + PEN : 'bold 17px ' + FONT;
+      x.font = a.pen ? 25 * k + 'px ' + PEN : 'bold ' + 17 * k + 'px ' + FONT;
       x.fillStyle = c;
       x.textAlign = 'left';
       x.textBaseline = 'middle';
       if (!a.pen) {
         x.strokeStyle = 'rgba(0,0,0,.7)';
-        x.lineWidth = 3;
+        x.lineWidth = 3 * k;
         x.strokeText(a.t, p1x, p1y);
       }
       x.fillText(a.t, p1x, p1y);
@@ -1293,13 +1308,14 @@ export function createTargetPage(deps) {
     x.restore();
   }
   function bbox(a) {
-    const p = toP(a.u, a.v),
-      q = a.u2 !== undefined ? toP(a.u2, a.v2) : a.lu !== undefined ? toP(a.lu, a.lv) : [p[0] + 30, p[1] + 20];
+    const k = szK(a.sz),
+      p = toP(a.u, a.v),
+      q = a.u2 !== undefined ? toP(a.u2, a.v2) : a.lu !== undefined ? toP(a.lu, a.lv) : [p[0] + 30 * k, p[1] + 20 * k];
     return [
-      Math.min(p[0], q[0]) - 14,
-      Math.min(p[1], q[1]) - 16,
-      Math.max(p[0], q[0]) + (a.k == 'callout' || a.k == 'dmpi' || a.k == 'text' ? 120 : 14),
-      Math.max(p[1], q[1]) + 14,
+      Math.min(p[0], q[0]) - 14 * k,
+      Math.min(p[1], q[1]) - 16 * k,
+      Math.max(p[0], q[0]) + (a.k == 'callout' || a.k == 'dmpi' || a.k == 'text' ? 120 : 14) * k,
+      Math.max(p[1], q[1]) + 14 * k,
     ];
   }
   // the picture with its symbols in IMG
@@ -2297,6 +2313,11 @@ export function createTargetPage(deps) {
      ],
      PF.lsty
    )}</div>
+   <div class="tgrow" title="The size of the labels that the program writes: threats, units and names"><span class="hint">Label size</span>${seg(
+     'lsz',
+     SIZES.map(([v, l]) => [v, l]),
+     PF.lsz
+   )}</div>
    <label class="tgsl"><span>Facility</span><input type="text" class="tgfac"></label>
    <label class="tgsl tgrem"><span>Remarks</span><textarea class="tgremt" placeholder="Shown on the text page"></textarea></label>
 </div>
@@ -2314,7 +2335,14 @@ export function createTargetPage(deps) {
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
   ).join(
     ''
-  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}</span><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
+  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}<i data-col="${PF.ccol}" style="background:${PF.ccol || 'transparent'}" class="tgccol${PF.ccol && PF.ccol == col ? ' on' : ''}" title="Your colour"${PF.ccol ? '' : ' hidden'}></i><label class="tgcpk" title="Choose a different colour. The colour stays as a swatch."><input type="color" value="${PF.ccol || '#ff8c1a'}"></label></span><i class="vs"></i>${seg(
+    'sz',
+    SIZES.map(([v, l]) => [v, l]),
+    sz
+  ).replace(
+    'class="seg"',
+    'class="seg tgszs" title="The size of the symbol: its lines and its text. Select a symbol to change its size."'
+  )}<i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
   <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div></div>`;
@@ -2354,6 +2382,16 @@ export function createTargetPage(deps) {
         PF.lsty = v;
         pfSave();
         draw();
+      } else if (name == 'lsz') {
+        PF.lsz = v;
+        pfSave();
+        draw();
+      } else if (name == 'sz') {
+        sz = v;
+        if (selA >= 0 && A()[selA]) {
+          A()[selA].sz = v;
+          draw();
+        }
       } else if (name == 'pst') {
         PF.pst = v;
         PF.lsty = v == 'paper' ? 'box' : 'prog';
@@ -2399,6 +2437,17 @@ export function createTargetPage(deps) {
           draw();
         })
     );
+    // the colour picker: the colour chosen becomes the seventh swatch, chosen at once
+    const cpk = /** @type {HTMLInputElement} */ (q('.tgcpk input'));
+    cpk.oninput = () => {
+      const s = /** @type {HTMLElement} */ (q('.tgccol'));
+      PF.ccol = cpk.value;
+      s.dataset.col = cpk.value;
+      s.style.background = cpk.value;
+      s.hidden = false;
+      pfSave();
+      s.click();
+    };
     qa('[data-col]').forEach(
       i =>
         (i.onclick = () => {
@@ -2665,6 +2714,8 @@ export function createTargetPage(deps) {
       if (tool == 'select') {
         selA = hit(px, py);
         if (selA >= 0) {
+          sz = A()[selA].sz || 's'; // the size buttons show the size of the symbol chosen
+          segSet('sz', sz);
           mv = { i: selA, u, v, o: JSON.parse(JSON.stringify(A()[selA])) };
           cv.setPointerCapture(e.pointerId);
         }
@@ -2673,7 +2724,7 @@ export function createTargetPage(deps) {
       }
       if (tool == 'callout') {
         if (!pend) {
-          pend = { k: 'callout', u, v, col };
+          pend = { k: 'callout', u, v, col, sz };
           return;
         }
         const a = { ...pend, lu: u, lv: v };
@@ -2690,31 +2741,31 @@ export function createTargetPage(deps) {
       if (tool == 'dmpi') {
         const n = nextN('dmpi');
         ask(px, py, 'DMPI ' + n, t => {
-          A().push({ k: 'dmpi', u, v, t: t || 'DMPI ' + n, d: '' });
+          A().push({ k: 'dmpi', u, v, t: t || 'DMPI ' + n, d: '', sz });
           draw();
         });
         return;
       }
       if (tool == 'num') {
-        A().push({ k: 'num', u, v, t: String(nextN('num')), col });
+        A().push({ k: 'num', u, v, t: String(nextN('num')), col, sz });
         draw();
         return;
       }
       if (tool == 'text') {
         ask(px, py, '', t => {
           if (t) {
-            A().push({ k: 'text', u, v, t, col });
+            A().push({ k: 'text', u, v, t, col, sz });
             draw();
           }
         });
         return;
       }
       if (tool == 'north') {
-        drag = { k: 'north', u, v, col, rot: 0, px, py };
+        drag = { k: 'north', u, v, col, sz, rot: 0, px, py };
         cv.setPointerCapture(e.pointerId);
         return;
       }
-      drag = { k: tool, u, v, u2: u, v2: v, col };
+      drag = { k: tool, u, v, u2: u, v2: v, col, sz };
       cv.setPointerCapture(e.pointerId);
     };
     cv.onpointermove = e => {

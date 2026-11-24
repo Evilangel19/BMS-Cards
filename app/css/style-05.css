@@ -629,13 +629,13 @@ dialog[open]::backdrop {
 .drow2 .drow {
   margin: 0;
 }
+#kn #kbokb[hidden] {
+  display: none;
+}
 /* the green buttons of the squadron page (and Send card) are the green of the program, like Open or DXT1 */
 .sqw .btn.g.gn,
 .sqpop .btn.g.gn,
 .sqcrop .btn.g.gn,
-#kn #kbokb[hidden] {
-  display: none;
-}
 #kn .btn.g.gn {
   background: var(--ac);
   color: #062014;

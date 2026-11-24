@@ -574,7 +574,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-width: 36px;
+  min-width: 34px;
   height: 42px;
   border-radius: 7px;
   font-size: 9.5px;
@@ -583,7 +583,7 @@
   color: var(--tx, #e6e9ee);
   background: none;
   border: 0;
-  padding: 0 3px;
+  padding: 0 2px;
   font-family: inherit;
   transition:
     background 0.15s,
@@ -630,11 +630,11 @@
   width: 1px;
   height: 26px;
   background: var(--line);
-  margin: 0 4px;
+  margin: 0 2px;
 }
 .tgp .tgtb .tgcols {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   margin: 0 2px;
 }
 .tgp .tgthint {
@@ -652,6 +652,42 @@
   box-shadow:
     0 0 0 2px #151a21,
     0 0 0 4px #fff;
+}
+.tgp .tgtb .tgcols i[hidden] {
+  display: none;
+}
+/* the colour picker: a rainbow swatch that opens the colour window of the system */
+.tgp .tgtb .tgcpk {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #0008;
+  background: conic-gradient(#ff3b30, #f5d142, #4cc38a, #38d6f2, #7b6cff, #ff3bd4, #ff3b30);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.tgp .tgtb .tgcpk input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.tgp .tgtb .tgszs {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+}
+.tgp .tgtb .tgszs button {
+  padding: 1px 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  border-bottom: 1px solid var(--line);
+}
+.tgp .tgtb .tgszs button:nth-child(2n) {
+  border-right: 0;
+}
+.tgp .tgtb .tgszs button:nth-child(n + 3) {
+  border-bottom: 0;
 }
 /* Weapons > HARM: the SEAD / Single shot switch and the SEAD page */
 .hsub {

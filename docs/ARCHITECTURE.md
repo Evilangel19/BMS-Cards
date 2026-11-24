@@ -215,6 +215,9 @@ The method of the pages of A-G (Pop-up, HADB, TOSS, SEAD, DEAD) and A-A (DCA, QR
 
 - Formatting: Prettier (`npm run format`); lint: ESLint (`npm run lint`: no errors, no warnings).
 - Animations: see the rule below. Tests run with reduced motion unless they test an animation.
+- Texts for the user (tooltips, info, hints, warnings, messages): ASD-STE100 Simplified Technical English since 1.4.0-beta.2. Short sentences (20 words
+  or less for an instruction, 25 for a description), one instruction for each sentence, active voice, the approved words with one meaning, the
+  names of the controls as the user sees them ("Click Add a tab, then Folder."). Older texts change when they are touched.
 - Big pages are one closure on purpose (`createMap` in mapview.js, squadron.js, weaponspage.js): their inner functions share state. Do not cut them without a feature that needs it.
 
 ## Big files (terrain, 16K map)

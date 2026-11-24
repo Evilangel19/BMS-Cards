@@ -94,7 +94,7 @@ function readForm(dlg) {
     radius: rad === '' ? '' : clamp(+rad || 0, 0, 300),
     trackers: q('c-trk').value.trim(),
     tone: { bright: +q('c-tb').value, contrast: +q('c-tc').value },
-    okb: q('c-okb').value,
+    okb: /** @type {HTMLElement} */ (q('c-okb').querySelector('.on')).dataset.v,
     sat: {
       url: q('c-url').value.trim(),
       key: q('c-key').value.trim(),
@@ -185,7 +185,7 @@ export async function openSettings() {
           ? '<p class="hint" style="margin-top:6px">Saved missions go here, one folder for each.</p>'
           : '') +
         (k === 'okbDir'
-          ? '<p class="hint" style="margin-top:6px">Save to OpenKneeboard writes the kneeboard pages here, in its Left and Right folders: a Folder tab of OpenKneeboard on it shows them.</p>'
+          ? '<p class="hint" style="margin-top:6px">Save to OpenKneeboard writes the kneeboard pages to the Left and Right folders in this folder. In OpenKneeboard, add a Folder tab on this folder.</p>'
           : '') +
         '</div>'
     ).join('') +
@@ -298,19 +298,26 @@ export async function openSettings() {
     ) +
     '<div class="s-rw"><div class="tx"><div class="tt">Preview</div><p class="hint">The top of the left page of the Kneeboard row chosen: as it is, and as it is written.</p></div><button type="button" class="btn g" data-a="tonedef" title="Brightness -50, Contrast 100: the values tried in the cockpit">Default (−50 / 100)</button></div>' +
     '<div class="s-tonepv"><canvas id="c-tpv0" width="360" height="250"></canvas><canvas id="c-tpv1" width="360" height="250"></canvas></div>' +
-    '<div class="s-rw"><div class="tx"><label class="tt" for="c-okb">Save to OpenKneeboard</label><p class="hint">The button of the Kneeboard page that writes the pages as pictures for OpenKneeboard. Automatic: shown when OpenKneeboard is found on this computer (' +
+    '<div class="s-rw"><div class="tx"><div class="tt">Save to OpenKneeboard</div><p class="hint">Shows the Save to OpenKneeboard button on the Kneeboard page. Automatic: the button shows when the program finds OpenKneeboard on this computer (' +
     (OKB.settings ? 'found' : 'not found') +
-    '); Always: if it is not found but is there.</p></div><select id="c-okb" class="s-fd" style="width:auto">' +
+    '). Always: use this when the program does not find OpenKneeboard. Never: the button does not show.</p></div><span class="seg" id="c-okb">' +
     [
       ['auto', 'Automatic'],
       ['on', 'Always'],
       ['off', 'Never'],
     ]
       .map(
-        ([v, l]) => '<option value="' + v + '"' + ((kb.okb || 'auto') == v ? ' selected' : '') + '>' + l + '</option>'
+        ([v, l]) =>
+          '<button type="button" data-a="okb" data-v="' +
+          v +
+          '"' +
+          ((kb.okb || 'auto') == v ? ' class="on"' : '') +
+          '>' +
+          l +
+          '</button>'
       )
       .join('') +
-    '</select></div>' +
+    '</span></div>' +
     '</div>';
   const mission =
     top('mission', 'Mission & squadron', 'What a saved mission keeps, and how your squadron finds its pilots.').replace(
@@ -477,10 +484,10 @@ export async function openSettings() {
     }
     if (k === 'okbDir') {
       const d = v || okbDefDir();
-      if (!d) return { c: 'nf', t: 'Set it to use Save to OpenKneeboard' };
+      if (!d) return { c: 'nf', t: 'Set this folder to use Save to OpenKneeboard' };
       return (await fileExists(d))
         ? { c: 'ok', t: v ? 'Found' : 'Automatic · found' }
-        : { c: 'nf', t: 'Created at the first Save to OpenKneeboard' };
+        : { c: 'nf', t: 'The program makes this folder at the first Save to OpenKneeboard' };
     }
     if (k === 'missions') {
       const d = v || join(app, 'missions');
@@ -652,7 +659,10 @@ export async function openSettings() {
     else if (a === 'close') dlg.close();
     else if (a === 'save') save();
     else if (a === 'guidepdf') helpPdf();
-    else if (a === 'tonedef') {
+    else if (a === 'okb') {
+      b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      refresh();
+    } else if (a === 'tonedef') {
       /** @type {HTMLInputElement} */ (q('c-tb')).value = '-50';
       /** @type {HTMLInputElement} */ (q('c-tc')).value = '100';
       tonePreview();

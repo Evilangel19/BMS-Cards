@@ -327,6 +327,26 @@
     0 0 0 2px var(--br-card),
     0 0 0 4px #fff;
 }
+.brw .brtools .col[hidden] {
+  display: none;
+}
+/* the colour picker: a rainbow swatch that opens the colour window of the system */
+.brw .brtools .cpk {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px #0008;
+  background: conic-gradient(#ff3b30, #f5d142, #4cc38a, #38d6f2, #7b6cff, #ff3bd4, #ff3b30);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.brw .brtools .cpk input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
 .brw .brtools .wd {
   display: flex;
   align-items: center;

@@ -175,6 +175,12 @@ class Room {
     this.room = { v: 0, briefer: null, pens: [], follow: true };
     this.tool = 'pan';
     this.col = COLORS[0];
+    // the colour chosen with the colour picker: a sixth swatch, kept in this program
+    this.ccol = '';
+    try {
+      const c = localStorage.getItem('brccol') || '';
+      if (/^#[0-9a-f]{6}$/i.test(c)) this.ccol = c;
+    } catch (e) {}
     this.wi = 1;
     this.side = 'hostile';
     this.symk = 'trk';
@@ -1032,7 +1038,7 @@ class Room {
           ? '<span class="vs"></span>'
           : `<button class="t" data-t="${t[0]}" title="${t[1]}"><svg viewBox="0 0 24 24">${t[2]}</svg><span>${t[1]}</span></button>`
       ).join('') +
-      `<span class="vs"></span><span class="cols">${COLORS.map(c => `<button class="col" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}</span><span class="wd">${WIDTHS.map((w, i) => `<button data-w="${i}" title="${['Thin', 'Medium', 'Thick'][i]}"><i style="height:${w}px"></i></button>`).join('')}</span>`;
+      `<span class="vs"></span><span class="cols">${COLORS.map(c => `<button class="col" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<button class="col ccol" data-c="${this.ccol}" style="background:${this.ccol || 'transparent'}" title="Your colour" aria-label="Your colour"${this.ccol ? '' : ' hidden'}></button><label class="cpk" title="Choose a different colour. The colour stays as a swatch."><input type="color" value="${this.ccol || '#ff8c1a'}"></label></span><span class="wd">${WIDTHS.map((w, i) => `<button data-w="${i}" title="${['Thin', 'Medium', 'Thick'][i]}"><i style="height:${w}px"></i></button>`).join('')}</span>`;
     T.querySelectorAll('.t').forEach(
       b =>
         (b.onclick = () => {
@@ -1058,6 +1064,19 @@ class Room {
           this.setTool(k);
         })
     );
+    // the colour picker: the colour goes to the other pilots as the swatches do (#rrggbb)
+    const cpk = /** @type {HTMLInputElement} */ (T.querySelector('.cpk input'));
+    cpk.onchange = () => {
+      this.ccol = cpk.value;
+      try {
+        localStorage.setItem('brccol', this.ccol);
+      } catch (e) {}
+      const s = /** @type {HTMLElement} */ (T.querySelector('.ccol'));
+      s.dataset.c = this.ccol;
+      s.style.background = this.ccol;
+      s.hidden = false;
+      s.click();
+    };
     T.querySelectorAll('.col').forEach(
       b =>
         (b.onclick = () => {

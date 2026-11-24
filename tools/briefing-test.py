@@ -91,7 +91,12 @@ try:
         check('both are in the room, on both sides', R_(A, 'r.members.size') == 2 and R_(B, 'r.members.size') == 2 and 'Wing2' in A.inner_text('.brw .brlist') and 'Evil' in B.inner_text('.brw .brlist'))
         check('the wingman follows the view of the briefer and has no pen (drawing tools off, ruler for himself)', 'Following' in B.inner_text('.brhdr') and B.locator('.brtools [data-t=pen].dis').count() == 1 and B.locator('.brtools [data-t=ruler].solo').count() == 1 and B.locator('.brtools [data-t=clear].hide').count() == 1)
         # drawing: a pen stroke, a hostile radar track, a ruler
+        A.evaluate("()=>{const i=document.querySelector('.brtools .cpk input');i.value='#123456';i.dispatchEvent(new Event('change',{bubbles:true}))}"); A.wait_for_timeout(200)
+        check('the colour picker of the tools adds a sixth swatch, chosen', A.is_visible('.brtools .ccol') and R_(A, 'r.col') == '#123456')
         A.click('.brtools [data-t=pen]'); drag(A, (300, 300), (500, 360), 12)
+        A.wait_for_timeout(600)
+        check('...the stroke goes to the wingman in that colour', R_(B, '[...r.objs.values()].some(o=>o.col=="#123456")'))
+        A.click('.brtools .col[data-c="#f5c842"]')
         A.click('.brtools [data-t=sym]'); A.wait_for_timeout(200)
         check('the symbol palette: the four frames, the units of the map and the control measures', A.locator('.brpal [data-s]').count() == 4 and A.locator('.brpal [data-k]').count() == 24)
         A.click('.brpal [data-s=hostile]'); A.click('.brpal [data-k=trk]')
