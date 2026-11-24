@@ -5448,7 +5448,8 @@ export function createMap(host, deps) {
   // THE PICTURE OF THE MAP (html2canvas) of a box of #mpmap {x, y, width, height} ({}: all of it) at a scale: {c, warn}. A base map that cannot be exported (a
   // cross-origin picture: html2canvas leaves it blank without an error) is replaced by the offline coastlines, with a warning
   // turn: the angle of a turned screenshot frame (degrees). The picture is turned back by it to straighten the frame, so the names and labels are
-  // turned by it first, each round its point (a label of the map) or its middle (a text next to a symbol): they come out level in the card
+  // turned by it first, each round its point (a label of the map) or its middle (a text next to a symbol, a unit symbol): they come out level in
+  // the card
   async function mapPicture(box, scale, el, turn = 0) {
     const h2c = await loadH2C(),
       mp = $('mpmap');
@@ -5490,6 +5491,8 @@ export function createMap(host, deps) {
             doc.querySelectorAll('#mpmap .leaflet-marker-icon').forEach(ic => {
               const e = /** @type {HTMLElement} */ (ic);
               if (e.style.width == '0px' && !e.querySelector('svg')) rot(e, '0 0');
+              else if (e.classList.contains('nsym'))
+                rot(e, 'center'); // a unit (friendly, enemy, SAM): its symbol and name upright, as a label
               else
                 e.querySelectorAll('span, b, i.nm').forEach(t => {
                   if (!t.querySelector('svg')) rot(t, 'center');
