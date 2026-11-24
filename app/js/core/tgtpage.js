@@ -6,6 +6,7 @@
 // deps: {esc, anim(), toast(msg), points() -> Promise<{points, objs}>, features(objId) -> Promise<{feats, pct}|null>, threats() -> {sams, units},
 //   attack() -> {segs, t, hdg, egr, spd, rel, fz, wpn}|null, route() -> [{n, x, y}], info() -> {cs, mis, tot, wpn}, geoLL(x, y), pick() -> Promise<{x, y, name}|null>,
 //   mapFrame(el, [x, y], nm) -> Promise<bool>, mapDetach(), fromLL(lat, lon), kbAdd(blob, name) -> Promise<{side, row}|null>, putShot(canvas), shotDim(), prefs: {load, save}}
+import { colorPop } from './colorpop.js';
 import { inkCard, otherLook, cardDark } from './cardink.js';
 import { pickAll } from './tgdlg.js';
 import {
@@ -103,6 +104,10 @@ const SIZES = [
   ['xl', 'XL', 2],
 ];
 const szK = s => (SIZES.find(z => z[0] == s) || SIZES[0])[2];
+const szNext = s => SIZES[(SIZES.findIndex(z => z[0] == s) + 1) % SIZES.length][0];
+// the icon of the Size button: the letter of the size
+const szIcon = s =>
+  `<svg viewBox="0 0 24 24"><text x="12" y="17" text-anchor="middle" font-size="${s == 'xl' ? 11 : 14}" font-weight="700" fill="currentColor" stroke="none">${(SIZES.find(z => z[0] == s) || SIZES[0])[1]}</text></svg>`;
 const SHOWS = [
   ['dmpi', 'DMPI'],
   ['route', 'Route'],
@@ -2335,14 +2340,7 @@ export function createTargetPage(deps) {
       `<button type="button" class="t${k == tool ? ' on' : ''}" data-tool="${k}" title="${esc(k == 'select' ? 'Select and move' : k == 'axis' ? 'Attack axis' : l)}">${tico(k)}<span>${esc(l)}</span></button>`
   ).join(
     ''
-  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}<i data-col="${PF.ccol}" style="background:${PF.ccol || 'transparent'}" class="tgccol${PF.ccol && PF.ccol == col ? ' on' : ''}" title="Your colour"${PF.ccol ? '' : ' hidden'}></i><label class="tgcpk" title="Choose a different colour. The colour stays as a swatch."><input type="color" value="${PF.ccol || '#ff8c1a'}"></label></span><i class="vs"></i>${seg(
-    'sz',
-    SIZES.map(([v, l]) => [v, l]),
-    sz
-  ).replace(
-    'class="seg"',
-    'class="seg tgszs" title="The size of the symbol: its lines and its text. Select a symbol to change its size."'
-  )}<i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
+  )}<i class="vs"></i><span class="tgcols">${COLS.map(c => `<i data-col="${c}" style="background:${c}" class="${c == col ? 'on' : ''}" title="Colour"></i>`).join('')}<i data-col="${PF.ccol}" style="background:${PF.ccol || 'transparent'}" class="tgccol${PF.ccol && PF.ccol == col ? ' on' : ''}" title="Your colour"${PF.ccol ? '' : ' hidden'}></i><button type="button" class="tgcpk" title="Choose a different colour. The colour stays as a swatch."></button></span><i class="vs"></i><button type="button" class="t tgszb" title="Size of the symbol (S, M, L, XL). Click to change the size. Select a symbol to change its size.">${szIcon(sz)}<span>Size</span></button><i class="vs"></i><button type="button" class="t tgbld${PF.bld ? ' on' : ''}" title="The buildings of the objective drawn on the picture of the map (where the objective files put them)" hidden>${tico('bld')}<span>Buildings</span></button><button type="button" class="t tgundo" title="Undo">${tico('undo')}<span>Undo</span></button><button type="button" class="t er tgdel" title="Delete the symbol chosen with the select tool" disabled>${tico('del')}<span>Selected</span></button><button type="button" class="t cl tgclr" title="Delete all the symbols and notes drawn on this background">${tico('clr')}<span>Annotations</span></button></div>
   <p class="hint tgthint">${esc(HINT[tool])}</p>
   <div class="tgstage"><canvas width="${PW * 2}" height="${PH * 2}"></canvas><div class="tgmap" hidden></div><div class="tged" hidden><input type="text"><button type="button" class="btn">OK</button></div></div>
   <div class="tgbar tgcropbar" hidden><span class="hint tgcropn"></span><span class="tgsp"></span><label class="tgsl" style="margin:0"><span>Size</span><input type="range" class="tgcrops" min="12" max="100" step="1"></label><button type="button" class="btn g tgcropno">Cancel</button><button type="button" class="btn tgcropok">Put on datacard</button></div></div>`;
@@ -2386,12 +2384,6 @@ export function createTargetPage(deps) {
         PF.lsz = v;
         pfSave();
         draw();
-      } else if (name == 'sz') {
-        sz = v;
-        if (selA >= 0 && A()[selA]) {
-          A()[selA].sz = v;
-          draw();
-        }
       } else if (name == 'pst') {
         PF.pst = v;
         PF.lsty = v == 'paper' ? 'box' : 'prog';
@@ -2437,16 +2429,27 @@ export function createTargetPage(deps) {
           draw();
         })
     );
-    // the colour picker: the colour chosen becomes the seventh swatch, chosen at once
-    const cpk = /** @type {HTMLInputElement} */ (q('.tgcpk input'));
-    cpk.oninput = () => {
-      const s = /** @type {HTMLElement} */ (q('.tgccol'));
-      PF.ccol = cpk.value;
-      s.dataset.col = cpk.value;
-      s.style.background = cpk.value;
-      s.hidden = false;
-      pfSave();
-      s.click();
+    // the colour picker of the program: the colour chosen becomes the seventh swatch, chosen at once
+    const cpk = /** @type {HTMLElement} */ (q('.tgcpk'));
+    cpk.onclick = () =>
+      colorPop(cpk, PF.ccol || col, h => {
+        const s = /** @type {HTMLElement} */ (q('.tgccol'));
+        PF.ccol = h;
+        s.dataset.col = h;
+        s.style.background = h;
+        s.hidden = false;
+        pfSave();
+        s.click();
+      });
+    // Size: one button that goes S, M, L, XL, S…; for the symbol selected, else for the next one
+    const szb = /** @type {HTMLElement} */ (q('.tgszb'));
+    szb.onclick = () => {
+      sz = szNext(selA >= 0 && A()[selA] ? A()[selA].sz || 's' : sz);
+      szb.querySelector('svg').outerHTML = szIcon(sz);
+      if (selA >= 0 && A()[selA]) {
+        A()[selA].sz = sz;
+        draw();
+      }
     };
     qa('[data-col]').forEach(
       i =>
@@ -2714,8 +2717,9 @@ export function createTargetPage(deps) {
       if (tool == 'select') {
         selA = hit(px, py);
         if (selA >= 0) {
-          sz = A()[selA].sz || 's'; // the size buttons show the size of the symbol chosen
-          segSet('sz', sz);
+          sz = A()[selA].sz || 's'; // the Size button shows the size of the symbol chosen
+          const sb = q('.tgszb svg');
+          if (sb) sb.outerHTML = szIcon(sz);
           mv = { i: selA, u, v, o: JSON.parse(JSON.stringify(A()[selA])) };
           cv.setPointerCapture(e.pointerId);
         }

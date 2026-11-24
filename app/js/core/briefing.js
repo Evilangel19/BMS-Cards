@@ -6,6 +6,7 @@
 //
 // deps: {root, esc, me() -> uid, name(uid), role(uid) -> {role, lead}, online() -> [uid], send(msg), sendTo(uid, msg), attach(el) -> Promise<{L, map} | null>,
 //        detach(), shot({toast}) (the kneeboard frame of the map), copy({toast}) (the map with the drawings to the clipboard), mission() -> text, theater() -> text, toast(text), wide(bool), squad() -> id | null}
+import { colorPop } from './colorpop.js';
 import {
   NM,
   dist,
@@ -115,6 +116,10 @@ const TOOLS = [
 ];
 const COLORS = ['#f5c842', '#ef4444', '#38bdf8', '#4ade80', '#ffffff'];
 const WIDTHS = [2, 4, 7];
+const SZN = ['thin', 'medium', 'thick'];
+// the icon of the Size button: a line as thick as the size
+const szIcon = i =>
+  `<svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" style="stroke-width:${[2, 3.5, 6][i]}"/></svg>`;
 const HEARTBEAT = 2000,
   GONE = 7000,
   CUR_MS = 66,
@@ -1038,8 +1043,8 @@ class Room {
           ? '<span class="vs"></span>'
           : `<button class="t" data-t="${t[0]}" title="${t[1]}"><svg viewBox="0 0 24 24">${t[2]}</svg><span>${t[1]}</span></button>`
       ).join('') +
-      `<span class="vs"></span><span class="cols">${COLORS.map(c => `<button class="col" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<button class="col ccol" data-c="${this.ccol}" style="background:${this.ccol || 'transparent'}" title="Your colour" aria-label="Your colour"${this.ccol ? '' : ' hidden'}></button><label class="cpk" title="Choose a different colour. The colour stays as a swatch."><input type="color" value="${this.ccol || '#ff8c1a'}"></label></span><span class="wd">${WIDTHS.map((w, i) => `<button data-w="${i}" title="${['Thin', 'Medium', 'Thick'][i]}"><i style="height:${w}px"></i></button>`).join('')}</span>`;
-    T.querySelectorAll('.t').forEach(
+      `<span class="vs"></span><span class="cols">${COLORS.map(c => `<button class="col" data-c="${c}" style="background:${c}" aria-label="Colour ${c}"></button>`).join('')}<button class="col ccol" data-c="${this.ccol}" style="background:${this.ccol || 'transparent'}" title="Your colour" aria-label="Your colour"${this.ccol ? '' : ' hidden'}></button><button class="brcpk" title="Choose a different colour. The colour stays as a swatch."></button></span><span class="vs"></span><button class="t tz" title="Size of the lines and of the text. Click to change the size.">${szIcon(this.wi)}<span>Size</span></button>`;
+    T.querySelectorAll('.t[data-t]').forEach(
       b =>
         (b.onclick = () => {
           const k = b.dataset.t,
@@ -1064,19 +1069,20 @@ class Room {
           this.setTool(k);
         })
     );
-    // the colour picker: the colour goes to the other pilots as the swatches do (#rrggbb)
-    const cpk = /** @type {HTMLInputElement} */ (T.querySelector('.cpk input'));
-    cpk.onchange = () => {
-      this.ccol = cpk.value;
-      try {
-        localStorage.setItem('brccol', this.ccol);
-      } catch (e) {}
-      const s = /** @type {HTMLElement} */ (T.querySelector('.ccol'));
-      s.dataset.c = this.ccol;
-      s.style.background = this.ccol;
-      s.hidden = false;
-      s.click();
-    };
+    // the colour picker of the program: the colour goes to the other pilots as the swatches do (#rrggbb)
+    const cpk = /** @type {HTMLElement} */ (T.querySelector('.brcpk'));
+    cpk.onclick = () =>
+      colorPop(cpk, this.ccol || this.col, h => {
+        this.ccol = h;
+        try {
+          localStorage.setItem('brccol', h);
+        } catch (e) {}
+        const s = /** @type {HTMLElement} */ (T.querySelector('.ccol'));
+        s.dataset.c = h;
+        s.style.background = h;
+        s.hidden = false;
+        s.click();
+      });
     T.querySelectorAll('.col').forEach(
       b =>
         (b.onclick = () => {
@@ -1088,20 +1094,20 @@ class Room {
           }
         })
     );
-    T.querySelectorAll('.wd button').forEach(
-      b =>
-        (b.onclick = () => {
-          this.wi = +b.dataset.w;
-          this.renderTools();
-        })
-    );
+    // Size: one button that goes thin, medium, thick, thin…
+    const tz = /** @type {HTMLElement} */ (T.querySelector('.tz'));
+    tz.onclick = () => {
+      this.wi = (this.wi + 1) % WIDTHS.length;
+      tz.querySelector('svg').outerHTML = szIcon(this.wi);
+      tz.title = 'Size of the lines and of the text: ' + SZN[this.wi] + '. Click to change the size.';
+    };
     this.renderTools();
   }
   renderTools() {
     if (!this.built) return;
     if (!this.isBriefer()) this.closeWx();
     const can = this.can();
-    this.toolsEl.querySelectorAll('.t').forEach(b => {
+    this.toolsEl.querySelectorAll('.t[data-t]').forEach(b => {
       const d = TOOLS.find(t => t[0] == b.dataset.t),
         k = d[0];
       b.classList.toggle('on', k == this.tool || (k == 'curs' && !this.cursAll));
@@ -1126,7 +1132,6 @@ class Room {
               : '');
     });
     this.toolsEl.querySelectorAll('.col').forEach(b => b.classList.toggle('on', b.dataset.c == this.col));
-    this.toolsEl.querySelectorAll('.wd button').forEach(b => b.classList.toggle('on', +b.dataset.w == this.wi));
   }
   setTool(k) {
     if (this.tool == 'laser' && k != 'laser' && this.me) this.send({ t: 'las', ll: null });

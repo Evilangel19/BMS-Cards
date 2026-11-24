@@ -91,7 +91,9 @@ try:
         check('both are in the room, on both sides', R_(A, 'r.members.size') == 2 and R_(B, 'r.members.size') == 2 and 'Wing2' in A.inner_text('.brw .brlist') and 'Evil' in B.inner_text('.brw .brlist'))
         check('the wingman follows the view of the briefer and has no pen (drawing tools off, ruler for himself)', 'Following' in B.inner_text('.brhdr') and B.locator('.brtools [data-t=pen].dis').count() == 1 and B.locator('.brtools [data-t=ruler].solo').count() == 1 and B.locator('.brtools [data-t=clear].hide').count() == 1)
         # drawing: a pen stroke, a hostile radar track, a ruler
-        A.evaluate("()=>{const i=document.querySelector('.brtools .cpk input');i.value='#123456';i.dispatchEvent(new Event('change',{bubbles:true}))}"); A.wait_for_timeout(200)
+        A.click('.brtools .brcpk'); A.wait_for_timeout(200); A.evaluate("()=>{const w=document.querySelector('.cpop');const i=[...w.querySelectorAll('input')];[18,52,86].forEach((v,n)=>i[n].value=v);i[2].dispatchEvent(new Event('change'))}"); A.keyboard.press('Escape'); A.wait_for_timeout(200)
+        A.click('.brtools .tz'); A.click('.brtools .tz')
+        check('one Size button: medium, thick, thin', R_(A, 'r.wi') == 0)
         check('the colour picker of the tools adds a sixth swatch, chosen', A.is_visible('.brtools .ccol') and R_(A, 'r.col') == '#123456')
         A.click('.brtools [data-t=pen]'); drag(A, (300, 300), (500, 360), 12)
         A.wait_for_timeout(600)

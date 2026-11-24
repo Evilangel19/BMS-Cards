@@ -660,34 +660,12 @@
 .tgp .tgtb .tgcpk {
   width: 15px;
   height: 15px;
+  padding: 0;
+  border: 0;
   border-radius: 50%;
   box-shadow: 0 0 0 1px #0008;
   background: conic-gradient(#ff3b30, #f5d142, #4cc38a, #38d6f2, #7b6cff, #ff3bd4, #ff3b30);
   cursor: pointer;
-  position: relative;
-  overflow: hidden;
-}
-.tgp .tgtb .tgcpk input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
-.tgp .tgtb .tgszs {
-  display: inline-grid;
-  grid-template-columns: auto auto;
-}
-.tgp .tgtb .tgszs button {
-  padding: 1px 6px;
-  font-size: 11px;
-  line-height: 1.35;
-  border-bottom: 1px solid var(--line);
-}
-.tgp .tgtb .tgszs button:nth-child(2n) {
-  border-right: 0;
-}
-.tgp .tgtb .tgszs button:nth-child(n + 3) {
-  border-bottom: 0;
 }
 /* Weapons > HARM: the SEAD / Single shot switch and the SEAD page */
 .hsub {

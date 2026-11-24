@@ -4,9 +4,10 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
-- Added: A-G > Target, the size of the symbols (S, M, L, XL) in the tool bar: for the next symbol, or for the symbol that you select. Its lines, heads and text change, not its place.
+- Added: A-G > Target, a **Size** button in the tool bar: each click goes S, M, L, XL. It sets the size of the next symbol, or of the symbol that you select. Its lines, heads and text change, not its place.
 - Added: A-G > Target, Page card, **Label size** (S, M, L, XL) for the labels that the program writes (threats, units, names).
-- Added: a colour picker in the tool bars of A-G > Target and of the Briefing room. The colour that you choose stays as a swatch; in the Briefing room it goes to the other pilots as the other colours do.
+- Added: the colour picker of the program (as on the Map page) in the tool bars of A-G > Target and of the Briefing room. The colour that you choose stays as a swatch; in the Briefing room it goes to the other pilots as the other colours do.
+- Changed: Briefing room, one **Size** button (thin, medium, thick) in place of the three width buttons.
 - Changed: Settings > Kneeboard, Save to OpenKneeboard is a three-way switch (Automatic, Always, Never) in the colours of the program; the texts of Save to OpenKneeboard use Simplified Technical English (ASD-STE100), as all the new texts of the program.
 - Fixed (1.4.0-beta.1): the green buttons of the Squadron page and of the Briefing room (Join the room, Open the room) did not show.
 - Added: Kneeboard > **Save to OpenKneeboard**: the pages of the kneeboard as PNG pictures at their true shape (the datacard pages at 1600 x 2400), in the Left and Right folders of Saved Games\BMS Cards\OpenKneeboard (or the folder of Settings > Folders); the pages written before are taken away. A Folder tab of OpenKneeboard on that folder shows them and follows every save. The button shows when OpenKneeboard is found on the computer; Settings > Kneeboard can show it always or never.
