@@ -15,6 +15,14 @@ export async function detectBms() {
     return '';
   }
 }
+// OpenKneeboard: [its settings folder when it is installed, the Saved Games folder of the user] (only looked for, see src-tauri)
+export async function findOkb() {
+  try {
+    return (await T().core.invoke('find_okb')) || [null, null];
+  } catch (e) {
+    return [null, null];
+  }
+}
 // a piece of an .exe (the file plugin does not open executables, see src-tauri/capabilities): through a small command of the program
 export async function readExeRange(path, offset, len) {
   const a = await T().core.invoke('read_exe_range', { path, offset, len });

@@ -14,6 +14,7 @@ export const PATH_LABELS = {
   dtc: 'DTC folder',
   kneeboardDir: 'Kneeboard DDS folder',
   missions: 'Missions folder',
+  okbDir: 'OpenKneeboard folder',
 };
 export const lower = s => String(s).toLowerCase();
 /** Two paths are the same place (Windows ignores the case and accepts both separators) */

@@ -633,6 +633,9 @@ dialog[open]::backdrop {
 .sqw .btn.g.gn,
 .sqpop .btn.g.gn,
 .sqcrop .btn.g.gn,
+#kn #kbokb[hidden] {
+  display: none;
+}
 #kn .btn.g.gn {
   background: var(--ac);
   color: #062014;

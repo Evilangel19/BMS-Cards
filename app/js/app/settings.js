@@ -17,7 +17,7 @@ import { ST } from './state.js';
 import { $, animOn, applyAnim, esc, osNoMotion } from './base.js';
 import { campDir, dtcDir, fillCampaigns, selectCampaign } from './campaign.js';
 import { verCheck } from './ready.js';
-import { kbDir, kbMemLoad, kbRender, kbToneSample } from './kneeboard.js';
+import { kbDir, kbMemLoad, kbRender, kbToneSample, OKB, okbDefDir, okbSync } from './kneeboard.js';
 import { toneRGBA } from '../core/tone.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
@@ -36,8 +36,14 @@ export const CFG_PATHS = [
   ['dtc', 'DTC folder'],
   ['kneeboardDir', 'Kneeboard DDS folder'],
   ['missions', 'Missions folder'],
+  ['okbDir', 'OpenKneeboard folder'],
 ];
-export const AUTO_HINT = { campaigns: () => campDir(), dtc: () => dtcDir(), kneeboardDir: () => kbDir() };
+export const AUTO_HINT = {
+  campaigns: () => campDir(),
+  dtc: () => dtcDir(),
+  kneeboardDir: () => kbDir(),
+  okbDir: () => okbDefDir(),
+};
 // start-up option: the last DTC and the last campaign / tactical engagement are opened again (desktop app)
 export async function autoLoadLast() {
   const u = ST.CFG.ui || {};
@@ -88,6 +94,7 @@ function readForm(dlg) {
     radius: rad === '' ? '' : clamp(+rad || 0, 0, 300),
     trackers: q('c-trk').value.trim(),
     tone: { bright: +q('c-tb').value, contrast: +q('c-tc').value },
+    okb: q('c-okb').value,
     sat: {
       url: q('c-url').value.trim(),
       key: q('c-key').value.trim(),
@@ -101,7 +108,7 @@ const OF = {
   folders: v => v.paths,
   general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot, v.sw.editTrain],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
-  kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone],
+  kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone, v.okb],
   mission: v => [v.radius, v.trackers],
   map: v => [v.sw.sat, v.sat],
 };
@@ -135,7 +142,9 @@ export async function openSettings() {
       ? 'C:\\Games\\Falcon BMS 4.38'
       : k === 'missions'
         ? 'default: ' + (app ? join(app, 'missions') : 'the missions folder next to BMS-Cards.exe')
-        : 'automatic: ' + (AUTO_HINT[k]() || 'set the BMS install folder');
+        : k === 'okbDir'
+          ? 'automatic: ' + (okbDefDir() || 'Saved Games\\BMS Cards\\OpenKneeboard')
+          : 'automatic: ' + (AUTO_HINT[k]() || 'set the BMS install folder');
   const nav = (id, label, icon, extra = '') =>
     '<button type="button" class="s-nv" data-a="go" data-p="' +
     id +
@@ -174,6 +183,9 @@ export async function openSettings() {
           : '') +
         (k === 'missions'
           ? '<p class="hint" style="margin-top:6px">Saved missions go here, one folder for each.</p>'
+          : '') +
+        (k === 'okbDir'
+          ? '<p class="hint" style="margin-top:6px">Save to OpenKneeboard writes the kneeboard pages here, in its Left and Right folders: a Folder tab of OpenKneeboard on it shows them.</p>'
           : '') +
         '</div>'
     ).join('') +
@@ -286,6 +298,19 @@ export async function openSettings() {
     ) +
     '<div class="s-rw"><div class="tx"><div class="tt">Preview</div><p class="hint">The top of the left page of the Kneeboard row chosen: as it is, and as it is written.</p></div><button type="button" class="btn g" data-a="tonedef" title="Brightness -50, Contrast 100: the values tried in the cockpit">Default (−50 / 100)</button></div>' +
     '<div class="s-tonepv"><canvas id="c-tpv0" width="360" height="250"></canvas><canvas id="c-tpv1" width="360" height="250"></canvas></div>' +
+    '<div class="s-rw"><div class="tx"><label class="tt" for="c-okb">Save to OpenKneeboard</label><p class="hint">The button of the Kneeboard page that writes the pages as pictures for OpenKneeboard. Automatic: shown when OpenKneeboard is found on this computer (' +
+    (OKB.settings ? 'found' : 'not found') +
+    '); Always: if it is not found but is there.</p></div><select id="c-okb" class="s-fd" style="width:auto">' +
+    [
+      ['auto', 'Automatic'],
+      ['on', 'Always'],
+      ['off', 'Never'],
+    ]
+      .map(
+        ([v, l]) => '<option value="' + v + '"' + ((kb.okb || 'auto') == v ? ' selected' : '') + '>' + l + '</option>'
+      )
+      .join('') +
+    '</select></div>' +
     '</div>';
   const mission =
     top('mission', 'Mission & squadron', 'What a saved mission keeps, and how your squadron finds its pilots.').replace(
@@ -450,6 +475,13 @@ export async function openSettings() {
         ver = b && b.version && v === C.paths.bmsInstall ? ' · Falcon BMS ' + b.version : '';
       return { c: 'ok', t: 'Found' + ver };
     }
+    if (k === 'okbDir') {
+      const d = v || okbDefDir();
+      if (!d) return { c: 'nf', t: 'Set it to use Save to OpenKneeboard' };
+      return (await fileExists(d))
+        ? { c: 'ok', t: v ? 'Found' : 'Automatic · found' }
+        : { c: 'nf', t: 'Created at the first Save to OpenKneeboard' };
+    }
     if (k === 'missions') {
       const d = v || join(app, 'missions');
       return (await fileExists(d))
@@ -524,6 +556,7 @@ export async function openSettings() {
       toneBright: v.tone.bright,
       toneContrast: v.tone.contrast,
       toneDark: v.sw.toneDark,
+      okb: v.okb,
     };
     n.mission = {
       ...(n.mission || {}),
@@ -543,7 +576,8 @@ export async function openSettings() {
       for (const [k, lab] of CFG_PATHS) {
         const p = n.paths[k];
         // the missions folder is made when the first mission is saved
-        if (k != 'missions' && p && p !== ST.CFG.paths[k] && !(await fileExists(p))) missing.push(lab + ': ' + p);
+        if (k != 'missions' && k != 'okbDir' && p && p !== ST.CFG.paths[k] && !(await fileExists(p)))
+          missing.push(lab + ': ' + p);
       }
       if (
         missing.length &&
@@ -576,6 +610,7 @@ export async function openSettings() {
         } catch (e) {}
       }
       applyAnim();
+      okbSync();
       if (trk) sqPage.restart();
       try {
         mapV.rebase();

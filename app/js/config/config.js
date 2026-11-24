@@ -7,6 +7,7 @@ export const DEFAULTS = {
     dtc: '', // folder opened by "Open DTC"
     kneeboardDir: '', // where the kneeboard DDS files go (empty = BMS Data\TerrData\Objects\KoreaObj)
     missions: '', // folder where the mission folders are made (empty = "missions" next to the program)
+    okbDir: '', // where Save to OpenKneeboard writes the pages, in Left and Right folders (empty = Saved Games\BMS Cards\OpenKneeboard)
   },
   ui: {
     animations: true, // short transitions and animations (also off when the system asks for reduced motion)
@@ -25,6 +26,7 @@ export const DEFAULTS = {
     toneBright: -50, // Brightness as in Photoshop (-100 … 100)
     toneContrast: 100, // Contrast as in Photoshop (-50 … 100)
     toneDark: false, // true = also on the dark pages (the dark cards)
+    okb: 'auto', // the Save to OpenKneeboard button: 'auto' = when OpenKneeboard is found, 'on' = always, 'off' = never
   },
   mission: {
     radiusNm: 60, // a mission file keeps the units and flights within this distance of the route (the support flights of the datacard are always kept)

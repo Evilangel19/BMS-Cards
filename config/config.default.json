@@ -5,7 +5,8 @@
     "campaigns": "",
     "dtc": "",
     "kneeboardDir": "",
-    "missions": ""
+    "missions": "",
+    "okbDir": ""
   },
   "ui": {
     "animations": true,
@@ -23,7 +24,8 @@
     "toneOn": true,
     "toneBright": -50,
     "toneContrast": 100,
-    "toneDark": false
+    "toneDark": false,
+    "okb": "auto"
   },
   "mission": {
     "radiusNm": 60

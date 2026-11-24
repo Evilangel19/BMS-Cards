@@ -99,16 +99,16 @@ The tabs were renamed in 1.3 (Weapons is **A-G**, BVR is **A-A**, with **DCA**, 
 Only what the pilot reads changed. The names in the code, in the files the program writes and in the browser storage stayed, so that the missions, the
 preferences and the tests of before still work. Use this table to find a page in the code:
 
-| Shown | In the code |
-| --- | --- |
-| A-G tab | `data-t="wp"`, `<section id="wp">`, `ST.wpPage` (`core/weaponspage.js`), body class `onwp`, mission field `weapons.wp`, the HARM tab `weapons.harm` / `sead` / `dead` |
-| A-A tab | `data-t="ms"`, `<section id="ms">`, body class `onms`; its tabs `#bvrtabs` (`data-bsub`), `ST.bvrPage` (render / leave), `ST.bvrGo(key)` (open a tab from another page), the tab shown `localStorage['aasub']` (init13 in `app/pages.js`) |
-| A-A > DCA | tab key `faor`, `faorPage` (`core/faorpage.js`, root `#fapage`), the geometry `core/faor.js`, `faorCtx` / `faorDeps` in `app/pages.js`, map layer `fa` (Display > DCA), mission field `weapons.faor`, `sessionStorage['dca1']`, `localStorage['faorcardkinds']`, body class `onfaor` (DCA or OCA shown) |
-| A-A > DCA, a QRA flight | the same tab (key `faor`): `dcaPage()` in `app/pages.js` gives `qraPage` (`core/qrapage.js`, root `#qrpage`) for a QRA flight, else `faorPage`; the geometry `core/qra.js`, `qraCtx` in `app/pages.js`, drawn by the map layer `fa`, mission field `weapons.qra`, `sessionStorage['qra1']`, `localStorage['qracardkinds']` |
-| A-A > OCA | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']` |
-| A-A > Timeline | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>` |
-| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA, QRA and OCA: an OCA block has `pos`, `ta`), `cleanFaor` / `faorLines` / `faorBox` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js` |
-| The A-G block of the ROE | `sel.ag` in `core/roesop.js` (kind POP-UP, HADB, TOSS, SEAD, DEAD), `cleanAg` / `agLines` / `agAttack` in `core/agrules.js`, `roeAgSet` in `app/roepage.js` (both blocks through `blockSet`), `agDeps` in `app/pages.js`, `ST.agGo(block)` (Edit in A-G) |
+| Shown                    | In the code                                                                                                                                                                                                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A-G tab                  | `data-t="wp"`, `<section id="wp">`, `ST.wpPage` (`core/weaponspage.js`), body class `onwp`, mission field `weapons.wp`, the HARM tab `weapons.harm` / `sead` / `dead`                                                                                                                                                      |
+| A-A tab                  | `data-t="ms"`, `<section id="ms">`, body class `onms`; its tabs `#bvrtabs` (`data-bsub`), `ST.bvrPage` (render / leave), `ST.bvrGo(key)` (open a tab from another page), the tab shown `localStorage['aasub']` (init13 in `app/pages.js`)                                                                                  |
+| A-A > DCA                | tab key `faor`, `faorPage` (`core/faorpage.js`, root `#fapage`), the geometry `core/faor.js`, `faorCtx` / `faorDeps` in `app/pages.js`, map layer `fa` (Display > DCA), mission field `weapons.faor`, `sessionStorage['dca1']`, `localStorage['faorcardkinds']`, body class `onfaor` (DCA or OCA shown)                    |
+| A-A > DCA, a QRA flight  | the same tab (key `faor`): `dcaPage()` in `app/pages.js` gives `qraPage` (`core/qrapage.js`, root `#qrpage`) for a QRA flight, else `faorPage`; the geometry `core/qra.js`, `qraCtx` in `app/pages.js`, drawn by the map layer `fa`, mission field `weapons.qra`, `sessionStorage['qra1']`, `localStorage['qracardkinds']` |
+| A-A > OCA                | tab key `oca`, `ocaPage` (`core/ocapage.js`, root `#ocpage`), the geometry `core/oca.js`, `ocaCtx` in `app/pages.js`, map layer `oc` (Display > OCA), mission field `weapons.oca`, `sessionStorage['oca1']`, `localStorage['ocacardkinds']`                                                                                |
+| A-A > Timeline           | tab key `tl`, `ST.msPage` (`core/missilespage.js` with `only: 'bvr'`, root `#bvrtl`), `bvrprefs.json`, mission field `weapons.bvr`, the datacard cells `bv<row>_<col>`                                                                                                                                                     |
+| The A-A block of the ROE | `sel.faor` in `core/roesop.js` (DCA, QRA and OCA: an OCA block has `pos`, `ta`), `cleanFaor` / `faorLines` / `faorBox` in `core/faor.js`, `roeFaorSet` / `roeOfFlight` in `app/roepage.js`                                                                                                                                 |
+| The A-G block of the ROE | `sel.ag` in `core/roesop.js` (kind POP-UP, HADB, TOSS, SEAD, DEAD), `cleanAg` / `agLines` / `agAttack` in `core/agrules.js`, `roeAgSet` in `app/roepage.js` (both blocks through `blockSet`), `agDeps` in `app/pages.js`, `ST.agGo(block)` (Edit in A-G)                                                                   |
 
 - **One plan, three drawings** (`core/aakit.js`): a page of A-A describes its plan once as a list of shapes in km (`spec()`: poly, ring, dot, label, arrow, each
   with an `ink` for the Smart card) and the same list is drawn on the Leaflet map (`drawLeaflet`: the page and Display > DCA / OCA), in the pixels of the
@@ -178,6 +178,15 @@ The method of the pages of A-G (Pop-up, HADB, TOSS, SEAD, DEAD) and A-A (DCA, QR
    - the cards: classic (`core/aacard.js` or the card of the page) with the picture of the map, Smart, and the module of the Smart mission card;
    - a browser test `tools/<page>-test.py` with a made-up context, screenshots looked at before the commit.
 6. **Then** the docs (this file: the names in the code; BETALOG, CHANGELOG, the guide) and the version.
+
+## OpenKneeboard
+
+- Only files are written: Save to OpenKneeboard (`okbSave` in app/kneeboard.js) puts one PNG for each page into `Left\` and `Right\` of the folder
+  (`paths.okbDir`, else `Saved Games\BMS Cards\OpenKneeboard`), named `NN name.png`; the files of that pattern are removed first, the others are left.
+  A page has its true shape: the datacard pages go back from 1024 x 2048 to 1600 x 2400 (2:3), a picture keeps its size (at most 4096); no Cockpit tone.
+- The program looks for OpenKneeboard and does nothing else with it: `find_okb` (src-tauri) reads the SettingsPath that OpenKneeboard writes in
+  `HKCU\Software\Fred Emmott\OpenKneeboard`, else `Saved Games\OpenKneeboard`. `kneeboard.okb` ('auto' / 'on' / 'off') shows the button.
+- OpenKneeboard is GPLv2: none of its code is used or shipped.
 
 ## Docs page
 

@@ -24,8 +24,11 @@ import {
   writeBytes,
   saveBlob as saveFile,
   makeDir,
+  removeFile,
   loadPrefs,
   savePrefs,
+  saveConfig,
+  findOkb,
 } from '../platform/desktop.js';
 import { pdfOpen, pdfRender, pdfRenderTo, pdfPageText } from '../platform/pdf.js';
 import * as PJ from '../core/mission.js';
@@ -946,7 +949,7 @@ export function kbRender(keepMenu) {
 #kbmenu{position:fixed;z-index:50;width:240px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;box-shadow:0 8px 24px #000a}#kbmenu .mh{font-weight:600}#kbmenu .mc{display:grid;grid-template-columns:36px 1fr 36px;gap:6px;align-items:center;text-align:center}#kbmenu .mc span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}</style>
  <div class="bar" style="margin:0 0 6px;padding-bottom:10px;border-bottom:1px solid var(--line)"><button class="btn g" id="kbinfo" title="How the kneeboard page works">ⓘ Info</button><button class="btn g bl nil" id="kbsend" title="Click a picture card, then send it to the pilots of your squadron">Send card…</button><button class="btn g kblk nil" id="kblk" title="Click a card made by the program or a datacard page, then switch it between light and dark">☀</button><span id="kballw" style="margin-left:auto"><button class="btn g" id="kball" title="All the cards the program can make for the flight (SEAD or DEAD, Attack, Weather, Target, ROE / SOP): first Classic or Smart, then chosen on their pictures and put into the Kneeboard">＋ Add all cards…</button><span id="kballk" hidden><button class="btn g" data-kball="classic" title="The cards of the pages, as before">Classic</button><button class="btn g" data-kball="smart" title="The Smart cards: the look of a smart card, and the mission cards">Smart</button></span></span><span class="dlg" style="margin-left:auto"><button class="btn${KBFMT == 'dxt1' ? '' : ' g'}" id="kbf1" title="DXT1: what BMS needs">DXT1</button><button class="btn${KBFMT == 'dxt5' ? '' : ' g'}" id="kbf5" title="DXT5 with mipmaps">DXT5 + mipmaps</button></span><button class="btn${cardDark() ? '' : ' g'}" id="kbcd" style="margin-left:10px" title="The look of the cards made from now on (SEAD, DEAD, Attack, Weather, Target, ROE / SOP) and of the datacard pages: light or dark. The cards already on the kneeboard change with it, except those switched one by one with the ☀ / ☾ button.">${cardDark() ? '☾ Dark cards' : '☀ Light cards'}</button></div>
  <div class="kbw${DM ? ' kbdrag' : ''}">${grid('left', '<button class="btn g bl" id="kbdef" title="Remember the current cards as the default arrangement (once missions exist, a backup copy is also kept in the mission folder)">Set Default</button><button class="btn" id="kbldef" title="Put the cards back as saved with Set Default">Load</button><button class="btn g rd" id="kbclr" title="Take every card off the kneeboard">🗑 Clear kneeboard</button>')}<div class="kbm"><canvas id="kbpv" width="1024" height="1024"></canvas><div id="kbcap" class="hint" style="margin-top:6px"></div>
- <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
+ <div class="kbx">${DM ? '<button class="btn" id="kbimp" title="Add pictures (jpg, png, webp) or the pages of a PDF to the unused cards">📥 Import images…</button>' : ''}<label class="hint"><input type="checkbox" id="kbfit" style="width:auto"${KBFIT ? ' checked' : ''}> Keep page proportions (otherwise images are stretched over the page)</label></div>${tray}<div id="kbst" class="hint" style="margin-top:10px;min-height:1.3em"></div><div id="kbprog"><i></i></div></div>${grid('right', '<button class="btn g" id="kbrest" title="Put back the original BMS files (backups are kept in the program folder)">↺ Restore</button><button class="btn g" id="kbokb" title="The pages as pictures for OpenKneeboard (Left and Right folders): a Folder tab of OpenKneeboard on that folder follows every save" hidden>Save to OpenKneeboard</button><button class="btn" id="kbsave">Save to BMS folder</button>')}</div>
 `;
   const pickCard = c => {
     KBCARD = c && c.kind == 'pic' && c.item ? c.item : c && (c.kind == 'dcl' || c.kind == 'dcr') ? KBDC : null;
@@ -1130,6 +1133,8 @@ export function kbRender(keepMenu) {
   };
   $('kbrest').onclick = kbRestore;
   $('kbsave').onclick = kbSave;
+  $('kbokb').onclick = okbSave;
+  okbSync();
   if ($('kbimp'))
     $('kbimp').onclick = async () => {
       const fs = await pickFiles({
@@ -1570,6 +1575,151 @@ export async function kbSave() {
   $('kbsave').disabled = false;
 }
 
+// ---- OpenKneeboard: the pages as PNG files in a folder (Left\, Right\) that a "Folder" tab of OpenKneeboard shows and reloads by itself.
+// Nothing else is done with OpenKneeboard: it is only looked for (find_okb: its settings folder), to show the button.
+export const OKB = { settings: '', saved: '' };
+export async function okbFind() {
+  const [s, v] = await findOkb();
+  OKB.settings = s || '';
+  OKB.saved = v || '';
+  okbSync();
+}
+// Settings > Kneeboard: 'auto' = the button when OpenKneeboard is found, 'on' = always, 'off' = never
+export const okbOn = () => {
+  const m = (ST.CFG.kneeboard && ST.CFG.kneeboard.okb) || 'auto';
+  return isDesktop() && (m == 'on' || (m == 'auto' && !!OKB.settings));
+};
+export const okbDefDir = () => (OKB.saved ? joinPath(joinPath(OKB.saved, 'BMS Cards'), 'OpenKneeboard') : '');
+export const okbDir = () => ST.CFG.paths.okbDir || okbDefDir();
+export function okbSync() {
+  const b = $('kbokb');
+  if (b) b.hidden = !okbOn();
+}
+const OKB_OURS = /^\d\d [^\\/]*\.png$/i; // the files written here (the others in the folders are left alone)
+const okbName = (i, sl) =>
+  String(i + 1).padStart(2, '0') +
+  ' ' +
+  (kbName(sl)
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 60) || 'Page') +
+  '.png';
+// a page at its true shape: the datacard pages (800 x 1200 page units, stretched to 1024 x 2048 for BMS) back to 2:3 at 1600 x 2400; a picture
+// (the cards of the program are 1600 x 2400) at its own size, at most 4096. No Cockpit tone: OpenKneeboard is not lit by the cockpit.
+function okbPage(sl) {
+  const c = document.createElement('canvas'),
+    x = c.getContext('2d');
+  x.imageSmoothingQuality = 'high';
+  if (sl.kind == 'dcl' || sl.kind == 'dcr') {
+    c.width = 1600;
+    c.height = 2400;
+    x.drawImage(kbDcPages(), sl.kind == 'dcl' ? 0 : 1024, 0, 1024, 2048, 0, 0, 1600, 2400);
+    return c;
+  }
+  const it = sl.item,
+    im = it && (it.src || it.mid);
+  if (!im) return null;
+  const k = Math.min(1, 4096 / Math.max(it.w, it.h));
+  c.width = Math.round(it.w * k);
+  c.height = Math.round(it.h * k);
+  x.fillStyle = '#fff';
+  x.fillRect(0, 0, c.width, c.height);
+  x.drawImage(im, 0, 0, c.width, c.height);
+  return c;
+}
+export async function okbSave() {
+  if (!$('kbokb')) kbRender();
+  const dir = okbDir(),
+    st = $('kbst'),
+    first = !ST.CFG.paths.okbDir,
+    pages = [];
+  KBS.forEach((r, i) =>
+    ['left', 'right'].forEach(s => {
+      const sl = r[s];
+      if (sl.kind == 'dcl' || sl.kind == 'dcr' || (sl.kind == 'pic' && sl.item)) pages.push({ i, s, sl });
+    })
+  );
+  if (!pages.length) return alert('The kneeboard is empty: there is no page to write.', 'bad');
+  if (!dir) return alert('Set the OpenKneeboard folder in Settings > Folders first.', 'bad');
+  if (
+    pages.some(p => p.sl.kind != 'pic') &&
+    dcEmpty() &&
+    !(await confirm(
+      'The datacard is empty: its pages would be blank.\n\nChoose a flight (Datacard tab) first, or write the pages anyway?\n\nOK = write anyway, Cancel = go back.'
+    ))
+  )
+    return;
+  if (
+    first &&
+    !(await confirm(
+      'Write the ' +
+        pages.length +
+        ' pages of the kneeboard as pictures to:\n' +
+        dir +
+        '\n\n(in its Left and Right folders; another folder can be chosen in Settings > Folders)\n\nIn OpenKneeboard, add once a Folder tab on this folder: it then shows every save by itself.'
+    ))
+  )
+    return;
+  const b = $('kbokb'),
+    bid = busyStart('Writing the pages for OpenKneeboard…', true);
+  b.disabled = true;
+  let done = 0;
+  try {
+    draw();
+    ST.KBG = null;
+    await kbDecodeUsed();
+    // the pages written last time go first: a page taken off the kneeboard does not stay in OpenKneeboard
+    for (const side of ['Left', 'Right']) {
+      const d = joinPath(dir, side);
+      await makeDir(d);
+      for (const e of await listDir(d))
+        if (!e.isDirectory && OKB_OURS.test(e.name)) await removeFile(joinPath(d, e.name));
+    }
+    for (const p of pages) {
+      const msg = 'Writing page ' + (done + 1) + ' of ' + pages.length + '…';
+      st.textContent = msg;
+      busySet(bid, (done / pages.length) * 100, msg);
+      await new Promise(r => setTimeout(r, 20));
+      const c = okbPage(p.sl);
+      if (c) {
+        const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+        await writeBytes(
+          joinPath(joinPath(dir, p.s == 'left' ? 'Left' : 'Right'), okbName(p.i, p.sl)),
+          new Uint8Array(await blob.arrayBuffer())
+        );
+      }
+      done++;
+    }
+    st.textContent = 'Done: ' + done + ' page(s) written for OpenKneeboard.';
+    if (first) {
+      ST.CFG = { ...ST.CFG, paths: { ...ST.CFG.paths, okbDir: dir } };
+      await saveConfig(ST.CFG);
+      try {
+        await navigator.clipboard.writeText(dir);
+      } catch (e) {}
+      alert(
+        done +
+          ' page(s) written. In OpenKneeboard: Settings > Tabs > Add a tab > Folder, and choose this folder (its path is in the clipboard):\n\n' +
+          dir
+      );
+    } else appToast('OpenKneeboard: ' + done + ' page(s) written.');
+  } catch (e) {
+    st.textContent = '';
+    alert(
+      'Could not write the pages for OpenKneeboard: ' +
+        ((e && e.message) || e) +
+        '\n\n' +
+        done +
+        ' page(s) were written before the error.',
+      'bad'
+    );
+  } finally {
+    busyEnd(bid);
+    b.disabled = false;
+  }
+}
+
 // run 17: statements that run when the program starts (in the order of the original file)
 // ---- "Kneeboard not saved": what the kneeboard would write now (the cards in the slots, the format, the files of the aircraft and, when the datacard pages are
 // on it, the datacard as it is drawn) against what the last Save wrote. Kept between sessions (kbsaved.json), so the same mission opened again is not "not saved".
@@ -1662,6 +1812,7 @@ function kbWarn() {
   if (sv) sv.classList.toggle('nil', !u);
 }
 export function kbWatch() {
+  if (isDesktop()) okbFind().catch(() => {});
   // the look of the cards (Light / Dark cards) is kept in a file of the program too: the browser storage of the desktop app is not reliable at start
   loadPrefs('cardlook.json')
     .then(async o => {

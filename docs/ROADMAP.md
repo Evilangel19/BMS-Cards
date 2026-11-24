@@ -79,7 +79,7 @@ This file says what the program does today, how far each part has been checked, 
 - **For 1.4, a turned picture of the Map page**: Copy, the picture for the briefing and the map box of the datacard turned by an angle
   that the pilot chooses (the course of a leg, the attack heading): a wider area taken north up, turned and cropped, with the labels and the
   names turned with the map. The map of the page itself does not turn (Leaflet has no rotation of its own).
-- **For 1.4, export to OpenKneeboard**: the cards of the Kneeboard written as PNG files at full size into a folder that the pilot chooses
+- **For 1.4, export to OpenKneeboard** (done in 1.4.0-beta.1): the cards of the Kneeboard written as PNG files at full size into a folder that the pilot chooses
   (`Left/01 ….png`, `Right/01 ….png`, the order of the pages), light or dark; an OpenKneeboard "Folder" tab pointed there reloads by itself at
   every save. Only files are written (OpenKneeboard is GPLv2, none of its code is used); the third-party cards are exported as the DDS save
   already does.

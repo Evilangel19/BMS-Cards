@@ -37,6 +37,38 @@ fn read_exe_range(path: String, offset: u64, len: usize) -> Result<Vec<u8>, Stri
     Ok(buf)
 }
 
+/// OpenKneeboard: only where it is, nothing else. `settings` is its settings folder when it is installed (the SettingsPath it writes in the
+/// registry at start, else Saved Games\OpenKneeboard), `saved` the Saved Games folder of the user (where the pages are written by default).
+/// Returned as [settings, saved].
+#[tauri::command]
+fn find_okb() -> (Option<String>, Option<String>) {
+    let saved = std::env::var("USERPROFILE").ok().map(|h| PathBuf::from(h).join("Saved Games")).filter(|p| p.is_dir());
+    let mut settings: Option<String> = None;
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        let out = std::process::Command::new("reg")
+            .args(["query", r"HKCU\Software\Fred Emmott\OpenKneeboard", "/v", "SettingsPath"])
+            .creation_flags(0x08000000) // no console window
+            .output();
+        if let Ok(o) = out {
+            let text = String::from_utf8_lossy(&o.stdout).to_string();
+            for line in text.lines() {
+                if let Some(pos) = line.find("REG_SZ") {
+                    let v = line[pos + 6..].trim().trim_end_matches('\\').to_string();
+                    if !v.is_empty() && PathBuf::from(&v).is_dir() {
+                        settings = Some(v);
+                    }
+                }
+            }
+        }
+    }
+    if settings.is_none() {
+        settings = saved.as_ref().map(|s| s.join("OpenKneeboard")).filter(|p| p.is_dir()).map(|p| p.to_string_lossy().to_string());
+    }
+    (settings, saved.map(|p| p.to_string_lossy().to_string()))
+}
+
 /// Looks for a Falcon BMS installation: first the installer's registry entry, then the usual folders.
 /// Returns the folder that contains "Data" (e.g. C:\Falcon BMS 4.38), or nothing.
 #[tauri::command]
@@ -109,7 +141,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![app_dir, detect_bms, read_exe_range])
+        .invoke_handler(tauri::generate_handler![app_dir, detect_bms, find_okb, read_exe_range])
         .run(tauri::generate_context!())
         .expect("error while running BMS Cards");
 }

@@ -2,6 +2,10 @@
 
 What changed for the people who use BMS Cards, version by version. The detailed log of every beta (with the reasons and the tests) is in the git log of the `dev` branch.
 
+## 1.4.0 (not released yet)
+
+- Added: Kneeboard > **Save to OpenKneeboard**: the pages of the kneeboard as PNG pictures at their true shape (the datacard pages at 1600 x 2400), in the Left and Right folders of Saved Games\BMS Cards\OpenKneeboard (or the folder of Settings > Folders); the pages written before are taken away. A Folder tab of OpenKneeboard on that folder shows them and follows every save. The button shows when OpenKneeboard is found on the computer; Settings > Kneeboard can show it always or never.
+
 ## 1.3.0 (2026-11-22)
 
 ### Highlights
