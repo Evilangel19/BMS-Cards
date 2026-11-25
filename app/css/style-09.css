@@ -1045,12 +1045,45 @@
 }
 .rsq .rstool {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px 8px;
+}
+/* the buttons keep their size: they never shrink nor wrap their text; the hint takes the space that stays */
+.rsq .rstool > * {
+  flex: none;
+}
+.rsq .rstool > .hint {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.rsq .rstool .btn,
+.rsq .rstool .seg button {
+  white-space: nowrap;
 }
 .rsq .rstool .btn {
-  padding: 4px 10px;
+  padding: 5px 12px;
   font-size: 12px;
+}
+/* AUTO / MANUAL: the main switch of the sub-page */
+.rsq .rstool .seg.main button {
+  padding: 5px 14px;
+  font-weight: 600;
+}
+/* the small view buttons: All topics / Chosen only, Wide view, Fold all */
+.rsq .rstool .btn.sm,
+.rsq .rstool .seg.sm button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.rsq .rstool .seg.sm {
+  margin-left: 6px;
+}
+/* + Custom section and Clear SOP: together at the right, on the next line together when the bar is narrow */
+.rsq .rstool .rsgr {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
 }
 .rsq .seg {
   display: inline-flex;
