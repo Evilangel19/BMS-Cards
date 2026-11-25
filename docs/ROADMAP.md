@@ -74,7 +74,7 @@ This file says what the program does today, how far each part has been checked, 
 - **For 1.4, the Smart ROE / SOP card reworked** (done in 1.4.0-beta.8): ROE in the key box, SOP chosen by priority (Smart tick, conditions
   of the day, fixed topics, tiers), Emergencies at the bottom. The tiers and the fixed topics can be adjusted after use in the game.
 - **For 1.4, the ROE / SOP page reworked**: ROE and SOP on two sub-pages; one Fold all / Unfold all button; for the ROE, a choice between the
-  rules written by the A-A / A-G pages, the rules chosen by the pilot, or both (as now); then a tooltip on the page that tells how the Smart
+  rules written by the A-A / A-G pages, the rules chosen by the pilot, or both (as now); the Smart tick and the "Smart card today" line replaced by one AUTO / MANUAL switch of the Smart card (see the notes of 1.4.0-beta.10); then a tooltip on the page that tells how the Smart
   card chooses its topics.
 - **For 1.4, bigger annotations on the target picture** (A-G > Target): a size for the symbols, the text and the labels of the threats and
   units (on the page and on the cards), so that they stay readable on the kneeboard in the cockpit and in VR.

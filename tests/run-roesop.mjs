@@ -147,11 +147,11 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
   const ids = r => r.items.map(i => i.id).join(' ');
   const r0 = smartSop(sel, {});
   ok(
-    'a clear day: the topic ticked Smart first, then the fixed ones by tier (Night not on); the Emergencies apart ' +
+    'a clear day: what the pilot wrote and the topic ticked Smart first, then the fixed ones by tier (Night not on); the Emergencies apart ' +
       ids(r0) +
       ' | ' +
       r0.emerg.map(e => e.id).join(' '),
-    r0.items[0].id == 'gawe' &&
+    ids(r0).startsWith('breakaway takeoff gawe') &&
       !r0.items.some(i => i.id == 'nvg') &&
       r0.items.some(i => i.id == 'rec') &&
       r0.emerg.map(e => e.id).join(' ') == 'lost csar'
@@ -192,7 +192,7 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
   const L = smartSopLines(r1.items);
   ok(
     'the lines go in the order of the flight, one for each phase ' + JSON.stringify(L.slice(0, 3)),
-    L.length > 0 && L.findIndex(l => /^T\/O|^DEP/.test(l)) < L.findIndex(l => /^REC/.test(l))
+    L.length > 0 && L.findIndex(l => /^T\/O\| |^DEP\| /.test(l[0])) < L.findIndex(l => /^REC\| /.test(l[0]))
   );
   ok(
     'tiers: BREAKAWAY before G-awareness and intra-flight radio',

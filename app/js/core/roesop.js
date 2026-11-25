@@ -1331,7 +1331,7 @@ export function smartLink(sel, id, ctx) {
   const tag = typeof l[4] == 'function' ? l[4](ctx) : l[4];
   return { o: l[3], t: LINK_TXT[id] || '', tag, say: LINK_SAY[id] + ' (' + WHY[tag] + ')' };
 }
-// the SOP topics of the Smart card, most important first: [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
+// the SOP topics of the Smart card, most important first (what the pilot wrote comes before the fixed topics): [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
 // box at the bottom. ctx: {imcDep, imcArr, wx (bad weather), night, train, tank, ag (an A-G mission), enemy (over the enemy)}
 export function smartSop(sel, ctx = {}) {
   const s = cleanSel(sel),
@@ -1362,8 +1362,13 @@ export function smartSop(sel, ctx = {}) {
     body = x => x.ph != 'Emergencies';
   // 1. the topics that the day changes (recovery and departure in IMC are written even without a choice)
   SMART_LINKS.forEach(([id]) => smartLink(s, id, ctx) && add(byId(id), true));
-  // 2. the topics ticked Smart by the pilot
-  byTier(T.filter(x => body(x) && s.sop[x.t[0]] && s.sop[x.t[0]].s)).forEach(x => add(x));
+  // 2. what the pilot wrote (a free text, a topic of an own section) and the topics ticked Smart: always, first
+  byTier(
+    T.filter(x => {
+      const v = s.sop[x.t[0]];
+      return body(x) && v && (v.s || (v.t && !v.o) || !!x.ctag);
+    })
+  ).forEach(x => add(x));
   // 3. the phases of the conditions of the mission, weather first; hung ordnance with an A-G mission
   SMART_DYN.forEach(([k, ph]) => ctx[k] && byTier(T.filter(x => x.ph === ph)).forEach(x => add(x)));
   if (ctx.ag) add(byId('hung'));
@@ -1396,8 +1401,8 @@ export function smartSopLines(items) {
     if (last && last[0] === head) last[1] += ' · ' + t;
     else out.push([head, t]);
   });
-  // [text, red, n]: the tag of the phase and its colon (n characters) in bold on the card
-  return out.map(([h, t]) => [h + ': ' + t, false, h.length + 1]);
+  // [text, red, n]: the tag of the phase and its bar (n characters) in bold on the card: "ENR| TURNS CALLED · …"
+  return out.map(([h, t]) => [h + '| ' + t, false, h.length + 1]);
 }
 // the four ROE of the key box of the Smart card, short: weapons status, ID, commit, bugout (the A-A block gives its weapons control and commit)
 export function roeKey(sel) {
