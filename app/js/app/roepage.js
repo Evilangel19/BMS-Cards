@@ -43,6 +43,7 @@ import {
   smartLink,
   msnOn,
   faorOwn,
+  agCovers,
   cleanRules,
   ruleRow,
   ruleSame,
@@ -479,14 +480,17 @@ function render0(box) {
     const on = kind == 'many' ? R.sel.roe[id].includes(v) : R.sel.roe[id] === v,
       off =
         !on && !boxFits(roeText({ ...R.sel, roe: { ...R.sel.roe, [id]: kind == 'many' ? [...R.sel.roe[id], v] : v } })),
-      mv = msnV(id) === v,
-      over = mv && R.sel.roe[id] && !on,
-      tip = mv
-        ? over
-          ? 'The value of the mission: your choice replaces it. Click your choice again to use the value of the mission.'
-          : 'The value of the mission (A-A page). ' + long
-        : long;
-    return `<button type="button" class="rpk rps${KEYS.includes(id) ? ' k' : ''}${on ? ' on' : ''}${mv && !R.sel.roe[id] ? ' msn' : ''}${over ? ' over' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(tip)}"${off ? ' disabled' : ''}><span>${esc(short)}</span>${mv ? '<i class="rpmd"></i>' : ''}</button>`;
+      cov = agCovers(R.sel, v), // the A-G block of the mission writes it
+      mv = msnV(id) === v || cov,
+      over = mv && !cov && R.sel.roe[id] && !on,
+      tip = cov
+        ? 'The A-G block of the mission writes it. ' + long
+        : mv
+          ? over
+            ? 'The value of the mission: your choice replaces it. Click your choice again to use the value of the mission.'
+            : 'The value of the mission (A-A page). ' + long
+          : long;
+    return `<button type="button" class="rpk rps${KEYS.includes(id) ? ' k' : ''}${on ? ' on' : ''}${(mv && !R.sel.roe[id]) || (cov && !on) ? ' msn' : ''}${over ? ' over' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(tip)}"${off ? ' disabled' : ''}><span>${esc(short)}</span>${mv ? '<i class="rpmd"></i>' : ''}</button>`;
   };
   // a rule of the list and its strips
   const rule = ([id, lab, kind, , opts]) =>
@@ -923,7 +927,7 @@ function smartCol(D) {
     D
       ? `<div class="rscnt rssm"><span>SOP <b>${n}</b> line${n == 1 ? '' : 's'} · Emergencies <b>${D.emerg.length}</b></span></div>${D.left ? `<div class="rscnt rssm"><span><b class="full">${D.left}</b> topic${D.left == 1 ? '' : 's'} not written (no space)</span></div>` : ''}`
       : ''
-  }<div class="rsbar rsdotl">${man ? '' : '<span class="hint"><i class="rpon1"></i> on the Smart card</span>'}<span style="flex:1"></span>${LS.get('bmsroesub', 'roe') == 'rules' ? '' : `<button type="button" class="btn g rd" data-a="sclear" title="${LS.get('bmsroesub', 'roe') == 'sop' ? (man ? 'Clear the Smart card: take every Smart tick away' : 'Clear the Smart card: take away the SOP topics that are not in the SOP box of the datacard') : 'Clear the ROE of the Smart card (the same ROE as the datacard): Manual ROE comes on, so the ROE of the mission are not written'}">Clear</button>`}</div></div>`;
+  }<div class="rsbar rsdotl">${man ? '' : '<span class="hint"><i class="rpon1"></i> on the Smart card</span>'}<span style="flex:1"></span>${LS.get('bmsroesub', 'roe') == 'rules' ? '' : `<button type="button" class="btn g rd" data-a="sclear" title="${LS.get('bmsroesub', 'roe') == 'sop' ? (man ? 'Clear the SOP of the Smart card: take every Smart tick away' : 'Clear the SOP of the Smart card: take away the SOP topics that are not in the SOP box of the datacard') : 'Clear the ROE of the Smart card (the same ROE as the datacard): Manual ROE comes on, so the ROE of the mission are not written'}">${LS.get('bmsroesub', 'roe') == 'sop' ? 'Clear SOP' : 'Clear ROE'}</button>`}</div></div>`;
 }
 // the picture of the Smart card, drawn at its size and made smaller
 let SCV = null;

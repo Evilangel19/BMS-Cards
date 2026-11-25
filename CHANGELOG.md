@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: the Clear button of the Smart card column is **Clear ROE** on the ROE sub-page and **Clear SOP** on the SOP sub-page.
+- Fixed: with an A-G block of the mission, MIN RLS 15K and PID BEF RLS were never written, also when the block does not write them (SEAD): now a rule is left out only when the block writes it (the strip has the yellow dot of the mission), and the box of the datacard counts it right.
 - Changed: Squadron > ROE / SOP, two Clear buttons. **Clear** under the preview clears the datacard: no ROE, Manual ROE on (the ROE of the mission are not written), no SOP topic in its SOP box; the SOP topics stay chosen for the Smart card. **Clear** in the Smart card column clears the Smart card: on the ROE sub-page its ROE (the same as the datacard, Manual ROE on), on the SOP sub-page its SOP (AUTO: the topics that are not in the SOP box of the datacard; MANUAL: the Smart ticks).
 - Changed: the "Default for" kinds of mission of a preset are strips as the rules; the strips are on two columns, all of the same width, a long text on two lines; Discard is red.
 - Fixed: the Smart card on the ROE / SOP page showed JOKER and BINGO only after a click: it is drawn again when the values of the datacard change.

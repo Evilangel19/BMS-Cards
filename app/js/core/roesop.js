@@ -1055,6 +1055,16 @@ export function faorOwn(s, long) {
     l => !(s.roe.ws && /^(FEZ )?(WPN|Weapons) /.test(l)) && !(s.roe.commit && /^(COMMIT |Commit:)/.test(l))
   );
 }
+// a rule that the A-G block of the mission already writes (the pilot's choice is not written twice): the minimum release altitude (pop-up, HADB,
+// toss with an altitude), the positive ID (not SEAD), one more cue at night
+export function agCovers(s, v) {
+  const b = msnOn(s) && s.ag;
+  if (!b) return false;
+  if (v == 'minrls') return !['SEAD', 'DEAD'].includes(b.kind) && b.mra != null;
+  if (v == 'pid') return b.kind != 'SEAD';
+  if (v == 'nightcue') return !['SEAD', 'DEAD'].includes(b.kind) && !!b.night;
+  return false;
+}
 // the ROE box of the card: one rule a line ("WPN TIGHT", "ID: AWACS DECLARE+L16", "COMMIT 40NM", "BUGOUT: BINGO/WINCH", ...), then the other ROE lines
 export function roeText(sel) {
   const s = eff(cleanSel(sel)),
@@ -1067,7 +1077,7 @@ export function roeText(sel) {
       return R.push(s.roe.commit ? tag + ' ' + sh(s.roe.commit) : 'COMMIT ' + s.faor.commit + 'NM', faorBox(s.faor));
     if (k == 'many') {
       const v = s.roe[id]
-        .filter(x => !(s.ag && (x == 'minrls' || x == 'pid'))) // in the A-G block
+        .filter(x => !agCovers(s, x))
         .map(sh)
         .filter(Boolean);
       if (!v.length) return;
@@ -1291,7 +1301,7 @@ export function fullText(sel) {
   ROE.forEach(([id, lab, k, , opts]) => {
     if (s.faor && (id == 'ws' || id == 'commit') && !s.roe[id]) return; // in the A-A block
     const L = (k == 'many' ? s.roe[id] : s.roe[id] ? [s.roe[id]] : [])
-      .filter(v => !(s.ag && (v == 'minrls' || v == 'pid'))) // in the A-G block
+      .filter(v => !agCovers(s, v))
       .map(v => (opts.find(o => o[0] === v) || [])[1])
       .filter(Boolean);
     if (L.length) roe.push([lab, L]);

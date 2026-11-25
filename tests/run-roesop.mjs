@@ -3,6 +3,7 @@ import {
   smartSop,
   smartSopLines,
   smartLink,
+  agCovers,
   rulesSet,
   cleanRules,
   ruleSame,
@@ -270,6 +271,20 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
   ok(
     'the choices of a list in the order of the list, not of the clicks',
     JSON.stringify(cleanSel({ roe: { abort: ['cms', 'winch', 'bingo'] } }).roe.abort) == '["bingo","winch","cms"]'
+  );
+  const ag1 = { ...emptySel(), roe: { ...emptySel().roe, restr: ['minrls'], extra: ['pid'] } };
+  ok(
+    'a rule the A-G block writes is not written twice; a SEAD block does not write the release altitude nor the PID ' +
+      roeText({ ...ag1, ag: { kind: 'SEAD', mra: null, abort: null, night: false, ceil: null } }).replace(/\n/g, ' | '),
+    agCovers({ ...ag1, ag: { kind: 'POP-UP', mra: 2200 } }, 'minrls') &&
+      !/MIN RLS 15K/.test(
+        roeText({ ...ag1, ag: { kind: 'POP-UP', mra: 2200, abort: 350, night: false, ceil: null } })
+      ) &&
+      /MIN RLS 15K/.test(roeText({ ...ag1, ag: { kind: 'SEAD', mra: null, abort: null, night: false, ceil: null } })) &&
+      /PID BEF RLS/.test(roeText({ ...ag1, ag: { kind: 'SEAD', mra: null, abort: null, night: false, ceil: null } })) &&
+      /MIN RLS 15K/.test(
+        roeText({ ...ag1, manroe: true, ag: { kind: 'POP-UP', mra: 2200, abort: 350, night: false, ceil: null } })
+      )
   );
   const K = roeKey(sel);
   ok(
