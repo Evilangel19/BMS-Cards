@@ -196,17 +196,18 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
     'night: the Night phase comes in (NVG); over the enemy CSAR is the first Emergency',
     r1.items.some(i => i.id == 'nvg') && r1.emerg[0].id == 'csar'
   );
-  const off = { ...sel, adapt: false };
-  ok(
-    'Adapt to mission off: Recovery keeps the choice (OVERHEAD), no Night phase',
-    /OVERHEAD/.test(smartSop(off, { imcArr: true, night: true }).items.find(i => i.id == 'rec').txt) &&
-      smartLink(off, 'rec', { imcArr: true }) === null &&
-      !smartSop(off, { night: true }).items.some(i => i.id == 'nvg')
+  const man = smartSop(
+    { ...sel, mode: 'man', sop: { ...sel.sop, rec: { o: 'ovhd', s: true } } },
+    { imcArr: true, night: true }
   );
-  const man = smartSop({ ...sel, mode: 'man', sop: { ...sel.sop, rec: { o: 'ovhd', s: true } } }, { imcArr: true });
   ok(
-    'MANUAL: only the topics ticked Smart, the day changes their value; nothing to fill ' + ids(man),
-    ids(man) == 'rec gawe' && /STAR/.test(man.items[0].txt) && !man.fill.length && !man.emerg.length
+    'SOP MANUAL: only the topics ticked Smart, as chosen (OVERHEAD in IMC, no Night phase); nothing to fill ' +
+      ids(man),
+    ids(man) == 'rec gawe' &&
+      /OVERHEAD/.test(man.items[0].txt) &&
+      !man.fill.length &&
+      !man.emerg.length &&
+      smartLink({ ...sel, mode: 'man' }, 'rec', { imcArr: true }) === null
   );
   ok(
     'already right for the day: no change (Recovery straight-in in IMC)',
@@ -231,16 +232,18 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
       /^WPN FREE\nCOMMIT 40NM\nSTOP/.test(roeText({ ...msn, roe: { ...msn.roe, ws: 'free' } }))
   );
   ok(
-    'Manual ROE, or Adapt to mission off: the A-A block is not written',
-    roeText({ ...msn, manroe: true }) == '' &&
-      roeText({ ...msn, adapt: false }) == '' &&
-      roeKey({ ...msn, manroe: true }).wpn == ''
+    'ROE MANUAL: the A-A block is not written',
+    roeText({ ...msn, manroe: true }) == '' && roeKey({ ...msn, manroe: true }).wpn == ''
   );
   ok(
-    'the switches are kept, an old choice gets AUTO, Adapt on, Manual ROE off',
-    JSON.stringify([cleanSel({}).mode, cleanSel({}).adapt, cleanSel({}).manroe]) == '["auto",true,false]' &&
-      cleanSel({ mode: 'man', adapt: false, manroe: true }).mode == 'man' &&
-      cleanSel({ mode: 'man', adapt: false, manroe: true }).adapt === false
+    'the switches are kept, a new choice gets ROE and SOP AUTO; Adapt to mission off (before beta.19) gives ROE and SOP MANUAL',
+    JSON.stringify([cleanSel({}).mode, cleanSel({}).manroe]) == '["auto",false]' &&
+      cleanSel({ mode: 'man', manroe: true }).mode == 'man' &&
+      JSON.stringify([
+        cleanSel({ adapt: false }).mode,
+        cleanSel({ adapt: false }).manroe,
+        'adapt' in cleanSel({ adapt: false }),
+      ]) == '["man",true,false]'
   );
   // the rules changed by the pilot (the table of the page): a value of his own, a topic left out, a topic made fixed; bad data dropped
   rulesSet({

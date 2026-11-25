@@ -4,6 +4,9 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: Squadron > ROE / SOP is simpler: each sub-page has its **AUTO / MANUAL** switch and its **Clear**, in its bar. ROE AUTO: the ROE of the mission and your choices; ROE MANUAL: only yours (in place of Manual ROE). SOP AUTO: the program chooses the SOP of the Smart card and adapts them to the mission; SOP MANUAL: only the topics with SMART, as you chose them (Adapt to mission is gone: it is what AUTO does). **Clear ROE** takes your ROE away and puts the ROE in MANUAL; **Clear SOP** takes every SOP topic away. The Clear under the preview and in the Smart card column are gone. A choice saved with Adapt to mission off opens with ROE and SOP in MANUAL.
+- Changed: the window of a custom section says what a section is, has labels over the fields and an example from the SOP of the program (Anti-collision / flash, LTS, FLASH MOVING = Flash as soon as the aircraft moves), and shows what the card writes for each topic (RNG: LTS FLASH MOVING).
+- Added: Ready to fly > Save kneeboard (and Write all) also writes the pages for OpenKneeboard when its button is shown, after the BMS folder.
 - Changed: Squadron > ROE / SOP, SOP sub-page: each topic is a strip with its value (no drop-down list); a click opens its options under it as strips, with Own text, the full text of the option, CARD (SMART in MANUAL) and Clear. Each phase has its colour (blue the ground and the field, orange the mission, purple the conditions, red the emergencies, teal the own sections).
 - Changed: the ROE and SOP boxes of the datacard hold 7 lines at most, the text 12 px at the smallest (8 lines were hard to read in the cockpit).
 - Changed: the Clear button of the Smart card column is **Clear ROE** on the ROE sub-page and **Clear SOP** on the SOP sub-page.

@@ -995,9 +995,8 @@ export const emptySel = () => ({
   sfree: '', // other SOP lines
   faor: null, // the A-A block, written by A-A > DCA / OCA (core/faor.js): its weapons control and commit unless the pilot chose them above
   ag: null, // the A-G block, written by the A-G pages (core/agrules.js): on the ROE card, not in the ROE box of the datacard
-  mode: 'auto', // the SOP of the Smart card: 'auto' (the program chooses them) or 'man' (the topics ticked Smart)
-  adapt: true, // Adapt to mission: the ROE of the A-A and A-G pages, and the conditions of the day on the Smart card
-  manroe: false, // Manual ROE: the ROE of the pilot only, without those of the mission (datacard and Smart card)
+  mode: 'auto', // SOP AUTO / MANUAL: the program chooses the SOP of the Smart card and adapts them to the mission, or only the topics ticked Smart, as chosen
+  manroe: false, // ROE MANUAL: the ROE of the pilot only, without those of the mission (the A-A and A-G pages), on the datacard and on the Smart card
 });
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 // a choice that comes from outside (a file, a preset, the network) is checked: unknown ids are dropped
@@ -1033,9 +1032,9 @@ export function cleanSel(s) {
   o.sfree = str(s.sfree, 600);
   o.faor = cleanFaor(s.faor);
   o.ag = cleanAg(s.ag);
-  o.mode = s.mode === 'man' ? 'man' : 'auto';
-  o.adapt = s.adapt !== false;
-  o.manroe = !!s.manroe;
+  // (Adapt to mission, before 1.4.0-beta.19: off gave the ROE of the pilot only and no change for the mission: ROE and SOP MANUAL)
+  o.mode = s.mode === 'man' || s.adapt === false ? 'man' : 'auto';
+  o.manroe = !!s.manroe || s.adapt === false;
   return o;
 }
 // the short text of a SOP topic: the option, or what was typed for it
@@ -1045,8 +1044,8 @@ export function sopShort(topic, v) {
   const p = topic[3].find(x => x[0] === v.o);
   return p ? p[2] : '';
 }
-// the ROE of the mission (the A-A and A-G blocks) count: Adapt to mission on, Manual ROE off. The blocks stay in the choices, they are only not written.
-export const msnOn = s => !!(s && s.adapt !== false && !s.manroe);
+// the ROE of the mission (the A-A and A-G blocks) count: ROE AUTO. The blocks stay in the choices, they are only not written.
+export const msnOn = s => !!(s && !s.manroe);
 const eff = s => (msnOn(s) ? s : { ...s, faor: null, ag: null });
 // the lines of the A-A block without those that a choice of the pilot replaces (weapons status, commit): a choice of the pilot wins
 export function faorOwn(s, long) {
@@ -1487,10 +1486,10 @@ function ruleOf(id, ctx) {
   const k = SMART_CONDS.find(c => ctx[c] && R[c]);
   return k ? [k, R[k]] : null;
 }
-// the change of a topic on the Smart card today (Adapt to mission), or null: {o (the option of the day, or null), t (a text), tag, say (for the page)}
+// the change of a topic on the Smart card today (SOP AUTO), or null: {o (the option of the day, or null), t (a text), tag, say (for the page)}
 export function smartLink(sel, id, ctx) {
   const s = cleanSel(sel),
-    r = s.adapt && ruleOf(id, ctx);
+    r = s.mode == 'auto' && ruleOf(id, ctx);
   if (!r || typeof r[1] == 'string') return null;
   const [k, x] = r,
     v = s.sop[id];
@@ -1500,12 +1499,12 @@ export function smartLink(sel, id, ctx) {
   return { o: x.o || null, t: x.t || '', tag: TAG[k] || 'WX', say: sh + ' (' + WHY[k] + ')' };
 }
 // the SOP topics of the Smart card, most important first (what the pilot wrote comes before the fixed topics): [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
-// box at the bottom. ctx: the conditions of SMART_CONDS (true / false); not used with Adapt to mission off. The rules: SMART_RULES. MANUAL: only the
-// topics ticked Smart (the day changes their value), nothing to fill the space.
+// box at the bottom. ctx: the conditions of SMART_CONDS (true / false). The rules: SMART_RULES. MANUAL: only the topics ticked Smart, as they were
+// chosen (the mission changes nothing), nothing to fill the space.
 export function smartSop(sel, ctx0 = {}) {
   const s = cleanSel(sel),
-    ctx = s.adapt ? ctx0 || {} : {},
     man = s.mode === 'man',
+    ctx = man ? {} : ctx0 || {},
     all = sopAll(),
     T = all.flatMap(([ph, L, ctag]) => L.map(t => ({ t, ph, ctag }))),
     item = (x, lk) => {

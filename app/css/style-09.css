@@ -742,18 +742,6 @@
   max-height: calc(100vh - 16px);
   overflow-y: auto;
 }
-.rsq .rssc .rsmode {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-}
-.rsq .rssc .rsmode button {
-  padding: 6px 4px;
-  font-weight: 600;
-}
-.rsq .rssc .rsadapt {
-  width: 100%;
-  margin-top: 8px;
-}
 .rsq .rsinfo {
   cursor: help;
   margin-left: auto;
@@ -1028,11 +1016,23 @@
   display: grid;
   grid-template-columns: 1.4fr 0.8fr auto;
   gap: 6px;
+  align-items: end;
   padding: 8px 0;
   border-top: 1px solid var(--line);
 }
-.rsmodal .rstp textarea {
+.rsmodal .rstp label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 11.5px;
+  color: var(--mu);
+}
+.rsmodal .rstp .rstol,
+.rsmodal .rstp .rstpv {
   grid-column: 1 / 4;
+}
+.rsmodal .rsfmh {
+  margin: 0 0 10px;
 }
 .rsmodal .err {
   border-color: #ff6b6b;

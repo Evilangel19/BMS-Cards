@@ -44,6 +44,12 @@ try:
         check('the first save says how to add the Folder tab, and keeps the folder in the settings', any('Click Add a tab, then Folder' in m for m in msgs) and pg.evaluate("()=>__app.CFG.paths.okbDir") == base[:-1])
         n = len(msgs); pg.click('#kbokb'); pg.wait_for_timeout(5000)
         check('the next save does not ask for the folder again %s' % msgs[n:], not any('kneeboard pages as pictures' in m for m in msgs[n:]))
+        # Ready to fly > Save kneeboard (and Write all): the BMS folder, then OpenKneeboard too when its button shows
+        pg.evaluate("([d,l])=>{__app.CFG.paths.kneeboardDir=d;__F.delete(l)}", ['C:\\BMS\\KB', L])
+        n = len(msgs)
+        pg.evaluate("async()=>{const r=await import('/app/js/app/ready.js');const it=r.readyItems().find(x=>x.k=='kb');await it.go()}"); pg.wait_for_timeout(6000)
+        keys = pg.evaluate("()=>[...__F.keys()]")
+        check('Ready to fly, Save kneeboard: the DDS files in the BMS folder and the pages for OpenKneeboard %s' % [k for k in keys if 'KB' in k][:2], any(k.startswith('C:\\BMS\\KB\\') for k in keys) and L in keys)
         pg.click('#cfgbtn') if pg.locator('#cfgbtn').count() else pg.click('[data-a=settings]'); pg.wait_for_timeout(600)
         check('Settings: Save to OpenKneeboard (Automatic / Always / Never) and the OpenKneeboard folder', pg.locator('#c-okb button').count() == 3 and pg.locator('#f-okbDir').count() == 1)
         pg.click('#nv-kneeboard'); pg.wait_for_timeout(300)

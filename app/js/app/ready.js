@@ -6,7 +6,7 @@ import { ST } from './state.js';
 import { $, appToast, esc } from './base.js';
 import { lines, dtcOverwrite } from './dtcfile.js';
 import { dtcToWrite } from './dtcapply.js';
-import { kbUnsaved, kbSave } from './kneeboard.js';
+import { kbUnsaved, kbSave, okbOn, okbSave } from './kneeboard.js';
 import { missionToSave, msfSave } from './mission.js';
 
 const hasFlight = () =>
@@ -29,7 +29,11 @@ export function readyItems() {
       st: kbUnsaved() ? 'todo' : 'ok',
       t: kbUnsaved() ? 'Changed since it was last saved to the BMS folder' : 'Saved to the BMS folder',
       b: 'Save kneeboard',
-      go: kbSave,
+      // the BMS folder, then OpenKneeboard too when its button is shown (Settings > Kneeboard), only if the BMS save went through
+      go: async () => {
+        await kbSave();
+        if (!kbUnsaved() && okbOn()) await okbSave();
+      },
     },
     {
       k: 'msf',
