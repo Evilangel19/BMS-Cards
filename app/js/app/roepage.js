@@ -456,47 +456,61 @@ function render0(box) {
     msn = msnOn(R.sel),
     sub0 = LS.get('bmsroesub', 'roe'),
     sub = sub0 == 'sop' || (sub0 == 'rules' && rulesOn()) ? sub0 : 'roe';
+  const fa = R.sel.faor,
+    ag = R.sel.ag,
+    KEYS = ['ws', 'id', 'commit', 'abort'];
+  // the value of the mission for a rule (the A-A block: weapons status, commit), or null
+  const msnV = id =>
+    fa && msn
+      ? id == 'ws'
+        ? fa.wpn
+        : id == 'commit' && ROE.find(r => r[0] == 'commit')[4].some(o => o[0] == 'n' + fa.commit)
+          ? 'n' + fa.commit
+          : null
+      : null;
+  // a rule as a strip (green: a key rule, on the Smart card too; blue: on the datacard); the value of the mission has a yellow dot, struck
+  // through when the pilot chose another one
   const chip = (id, kind, [v, long, short]) => {
     const on = kind == 'many' ? R.sel.roe[id].includes(v) : R.sel.roe[id] === v,
       off =
-        !on && !boxFits(roeText({ ...R.sel, roe: { ...R.sel.roe, [id]: kind == 'many' ? [...R.sel.roe[id], v] : v } }));
-    return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}${short.length > 14 ? ' w2' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
+        !on && !boxFits(roeText({ ...R.sel, roe: { ...R.sel.roe, [id]: kind == 'many' ? [...R.sel.roe[id], v] : v } })),
+      mv = msnV(id) === v,
+      over = mv && R.sel.roe[id] && !on,
+      tip = mv
+        ? over
+          ? 'The value of the mission: your choice replaces it. Click your choice again to use the value of the mission.'
+          : 'The value of the mission (A-A page). ' + long
+        : long;
+    return `<button type="button" class="rpk rps${KEYS.includes(id) ? ' k' : ''}${on ? ' on' : ''}${mv && !R.sel.roe[id] ? ' msn' : ''}${over ? ' over' : ''}${off ? ' off' : ''}${short.length > 14 ? ' w2' : ''}" data-r="${id}" data-v="${v}" title="${esc(tip)}"${off ? ' disabled' : ''}><span>${esc(short)}</span>${mv ? '<i class="rpmd"></i>' : ''}</button>`;
   };
-  const fa = R.sel.faor,
-    ag = R.sel.ag;
-  // a rule of the list: its options, with the value of the mission over them (a choice of the pilot replaces it)
-  const rule = ([id, lab, kind, , opts]) => {
-    const mv =
-        fa && msn && id == 'ws'
-          ? 'WPN ' + fa.wpn.toUpperCase()
-          : fa && msn && id == 'commit'
-            ? 'COMMIT ' + fa.commit + 'NM'
-            : '',
-      mine = mv && R.sel.roe[id];
-    return `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div>${mv ? `<div class="rpmsn${mine ? ' over' : ''}" title="${mine ? 'Your choice replaces the value of the mission. Click your choice again to use the value of the mission.' : 'The value of the mission (A-A page). Click an option to replace it.'}">MISSION: ${esc(mv)}${mine ? ' → your choice' : ''}</div>` : ''}<div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`;
-  };
+  // a rule of the list and its strips
+  const rule = ([id, lab, kind, , opts]) =>
+    `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo rps">${opts.map(o => chip(id, kind, o)).join('')}</div>`;
   const why = !msn ? (R.sel.adapt ? 'Manual ROE: not written' : 'Adapt to mission off: not written') : '';
+  // a block of the mission, under the Smart card
   const block = (lab, btn, act, L) =>
-    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span><span style="flex:1"></span><button type="button" class="btn g" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div>${why ? `<div class="hint rpwhy">${why}</div>` : ''}<div class="rpfl">${L.map(esc).join('<br>')}</div></div>`;
-  const KEYS = ['ws', 'id', 'commit', 'abort'],
-    oca = fa && fa.pos != null ? 'OCA' : 'DCA';
-  const roePane = `<div class="rstool"><button type="button" class="tgl${R.sel.manroe ? ' on' : ''}" data-a="manroe"${R.sel.adapt ? '' : ' disabled'} title="${R.sel.adapt ? 'Write only your ROE, not the ROE of the mission (A-A and A-G pages). The SOP stay adapted to the mission. For the datacard and the Smart card.' : 'Adapt to mission is off: the ROE are only yours.'}">Manual ROE</button><span class="hint">${msn ? 'The ROE of the mission and your choices. Your choice replaces a mission value of the same rule.' : 'Only your ROE are written.'}</span></div><div class="rspg2"><div class="wcard"><div class="wh"><h3>Key rules</h3><span class="hint">the table of the Smart card</span></div>${ROE.filter(
+    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span></div>${why ? `<div class="hint rpwhy">${why}</div>` : ''}<div class="rpfl">${L.map(esc).join('<br>')}</div><button type="button" class="btn g sm rpfe" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div>`;
+  const oca = fa && fa.pos != null ? 'OCA' : 'DCA';
+  const roePane = `<div class="rstool"><button type="button" class="tgl${R.sel.manroe ? ' on' : ''}" data-a="manroe"${R.sel.adapt ? '' : ' disabled'} title="${R.sel.adapt ? 'Write only your ROE, not the ROE of the mission (A-A and A-G pages). The SOP stay adapted to the mission. For the datacard and the Smart card.' : 'Adapt to mission is off: the ROE are only yours.'}">Manual ROE</button><span class="hint">${msn ? 'The ROE of the mission and your choices. Your choice replaces a mission value of the same rule.' : 'Only your ROE are written.'}</span></div><div class="rspg2"><div class="wcard"><div class="wh"><h3>Key rules</h3><span class="hint">datacard + Smart card key</span></div>${ROE.filter(
     r => KEYS.includes(r[0])
   )
     .map(rule)
     .join(
       ''
-    )}</div><div class="wcard"><div class="wh"><h3>Other rules</h3><span class="hint">as many as the card holds</span></div>${ROE.filter(
+    )}</div><div class="wcard"><div class="wh"><h3>Other rules</h3><span class="hint">datacard</span></div>${ROE.filter(
     r => !KEYS.includes(r[0])
   )
     .map(rule)
     .join(
       ''
-    )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea></div></div>${
+    )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea></div></div>`;
+  const msnCol =
     fa || ag
-      ? `<div class="rspg2">${fa ? block('A-A · ' + oca + (fa.kind ? ' · ' + fa.kind : ''), 'Edit in ' + oca, 'faor', faorOwn(R.sel, false)) : ''}${ag ? block('A-G · ' + ag.kind, 'Edit in A-G', 'agpage', agLines(ag, false)) : ''}</div>`
-      : `<div class="hint">No ROE of the mission for this flight. The A-A (DCA, OCA) and A-G pages write them.</div>`
-  }`;
+      ? (fa
+          ? block('A-A · ' + oca + (fa.kind ? ' · ' + fa.kind : ''), 'Edit in ' + oca, 'faor', faorOwn(R.sel, false))
+          : '') + (ag ? block('A-G · ' + ag.kind, 'Edit in A-G', 'agpage', agLines(ag, false)) : '')
+      : `<div class="hint rpnom">No ROE of the mission for this flight. The A-A (DCA, OCA) and A-G pages write them.</div>`;
+
   const row = t => {
     const [id, lab, , opts] = t,
       v = R.sel.sop[id] || { o: null, t: '', c: false },
@@ -612,7 +626,7 @@ function render0(box) {
     )
     .join('')}</div>`;
   const main = sub == 'roe' ? roePane : sub == 'rules' ? rulesPane() : `${tools}${customBlock}${cols(phases)}${other}`; // the custom sections above the standard ones; Other SOP lines right under the phases
-  box.innerHTML = `<div class="rsq${sub == 'rules' ? ' rlw' : sub == 'sop' && wide ? ' rwide' : ''}"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
+  box.innerHTML = `<div class="rsq${sub == 'rules' ? ' rlw' : sub == 'sop' && wide ? ' rwide' : ''}"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}${sub == 'roe' ? msnCol : ''}</div></div>`;
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   pvPaint(box.querySelector('.rpv1'), roeText(R.sel));
   pvPaint(box.querySelector('.rpv2'), sopText(R.sel));

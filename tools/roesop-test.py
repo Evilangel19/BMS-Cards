@@ -183,8 +183,8 @@ try:
         # the ROE of the mission (an A-A block): written with the pilot's choices; Manual ROE or Adapt to mission off: not written
         sub('roe')
         pg.evaluate("async()=>{const rp=await import('/app/js/app/roepage.js');rp.roeFaorSet({kind:'BARCAP',wpn:'free',commit:40,stop:20,drop:15,alt:[25000,35000]})}"); pg.wait_for_timeout(250)
-        m0 = [pg.evaluate("()=>__app.F.roe"), pg.inner_text(B + '.rpmsn.over') if pg.locator(B + '.rpmsn.over').count() else '']
-        check('Adapt to mission: the A-A block is written; the WPN of the pilot replaces the one of the mission %s' % m0, m0[0].startswith('WPN TIGHT\n') and 'STOP 20NM' in m0[0] and 'WPN FREE' in m0[1])
+        m0 = [pg.evaluate("()=>__app.F.roe"), pg.locator(B + '.rpk.rps.over[data-r=ws][data-v=free] .rpmd').count(), pg.locator(B + '.rsr .rpfa').count()]
+        check('Adapt to mission: the A-A block is written (its card under the Smart card); the WPN of the pilot replaces the one of the mission, struck through with its yellow dot %s' % m0, m0[0].startswith('WPN TIGHT\n') and 'STOP 20NM' in m0[0] and m0[1] == 1 and m0[2] == 1)
         pg.click(B + '[data-a=manroe]'); pg.wait_for_timeout(200)
         m1 = pg.evaluate("()=>__app.F.roe")
         check('Manual ROE: only the ROE of the pilot, the block dimmed %s' % m1, 'STOP' not in m1 and m1.startswith('WPN TIGHT') and pg.locator(B + '.rpfa.rsoff').count() == 1)

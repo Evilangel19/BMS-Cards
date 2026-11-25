@@ -422,10 +422,6 @@
   margin: 0 0 4px;
   animation: fadein 0.2s;
 }
-.rsq .rpmsn.over {
-  color: var(--mu);
-  font-weight: 400;
-}
 .rsq .wh .rpmsn {
   margin: 0 0 0 4px;
   border: 1px solid #e3b34166;
@@ -458,6 +454,69 @@
 }
 .rsq .rpo .rpk.w2 {
   grid-column: span 2;
+}
+/* the rules of the ROE sub-page as strips (as the threats of the HARM page): green a key rule (datacard and Smart card key), blue another
+   rule (datacard); the value of the mission yellow, struck through when the pilot chose another one */
+.rsq .rpo.rps {
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 2px 10px;
+}
+.rsq .rpo .rpk.rps {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  padding: 5px 8px;
+  text-align: left;
+  color: var(--mu);
+  font-size: 12px;
+  --hc: #4aa3ff;
+}
+.rsq .rpk.rps.k {
+  --hc: #3ddc84;
+}
+.rsq .rpk.rps:hover:not(:disabled) {
+  background: #ffffff10;
+  color: var(--tx);
+}
+.rsq .rpk.rps.on {
+  background: #ffffff14;
+  color: var(--hc);
+  border-left-color: var(--hc);
+}
+.rsq .rpk.rps.msn {
+  color: #e3b341;
+  border-left-color: #e3b34199;
+}
+.rsq .rpk.rps.over span {
+  text-decoration: line-through;
+}
+.rsq .rpk.rps.off {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.rsq .rpk.rps span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rsq .rpmd {
+  flex: none;
+  margin-left: auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e3b341;
+}
+/* the blocks of the mission, under the Smart card */
+.rsq .rsr .rpfa,
+.rsq .rsr .rpnom {
+  margin-top: 12px;
+}
+.rsq .rpfa .rpfe {
+  margin-top: 8px;
 }
 /* the CARD and SMART buttons of a SOP topic */
 .rsq .rpck .rptg {
