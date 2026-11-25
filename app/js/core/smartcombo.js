@@ -106,7 +106,7 @@ export function drawSmartCombined(x, C) {
   if (R) {
     const want = ['JOKER', 'BINGO', 'LASER', 'M3', 'PRESET'];
     want.forEach((l, i) => {
-      const it = R.key.find(z => z[0] == l) || [l, '--'];
+      const it = [...R.key, ...(R.more || [])].find(z => z[0] == l) || [l, '--'];
       scText(x, 12 + i * 89, 536, 10, l, { c: it[2] ? RED : '#666666', w: 700 });
       scText(x, 12 + i * 89, 554, 14, String(it[1]).slice(0, 10), { c: it[2] ? RED : undefined, w: 700 });
     });

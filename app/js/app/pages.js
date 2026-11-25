@@ -105,7 +105,16 @@ import {
   msfText,
   missionToSave,
 } from './mission.js';
-import { roeDraw, roeAllCards, roeSmartNow, roeOfFlight, roeFaorSet, roeAgSet } from './roepage.js';
+import {
+  roeDraw,
+  roeAllCards,
+  roeSmartNow,
+  roeOfFlight,
+  roeFaorSet,
+  roeAgSet,
+  setRoeCtx,
+  roeCtxLoad,
+} from './roepage.js';
 import { seatIdx, seatExists } from './seat.js';
 
 export let mapV;
@@ -660,6 +669,49 @@ const atoFlight = () => {
   const f = curFlight();
   return f ? ATOL.find(z => z.f === f) : null;
 };
+// ---- the conditions of the mission for the Smart ROE / SOP card (roesop.js smartSop): IMC at the fields (a cloud base under 1,500 ft AGL in
+// Poor or Inclement weather, or fog under 5 km), bad weather (Poor / Inclement, or a base under 3,000 ft AGL, at a field or over the target),
+// night (the sun under -6° at take-off, over the task or at landing), a training mission (.trn), a tanker (a refuel steerpoint or a tanker in the
+// package), an A-G mission, over the enemy (not a DCA, support or C3I flight)
+async function roeCtx() {
+  const e = atoFlight();
+  if (!e) return {};
+  let D = null;
+  try {
+    D = wxPage && wxPage.smartData ? await wxPage.smartData() : null;
+  } catch (er) {
+    D = null;
+  }
+  const S = (D && D.prof) || [],
+    agl = p => (p ? p.cu - (p.elev || 0) : 1e9),
+    imc = p => !!p && ((p.cond >= 2 && agl(p) < 1500) || p.fogEnd < 5),
+    bad = p => !!p && (p.cond >= 2 || (p.cond >= 1 && agl(p) < 3000)),
+    T = D && D.route && D.route[D.tgt >= 0 ? D.tgt : 0],
+    sT = T && S.length ? S.reduce((b, q) => (Math.abs(q.d - T.d) < Math.abs(b.d - T.d) ? q : b)) : null,
+    w = timed(e.f.wps),
+    t = taskOf(e.f.wps),
+    dark = (x, y, tm) => {
+      const a = tm ? sunAlt(x, y, tm) : null;
+      return a != null && a < -6;
+    },
+    w0 = w[0],
+    wl = w[w.length - 1],
+    pk = ATOL.filter(z => z.pkg === e.pkg && z !== e),
+    m = e.mission;
+  return {
+    imcDep: imc(S[0]),
+    imcArr: imc(S[S.length - 1]),
+    wx: [S[0], sT, S[S.length - 1]].some(bad),
+    night:
+      (!!w0 && dark(w0.x, w0.y, w0.dep || w0.arr)) ||
+      (!!t && dark(t.x, t.y, t.t0)) ||
+      (!!wl && dark(wl.x, wl.y, wl.arr || wl.dep)),
+    train: !!(ST.C && ST.C.isTrn),
+    tank: e.f.wps.some(p => p.act == 4) || pk.some(z => z.mission == 'AIR REFUEL'),
+    ag: !!agKindOf(m),
+    enemy: !['Defensive Counter Air', 'Support', 'C3I'].includes(categoryOf(m)),
+  };
+}
 // the kind of A-G mission of a flight: SEAD, DEAD, an attack (strike, interdiction, CAS, an airfield strike, anti-ship) or null (A-A, support...)
 const agKindOf = m =>
   m == 'SEAD' || m == 'DEAD'
@@ -1294,6 +1346,7 @@ async function comboBase() {
     wx = null;
   }
   try {
+    await roeCtxLoad();
     roe = roeSmartNow();
   } catch (e) {
     roe = null;
@@ -1303,6 +1356,7 @@ async function comboBase() {
 
 // run 9: statements that run when the program starts (in the order of the original file)
 export async function init9() {
+  setRoeCtx(roeCtx);
   harmRoot = document.createElement('div');
   harmRoot.id = 'wpharm';
   harmPage = createMissilesPage({

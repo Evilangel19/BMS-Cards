@@ -456,6 +456,7 @@ async function selectCampaign0(name) {
   }
   if (stale()) return;
   await loadCam(new File([bytes], name), stale);
+  if (ST.C) ST.C.isTrn = /\.trn$/i.test(name); // a training mission: the Training SOP on the Smart ROE / SOP card
   if (stale()) return;
   if (ST.C && ST.C.isTe)
     $('cinfo').textContent =

@@ -387,6 +387,26 @@
   color: var(--mu);
   cursor: pointer;
 }
+/* the ticks of a topic: card (the datacard box), Smart (the Smart card), one over the other */
+.rsq .rpck {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+/* the change of the day on the Smart card (IMC, night): a line under the topic */
+.rsq .rpauto {
+  grid-column: 2 / 4;
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  font-size: 11px;
+  color: #e3b341;
+  cursor: pointer;
+}
+.rsq .rpauto input {
+  width: auto;
+  box-shadow: none;
+}
 .rsq .rpon input,
 .rsq .rpr .rpd input {
   width: auto;

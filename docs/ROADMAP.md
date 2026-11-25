@@ -71,8 +71,11 @@ This file says what the program does today, how far each part has been checked, 
     refuelling page below).
   - **Smart Threat**: the SAMs along the route in the order of time, the WEZ exposure minute by minute, the PPTs.
   - **Smart Recovery**: the landing and alternate fields, the approaches, the frequencies, the divert fuel, the weather on arrival.
-- **For 1.4, the Smart ROE / SOP card reworked**: the pilot chooses which parameters of the SOP go on the card (for example JOKER / BINGO,
-  the comm plan, the recovery, the tactics), instead of the whole text; the A-A and A-G blocks of the ROE stay.
+- **For 1.4, the Smart ROE / SOP card reworked** (done in 1.4.0-beta.8): ROE in the key box, SOP chosen by priority (Smart tick, conditions
+  of the day, fixed topics, tiers), Emergencies at the bottom. The tiers and the fixed topics can be adjusted after use in the game.
+- **For 1.4, the ROE / SOP page reworked**: ROE and SOP on two sub-pages; one Fold all / Unfold all button; for the ROE, a choice between the
+  rules written by the A-A / A-G pages, the rules chosen by the pilot, or both (as now); then a tooltip on the page that tells how the Smart
+  card chooses its topics.
 - **For 1.4, bigger annotations on the target picture** (A-G > Target): a size for the symbols, the text and the labels of the threats and
   units (on the page and on the cards), so that they stay readable on the kneeboard in the cockpit and in VR.
 - **For 1.4, the labels of a turned map screenshot follow the turn** (done in 1.4.0-beta.6): the screenshot of the Map page taken with a turned frame (for the

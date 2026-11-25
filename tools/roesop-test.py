@@ -135,6 +135,11 @@ try:
         kb = pg.evaluate("async()=>{const k=await import('/app/js/app/kneeboard.js');return k.KBLIB.slice(-2).map(i=>i.name)}")
         n1 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
         check('...both put on the Kneeboard %s' % kb, n1 == n0 + 2 and kb[0].startswith('ROE / SOP') and kb[1].startswith('Smart · ROE / SOP'))
+        check('the page counts what the Smart card holds %s' % pg.inner_text(B + '.rssm'), 'Smart card: SOP' in pg.inner_text(B + '.rssm'))
+        check('each SOP topic chosen has a Smart tick', pg.locator(B + '.rpr[data-t=dep] .rpsm input').is_enabled())
+        if shots:
+            u = pg.evaluate("async()=>{const k=await import('/app/js/app/kneeboard.js');const it=k.KBLIB[k.KBLIB.length-1];const b=it.blob;return await new Promise(r=>{const f=new FileReader();f.onload=()=>r(f.result);f.readAsDataURL(b)})}")
+            import base64; open(shots + '/roesop-smart.png', 'wb').write(base64.b64decode(u.split(',')[1]))
         plan = pg.evaluate("""async()=>{const rc=await import('/app/js/app/roecard.js'),rs=await import('/app/js/core/roesop.js');const x=document.createElement('canvas').getContext('2d');
           const s={roe:{ws:'tight',id:['awacs','l16','two'],commit:'n40',abort:['bingo','winch','spike'],extra:['mez','pid','lines','fox']},sop:{}};
           rs.topicsAll().forEach(t=>s.sop[t[0]]={o:t[3][0][0],c:false});return rc.roeCardPlan(s,x).map(c=>c.title)}""")

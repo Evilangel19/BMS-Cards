@@ -1,5 +1,10 @@
 // ROE / SOP (core/roesop.js): the text on the card, the check of what comes from outside, several presets together
 import {
+  smartSop,
+  smartSopLines,
+  smartLink,
+  roeKey,
+  tierOf,
   ROE,
   SOP_TOPICS,
   roeText,
@@ -121,6 +126,82 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
     'the copies made back and forth go: same name without " (sq)", same choices; a free name loses " (sq)"; the first is the Standard ' +
       JSON.stringify(L.map(p => [p.name, p.std])),
     JSON.stringify(L.map(p => [p.name, p.std])) == '[["104 A-G",true],["X",false]]'
+  );
+}
+// ---- the Smart ROE / SOP card: what goes on it, in which order (made-up choices)
+{
+  const sel = {
+    roe: { ws: 'tight', id: ['vid'], abort: [] },
+    sop: {
+      takeoff: { t: 'ROLL 5S' },
+      rec: { o: 'ovhd' },
+      formland: { o: 'yes' },
+      brk: { o: '2' },
+      gawe: { o: null, t: 'G-WARM UP', s: true },
+      breakaway: { o: null, t: 'BREAK CALL' },
+      nvg: { o: 'std' },
+      lost: { o: null, t: 'LOST WG 30 DEG' },
+      csar: { o: 'std' },
+    },
+  };
+  const ids = r => r.items.map(i => i.id).join(' ');
+  const r0 = smartSop(sel, {});
+  ok(
+    'a clear day: the topic ticked Smart first, then the fixed ones by tier (Night not on); the Emergencies apart ' +
+      ids(r0) +
+      ' | ' +
+      r0.emerg.map(e => e.id).join(' '),
+    r0.items[0].id == 'gawe' &&
+      !r0.items.some(i => i.id == 'nvg') &&
+      r0.items.some(i => i.id == 'rec') &&
+      r0.emerg.map(e => e.id).join(' ') == 'lost csar'
+  );
+  const r1 = smartSop(sel, { imcArr: true, imcDep: true, night: true, enemy: true });
+  const rec = r1.items.find(i => i.id == 'rec'),
+    dep = r1.items.find(i => i.id == 'dep'),
+    fl = r1.items.find(i => i.id == 'formland'),
+    br = r1.items.find(i => i.id == 'brk');
+  ok(
+    'IMC at the fields: Recovery INSTRUMENT (WX), Departure RADAR TRAIL (WX) even without a choice, Break STRAIGHT-IN, Formation landing NO; first on the list ' +
+      ids(r1),
+    rec &&
+      /INSTRUMENT/.test(rec.txt) &&
+      rec.tag == 'WX' &&
+      dep &&
+      /RADAR TRAIL/.test(dep.txt) &&
+      br &&
+      /STRAIGHT-IN/.test(br.txt) &&
+      fl &&
+      /NO$/.test(fl.txt) &&
+      r1.items[0].id == 'rec'
+  );
+  ok(
+    'night: the Night phase comes in (NVG); over the enemy CSAR is the first Emergency',
+    r1.items.some(i => i.id == 'nvg') && r1.emerg[0].id == 'csar'
+  );
+  const off = { ...sel, noauto: ['rec'] };
+  ok(
+    'the change of the day switched off: Recovery keeps the choice (OVERHEAD)',
+    /OVERHEAD/.test(smartSop(off, { imcArr: true }).items.find(i => i.id == 'rec').txt) &&
+      smartLink(off, 'rec', { imcArr: true }) === null
+  );
+  ok(
+    'already right for the day: no change (Recovery straight-in in IMC)',
+    smartLink({ ...sel, sop: { rec: { o: 'si' } } }, 'rec', { imcArr: true }) === null
+  );
+  const L = smartSopLines(r1.items);
+  ok(
+    'the lines go in the order of the flight, one for each phase ' + JSON.stringify(L.slice(0, 3)),
+    L.length > 0 && L.findIndex(l => /^T\/O|^DEP/.test(l)) < L.findIndex(l => /^REC/.test(l))
+  );
+  ok(
+    'tiers: BREAKAWAY before G-awareness and intra-flight radio',
+    tierOf('breakaway') < tierOf('gawe') && tierOf('breakaway') < tierOf('intra')
+  );
+  const K = roeKey(sel);
+  ok(
+    'the key box: WPN TIGHT, ID, no commit set ' + JSON.stringify(K),
+    K.wpn == 'TIGHT' && K.id.length > 0 && K.commit == ''
   );
 }
 console.log(bad ? `${bad} of ${n} FAILED` : `OK - ${n} ROE / SOP checks`);

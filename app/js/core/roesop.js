@@ -533,6 +533,11 @@ export const SOP = [
             'RADAR TRAIL',
           ],
           ['si', 'Straight-in (instrument approach)', 'STRAIGHT-IN'],
+          [
+            'inst',
+            'Instrument recovery: TACAN or ILS approach for each aircraft, radar trail between them, straight-in',
+            'INSTRUMENT',
+          ],
         ],
       ],
       [
@@ -979,6 +984,7 @@ export const emptySel = () => ({
   sfree: '', // other SOP lines
   faor: null, // the A-A block, written by A-A > DCA / OCA (core/faor.js): its weapons control and commit win over those above
   ag: null, // the A-G block, written by the A-G pages (core/agrules.js): on the ROE card, not in the ROE box of the datacard
+  noauto: [], // the topics that the conditions of the day do not change on the Smart card (SMART_LINKS)
 });
 const str = (v, n) => String(v == null ? '' : v).slice(0, n);
 // a choice that comes from outside (a file, a preset, the network) is checked: unknown ids are dropped
@@ -998,6 +1004,7 @@ export function cleanSel(s) {
       o: opts.some(p => p[0] === v.o) ? v.o : null,
       t: str(v.t, 120).trim(),
       c: !!v.c,
+      s: !!v.s, // on the Smart card first
     };
     if (t.o || t.t) o.sop[id] = t;
   });
@@ -1005,13 +1012,14 @@ export function cleanSel(s) {
   if (s.sop && typeof s.sop == 'object')
     for (const [id, v] of Object.entries(s.sop)) {
       if (o.sop[id] || !/^x[a-z0-9]{3,12}$/.test(id) || !v || typeof v != 'object') continue;
-      const t = { o: /^o\d{1,2}$/.test(v.o) ? v.o : null, t: str(v.t, 120).trim(), c: !!v.c };
+      const t = { o: /^o\d{1,2}$/.test(v.o) ? v.o : null, t: str(v.t, 120).trim(), c: !!v.c, s: !!v.s };
       if (t.o || t.t) o.sop[id] = t;
     }
   o.free = str(s.free, 600);
   o.sfree = str(s.sfree, 600);
   o.faor = cleanFaor(s.faor);
   o.ag = cleanAg(s.ag);
+  o.noauto = Array.isArray(s.noauto) ? [...new Set(s.noauto.filter(id => SMART_LINKS.some(l => l[0] === id)))] : [];
   return o;
 }
 // the short text of a SOP topic: the option, or what was typed for it
@@ -1271,4 +1279,132 @@ export function fullText(sel) {
   });
   const lines = t => t.split('\n').filter(l => l.trim());
   return { roe, sop, roeFree: lines(s.free), sopFree: lines(s.sfree) };
+}
+
+// ---- THE SMART ROE / SOP CARD (app/roepage.js): which SOP topics go on it, in which order of importance.
+// The tier of a topic: A, flight safety; B, the procedures of the flight; C, routine (the others). When everything does not fit, A goes first.
+const TIER_A =
+    'breakaway kio floor bubble lost aarlost nordo aarnordo imc recall nmin n30 fuelmin fuel rec fence jett csar airabort toabort'.split(
+      ' '
+    ),
+  TIER_B =
+    'push takeoff dep rejoin blind ops bull rv obs order offload aarjoin brk sep formland wxdep wxvfr wxag shots marm hung bdchk nvg lightsout nform'.split(
+      ' '
+    );
+export const tierOf = id => (TIER_A.includes(id) ? 0 : TIER_B.includes(id) ? 1 : 2);
+// always on the Smart card when they have a value: all of Mission, the departure and rejoin, FENCE and the bullseye, the recovery
+export const SMART_FIXED =
+  'push spare bda iff takeoff dep rejoin turns blind ops fence bull fuelmin rec brk formland'.split(' ');
+// the phases that come with the conditions of the mission, in this order: weather first, then night, training, tanker
+export const SMART_DYN = [
+  ['wx', 'Weather'],
+  ['night', 'Night'],
+  ['train', 'Training'],
+  ['tank', 'Tanker'],
+];
+// a few topics follow the conditions of the day on the Smart card (not on the page, not on the datacard): [id, when (ctx), already right (option),
+// the option of the day, tag]. Recovery and departure are written even without a choice.
+export const SMART_LINKS = [
+  ['rec', c => c.imcArr, o => ['inst', 'trail', 'si'].includes(o), 'inst', 'WX'],
+  ['dep', c => c.imcDep, o => ['trail', 'trail3', 'sid'].includes(o), 'trail', 'WX'],
+  ['brk', c => c.imcArr, () => false, null, 'WX'], // no overhead: straight-in
+  ['formland', c => c.imcArr || c.night, o => o == 'no', 'no', c => (c.imcArr ? 'WX' : 'NIGHT')],
+];
+const LINK_TXT = { brk: 'STRAIGHT-IN, NO OVHD' };
+// the link of a topic active today, or null: {o (the option of the day, or null), t (a text), tag}
+export function smartLink(sel, id, ctx) {
+  const s = cleanSel(sel),
+    l = SMART_LINKS.find(x => x[0] === id);
+  if (!l || !ctx || s.noauto.includes(id) || !l[1](ctx)) return null;
+  const v = s.sop[id];
+  if (v && v.o && l[2](v.o)) return null; // the choice is already right for the day
+  if (!v && !['rec', 'dep'].includes(id)) return null; // the others change a choice, they do not add a topic
+  return { o: l[3], t: LINK_TXT[id] || '', tag: typeof l[4] == 'function' ? l[4](ctx) : l[4] };
+}
+// the SOP topics of the Smart card, most important first: [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
+// box at the bottom. ctx: {imcDep, imcArr, wx (bad weather), night, train, tank, ag (an A-G mission), enemy (over the enemy)}
+export function smartSop(sel, ctx = {}) {
+  const s = cleanSel(sel),
+    all = sopAll(),
+    T = all.flatMap(([ph, L, ctag]) => L.map(t => ({ t, ph, ctag }))),
+    byId = id => T.find(x => x.t[0] === id),
+    item = (x, lk) => {
+      const v = lk && lk.o ? { o: lk.o, t: lk.t } : lk && lk.t ? { t: lk.t } : s.sop[x.t[0]],
+        mini = x.ctag ? x.t[2] : MINI[x.t[0]],
+        sh = v ? v.t || sopShort(x.t, v) : '';
+      return sh
+        ? { id: x.t[0], ph: x.ph, txt: v.t && !lk ? v.t : (mini ? mini + ' ' : '') + sh, tag: lk ? lk.tag : '' }
+        : null;
+    },
+    out = [],
+    seen = new Set(),
+    add = (x, force) => {
+      if (!x || seen.has(x.t[0])) return;
+      const lk = smartLink(s, x.t[0], ctx);
+      if (!force && !s.sop[x.t[0]] && !lk) return;
+      const it = item(x, lk);
+      if (it) {
+        seen.add(x.t[0]);
+        out.push(it);
+      }
+    },
+    byTier = L => [...L].sort((a, b) => tierOf(a.t[0]) - tierOf(b.t[0])),
+    body = x => x.ph != 'Emergencies';
+  // 1. the topics that the day changes (recovery and departure in IMC are written even without a choice)
+  SMART_LINKS.forEach(([id]) => smartLink(s, id, ctx) && add(byId(id), true));
+  // 2. the topics ticked Smart by the pilot
+  byTier(T.filter(x => body(x) && s.sop[x.t[0]] && s.sop[x.t[0]].s)).forEach(x => add(x));
+  // 3. the phases of the conditions of the mission, weather first; hung ordnance with an A-G mission
+  SMART_DYN.forEach(([k, ph]) => ctx[k] && byTier(T.filter(x => x.ph === ph)).forEach(x => add(x)));
+  if (ctx.ag) add(byId('hung'));
+  // 4. the fixed topics
+  byTier(SMART_FIXED.map(byId).filter(Boolean)).forEach(x => add(x));
+  const core = out.length;
+  // 5. to fill the space left after the Emergencies: the other topics chosen, by tier
+  byTier(T.filter(x => body(x) && s.sop[x.t[0]])).forEach(x => add(x));
+  // the Emergencies: ticked first, CSAR first over the enemy, then by tier
+  const E = byTier(T.filter(x => !body(x) && s.sop[x.t[0]]))
+    .sort((a, b) => (s.sop[b.t[0]].s ? 1 : 0) - (s.sop[a.t[0]].s ? 1 : 0))
+    .sort((a, b) => (ctx.enemy ? (b.t[0] == 'csar') - (a.t[0] == 'csar') : 0))
+    .map(x => item(x, null))
+    .filter(Boolean);
+  return { items: out.slice(0, core), fill: out.slice(core), emerg: E };
+}
+// the items that fit, back in the order of the flight (phase by phase, as the SOP lists them), one line for each phase: [tag of the phase, text]
+export function smartSopLines(items) {
+  const all = sopAll(),
+    ord = id =>
+      all.findIndex(([, T]) => T.some(t => t[0] === id)) * 100 +
+      all.flatMap(([, T]) => T).findIndex(t => t[0] === id) / 1000,
+    S = [...items].sort((a, b) => ord(a.id) - ord(b.id)),
+    out = [];
+  S.forEach(it => {
+    const ctag = (all.find(([ph]) => ph === it.ph) || [])[2],
+      head = ctag || PHASE_TAG[it.ph] || it.ph.toUpperCase(),
+      t = it.txt + (it.tag ? ' (' + it.tag + ')' : ''),
+      last = out[out.length - 1];
+    if (last && last[0] === head) last[1] += ' · ' + t;
+    else out.push([head, t]);
+  });
+  return out.map(([h, t]) => h + ': ' + t);
+}
+// the four ROE of the key box of the Smart card, short: weapons status, ID, commit, bugout (the A-A block gives its weapons control and commit)
+export function roeKey(sel) {
+  const s = cleanSel(sel),
+    sh = (id, v) => {
+      const r = ROE.find(x => x[0] === id),
+        o = r && r[4].find(x => x[0] === v);
+      return o ? o[2] : '';
+    },
+    many = (id, j) =>
+      (Array.isArray(s.roe[id]) ? s.roe[id] : [])
+        .map(v => sh(id, v))
+        .filter(Boolean)
+        .join(j);
+  return {
+    wpn: s.faor ? s.faor.wpn.toUpperCase() : sh('ws', s.roe.ws).replace(/^WPN(S)?\s*/i, ''),
+    id: many('id', '+'),
+    commit: s.faor ? s.faor.commit + 'NM' : sh('commit', s.roe.commit).replace(/^COMMIT\s*/i, ''),
+    bugout: many('abort', '/'),
+  };
 }

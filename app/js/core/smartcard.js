@@ -818,27 +818,47 @@ export function drawSmartAttack(x, A) {
   scEnd(x);
 }
 /** a card of text blocks (ROE / SOP): T {title, right, key, blocks: [[head, [lines]]...], foot, last} */
+// T.emerg (lines): a box under a line at the bottom (the Emergencies of the ROE / SOP card), the blocks above it
 export function drawSmartText(x, T) {
   scFrame(x, T.title, T.right);
   scKey(x, T.key);
   scSec(x, 146);
+  const E = T.emerg || [],
+    eRows = E.map(t => wrap(x, '• ' + t, 13, 432)),
+    eH = eRows.reduce((a, r) => a + r.length * 16, 0),
+    yE = E.length ? 684 - 26 - eH - 22 : 0, // the line over the Emergencies
+    yMax = E.length ? yE - 12 : T.emerg ? 652 : 588;
   let y = 168;
   for (const [head, rows] of T.blocks) {
-    if (y > 580) break;
+    if (y > yMax - 8) break;
     txt(x, 12, y, 13, head, { w: 700 });
     y += 18;
     for (const r of rows) {
-      if (y > 588) break;
+      if (y > yMax) break;
       const [t, red] = Array.isArray(r) ? r : [r, false];
       wrap(x, '• ' + t, 13, 432).forEach((l, k) => {
-        if (y > 588) return;
+        if (y > yMax) return;
         txt(x, k ? 24 : 12, y, 13, k ? l.trim() : l, { c: red ? RED : INK });
         y += 16;
       });
     }
     y += 10;
   }
-  scFoot(x, 602, T.foot, T.last);
+  if (T.emerg) {
+    // the Emergencies at the bottom, then the last line
+    if (E.length) {
+      scSec(x, yE, 'EMERGENCIES');
+      let ye = yE + 34;
+      eRows.forEach(L =>
+        L.forEach((l, k) => {
+          txt(x, k ? 24 : 12, ye, 13, k ? l.trim() : l, {});
+          ye += 16;
+        })
+      );
+    }
+    scSec(x, 668);
+    if (T.last) txt(x, 12, 684, 12, String(T.last));
+  } else scFoot(x, 602, T.foot, T.last);
   scEnd(x);
 }
 /** the words of t in lines no wider than w */
