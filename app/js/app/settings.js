@@ -22,6 +22,7 @@ import { toneRGBA } from '../core/tone.js';
 import { GAMEDATA, loadGameData } from './gamedata.js';
 import { applyFormToggle, closeEd } from './editor.js';
 import { mapV, sqPage } from './pages.js';
+import { roeRefreshPage } from './roepage.js';
 import { view, openDtc } from './dtcfile.js';
 import { initAppear } from './appear.js';
 import { ic, setOpen, setSwitch, swRow, top } from './settingsui.js';
@@ -73,6 +74,7 @@ const SW_OF = {
   general: ['autoLoad', 'anim', 'upd', 'oneShot', 'editTrain'],
   datacard: ['form', 'others', 'mfd'],
   kneeboard: ['toneOn', 'toneDark'],
+  mission: ['rulesEdit'],
   map: ['sat'],
 };
 let LAST = 'folders'; // the section shown the last time
@@ -109,7 +111,7 @@ const OF = {
   general: v => [v.sw.autoLoad, v.sw.anim, v.sw.upd, v.sw.oneShot, v.sw.editTrain],
   datacard: v => [v.sw.form, v.sw.others, v.sw.mfd],
   kneeboard: v => [v.sw.toneOn, v.sw.toneDark, v.tone, v.okb],
-  mission: v => [v.radius, v.trackers],
+  mission: v => [v.radius, v.trackers, v.sw.rulesEdit],
   map: v => [v.sw.sat, v.sat],
 };
 
@@ -338,7 +340,14 @@ export async function openSettings() {
     '</button><button type="button" aria-label="Decrease" data-a="step" data-d="-1">' +
     ic('down') +
     '</button></span><span style="color:var(--mu)">NM</span></div></div></div>' +
-    '<h3 class="s-gt">Squadron</h3><div class="s-gp"><div class="s-fr"><label for="c-trk">Squadron trackers</label><textarea id="c-trk" class="s-fd" rows="3" spellcheck="false" placeholder="empty = the built-in public trackers (wss://tracker.openwebtorrent.com …)">' +
+    '<h3 class="s-gt">Squadron</h3><div class="s-gp">' +
+    sw(
+      'rulesEdit',
+      'Edit the Smart card rules',
+      'Shows the RULES sub-page in Squadron > ROE / SOP: the table of the rules that choose the SOP topics of the Smart ROE / SOP card. Your rules stay on this PC; the commander can change the rules of the squadron. The rules apply also when this is off.',
+      !!(C.squadron && C.squadron.rulesEdit)
+    ) +
+    '<div class="s-fr"><label for="c-trk">Squadron trackers</label><textarea id="c-trk" class="s-fd" rows="3" spellcheck="false" placeholder="empty = the built-in public trackers (wss://tracker.openwebtorrent.com …)">' +
     esc((C.squadron && C.squadron.trackers) || '') +
     '</textarea><p class="hint" style="margin-top:8px">WebTorrent trackers (ws:// or wss://, one per line) used to see which pilots of the squadron are online. You can use your own.</p></div></div>';
   const map =
@@ -561,7 +570,7 @@ export async function openSettings() {
       checkUpdates: v.sw.upd,
       editTraining: v.sw.editTrain,
     };
-    n.squadron = { ...(n.squadron || {}), trackers: v.trackers };
+    n.squadron = { ...(n.squadron || {}), trackers: v.trackers, rulesEdit: v.sw.rulesEdit };
     n.kneeboard = {
       ...(n.kneeboard || {}),
       toneOn: v.sw.toneOn,
@@ -623,6 +632,7 @@ export async function openSettings() {
       }
       applyAnim();
       okbSync();
+      roeRefreshPage();
       if (trk) sqPage.restart();
       try {
         mapV.rebase();

@@ -33,6 +33,7 @@ export const DEFAULTS = {
   },
   squadron: {
     trackers: '', // WebTorrent trackers (ws:// or wss://, one per line or separated by spaces) used to find the pilots of the squadron; empty = the built-in public ones
+    rulesEdit: false, // true = Squadron > ROE / SOP shows the RULES sub-page (the rules of the Smart ROE / SOP card)
   },
   map: {
     satOn: false, // true = the satellite layer of the maps uses the provider below instead of the built-in one (Sentinel-2 by EOX)

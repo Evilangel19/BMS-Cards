@@ -31,7 +31,8 @@
     "radiusNm": 60
   },
   "squadron": {
-    "trackers": ""
+    "trackers": "",
+    "rulesEdit": false
   },
   "map": {
     "satOn": false,

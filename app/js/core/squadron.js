@@ -22,7 +22,7 @@ import {
 import { orgHtml, wireOrg, lostHtml, wireLost } from './orgpage.js';
 import { createBriefing } from './briefing.js';
 import { roleOf } from './briefroom.js';
-import { cleanSqPresets, cleanCustom } from './roesop.js';
+import { cleanSqPresets, cleanCustom, cleanRules } from './roesop.js';
 import * as MX from './misindex.js';
 
 // ---------- logbook (.lbk) ----------
@@ -1740,6 +1740,7 @@ export function createSquadronPage(deps) {
     logo: q.logo || '',
     roe: cleanSqPresets(q.roe), // the ROE / SOP presets of the squadron (the commander sets them)
     roeSec: cleanCustom(q.roeSec), // the custom SOP sections of the squadron
+    roeRules: cleanRules(q.roeRules), // the rules of the Smart ROE / SOP card changed by the commander
     ts: q.ts,
   });
   function swarmStart(q) {
@@ -1810,6 +1811,7 @@ export function createSquadronPage(deps) {
               logo: okImg(m.squad.logo) ? m.squad.logo : '',
               roe: cleanSqPresets(m.squad.roe),
               roeSec: cleanCustom(m.squad.roeSec),
+              roeRules: cleanRules(m.squad.roeRules),
               ts: m.squad.ts,
             });
             ch = true;
@@ -2468,6 +2470,7 @@ export function createSquadronPage(deps) {
       own: owns(q),
       presets: q ? cleanSqPresets(q.roe) : [],
       sections: q ? cleanCustom(q.roeSec) : [],
+      rules: q ? cleanRules(q.roeRules) : {},
       save: list => {
         if (!q || !owns(q)) return;
         q.roe = cleanSqPresets(list);
@@ -2477,6 +2480,12 @@ export function createSquadronPage(deps) {
       saveSec: list => {
         if (!q || !owns(q)) return;
         q.roeSec = cleanCustom(list);
+        touchSquad(q);
+        drawRoe();
+      },
+      saveRules: rows => {
+        if (!q || !owns(q)) return;
+        q.roeRules = cleanRules(rows);
         touchSquad(q);
         drawRoe();
       },
@@ -4028,6 +4037,10 @@ export function createSquadronPage(deps) {
     roeSections: () => {
       const q = cur();
       return q ? cleanCustom(q.roeSec) : [];
+    },
+    roeRules: () => {
+      const q = cur();
+      return q ? cleanRules(q.roeRules) : {};
     },
     flush,
     refresh: () => {

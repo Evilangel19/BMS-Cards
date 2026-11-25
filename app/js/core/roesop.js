@@ -1415,11 +1415,64 @@ const WHY = {
   enemy: 'over the enemy',
 };
 const TAG = { night: 'NIGHT', train: 'TRNG', tank: 'AAR', ag: 'A-G', enemy: 'THREAT' };
-export const tierOf = id => (SMART_RULES[id] ? 'ABC'.indexOf(SMART_RULES[id][0]) : 2);
-const fixedOf = id => !!(SMART_RULES[id] && SMART_RULES[id][1]);
+// THE RULES IN USE: the defaults above with the rows that the pilot or the squadron changed (rulesSet). A changed row:
+// {tier: 'A' | 'B' | 'C', fx: true | false, c: {condition: rule}} (the rows of the table of the page, and of its Export / Import text)
+let RULES = SMART_RULES;
+const RULE_ID = /^x[a-z0-9]{3,12}$/; // a topic of an own section
+const cleanRule = v =>
+  v === 'in' || v === 'first' || v === 'out'
+    ? v
+    : v && typeof v == 'object' && typeof v.o == 'string' && /^[\w-]{1,12}$/.test(v.o)
+      ? { o: v.o }
+      : v && typeof v == 'object' && typeof v.t == 'string' && v.t.trim()
+        ? {
+            t: v.t
+              .replace(/[\r\n]+/g, ' ')
+              .trim()
+              .slice(0, 60),
+          }
+        : null;
+// the changed rows that come from outside (this PC, the squadron, a text pasted) are checked: unknown topics, conditions and values are dropped
+export function cleanRules(o) {
+  const out = {};
+  if (!o || typeof o != 'object') return out;
+  for (const [id, r] of Object.entries(o)) {
+    if (!(SMART_RULES[id] || RULE_ID.test(id)) || !r || typeof r != 'object') continue;
+    const c = {};
+    if (r.c && typeof r.c == 'object')
+      SMART_CONDS.forEach(k => {
+        const v = cleanRule(r.c[k]);
+        if (v) c[k] = v;
+      });
+    out[id] = { tier: ['A', 'B', 'C'].includes(r.tier) ? r.tier : 'C', fx: !!r.fx, c };
+  }
+  return out;
+}
+// a row of the defaults in the form of a changed row (the page compares and shows them)
+export function ruleRow(id) {
+  const d = SMART_RULES[id] || ['C', 0, {}],
+    c = {};
+  Object.entries(d[2] || {}).forEach(([k, v]) => (c[k] = typeof v == 'string' ? v : v.o ? { o: v.o } : { t: v.t }));
+  return { tier: d[0], fx: !!d[1], c };
+}
+// the same as the default: the row is not kept
+export const ruleSame = (id, r) => JSON.stringify(cleanRules({ [id]: r })[id]) === JSON.stringify(ruleRow(id));
+// put the changed rows in use (none: the defaults). An option of the default keeps the options that are already right for it (ok)
+export function rulesSet(over) {
+  const o = cleanRules(over);
+  RULES = { ...SMART_RULES };
+  for (const [id, r] of Object.entries(o)) {
+    const d = (SMART_RULES[id] && SMART_RULES[id][2]) || {},
+      c = {};
+    Object.entries(r.c).forEach(([k, v]) => (c[k] = typeof v == 'object' && v.o && d[k] && d[k].o === v.o ? d[k] : v));
+    RULES[id] = [r.tier, r.fx ? 1 : 0, c];
+  }
+}
+export const tierOf = id => (RULES[id] ? 'ABC'.indexOf(RULES[id][0]) : 2);
+const fixedOf = id => !!(RULES[id] && RULES[id][1]);
 // the rule of a topic that applies today: [condition, rule], or null
 function ruleOf(id, ctx) {
-  const R = SMART_RULES[id] && SMART_RULES[id][2];
+  const R = RULES[id] && RULES[id][2];
   if (!R || !ctx) return null;
   const k = SMART_CONDS.find(c => ctx[c] && R[c]);
   return k ? [k, R[k]] : null;

@@ -35,7 +35,20 @@ import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
 import { drawSmartText, SC_W, SC_H, wrap } from '../core/smartcard.js';
-import { fullText, smartSop, smartSopLines, roeKey, smartLink, msnOn, faorOwn } from '../core/roesop.js';
+import {
+  fullText,
+  smartSop,
+  smartSopLines,
+  roeKey,
+  smartLink,
+  msnOn,
+  faorOwn,
+  cleanRules,
+  ruleRow,
+  ruleSame,
+  rulesSet,
+} from '../core/roesop.js';
+import { APP_VERSION } from '../core/version.js';
 import { seatIdx } from './seat.js';
 import { flightTag } from './ato.js';
 import { chooseCards } from '../core/tgdlg.js';
@@ -86,6 +99,7 @@ const sqGet = (f, d) => {
 // the custom sections known to the choices: mine, then the squadron's
 function syncCustom() {
   setCustom([...mySecs(), ...((R && R.ctx.sections) || sqGet('roeSections', []))]);
+  rulesSet(rulesUsed()); // and the rules of the Smart card in use
 }
 // lines typed by hand in a box that the choices did not write: they come back as its other lines
 const handLines = (typed, made) => {
@@ -186,7 +200,7 @@ function loadFlight() {
 }
 // the squadron calls this when the page is drawn: the page is drawn again only when something it shows changed
 export function roeDraw(box, ctx) {
-  const sig = JSON.stringify([ctx.squad, ctx.own, ctx.presets, ctx.sections]);
+  const sig = JSON.stringify([ctx.squad, ctx.own, ctx.presets, ctx.sections, ctx.rules]);
   R.ctx = ctx;
   syncCustom();
   let fresh = R.stale; // a block written while the page was hidden (blockSet): the page shows it now
@@ -420,7 +434,8 @@ function render0(box) {
     onSmart = D ? D.on : new Set(),
     man = R.sel.mode == 'man',
     msn = msnOn(R.sel),
-    sub = LS.get('bmsroesub', 'roe') == 'sop' ? 'sop' : 'roe';
+    sub0 = LS.get('bmsroesub', 'roe'),
+    sub = sub0 == 'sop' || (sub0 == 'rules' && rulesOn()) ? sub0 : 'roe';
   const chip = (id, kind, [v, long, short]) => {
     const on = kind == 'many' ? R.sel.roe[id].includes(v) : R.sel.roe[id] === v,
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
@@ -569,14 +584,15 @@ function render0(box) {
   const subs = `<div class="wtabs rssub" role="tablist">${[
     ['roe', 'ROE'],
     ['sop', 'SOP'],
+    ...(rulesOn() ? [['rules', 'RULES']] : []),
   ]
     .map(
       ([k, l]) =>
         `<button type="button" role="tab" data-sub="${k}" class="${sub == k ? 'on' : ''}" aria-selected="${sub == k}">${l}</button>`
     )
     .join('')}</div>`;
-  const main = sub == 'roe' ? roePane : `${tools}${customBlock}${cols(phases)}${other}`; // the custom sections above the standard ones; Other SOP lines right under the phases
-  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
+  const main = sub == 'roe' ? roePane : sub == 'rules' ? rulesPane() : `${tools}${customBlock}${cols(phases)}${other}`; // the custom sections above the standard ones; Other SOP lines right under the phases
+  box.innerHTML = `<div class="rsq${sub == 'rules' ? ' rlw' : ''}"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   box.querySelector('.rpv1').textContent = roeText(R.sel);
   box.querySelector('.rpv2').textContent = sopText(R.sel);
@@ -630,6 +646,7 @@ function blockSet(field, fa) {
 }
 // the data of the Smart ROE / SOP card for the flight now (the combined Smart cards take their ROE / SOP part from it): null when nothing is chosen
 export function roeSmartNow() {
+  syncCustom();
   const seen = R.box && ST.CURK === R.flightKey,
     c0 = seen && R.pick && !dirty() && chipOf(R.pick),
     sub = F.cs && flightOn() ? 'Flight ' + F.cs : c0 ? (c0.std ? 'Standard' : c0.name) : '';
@@ -641,6 +658,7 @@ export function roeSmartNow() {
 }
 // the ROE / SOP cards, in both looks, for Add all cards of the Kneeboard (none when nothing is chosen; pages.js registers it)
 export async function roeAllCards() {
+  syncCustom();
   await roeCtxLoad();
   const c = document.createElement('canvas');
   c.width = CARD_W;
@@ -667,6 +685,163 @@ export async function roeAllCards() {
       dark: cardDark(),
     }))
     .concat(sm ? [sm] : []);
+}
+// ---- RULES (shown with Settings > Mission & squadron > Edit the Smart card rules): the table of the rules of the Smart card. The rows that are not
+// the defaults are kept: mine on this PC (bmsroerules), the squadron's in the squadron (the commander changes them)
+const myRules = () => cleanRules(LS.get('bmsroerules', {}));
+const sqRules = () => (R.ctx.squad ? R.ctx.rules : sqGet('roeRules', {})) || {};
+// the rules in use: the squadron's when its presets are chosen (always for a mission of another pilot) and it changed some, else mine
+function rulesSrc() {
+  return Object.keys(sqRules()).length && (ST.MSQ || LS.get('bmsroesrc', 'sq') == 'sq') ? 'sq' : 'me';
+}
+const rulesUsed = () => (rulesSrc() == 'sq' ? sqRules() : myRules());
+const rulesOn = () => !!(ST.CFG && ST.CFG.squadron && ST.CFG.squadron.rulesEdit);
+// the rows the page changes: of the list chosen with Flight / Squadron
+const rulesEd = () => (SRC() == 'sq' ? cleanRules(R.ctx.rules) : myRules());
+const rulesCan = () => SRC() == 'me' || R.ctx.own;
+function rulesSave(rows) {
+  const o = cleanRules(rows);
+  Object.keys(o).forEach(id => ruleSame(id, o[id]) && delete o[id]);
+  if (SRC() == 'sq') {
+    if (!R.ctx.own) return;
+    R.ctx.rules = o;
+    R.ctx.saveRules(o);
+  } else LS.set('bmsroerules', o);
+  syncCustom();
+  render();
+}
+// the page drawn again (Settings saved: the RULES sub-page shown or hidden)
+export function roeRefreshPage() {
+  if (R.box && R.box.isConnected) render();
+}
+const RCOLS = [
+  ['imcDep', 'IMC DEP', 'IMC at the departure field'],
+  ['imcArr', 'IMC ARR', 'IMC at the landing field'],
+  ['wxDep', 'MVFR DEP', 'Marginal weather or worse at the departure field'],
+  ['wxArr', 'MVFR ARR', 'Marginal weather or worse at the landing field'],
+  ['wxTgt', 'MVFR TGT', 'Marginal weather or worse at the target'],
+  ['night', 'NIGHT', 'Night at take-off, at the task or at landing'],
+  ['train', 'TRNG', 'A training mission'],
+  ['tank', 'TNK', 'A tanker in the flight plan or in the package'],
+  ['ag', 'A-G', 'An A-G mission'],
+  ['enemy', 'ENEMY', 'Over the enemy (not DCA, support or C3I)'],
+];
+const RLAB = { '': '·', in: 'IN', first: '1ST', set: 'SET', out: 'OUT' };
+const rkind = v => (!v ? '' : typeof v == 'string' ? v : 'set');
+function rulesPane() {
+  const src = SRC(),
+    rows = rulesEd(),
+    can = rulesCan(),
+    only = !!LS.get('bmsrulesonly', false),
+    ph0 = R.rph || '',
+    nCh = Object.keys(rows).length,
+    dis = can ? '' : ' disabled';
+  const cell = (t, ph, r, k) => {
+    const v = r.c[k],
+      kd = rkind(v);
+    let sel = '';
+    if (kd == 'set') {
+      const cur = v.o != null ? v.o : '*';
+      sel = `<select class="rlv" data-id="${t[0]}" data-k="${k}" aria-label="Value"${dis}>${t[3].map(([o, , sh]) => `<option value="${esc(o)}"${cur === o ? ' selected' : ''}>${esc(sh)}</option>`).join('')}<option value="*"${cur == '*' ? ' selected' : ''}>Text…</option></select>${cur == '*' ? `<input class="rlt" data-id="${t[0]}" data-k="${k}" maxlength="60" value="${esc(v.t || '')}" placeholder="Text on the card" aria-label="Text of the value"${dis}>` : ''}`;
+    }
+    return `<td><button type="button" class="rlc ${kd}" data-id="${t[0]}" data-k="${k}" data-e="${ph == 'Emergencies' ? 1 : 0}"${dis}>${RLAB[kd]}</button>${sel}</td>`;
+  };
+  let body = '';
+  for (const [ph, T] of sopAll()) {
+    if (ph0 && ph != ph0) continue;
+    const L = T.filter(t => !only || rows[t[0]]);
+    if (!L.length) continue;
+    body += `<tr class="rlph"><td colspan="${RCOLS.length + 3}">${esc(ph.toUpperCase())}</td></tr>`;
+    for (const t of L) {
+      const ch = !!rows[t[0]],
+        r = rows[t[0]] || ruleRow(t[0]);
+      body += `<tr class="${ch ? 'chg' : ''}"><td class="rln"><span>${esc(t[1])}</span>${ch && can ? `<button type="button" class="rlr" data-id="${t[0]}" title="Back to the default rule">↺</button>` : ''}</td><td><button type="button" class="rlc t" data-id="${t[0]}" data-a="tier" title="Tier: A flight safety, B procedures, C routine"${dis}>${r.tier}</button></td><td><button type="button" class="rlc t${r.fx ? ' in' : ''}" data-id="${t[0]}" data-a="fx" title="Fixed: always on the Smart card when it has a value"${dis}>${r.fx ? 'YES' : '·'}</button></td>${RCOLS.map(([k]) => cell(t, ph, r, k)).join('')}</tr>`;
+    }
+  }
+  const who =
+    src == 'sq'
+      ? `The rules of the squadron${can ? ': they go to all its pilots' : ': only the commander changes them'}.`
+      : 'Your rules, on this PC.';
+  return `<div class="rstool rltool">${inSq() ? `<div class="seg rssrc" role="group" aria-label="Rules of"><button type="button" data-src="me" class="${src == 'me' ? 'on' : ''}" title="Your rules, on this PC">Flight</button><button type="button" data-src="sq" class="${src == 'sq' ? 'on sq' : ''}" title="The rules of the squadron">Squadron</button></div>` : ''}<select class="rlph" aria-label="Phase"><option value="">All phases</option>${sopAll()
+    .map(([ph]) => `<option${ph == ph0 ? ' selected' : ''}>${esc(ph)}</option>`)
+    .join(
+      ''
+    )}</select><div class="seg" role="group" aria-label="Show"><button type="button" data-ronly="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-ronly="1" class="${only ? 'on' : ''}">Changed only</button></div><span style="flex:1"></span><button type="button" class="btn g" data-a="rexp" title="The changed rules as text, to give to another pilot">Export</button><button type="button" class="btn g" data-a="rimp"${dis} title="Put in the rules of a text made with Export">Import</button><button type="button" class="btn g rd" data-a="rreset"${nCh && can ? '' : ' disabled'} title="All the rules back to the defaults">Reset to default</button></div><div class="hint rlwho">${who} ${nCh ? `<b>${nCh}</b> topic${nCh == 1 ? '' : 's'} changed.` : 'All rules are the defaults.'} Click a cell to change it: <b>IN</b> the topic goes on the card when it has a value, <b>1ST</b> an Emergency at the top, <b>SET</b> on the card with this value (also without a choice), <b>OUT</b> not on the card. When more conditions are true, the first column from the left wins.</div><div class="rltab"><table><thead><tr><th class="rln">Topic</th><th title="Tier: A flight safety, B procedures, C routine">Tier</th><th title="Fixed: always on the Smart card when it has a value">Fixed</th>${RCOLS.map(([, l, tip]) => `<th title="${esc(tip)}">${l}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+}
+// a click on a cell of the table
+function rulesClick(b) {
+  const id = b.dataset.id,
+    rows = rulesEd(),
+    r = rows[id] || ruleRow(id),
+    t = topicsAll().find(x => x[0] == id);
+  if (!t) return;
+  if (b.dataset.a == 'tier') r.tier = { A: 'B', B: 'C', C: 'A' }[r.tier];
+  else if (b.dataset.a == 'fx') r.fx = !r.fx;
+  else {
+    const k = b.dataset.k,
+      cy = b.dataset.e == '1' ? ['', 'in', 'first', 'set', 'out'] : ['', 'in', 'set', 'out'],
+      nx = cy[(cy.indexOf(rkind(r.c[k])) + 1) % cy.length];
+    if (!nx) delete r.c[k];
+    else r.c[k] = nx == 'set' ? (t[3].length ? { o: t[3][0][0] } : { t: 'TEXT' }) : nx;
+  }
+  rulesSave({ ...rows, [id]: r });
+  const f = R.box.querySelector(
+    `.rltab button[data-id="${id}"]${b.dataset.k ? `[data-k="${b.dataset.k}"]` : `[data-a="${b.dataset.a}"]`}`
+  );
+  if (f) f.focus();
+}
+function rulesValue(x) {
+  const id = x.dataset.id,
+    rows = rulesEd(),
+    r = rows[id] || ruleRow(id);
+  r.c[x.dataset.k] = x.classList.contains('rlt')
+    ? { t: x.value.trim() || 'TEXT' }
+    : x.value == '*'
+      ? { t: 'TEXT' }
+      : { o: x.value };
+  rulesSave({ ...rows, [id]: r });
+}
+function rulesExport() {
+  const txt = 'SOPTAB ' + JSON.stringify({ v: 1, base: APP_VERSION, rows: rulesEd() });
+  modal(
+    'Export the rules',
+    `<p>Copy this text and give it to another pilot: Import puts it in.</p><textarea class="rpfr rlx" rows="6" readonly>${esc(txt)}</textarea>`,
+    [
+      { a: 'copy', label: 'Copy' },
+      { a: 'no', label: 'Close', g: 1 },
+    ],
+    a => {
+      if (a != 'copy') return;
+      navigator.clipboard.writeText(txt).then(
+        () => appToast('Rules copied.'),
+        () => appToast('Select the text and copy it with Ctrl+C.', true)
+      );
+    }
+  );
+}
+function rulesImport() {
+  modal(
+    'Import the rules',
+    `<p>Paste a text made with Export. It replaces the ${SRC() == 'sq' ? 'rules of the squadron' : 'rules on this PC'}.</p><textarea class="rpfr rlx" rows="6" placeholder="SOPTAB {…}"></textarea>`,
+    [
+      { a: 'ok', label: 'Import' },
+      { a: 'no', label: 'Cancel', g: 1 },
+    ],
+    (a, p) => {
+      if (a != 'ok') return;
+      const ta = p.querySelector('.rlx');
+      try {
+        const v = JSON.parse(ta.value.replace(/^\s*SOPTAB\s*/, ''));
+        if (!v || typeof v.rows != 'object') throw new Error();
+        rulesSave(v.rows);
+        appToast('Rules imported.');
+      } catch (e) {
+        ta.classList.add('err');
+        appToast('The text is not a rules text made with Export.', true);
+        return false;
+      }
+    }
+  );
 }
 // ---- the column of the Smart ROE / SOP card: AUTO / MANUAL, Adapt to mission, its picture and what it holds
 const SMART_TIP =
@@ -695,10 +870,17 @@ function ctxSay() {
     ].filter(Boolean);
   return L.length ? L.join(' · ') : 'no special conditions';
 }
+// the rules in use, when they are not the defaults
+function rulesLine() {
+  const n = Object.keys(rulesUsed()).length;
+  return n
+    ? `<div class="rsctx rsrul" title="The rules of the Smart card are not the defaults${rulesOn() ? ': see the RULES sub-page' : ''}.">Rules: ${rulesSrc() == 'sq' ? 'squadron' : 'yours'} · ${n} topic${n == 1 ? '' : 's'} changed</div>`
+    : '';
+}
 function smartCol(D) {
   const man = R.sel.mode == 'man',
     n = D ? D.blocks.reduce((a, [h, L]) => a + (h == 'SOP' ? L.length : 0), 0) : 0;
-  return `<div class="wcard rssc"><div class="wh"><h3>Smart card</h3><span class="hint rsinfo" title="${esc(SMART_TIP)}">ⓘ How it works</span></div><div class="seg rsmode" role="group" aria-label="Smart card SOP"><button type="button" data-mode="auto" class="${man ? '' : 'on'}" title="The program chooses the SOP topics">AUTO</button><button type="button" data-mode="man" class="${man ? 'on' : ''}" title="You choose the SOP topics with the Smart tick">MANUAL</button></div><button type="button" class="tgl rsadapt${R.sel.adapt ? ' on' : ''}" data-a="adapt" title="Use the ROE of the mission and change some SOP topics for the weather and the night of the mission">Adapt to mission</button><div class="rsctx">${R.sel.adapt ? 'Mission: ' + esc(flightOn() ? ctxSay() : 'no flight chosen') : 'The Smart card does not change with the mission.'}</div>${D ? '<canvas class="rsprev" width="520" height="780" aria-label="The Smart ROE / SOP card"></canvas>' : '<div class="rsnone hint">Choose ROE or SOP topics to make the Smart card.</div>'}${
+  return `<div class="wcard rssc"><div class="wh"><h3>Smart card</h3><span class="hint rsinfo" title="${esc(SMART_TIP)}">ⓘ How it works</span></div><div class="seg rsmode" role="group" aria-label="Smart card SOP"><button type="button" data-mode="auto" class="${man ? '' : 'on'}" title="The program chooses the SOP topics">AUTO</button><button type="button" data-mode="man" class="${man ? 'on' : ''}" title="You choose the SOP topics with the Smart tick">MANUAL</button></div><button type="button" class="tgl rsadapt${R.sel.adapt ? ' on' : ''}" data-a="adapt" title="Use the ROE of the mission and change some SOP topics for the weather and the night of the mission">Adapt to mission</button><div class="rsctx">${R.sel.adapt ? 'Mission: ' + esc(flightOn() ? ctxSay() : 'no flight chosen') : 'The Smart card does not change with the mission.'}</div>${rulesLine()}${D ? '<canvas class="rsprev" width="520" height="780" aria-label="The Smart ROE / SOP card"></canvas>' : '<div class="rsnone hint">Choose ROE or SOP topics to make the Smart card.</div>'}${
     D
       ? `<div class="rscnt rssm"><span>SOP <b>${n}</b> line${n == 1 ? '' : 's'} · Emergencies <b>${D.emerg.length}</b></span></div>${D.left ? `<div class="rscnt rssm"><span><b class="full">${D.left}</b> topic${D.left == 1 ? '' : 's'} not written (no space)</span></div>` : ''}`
       : ''
@@ -826,6 +1008,7 @@ function roeSmartCard(sel, sub) {
 }
 // Add card: the whole text on Kneeboard cards (two when one is not enough: ROE and SOP apart, the pilot is told first)
 async function addCards() {
+  syncCustom();
   await roeCtxLoad();
   const c = document.createElement('canvas');
   c.width = CARD_W;
@@ -954,6 +1137,19 @@ function wire(box) {
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
     if (ed) return editSection(ed.dataset.sec);
+    const rc = e.target.closest('.rlc');
+    if (rc) return rulesClick(rc);
+    const rr = e.target.closest('.rlr');
+    if (rr) {
+      const rows = rulesEd();
+      delete rows[rr.dataset.id];
+      return rulesSave(rows);
+    }
+    const ro = e.target.closest('[data-ronly]');
+    if (ro) {
+      LS.set('bmsrulesonly', ro.dataset.ronly == '1');
+      return render();
+    }
     const sb2 = e.target.closest('[data-sub]');
     if (sb2) {
       LS.set('bmsroesub', sb2.dataset.sub);
@@ -1104,6 +1300,18 @@ function wire(box) {
       return;
     }
     if (act == 'kb') return addCards();
+    if (act == 'rexp') return rulesExport();
+    if (act == 'rimp') return rulesImport();
+    if (act == 'rreset')
+      return modal(
+        'Reset to default',
+        `<p>All the ${SRC() == 'sq' ? 'rules of the squadron' : 'rules on this PC'} go back to the defaults of the program.</p>`,
+        [
+          { a: 'ok', label: 'Reset to default', rd: 1 },
+          { a: 'no', label: 'Cancel', g: 1 },
+        ],
+        a => a == 'ok' && rulesSave({})
+      );
     if (act == 'adapt' || act == 'manroe') {
       R.sel[act] = !R.sel[act];
       return render();
@@ -1144,6 +1352,11 @@ function wire(box) {
     }
   };
   box.onchange = e => {
+    if (e.target.matches('.rlv, .rlt')) return rulesValue(e.target);
+    if (e.target.matches('.rlph')) {
+      R.rph = e.target.value;
+      return render();
+    }
     if (e.target.classList.contains('rpfr')) {
       R.sel[e.target.dataset.f] = e.target.value.replace(/\r/g, '');
       limitText(e.target);

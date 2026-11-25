@@ -448,6 +448,148 @@
 .rsq .rpfa .wh .btn {
   white-space: nowrap;
 }
+/* RULES: the table of the rules of the Smart card */
+/* the RULES sub-page takes the place of the column of the presets (Flight / Squadron go in its bar) */
+.rsq.rlw {
+  grid-template-columns: minmax(0, 1fr) 288px;
+}
+.rsq.rlw .rsl {
+  display: none;
+}
+.rsq .rltool .rssrc {
+  margin: 0;
+}
+.rsq .rltool {
+  flex-wrap: wrap;
+}
+.rsq .rlph {
+  min-height: 30px;
+}
+.rsq .rlwho {
+  line-height: 1.45;
+}
+.rsq .rltab {
+  overflow: auto;
+  max-height: calc(100vh - 230px);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #121821;
+}
+.rsq .rltab table {
+  border-collapse: separate;
+  border-spacing: 0;
+  min-width: 100%;
+  font-size: 11.5px;
+}
+.rsq .rltab th,
+.rsq .rltab td {
+  border-bottom: 1px solid #ffffff0d;
+  padding: 3px 4px;
+  text-align: center;
+  vertical-align: middle;
+}
+.rsq .rltab thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #161d26;
+  color: var(--mu);
+  font-weight: 600;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: help;
+}
+.rsq .rltab .rln {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: #121821;
+  text-align: left;
+  min-width: 150px;
+  max-width: 190px;
+}
+.rsq .rltab thead .rln {
+  z-index: 3;
+  background: #161d26;
+}
+.rsq .rltab tr.rlph td {
+  position: sticky;
+  left: 0;
+  text-align: left;
+  font-weight: 700;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  color: #3ddc84;
+  background: #1a222d;
+}
+.rsq .rltab tr.chg .rln {
+  box-shadow: inset 3px 0 0 #e3b341;
+}
+.rsq .rlr {
+  margin-left: 4px;
+  border: 0;
+  background: none;
+  color: #e3b341;
+  cursor: pointer;
+  font-size: 12px;
+}
+.rsq .rlc {
+  min-width: 42px;
+  min-height: 24px;
+  padding: 1px 4px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--mu);
+  font: 600 10.5px system-ui;
+  cursor: pointer;
+}
+.rsq .rlc.t {
+  min-width: 30px;
+}
+.rsq .rlc:disabled {
+  cursor: default;
+}
+.rsq .rlc.in {
+  background: #123522;
+  border-color: #3ddc84;
+  color: #3ddc84;
+}
+.rsq .rlc.first {
+  background: #1f7a46;
+  border-color: #1f7a46;
+  color: #fff;
+}
+.rsq .rlc.set {
+  background: #3a2e10;
+  border-color: #e3b341;
+  color: #e3b341;
+}
+.rsq .rlc.out {
+  background: #3a1714;
+  border-color: #ff7b72;
+  color: #ff7b72;
+}
+.rsq .rltab select.rlv,
+.rsq .rltab input.rlt {
+  display: block;
+  margin: 2px auto 0;
+  max-width: 78px;
+  padding: 1px 3px;
+  font-size: 10.5px;
+  border-color: #e3b34188;
+}
+.rsq .rltab input.rlt {
+  width: 78px;
+  box-shadow: none;
+}
+.rlx.err {
+  border-color: #ff6b6b;
+}
+.rsq .rsrul,
+.rsrul {
+  color: #e3b341;
+}
 /* the two sub-pages, ROE and SOP */
 .rsq .wtabs.rssub {
   margin: 0;

@@ -3,6 +3,9 @@ import {
   smartSop,
   smartSopLines,
   smartLink,
+  rulesSet,
+  cleanRules,
+  ruleSame,
   roeKey,
   tierOf,
   ROE,
@@ -237,6 +240,32 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
     JSON.stringify([cleanSel({}).mode, cleanSel({}).adapt, cleanSel({}).manroe]) == '["auto",true,false]' &&
       cleanSel({ mode: 'man', adapt: false, manroe: true }).mode == 'man' &&
       cleanSel({ mode: 'man', adapt: false, manroe: true }).adapt === false
+  );
+  // the rules changed by the pilot (the table of the page): a value of his own, a topic left out, a topic made fixed; bad data dropped
+  rulesSet({
+    rec: { tier: 'A', fx: true, c: { imcArr: { t: 'PAR APPROACH' } } },
+    nvg: { tier: 'B', fx: false, c: { night: 'out' } },
+    gawe: { tier: 'C', fx: true, c: {} },
+    nothere: { tier: 'A', fx: true, c: {} },
+  });
+  const r3 = smartSop(sel, { imcArr: true, night: true }),
+    t3 = id => (r3.items.find(i => i.id == id) || {}).txt || '';
+  ok(
+    'changed rules: Recovery with its own text in IMC, NVG left out at night ' + ids(r3),
+    /PAR APPROACH/.test(t3('rec')) && !r3.items.some(i => i.id == 'nvg')
+  );
+  ok(
+    'changed rules are checked: unknown topics, conditions and values go; a row like the default is the default',
+    JSON.stringify(
+      cleanRules({ x: 1, rec: { tier: 'Z', c: { moon: 'in', night: 'maybe', imcArr: { o: 'inst' } } } })
+    ) == '{"rec":{"tier":"C","fx":false,"c":{"imcArr":{"o":"inst"}}}}' &&
+      ruleSame('ops', { tier: 'B', fx: true, c: { enemy: 'in' } }) &&
+      !ruleSame('ops', { tier: 'A', fx: true, c: { enemy: 'in' } })
+  );
+  rulesSet({});
+  ok(
+    'back to the defaults',
+    /SILENT/.test((smartSop(sel, { enemy: true }).items.find(i => i.id == 'turns') || {}).txt || '')
   );
   const K = roeKey(sel);
   ok(
