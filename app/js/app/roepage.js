@@ -444,12 +444,12 @@ function render0(box) {
       cOff = !set || (fullS && !v.c && !sopPhaseOn(R.sel, id)), // a topic of a phase already on the card does not add a line
       lk = smartLink({ ...R.sel, noauto: [] }, id, CTX), // the change of the day on the Smart card (shown also when switched off)
       lkOn = !!lk && !R.sel.noauto.includes(id),
-      lkTxt = lk ? (lk.o ? (opts.find(x => x[0] === lk.o) || [])[2] || '' : lk.t) : '';
+      lkTxt = lk ? lk.say : '';
     return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
       .map(([x, , sh]) => `<option value="${x}"${!cust && v.o === x ? ' selected' : ''}>${esc(sh)}</option>`)
       .join(
         ''
-      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label><label class="rpon rpsm" title="${set ? 'Write this topic on the Smart ROE / SOP card first' : 'Choose a value first'}"><input type="checkbox"${v.s ? ' checked' : ''}${set ? '' : ' disabled'}> Smart</label></span>${lk ? `<label class="rpauto" title="Today the Smart card writes ${esc(lkTxt)} for this topic (${esc(lk.tag)}). Clear the box to keep your choice on the Smart card."><input type="checkbox"${lkOn ? ' checked' : ''}> Today: ${esc(lkTxt)} (${esc(lk.tag)})</label>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
+      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label><label class="rpon rpsm" title="${set ? 'Write this topic on the Smart ROE / SOP card first' : 'Choose a value first'}"><input type="checkbox"${v.s ? ' checked' : ''}${set ? '' : ' disabled'}> Smart</label></span>${lk ? `<label class="rpauto" title="The conditions of the mission change this topic on the Smart card today. The page and the datacard keep your choice. Clear the box to keep your choice on the Smart card too."><input type="checkbox"${lkOn ? ' checked' : ''}> Smart card today: ${esc(lkTxt)}</label>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
   };
   const myIds = new Set(MY.map(c => c.id)),
     sqIds = new Set((SQS || []).map(c => c.id));

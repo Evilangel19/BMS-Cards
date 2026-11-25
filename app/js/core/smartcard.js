@@ -835,10 +835,18 @@ export function drawSmartText(x, T) {
     y += 18;
     for (const r of rows) {
       if (y > yMax) break;
-      const [t, red] = Array.isArray(r) ? r : [r, false];
+      // a row: a text, or [text, red, n]: its first n characters in bold (the tag of a SOP phase: MSN, T/O…)
+      const [t, red, nb] = Array.isArray(r) ? r : [r, false, 0];
       wrap(x, '• ' + t, 13, 432).forEach((l, k) => {
         if (y > yMax) return;
-        txt(x, k ? 24 : 12, y, 13, k ? l.trim() : l, { c: red ? RED : INK });
+        const c = { c: red ? RED : INK };
+        if (!k && nb) {
+          const b = l.slice(0, nb + 2);
+          txt(x, 12, y, 13, b, { ...c, w: 700 });
+          font(x, 13, 700);
+          const wb = x.measureText(b).width;
+          txt(x, 12 + wb, y, 13, l.slice(nb + 2), c);
+        } else txt(x, k ? 24 : 12, y, 13, k ? l.trim() : l, c);
         y += 16;
       });
     }

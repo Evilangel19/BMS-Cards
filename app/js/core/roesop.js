@@ -1304,6 +1304,15 @@ export const SMART_DYN = [
 ];
 // a few topics follow the conditions of the day on the Smart card (not on the page, not on the datacard): [id, when (ctx), already right (option),
 // the option of the day, tag]. Recovery and departure are written even without a choice.
+// the reason of a tag, for the page
+const WHY = { WX: 'IMC at the field', NIGHT: 'night' };
+// what the Smart card writes today, for the page: in words
+const LINK_SAY = {
+  rec: 'Instrument recovery',
+  dep: 'Radar trail departure',
+  brk: 'Straight-in, no overhead',
+  formland: 'No formation landing',
+};
 export const SMART_LINKS = [
   ['rec', c => c.imcArr, o => ['inst', 'trail', 'si'].includes(o), 'inst', 'WX'],
   ['dep', c => c.imcDep, o => ['trail', 'trail3', 'sid'].includes(o), 'trail', 'WX'],
@@ -1319,7 +1328,8 @@ export function smartLink(sel, id, ctx) {
   const v = s.sop[id];
   if (v && v.o && l[2](v.o)) return null; // the choice is already right for the day
   if (!v && !['rec', 'dep'].includes(id)) return null; // the others change a choice, they do not add a topic
-  return { o: l[3], t: LINK_TXT[id] || '', tag: typeof l[4] == 'function' ? l[4](ctx) : l[4] };
+  const tag = typeof l[4] == 'function' ? l[4](ctx) : l[4];
+  return { o: l[3], t: LINK_TXT[id] || '', tag, say: LINK_SAY[id] + ' (' + WHY[tag] + ')' };
 }
 // the SOP topics of the Smart card, most important first: [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
 // box at the bottom. ctx: {imcDep, imcArr, wx (bad weather), night, train, tank, ag (an A-G mission), enemy (over the enemy)}
@@ -1386,7 +1396,8 @@ export function smartSopLines(items) {
     if (last && last[0] === head) last[1] += ' · ' + t;
     else out.push([head, t]);
   });
-  return out.map(([h, t]) => h + ': ' + t);
+  // [text, red, n]: the tag of the phase and its colon (n characters) in bold on the card
+  return out.map(([h, t]) => [h + ': ' + t, false, h.length + 1]);
 }
 // the four ROE of the key box of the Smart card, short: weapons status, ID, commit, bugout (the A-A block gives its weapons control and commit)
 export function roeKey(sel) {
