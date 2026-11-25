@@ -341,20 +341,122 @@
   font-weight: 400;
   margin-left: 6px;
 }
+/* a SOP topic: a strip (its name, CARD / SMART, its value) that opens its options under it; the colour of its phase (--hc) */
 .rsq .rpr {
-  display: grid;
-  grid-template-columns: minmax(0, 100px) minmax(0, 1fr) auto;
-  gap: 2px 8px;
-  align-items: center;
-  padding: 5px 0;
-  border-top: 1px solid #ffffff0d;
   font-size: 12.5px;
 }
-.rsq .rpr .rpn {
+.rsq .rpr .sps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  padding: 6px 8px;
   color: var(--mu);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color 0.15s,
+    color 0.15s,
+    border-color 0.15s;
 }
-.rsq .rpr.set .rpn {
+.rsq .rpr .sps:hover {
+  background: #ffffff10;
   color: var(--tx);
+}
+.rsq .rpr.set .sps {
+  background: #ffffff12;
+  color: var(--tx);
+  border-left-color: var(--hc, #4aa3ff);
+}
+.rsq .rpr.op .sps {
+  background: #ffffff18;
+}
+.rsq .rpr .rpn {
+  flex: 1;
+}
+.rsq .rpr .sps em {
+  font-style: normal;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: right;
+}
+.rsq .rpr.set .sps em {
+  color: var(--hc, #4aa3ff);
+}
+.rsq .rpr .sps .ar {
+  font-style: normal;
+  font-size: 10px;
+  opacity: 0.6;
+  width: 10px;
+}
+.rsq .rpr .cd {
+  font: 700 9px system-ui;
+  letter-spacing: 0.05em;
+  color: #3ddc84;
+  border: 1px solid #3ddc8466;
+  border-radius: 3px;
+  padding: 0 4px;
+}
+/* the options of an open topic */
+.rsq .spx {
+  margin: 2px 0 8px 3px;
+  padding: 8px 8px 8px 10px;
+  border-left: 3px solid var(--hc, #4aa3ff);
+  background: #0f141a;
+  border-radius: 0 0 8px 0;
+  animation: fadein 0.15s;
+}
+.rsq .spo {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 8px;
+}
+.rsq .spo .sps2 {
+  background: none;
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0 6px 6px 0;
+  padding: 5px 8px;
+  color: var(--mu);
+  font: 12px system-ui;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+}
+.rsq .spo .sps2:hover {
+  background: #ffffff10;
+  color: var(--tx);
+}
+.rsq .spo .sps2.on {
+  background: #ffffff14;
+  color: var(--hc, #4aa3ff);
+  border-left-color: var(--hc, #4aa3ff);
+}
+.rsq .spx .rpd {
+  margin: 6px 2px;
+}
+.rsq .spb {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rsq .spb .btn {
+  padding: 2px 8px;
+  min-height: 0;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
+/* the colour of a phase: its top border and its title */
+.rsq .rsk.php {
+  border-top: 3px solid var(--hc);
+}
+.rsq .rsk.php h3 {
+  color: var(--hc);
 }
 .rsq select {
   min-width: 0;
@@ -368,18 +470,9 @@
   color-scheme: dark;
   cursor: pointer;
 }
-.rsq .rpr select {
-  width: 100%;
-}
-/* the buttons of a topic: CARD (the datacard box), SMART (the Smart card), one over the other */
-.rsq .rpck {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
 /* the change of the mission on the Smart card (IMC, night): a line under the topic, read only */
 .rsq .rplk {
-  grid-column: 2 / 4;
+  margin: 1px 0 3px 11px;
   font-size: 11px;
   color: #e3b341;
   animation: fadein 0.2s;
@@ -481,13 +574,6 @@
 }
 .rsq .rpfa .rpfe {
   margin-top: 8px;
-}
-/* the CARD and SMART buttons of a SOP topic */
-.rsq .rpck .rptg {
-  padding: 2px 8px;
-  min-height: 0;
-  font-size: 10.5px;
-  letter-spacing: 0.03em;
 }
 .rsq .rpwhy {
   margin: -4px 0 6px;
@@ -701,7 +787,6 @@
   padding: 3px 7px;
 }
 .rsq .rpd {
-  grid-column: 2 / 4;
   color: var(--mu);
   font-size: 11.5px;
   line-height: 1.35;

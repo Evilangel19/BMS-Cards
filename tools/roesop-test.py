@@ -27,7 +27,12 @@ try:
         check('a click on the ROE box of the card opens Squadron > ROE / SOP on the flight', pg.is_visible(B + '.rsq') and 'Gator 1' in pg.inner_text(B + '.rsq') and pg.locator('.roepop').count() == 0)
         def sub(k):
             pg.evaluate("k=>{const b=document.querySelector('#sqroe [data-sub='+k+']');if(b&&!b.classList.contains('on'))b.click()}", k); pg.wait_for_timeout(150)
-        tick = lambda t: pg.evaluate("t=>{const i=document.querySelector('#sqroe .rpr[data-t='+t+'] .rptg[data-tg=c]');if(i&&!i.disabled&&i.getAttribute('aria-pressed')!='true')i.click()}", t) or pg.wait_for_timeout(120)
+        # a SOP topic: a strip; a click opens its options (one topic open at a time)
+        def opn(t):
+            pg.evaluate("t=>{const r=document.querySelector('#sqroe .rpr[data-t='+t+']');if(r&&!r.classList.contains('op'))r.querySelector('.sps').click()}", t); pg.wait_for_timeout(120)
+        def pick(t, o):
+            opn(t); pg.click(B + '.rpr[data-t=%s] [data-o="%s"]' % (t, o)); pg.wait_for_timeout(120)
+        tick = lambda t: opn(t) or pg.evaluate("t=>{const i=document.querySelector('#sqroe .rpr[data-t='+t+'] .rptg[data-tg=c]');if(i&&!i.disabled&&i.getAttribute('aria-pressed')!='true')i.click()}", t) or pg.wait_for_timeout(120)
         check('the titles of the ROE sections are green', pg.evaluate("()=>getComputedStyle(document.querySelector('#sqroe .rpt.rg')).color") == 'rgb(61, 220, 132)')
         sv = pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rssub button')].map(b=>b.textContent+(b.classList.contains('on')?'*':''))")
         check('two sub-pages, ROE (first) and SOP; the Smart card column with AUTO / MANUAL and Adapt to mission %s' % sv, sv == ['ROE*', 'SOP'] and pg.locator(B + '.rsr .rsmode [data-mode=auto].on').count() == 1 and pg.locator(B + '.rsr .rsadapt.on').count() == 1)
@@ -43,13 +48,13 @@ try:
         check('weapons status is one choice, ID criteria several', pg.locator(B + '.rpk[data-r=ws].on').count() == 1 and pg.locator(B + '.rpk[data-r=id].on').count() == 2)
         # the drop-down of a SOP topic: the list of the program
         sub('sop')
-        pg.click(B + '.rpr[data-t=lights] select'); pg.wait_for_timeout(250)
-        dd = pg.evaluate("()=>{const d=document.querySelector('.ddp');if(!d)return null;const r=d.getBoundingClientRect(),e=document.elementFromPoint(r.left+r.width/2,r.top+12);return {n:d.children.length,top:!!e&&d.contains(e),bg:getComputedStyle(document.querySelector('#sqroe .rpr select')).backgroundColor}}")
-        check('a SOP drop-down opens the list of the program, dark like the others %s' % dd, dd and dd['n'] == 7 and dd['top'] and dd['bg'] == 'rgb(11, 15, 20)')
-        pg.click('.ddp .ddi:has-text("FLASH MOVING")'); pg.wait_for_timeout(250)
+        opn('lights')
+        dd = pg.evaluate("()=>{const r=document.querySelector('#sqroe .rpr[data-t=lights]');return {n:r.querySelectorAll('.spo .sps2').length,ph:getComputedStyle(r.closest('.rsk')).borderTopColor,open:document.querySelectorAll('#sqroe .rpr.op').length}}")
+        check('a SOP topic is a strip: a click shows its options (and Own text) under it, in the colour of its phase %s' % dd, dd['n'] == 6 and dd['open'] == 1 and dd['ph'] == 'rgb(74, 163, 255)')
+        pg.click(B + '.rpr[data-t=lights] [data-o=move]'); pg.wait_for_timeout(250)
         check('a SOP topic just chosen shows its full text and is not in the SOP box until ticked', 'as soon as the aircraft moves' in pg.inner_text(B + '.rpr[data-t=lights] .rpd') and pg.get_attribute(B + '.rpr[data-t=lights] .rptg[data-tg=c]', 'aria-pressed') == 'false' and pg.get_attribute(B + '.rpv2', 'data-t') == '')
         tick('lights')
-        pg.select_option(B + '.rpr[data-t=rec] select', '*'); pg.wait_for_timeout(150)
+        pick('rec', '*')
         pg.fill(B + '.rpr[data-t=rec] .rpi', 'SPIRAL DOWN'); pg.wait_for_timeout(100); tick('rec')
         pv = pg.get_attribute(B + '.rpv1', 'data-t') + ' || ' + pg.get_attribute(B + '.rpv2', 'data-t')
         check('the preview: the ROE box and the SOP box: %s' % pv.replace('\n', ' | '), pv == 'WPN FREE\nID: AWACS DECLARE+L16 || GND: FLASH MOVING\nREC: SPIRAL DOWN')
@@ -65,7 +70,7 @@ try:
         pg.fill(B + '.rsname', 'My SOP'); pg.click(B + '.rpcat[data-cat="Airstrike"]'); pg.click(B + '[data-a=pnew]'); pg.wait_for_timeout(250)
         P = pg.evaluate("()=>JSON.parse(localStorage.getItem('bmsroepre')||'[]').map(p=>[p.name,p.cats])")
         check('Save as new keeps the preset on this PC with its Default for, chosen, nothing left to save %s' % P, P == [['My SOP', ['Airstrike']]] and pg.locator(B + '.rpq.on[data-k=m0]').count() == 1 and pg.locator(B + '.rsedit').count() == 0)
-        sub('roe'); pg.click(B + '[data-a=clear]'); pg.click(B + '.rpk[data-r=ws][data-v=hold]'); sub('sop'); pg.select_option(B + '.rpr[data-t=takeoff] select', 's10'); pg.wait_for_timeout(100); tick('takeoff')
+        sub('roe'); pg.click(B + '[data-a=clear]'); pg.click(B + '.rpk[data-r=ws][data-v=hold]'); sub('sop'); pick('takeoff', 's10'); pg.wait_for_timeout(100); tick('takeoff')
         pg.fill(B + '.rsname', 'Strike'); pg.click(B + '[data-a=pnew]'); pg.wait_for_timeout(250)
         pg.click(B + '.rpq[data-k=m0]'); pg.wait_for_timeout(250)
         check('a click on a preset puts it on the datacard', pg.evaluate("()=>__app.F.roe").startswith('WPN FREE') and pg.locator(B + '.rpq.on[data-k=m0]').count() == 1)
@@ -131,7 +136,7 @@ try:
         cid = pg.evaluate("()=>{const c=[...document.querySelectorAll('#sqroe .rsk')].find(e=>e.querySelector('h3').textContent=='Range');return c?c.querySelector('.rpr').dataset.t:null}")
         check('the custom section is in the page with its topic', bool(cid))
         if cid:
-            pg.select_option(B + '.rpr[data-t=%s] select' % cid, 'o0'); pg.wait_for_timeout(150); tick(cid)
+            pick(cid, 'o0'); pg.wait_for_timeout(150); tick(cid)
             check('its topic goes on the card under its tag: %s' % pg.get_attribute(B + '.rpv2', 'data-t'), pg.get_attribute(B + '.rpv2', 'data-t') == 'RNG: FLASH TAXI')
         # RULES: the table of the rules of the Smart card, shown by Settings
         check('RULES sub-page hidden while Settings does not show it', pg.locator(B + '[data-sub=rules]').count() == 0)
@@ -160,7 +165,7 @@ try:
         pg.evaluate("()=>localStorage.setItem('bmsroerules','{}')"); sub('sop')
         # the two Clear buttons: the preview clears the datacard, the Smart card one its card
         sub('roe'); pg.click(B + '.rpk[data-r=ws][data-v=tight]'); sub('sop')
-        pg.select_option(B + '.rpr[data-t=dep] select', 'combat'); pg.select_option(B + '.rpr[data-t=rec] select', 'ovhd'); pg.wait_for_timeout(100); tick('dep')
+        pick('dep', 'combat'); pick('rec', 'ovhd'); pg.wait_for_timeout(100); tick('dep')
         pg.click(B + '.rsr [data-a=sclear]'); pg.wait_for_timeout(200)
         so = pg.evaluate("()=>{const s=JSON.parse(__app.F.roesel);return [!!s.sop.dep,!!s.sop.rec,s.roe.ws]}")
         check('SOP sub-page, Clear of the Smart card (AUTO): the topics not in the SOP box go, the datacard keeps its SOP and the ROE %s' % so, so == [True, False, 'tight'])
@@ -178,7 +183,7 @@ try:
         kf = pg.evaluate("async()=>{const S=await import('/app/js/core/smartcard.js');const x=document.createElement('canvas').getContext('2d');const a=S.keyFit(x,'HOLD'),b=S.keyFit(x,'VID+AWACS DECLARE+L16+NCTR+M4 NEG+2 SRC');return [a.l2,b.cut,b.l1,b.l2]}")
         check('Smart card key box: a short value on one line, a long one on two lines cut with "…" %s' % kf, kf[0] is None and kf[1] is True and kf[3].endswith('…'))
         # Add card: the whole text on a Kneeboard card
-        sub('roe'); pg.click(B + '.rpk[data-r=ws][data-v=tight]'); sub('sop'); pg.select_option(B + '.rpr[data-t=dep] select', 'combat'); pg.wait_for_timeout(150)
+        sub('roe'); pg.click(B + '.rpk[data-r=ws][data-v=tight]'); sub('sop'); pick('dep', 'combat'); pg.wait_for_timeout(150)
         n0 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
         pg.click('#sqroekb'); pg.wait_for_selector('.tgdlg .tgcard', timeout=10000); pg.wait_for_timeout(300)
         labs = pg.locator('.tgdlg .tgcard span').all_inner_texts()

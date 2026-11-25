@@ -420,11 +420,24 @@ const CLOSED = () => {
   return new Set(Array.isArray(v) ? v : sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)));
 };
 // a card of the page that folds: a click on its title
-const card = (k, title, hint, body, extra = '') => {
+const card = (k, title, hint, body, extra = '', hc = '') => {
   const shut = CLOSED().has(k);
-  return `<div class="wcard rsk${shut ? ' shut' : ''}" data-k="${esc(k)}"><div class="wh rsh" title="Click to fold or unfold"><i class="rsar">${shut ? '▸' : '▾'}</i><h3>${title}</h3><span class="hint">${hint}</span>${extra}</div><div class="rsbd">${body}</div></div>`;
+  return `<div class="wcard rsk${shut ? ' shut' : ''}${hc ? ' php' : ''}" data-k="${esc(k)}"${hc ? ` style="--hc:${hc}"` : ''}><div class="wh rsh" title="Click to fold or unfold"><i class="rsar">${shut ? '▸' : '▾'}</i><h3>${title}</h3><span class="hint">${hint}</span>${extra}</div><div class="rsbd">${body}</div></div>`;
 };
-// what a box of the datacard holds: the text measured as the card draws it (cardview.js freeLayout: 154 wide, 97 high, 11 at the smallest)
+// the colour of a SOP phase (its top border, its title, the strips of its topics): blue the ground and the field, orange the mission, purple the
+// conditions, red the emergencies, teal the own sections
+const PH_COL = {
+  Mission: '#f0b040',
+  'En route': '#f0b040',
+  'Fence, comms and fuel': '#f0b040',
+  Tanker: '#b07cff',
+  Weather: '#b07cff',
+  Night: '#b07cff',
+  Training: '#b07cff',
+  Emergencies: '#ff5d5d',
+};
+const phCol = (ph, cid) => (cid ? '#2ec4b6' : PH_COL[ph] || '#4aa3ff');
+// what a box of the datacard holds: the text measured as the card draws it (cardview.js freeLayout: 154 wide, 97 high, 12 at the smallest)
 let MXC = null;
 const boxUse = t => freeLayout(MXC || (MXC = document.createElement('canvas').getContext('2d')), t, 154, 97);
 setBoxFit(t => boxUse(t).fit);
@@ -432,6 +445,22 @@ function counts() {
   const a = boxUse(roeText(R.sel)),
     b = boxUse(sopText(R.sel));
   return { r: a.used, s: b.used, cap: a.cap };
+}
+// an option of a SOP topic clicked: '' takes the topic away, '*' gives an own text (the short form of the option chosen as a start)
+function sopPick(id, x) {
+  const t = topicsAll().find(y => y[0] == id),
+    v = R.sel.sop[id] || { o: null, t: '', c: false };
+  R.cust.delete(id);
+  if (!x) delete R.sel.sop[id];
+  else if (x == '*') {
+    R.cust.add(id);
+    R.sel.sop[id] = { o: null, t: v.t || sopShort(t, v) || '', c: v.c, s: v.s };
+  } else R.sel.sop[id] = { o: x, t: '', c: v.c, s: v.s }; // CARD is the pilot's choice: off for a topic just chosen
+  render();
+  if (x == '*') {
+    const i = R.box.querySelector(`.rpr[data-t="${id}"] .rpi`);
+    if (i) i.focus();
+  }
 }
 // the preview of a box: drawn as the datacard draws it (twice the size, for a sharp picture); its text for the screen readers and the tests
 function pvPaint(el, t) {
@@ -529,11 +558,21 @@ function render0(box) {
       cOff = !set || (!v.c && !boxFits(sopWith(id))),
       lk = smartLink(R.sel, id, CTX), // the change of the mission on the Smart card (Adapt to mission)
       dot = !man && onSmart.has(id);
-    return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
-      .map(([x, , sh]) => `<option value="${x}"${!cust && v.o === x ? ' selected' : ''}>${esc(sh)}</option>`)
-      .join(
-        ''
-      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><button type="button" class="btn${v.c ? '' : ' g'} rptg" data-tg="c" aria-pressed="${!!v.c}"${cOff && !v.c ? ' disabled' : ''} title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}">CARD</button>${man ? `<button type="button" class="btn${v.s ? '' : ' g'} rptg" data-tg="s" aria-pressed="${!!v.s}"${set ? '' : ' disabled'} title="${set ? 'Write this topic on the Smart card' : 'Choose a value first'}">SMART</button>` : ''}</span>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
+    const open = R.sopOpen === id,
+      val = cust ? v.t : (opts.find(x => x[0] === v.o) || [])[2] || '';
+    // a strip: the name, CARD / SMART when it goes there, the value; a click opens its options under it
+    return `<div class="rpr${set ? ' set' : ''}${open ? ' op' : ''}" data-t="${id}"><button type="button" class="sps" aria-expanded="${open}" title="${open ? 'Close' : 'Show the options'}">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}<span class="rpn">${esc(lab)}</span>${v.c ? '<b class="cd">CARD</b>' : ''}${man && v.s ? '<b class="cd">SMART</b>' : ''}<em>${esc(val) || '—'}</em><i class="ar">${open ? '▾' : '▸'}</i></button>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}${
+      open
+        ? `<div class="spx"><div class="spo">${opts
+            .map(
+              ([x, lg, sh]) =>
+                `<button type="button" class="sps2${!cust && v.o === x ? ' on' : ''}" data-o="${x}" title="${esc(lg)}">${esc(sh)}</button>`
+            )
+            .join(
+              ''
+            )}<button type="button" class="sps2${cust ? ' on' : ''}" data-o="*" title="Write your own short text for the card">Own text…</button></div><div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div><div class="spb rpck"><button type="button" class="btn${v.c ? '' : ' g'} rptg" data-tg="c" aria-pressed="${!!v.c}"${cOff && !v.c ? ' disabled' : ''} title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}">CARD</button>${man ? `<button type="button" class="btn${v.s ? '' : ' g'} rptg" data-tg="s" aria-pressed="${!!v.s}"${set ? '' : ' disabled'} title="${set ? 'Write this topic on the Smart card' : 'Choose a value first'}">SMART</button>` : ''}<span style="flex:1"></span><button type="button" class="btn g rd sps2c" data-o=""${set ? '' : ' disabled'} title="Take this topic away">✕ Clear</button></div></div>`
+        : ''
+    }</div>`;
   };
   const myIds = new Set(MY.map(c => c.id)),
     sqIds = new Set((SQS || []).map(c => c.id));
@@ -552,7 +591,8 @@ function render0(box) {
       TT.length
         ? TT.map(row).join('')
         : `<div class="hint">${T.length ? 'Nothing chosen here.' : 'No topics yet: ✎ to add them.'}</div>`,
-      ed ? `<button type="button" class="rsed" data-sec="${esc(cid)}" title="Edit this section">✎</button>` : ''
+      ed ? `<button type="button" class="rsed" data-sec="${esc(cid)}" title="Edit this section">✎</button>` : '',
+      phCol(ph, cid)
     );
   };
   const ALL = sopAll().filter(([, T]) => !only || T.some(t => R.sel.sop[t[0]])),
@@ -1189,6 +1229,14 @@ function wire(box) {
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
     if (ed) return editSection(ed.dataset.sec);
+    const sp = e.target.closest('.rpr .sps');
+    if (sp) {
+      const id = sp.closest('.rpr').dataset.t;
+      R.sopOpen = R.sopOpen === id ? null : id;
+      return render();
+    }
+    const so = e.target.closest('.rpr [data-o]');
+    if (so && !so.disabled) return sopPick(so.closest('.rpr').dataset.t, so.dataset.o);
     const tg = e.target.closest('.rptg');
     if (tg && !tg.disabled) {
       const id = tg.closest('.rpr').dataset.t,
@@ -1448,25 +1496,7 @@ function wire(box) {
       limitText(e.target);
       return render();
     }
-    const r = e.target.closest('.rpr');
-    if (!r) return;
-    const id = r.dataset.t,
-      t = topicsAll().find(x => x[0] == id),
-      v = R.sel.sop[id] || { o: null, t: '', c: false };
-    if (e.target.tagName == 'SELECT') {
-      const x = e.target.value;
-      R.cust.delete(id);
-      if (!x) delete R.sel.sop[id];
-      else if (x == '*') {
-        R.cust.add(id);
-        R.sel.sop[id] = { o: null, t: v.t || sopShort(t, v) || '', c: v.c, s: v.s };
-      } else R.sel.sop[id] = { o: x, t: '', c: v.c, s: v.s }; // the tick "card" is the pilot's choice: off for a topic just chosen
-    }
-    render();
-    if (e.target.tagName == 'SELECT' && e.target.value == '*') {
-      const i = R.box.querySelector(`.rpr[data-t="${id}"] .rpi`);
-      if (i) i.focus();
-    }
+    if (e.target.closest('.rpr')) render();
   };
   box.oninput = e => {
     if (e.target.classList.contains('rpi')) {

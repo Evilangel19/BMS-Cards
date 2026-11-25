@@ -128,9 +128,9 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
   x.font = fs + 'px Arial';
   return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
 };
-// The ROE and SOP boxes of the Datacard: the biggest size from 14 to 11 at which every line fits the box. A line that starts with a label (WPN, COMMIT, or
+// The ROE and SOP boxes of the Datacard: the biggest size from 14 to 12 at which every line fits the box (7 lines at most). A line that starts with a label (WPN, COMMIT, or
 // a short word with a colon: "ID:", "BUGOUT:", "T/O:") has the label in bold and its text after it; a text too long goes on in the lines under it, a
-// little in from the left (the label stands out), broken at a space or right after a "+" or a "/". When even at 11 the box is too short the lines get closer; what
+// little in from the left (the label stands out), broken at a space or right after a "+" or a "/". When even at 12 the box is too short the lines get closer; what
 // still does not fit is left out (fit: false; the ROE / SOP page does not let the boxes get so full: roepage.js setBoxFit).
 const FREE_ROOM = 116;
 const BOX_LAB = /^(WPN|COMMIT|[A-Z][A-Z0-9/&-]{0,6}:) +(\S.*)$/;
@@ -185,24 +185,26 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
     });
   };
   const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
-  // the biggest size (half a pixel at a time) that fits, first with the normal spacing, then with closer lines
-  for (let fs = 14; fs >= 11; fs -= 0.5) {
+  // the biggest size (half a pixel at a time) that fits, first with the normal spacing, then with closer lines; never under 12 (7 lines at most:
+  // smaller is hard to read in the cockpit)
+  const MIN = 12,
+    cap = Math.floor(room / (MIN + 1)),
+    used = rowsAt(MIN).length;
+  for (let fs = 14; fs >= MIN; fs -= 0.5) {
     const R = rowsAt(fs);
     for (const [lh, gp] of [
       [fs + 2, 7],
       [fs + 1, 5],
     ])
-      if (hOf(R, lh, gp) <= room)
-        return { fs, lh, gp, rows: R, fit: true, used: rowsAt(11).length, cap: Math.floor(room / 12) };
+      if (hOf(R, lh, gp) <= room) return { fs, lh, gp, rows: R, fit: true, used, cap };
   }
-  const fs = 11,
+  const fs = MIN,
     lh = fs + 0.5,
     gp = 4,
-    R = rowsAt(fs),
-    used = R.length;
+    R = rowsAt(fs);
   while (R.length > 1 && hOf(R, lh, gp) > room) R.pop();
   while (R.length && R[R.length - 1].sep) R.pop();
-  return { fs, lh, gp, rows: R, fit: false, used, cap: Math.floor(room / 12) };
+  return { fs, lh, gp, rows: R, fit: false, used, cap };
 }
 // The notes of the Datacard: one section a label (TWR, UHF2, TGT, JTAC, IFF...), the label and the cells of a line divided by tabs (core/fillcard.js).
 // The labels in a narrow column on the left, the text from the left, the cells of a line in columns of the same width (the UHF2 backups line up); a
