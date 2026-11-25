@@ -395,19 +395,18 @@ function render() {
   const box = R.box;
   if (!box || BUSY) return; // a field that loses the focus while the page is drawn again sends its change: it must not draw again inside
   BUSY = true;
-  // the warnings already shown do not fade in again when the page is drawn again (a choice draws the page again: they flickered)
-  const seen = new Set(
-    [...box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn')].map(
-      e => e.className + '|' + e.textContent
-    )
-  );
+  // what was already shown does not fade in again when the page is drawn again (a choice draws the page again: it flickered); an element
+  // with data-seen is known by it (the options of a topic stay the same panel while a choice changes them)
+  const ANIM = '.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn,.spx,.rpfa',
+    seenKey = e => e.dataset.seen || e.className + '|' + e.textContent,
+    seen = new Set([...box.querySelectorAll(ANIM)].map(seenKey));
   try {
     render0(box);
     const kb = /** @type {HTMLButtonElement|null} */ (document.getElementById('sqroekb')),
       n = counts();
     if (kb) kb.disabled = !(n.r || n.s); // Add card: dimmed while nothing is chosen
-    box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn').forEach(e => {
-      if (seen.has(e.className + '|' + e.textContent)) e.style.animation = 'none';
+    box.querySelectorAll(ANIM).forEach(e => {
+      if (seen.has(seenKey(e))) e.style.animation = 'none';
     });
   } finally {
     BUSY = false;
@@ -429,7 +428,7 @@ const card = (k, title, hint, body, extra = '', hc = '') => {
 const PH_COL = {
   Mission: '#f0b040',
   'En route': '#f0b040',
-  'Fence, comms and fuel': '#f0b040',
+  'FENCE, comms and fuel': '#f0b040',
   Tanker: '#b07cff',
   Weather: '#b07cff',
   Night: '#b07cff',
@@ -527,7 +526,7 @@ function render0(box) {
   const why = !msn ? 'ROE MANUAL: not written' : '';
   // a block of the mission, under the Smart card
   const block = (lab, btn, act, L) =>
-    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span></div>${why ? `<div class="hint rpwhy">${why}</div>` : ''}<div class="rpfl">${L.map(esc).join('<br>')}</div><button type="button" class="btn g sm rpfe" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div>`;
+    `<div class="wcard rpfa${msn ? '' : ' rsoff'}" data-seen="fa:${esc(lab)}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span></div>${why ? `<div class="hint rpwhy">${why}</div>` : ''}<div class="rpfl">${L.map(esc).join('<br>')}</div><button type="button" class="btn g sm rpfe" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div>`;
   const oca = fa && fa.pos != null ? 'OCA' : 'DCA';
   const roePane = `<div class="rstool"><div class="seg main" role="group" aria-label="ROE"><button type="button" data-rmode="auto" class="${msn ? 'on' : ''}" title="The ROE of the mission (A-A and A-G pages) and your choices, on the datacard and on the Smart card">AUTO</button><button type="button" data-rmode="man" class="${msn ? '' : 'on'}" title="Only your ROE, not those of the mission">MANUAL</button></div><span class="hint">${msn ? 'The ROE of the mission and your choices. Your choice replaces a mission value of the same rule.' : 'Only your ROE.'}</span><span style="flex:1"></span><button type="button" class="btn g rd" data-a="rclear" title="Take away your ROE and the ROE lines. The ROE go to MANUAL, so the ROE of the mission are not written either.">Clear ROE</button></div><div class="rspg2"><div class="wcard"><div class="wh"><h3>Key rules</h3><span class="hint">datacard + Smart card key</span></div>${ROE.filter(
     r => KEYS.includes(r[0])
@@ -563,7 +562,7 @@ function render0(box) {
     // a strip: the name, CARD / SMART when it goes there, the value; a click opens its options under it
     return `<div class="rpr${set ? ' set' : ''}${open ? ' op' : ''}" data-t="${id}"><button type="button" class="sps" aria-expanded="${open}" title="${open ? 'Close' : 'Show the options'}">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}<span class="rpn">${esc(lab)}</span>${v.c ? '<b class="cd">CARD</b>' : ''}${man && v.s ? '<b class="cd">SMART</b>' : ''}<em>${esc(val) || '—'}</em><i class="ar">${open ? '▾' : '▸'}</i></button>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}${
       open
-        ? `<div class="spx"><div class="spo">${opts
+        ? `<div class="spx" data-seen="spx:${id}"><div class="spo">${opts
             .map(
               ([x, lg, sh]) =>
                 `<button type="button" class="sps2${!cust && v.o === x ? ' on' : ''}" data-o="${x}" title="${esc(lg)}">${esc(sh)}</button>`
@@ -602,7 +601,7 @@ function render0(box) {
   const SK = sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)),
     anyOpen = SK.some(k => !CLOSED().has(k)),
     wide = !!LS.get('bmsroewide', false);
-  const tools = `<div class="rstool"><div class="seg main" role="group" aria-label="SOP of the Smart card"><button type="button" data-mode="auto" class="${man ? '' : 'on'}" title="The program chooses the SOP topics of the Smart card and adapts them to the mission (IMC, night…)">AUTO</button><button type="button" data-mode="man" class="${man ? 'on' : ''}" title="Only the topics with SMART go on the Smart card, as you chose them">MANUAL</button></div><div class="seg sm rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Show only the topics that you chose">Chosen only</button></div><button type="button" class="btn sm${wide ? '' : ' g'}" data-a="wide" aria-pressed="${wide}" title="${wide ? 'Show the columns of the presets and of the Smart card again' : 'Hide the columns of the presets and of the Smart card: more space for the SOP'}">Wide view</button><button type="button" class="btn g sm" data-a="fold" title="${anyOpen ? 'Fold all the SOP sections' : 'Unfold all the SOP sections'}">${anyOpen ? 'Fold all' : 'Unfold all'}</button><span class="rsgr"><button type="button" class="btn g" data-a="newsec" title="Make a section of your own (on this PC${own ? ', or for the squadron' : ''}), with its topics and options">＋ Custom section</button><button type="button" class="btn g rd" data-a="sclear" title="Take away every SOP topic and the SOP lines">Clear SOP</button></span></div>`;
+  const tools = `<div class="rstool"><div class="seg main" role="group" aria-label="SOP of the Smart card"><button type="button" data-mode="auto" class="${man ? '' : 'on'}" title="The program chooses the SOP topics of the Smart card and adapts them to the mission (IMC, night…)">AUTO</button><button type="button" data-mode="man" class="${man ? 'on' : ''}" title="Only the topics with SMART go on the Smart card, as you chose them">MANUAL</button></div><button type="button" class="btn sm rsonly${only ? '' : ' g'}" data-only="${only ? 0 : 1}" aria-pressed="${only}" title="${only ? 'Show all the topics again' : 'Show only the topics that you chose'}">Chosen only</button><button type="button" class="btn sm${wide ? '' : ' g'}" data-a="wide" aria-pressed="${wide}" title="${wide ? 'Show the columns of the presets and of the Smart card again' : 'Hide the columns of the presets and of the Smart card: more space for the SOP'}">Wide view</button><button type="button" class="btn g sm" data-a="fold" title="${anyOpen ? 'Fold all the SOP sections' : 'Unfold all the SOP sections'}">${anyOpen ? 'Fold all' : 'Unfold all'}</button><span class="rsgr"><button type="button" class="btn g" data-a="newsec" title="Make a section of your own (on this PC${own ? ', or for the squadron' : ''}), with its topics and options">＋ Custom</button><button type="button" class="btn g rd" data-a="sclear" title="Take away every SOP topic and the SOP lines">Clear SOP</button></span></div>`;
   const customBlock = custom.length
     ? `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span></div>${cols(custom)}</div>`
     : '';
@@ -1277,7 +1276,10 @@ function wire(box) {
     const sb2 = e.target.closest('[data-sub]');
     if (sb2) {
       LS.set('bmsroesub', sb2.dataset.sub);
-      return render();
+      render();
+      const m = box.querySelector('.rsm');
+      if (m && animOn()) m.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 });
+      return;
     }
     const rm = e.target.closest('[data-rmode]');
     if (rm) {

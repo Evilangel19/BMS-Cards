@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: Squadron > ROE / SOP, the bar of a sub-page stays at the top while the page scrolls (Wide view too), on one line: Chosen only is one button, + Custom is shorter. The other sub-page fades in when you change sub-page.
+- Fixed: a click on an option of an open SOP topic made its options flicker (they faded in again at each choice); the FENCE, comms and fuel phase was blue in place of orange.
 - Fixed: Squadron > ROE / SOP, the buttons of the bars of the sub-pages changed size (and wrapped their text) when the page was narrow or with AUTO / MANUAL: now they keep their size; All topics / Chosen only, Wide view and Fold all are small, + Custom section and Clear SOP stay together at the right.
 - Changed: Squadron > ROE / SOP is simpler: each sub-page has its **AUTO / MANUAL** switch and its **Clear**, in its bar. ROE AUTO: the ROE of the mission and your choices; ROE MANUAL: only yours (in place of Manual ROE). SOP AUTO: the program chooses the SOP of the Smart card and adapts them to the mission; SOP MANUAL: only the topics with SMART, as you chose them (Adapt to mission is gone: it is what AUTO does). **Clear ROE** takes your ROE away and puts the ROE in MANUAL; **Clear SOP** takes every SOP topic away. The Clear under the preview and in the Smart card column are gone. A choice saved with Adapt to mission off opens with ROE and SOP in MANUAL.
 - Changed: the window of a custom section says what a section is, has labels over the fields and an example from the SOP of the program (Anti-collision / flash, LTS, FLASH MOVING = Flash as soon as the aircraft moves), and shows what the card writes for each topic (RNG: LTS FLASH MOVING).

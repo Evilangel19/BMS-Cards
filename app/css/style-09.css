@@ -572,6 +572,9 @@
 .rsq .rsr .rpnom {
   margin-top: 12px;
 }
+.rsq .rpfa {
+  animation: fadein 0.2s;
+}
 .rsq .rpfa .rpfe {
   margin-top: 8px;
 }
@@ -1071,13 +1074,20 @@
   font-weight: 600;
 }
 /* the small view buttons: All topics / Chosen only, Wide view, Fold all */
-.rsq .rstool .btn.sm,
-.rsq .rstool .seg.sm button {
+.rsq .rstool .btn.sm {
   padding: 3px 8px;
   font-size: 11px;
 }
-.rsq .rstool .seg.sm {
+.rsq .rstool .rsonly {
   margin-left: 6px;
+}
+/* the bar of a sub-page stays at the top while the page scrolls */
+.rsq .rsm > .rstool {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  padding: 6px 0;
+  background: var(--bg);
 }
 /* + Custom section and Clear SOP: together at the right, on the next line together when the bar is narrow */
 .rsq .rstool .rsgr {
