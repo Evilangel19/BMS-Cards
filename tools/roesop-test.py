@@ -27,7 +27,7 @@ try:
         check('a click on the ROE box of the card opens Squadron > ROE / SOP on the flight', pg.is_visible(B + '.rsq') and 'Gator 1' in pg.inner_text(B + '.rsq') and pg.locator('.roepop').count() == 0)
         def sub(k):
             pg.evaluate("k=>{const b=document.querySelector('#sqroe [data-sub='+k+']');if(b&&!b.classList.contains('on'))b.click()}", k); pg.wait_for_timeout(150)
-        tick = lambda t: pg.evaluate("t=>{const i=document.querySelector('#sqroe .rpr[data-t='+t+'] .rpon input');if(i&&!i.disabled&&!i.checked)i.click()}", t) or pg.wait_for_timeout(120)
+        tick = lambda t: pg.evaluate("t=>{const i=document.querySelector('#sqroe .rpr[data-t='+t+'] .rptg[data-tg=c]');if(i&&!i.disabled&&i.getAttribute('aria-pressed')!='true')i.click()}", t) or pg.wait_for_timeout(120)
         check('the titles of the ROE sections are green', pg.evaluate("()=>getComputedStyle(document.querySelector('#sqroe .rpt.rg')).color") == 'rgb(61, 220, 132)')
         sv = pg.evaluate("()=>[...document.querySelectorAll('#sqroe .rssub button')].map(b=>b.textContent+(b.classList.contains('on')?'*':''))")
         check('two sub-pages, ROE (first) and SOP; the Smart card column with AUTO / MANUAL and Adapt to mission %s' % sv, sv == ['ROE*', 'SOP'] and pg.locator(B + '.rsr .rsmode [data-mode=auto].on').count() == 1 and pg.locator(B + '.rsr .rsadapt.on').count() == 1)
@@ -47,11 +47,11 @@ try:
         dd = pg.evaluate("()=>{const d=document.querySelector('.ddp');if(!d)return null;const r=d.getBoundingClientRect(),e=document.elementFromPoint(r.left+r.width/2,r.top+12);return {n:d.children.length,top:!!e&&d.contains(e),bg:getComputedStyle(document.querySelector('#sqroe .rpr select')).backgroundColor}}")
         check('a SOP drop-down opens the list of the program, dark like the others %s' % dd, dd and dd['n'] == 7 and dd['top'] and dd['bg'] == 'rgb(11, 15, 20)')
         pg.click('.ddp .ddi:has-text("FLASH MOVING")'); pg.wait_for_timeout(250)
-        check('a SOP topic just chosen shows its full text and is not in the SOP box until ticked', 'as soon as the aircraft moves' in pg.inner_text(B + '.rpr[data-t=lights] .rpd') and not pg.is_checked(B + '.rpr[data-t=lights] .rpon input') and pg.inner_text(B + '.rpv2').strip() == '')
+        check('a SOP topic just chosen shows its full text and is not in the SOP box until ticked', 'as soon as the aircraft moves' in pg.inner_text(B + '.rpr[data-t=lights] .rpd') and pg.get_attribute(B + '.rpr[data-t=lights] .rptg[data-tg=c]', 'aria-pressed') == 'false' and pg.get_attribute(B + '.rpv2', 'data-t') == '')
         tick('lights')
         pg.select_option(B + '.rpr[data-t=rec] select', '*'); pg.wait_for_timeout(150)
         pg.fill(B + '.rpr[data-t=rec] .rpi', 'SPIRAL DOWN'); pg.wait_for_timeout(100); tick('rec')
-        pv = pg.inner_text(B + '.rpv1') + ' || ' + pg.inner_text(B + '.rpv2')
+        pv = pg.get_attribute(B + '.rpv1', 'data-t') + ' || ' + pg.get_attribute(B + '.rpv2', 'data-t')
         check('the preview: the ROE box and the SOP box: %s' % pv.replace('\n', ' | '), pv == 'WPN FREE\nID: AWACS DECLARE+L16 || GND: FLASH MOVING\nREC: SPIRAL DOWN')
         F = pg.evaluate("()=>[__app.F.roe,__app.F.sop]")
         check('every change goes on the datacard at once (no Apply) %s' % F, F == ['WPN FREE\nID: AWACS DECLARE+L16', 'GND: FLASH MOVING\nREC: SPIRAL DOWN'] and pg.locator(B + '[data-a=apply]').count() == 0)
@@ -91,9 +91,9 @@ try:
         r = pg.evaluate("""async()=>{const cv=await import('/app/js/app/cardview.js'),dc=await import('/app/js/app/datacard.js');
           dc.F.free='Daegu TWR 365.000/126.200 ATIS 127.650';dc.F.eph='Sun 21/10: rise 21:43Z set 08:37Z\\nMoon: rise 06:07Z set 17:05Z (76%)';
           const T=[];const x=document.getElementById('cv').getContext('2d'),o=x.fillText;x.fillText=function(t,a,b,m){T.push([String(t),a,b]);return o.call(this,t,a,b,m)};cv.draw();x.fillText=o;
-          const f=s=>T.find(q=>q[0].includes(s))||[0,null,null];return {roe:f('WPN HOLD'),sop:f('T/O: 10S'),notes:f('Daegu'),sun:f('Sun 21/10'),moon:f('Moon: rise')}}""")
-        check('Datacard: ROE left and SOP right, the notes below, the ephemerides on two lines %s' % r,
-              r['roe'][1] < 1430 < r['sop'][1] and abs(r['roe'][2] - r['sop'][2]) < 2 and 921 < r['roe'][2] < 1024 < r['notes'][2] < 1147 < r['sun'][2] < r['moon'][2] < 1198)
+          const f=s=>T.find(q=>q[0].includes(s))||[0,null,null],e=s=>T.find(q=>q[0]==s)||[0,null,null];return {roe:e('WPN'),sop:e('T/O'),hold:e('HOLD'),notes:f('Daegu'),sun:f('Sun 21/10'),moon:f('Moon: rise')}}""")
+        check('Datacard: ROE left and SOP right (the label WPN in its column, HOLD after it), the notes below, the ephemerides on two lines %s' % r,
+              r['roe'][1] < r['hold'][1] < 1430 < r['sop'][1] and abs(r['hold'][2] - r['roe'][2]) < 2 and abs(r['roe'][2] - r['sop'][2]) < 2 and 921 < r['roe'][2] < 1024 < r['notes'][2] < 1147 < r['sun'][2] < r['moon'][2] < 1198)
         m = pg.evaluate("()=>['roe','sop'].map(k=>{const d=__app.MFD.find(z=>z.k==k);return d?{y:Math.round(d.y0),h:Math.round(d.h)}:null})")
         check('MDC: the Overview box holds ROE on top and SOP below %s' % m, m[0] and m[1] and m[0]['y'] < m[1]['y'] and m[0]['h'] > 60 and m[1]['h'] > 60)
         # the commander: Flight / Squadron, the Standard and a preset of the squadron with its kind of mission
@@ -132,7 +132,7 @@ try:
         check('the custom section is in the page with its topic', bool(cid))
         if cid:
             pg.select_option(B + '.rpr[data-t=%s] select' % cid, 'o0'); pg.wait_for_timeout(150); tick(cid)
-            check('its topic goes on the card under its tag: %s' % pg.inner_text(B + '.rpv2'), pg.inner_text(B + '.rpv2').strip() == 'RNG: FLASH TAXI')
+            check('its topic goes on the card under its tag: %s' % pg.get_attribute(B + '.rpv2', 'data-t'), pg.get_attribute(B + '.rpv2', 'data-t') == 'RNG: FLASH TAXI')
         # RULES: the table of the rules of the Smart card, shown by Settings
         check('RULES sub-page hidden while Settings does not show it', pg.locator(B + '[data-sub=rules]').count() == 0)
         pg.evaluate("async()=>{const s=await import('/app/js/app/state.js');s.ST.CFG.squadron={...(s.ST.CFG.squadron||{}),rulesEdit:true};(await import('/app/js/app/roepage.js')).roeRefreshPage()}"); pg.wait_for_timeout(200)
@@ -158,6 +158,12 @@ try:
         pg.fill('.rsmodal .rlx', ex); pg.click('.rsmodal [data-m=ok]'); pg.wait_for_timeout(300)
         check('Import: a wrong text is refused, a text of Export goes in my rules', bad and pg.evaluate("()=>JSON.parse(localStorage.getItem('bmsroerules')).gawe.fx") is True)
         pg.evaluate("()=>localStorage.setItem('bmsroerules','{}')"); sub('sop')
+        pg.click(B + '[data-a=wide]'); pg.wait_for_timeout(200)
+        wv = pg.evaluate("()=>[!!document.querySelector('#sqroe .rsq.rwide'),getComputedStyle(document.querySelector('#sqroe .rsr')).display,getComputedStyle(document.querySelector('#sqroe .rsl')).display]")
+        pg.click(B + '[data-a=wide]'); pg.wait_for_timeout(200)
+        check('SOP Wide view: the presets and Smart card columns hidden, back with the same button %s' % wv, wv == [True, 'none', 'none'] and pg.locator(B + '.rsq.rwide').count() == 0)
+        kf = pg.evaluate("async()=>{const S=await import('/app/js/core/smartcard.js');const x=document.createElement('canvas').getContext('2d');const a=S.keyFit(x,'HOLD'),b=S.keyFit(x,'VID+AWACS DECLARE+L16+NCTR+M4 NEG+2 SRC');return [a.l2,b.cut,b.l1,b.l2]}")
+        check('Smart card key box: a short value on one line, a long one on two lines cut with "…" %s' % kf, kf[0] is None and kf[1] is True and kf[3].endswith('…'))
         # Add card: the whole text on a Kneeboard card
         sub('roe'); pg.click(B + '.rpk[data-r=ws][data-v=tight]'); sub('sop'); pg.select_option(B + '.rpr[data-t=dep] select', 'combat'); pg.wait_for_timeout(150)
         n0 = pg.evaluate("async()=>(await import('/app/js/app/kneeboard.js')).KBLIB.length")
@@ -170,9 +176,9 @@ try:
         check('...both put on the Kneeboard %s' % kb, n1 == n0 + 2 and kb[0].startswith('ROE / SOP') and kb[1].startswith('Smart · ROE / SOP'))
         sm = pg.evaluate("()=>{const c=document.querySelector('#sqroe .rsprev');if(!c)return null;const d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]<100)n++;return [c.clientWidth,c.clientHeight,n>2000,document.querySelector('#sqroe .rssm').textContent]}")
         check('the Smart card preview (260 x 390) is drawn, with what it holds %s' % sm, sm and sm[0] == 260 and sm[1] == 390 and sm[2] and 'SOP' in sm[3])
-        check('AUTO: no Smart tick, a green dot on the topics of the Smart card', pg.locator(B + '.rpsm').count() == 0 and pg.locator(B + '.rpr[data-t=dep] .rpon1').count() == 1)
+        check('AUTO: no Smart tick, a green dot on the topics of the Smart card', pg.locator(B + '.rptg[data-tg=s]').count() == 0 and pg.locator(B + '.rpr[data-t=dep] .rpon1').count() == 1)
         pg.click(B + '[data-mode=man]'); pg.wait_for_timeout(200)
-        check('MANUAL: each SOP topic chosen has a Smart tick, no dots', pg.locator(B + '.rpr[data-t=dep] .rpsm input').is_enabled() and pg.locator(B + '.rpr .rpon1').count() == 0 and pg.evaluate("()=>JSON.parse(__app.F.roesel).mode") == 'man')
+        check('MANUAL: each SOP topic chosen has a Smart tick, no dots', pg.locator(B + '.rpr[data-t=dep] .rptg[data-tg=s]').is_enabled() and pg.locator(B + '.rpr .rpon1').count() == 0 and pg.evaluate("()=>JSON.parse(__app.F.roesel).mode") == 'man')
         pg.click(B + '[data-mode=auto]'); pg.wait_for_timeout(200)
         # the ROE of the mission (an A-A block): written with the pilot's choices; Manual ROE or Adapt to mission off: not written
         sub('roe')
@@ -208,8 +214,8 @@ try:
         check('every ROE and SOP chosen: two Kneeboard cards at most, the SOP go on from the first %s' % kc, kc[0] == 2 and kc[1] == ['ROE / SOP', 'ROE / SOP (2)'] and kc[2] == 'SOP (cont.)')
         # the ROE box of the Datacard: a long rule wraps after a "+" and the box keeps the big text
         fl = pg.evaluate('''async()=>{const V=await import('/app/js/app/cardview.js');const x=document.createElement('canvas').getContext('2d');
-          const L=V.freeLayout(x,'WPN TIGHT\\nID: AWACS DECLARE+VID+NCTR+2 SRC\\nBUGOUT: WINCH/MUD SPIKE/NO SA\\nNO CBU URBAN',150,97);return [L.fs,L.rows.map(r=>r.t)]}''')
-        check('the ROE box: wraps after "+" or "/", the text as big as the box allows %s' % fl, fl[0] >= 13 and any(r.endswith('+') or r.endswith('/') for r in fl[1]))
+          const L=V.freeLayout(x,'WPN TIGHT\\nID: AWACS DECLARE+VID+NCTR+2 SRC\\nBUGOUT: WINCH/MUD SPIKE/NO SA\\nNO CBU URBAN',150,97);return [L.fs,L.rows.map(r=>r.t),L.rows.map(r=>r.lab||'').filter(Boolean),L.fit]}''')
+        check('the ROE box: the labels in their column (WPN, ID, BUGOUT), the text wraps under the text after "+" or "/", as big as the box allows %s' % fl, fl[0] >= 12 and fl[2] == ['WPN', 'ID', 'BUGOUT'] and fl[3] and any(r.endswith('+') or r.endswith('/') for r in fl[1]))
         # the Kneeboard: a datacard with no flight chosen, filled by the program alone, is not "not saved"
         ku = pg.evaluate('''async()=>{const K=await import('/app/js/app/kneeboard.js'),S=await import('/app/js/app/state.js'),D=await import('/app/js/app/datacard.js');
           const k=S.ST.CURK;S.ST.CURK=null;S.ST.DCHAND=false;const was=D.F.eph;D.F.eph='SR 0612 SS 1745';const r=K.dcIdle();S.ST.DCHAND=true;const r2=K.dcIdle();S.ST.DCHAND=false;D.F.eph=was;S.ST.CURK=k;return [r,r2]}''')

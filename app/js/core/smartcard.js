@@ -166,10 +166,37 @@ export function scKey(x, items) {
     const a = 14 + (i % 4) * 111,
       b = i < 4 ? 52 : 104;
     txt(x, a, b, 11, String(l || ''), { c: red ? RED : GREY, w: 700 });
-    let s = 16;
-    while (s > 11 && tw(x, s, String(v), 700) > 100) s--;
-    txt(x, a, b + 26, s, String(v == null ? '--' : v), { c: red ? RED : INK, w: 700 });
+    const K = keyFit(x, v),
+      o = { c: red ? RED : INK, w: 700 };
+    if (K.l2 == null) txt(x, a, b + 26, K.s, K.l1, o);
+    else {
+      txt(x, a, b + 18, K.s, K.l1, o);
+      txt(x, a, b + 31, K.s, K.l2, o);
+    }
   });
+}
+// a value of the key box in its cell (100 wide): one line from 16 down to 11; then two lines of 10, broken after a "+", a "/" or a space; then the
+// second line cut with "…" (cut: the whole value goes in the text of the card, roepage.js)
+export function keyFit(x, v) {
+  const t = String(v == null ? '--' : v),
+    W = 100;
+  for (let s = 16; s >= 11; s--) if (tw(x, s, t, 700) <= W) return { s, l1: t, l2: null, cut: false };
+  const s = 10,
+    P = t.match(/[^+/ ]+[+/ ]?/g) || [t],
+    fit = q => tw(x, s, q.trim(), 700) <= W;
+  let l1 = '',
+    i = 0;
+  while (i < P.length && fit(l1 + P[i])) l1 += P[i++];
+  if (!l1) return { s, l1: t, l2: null, cut: true };
+  let l2 = P.slice(i).join('');
+  if (fit(l2)) return { s, l1: l1.trim(), l2: l2.trim(), cut: false };
+  const R = P.slice(i);
+  l2 = '';
+  for (const p of R) {
+    if (!fit(l2 + p + '…')) break;
+    l2 += p;
+  }
+  return { s, l1: l1.trim(), l2: l2.replace(/[+/ ]$/, '').trim() + '…', cut: true };
 }
 export function scSec(x, y, label) {
   line(

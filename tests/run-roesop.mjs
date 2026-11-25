@@ -267,6 +267,10 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
     'back to the defaults',
     /SILENT/.test((smartSop(sel, { enemy: true }).items.find(i => i.id == 'turns') || {}).txt || '')
   );
+  ok(
+    'the choices of a list in the order of the list, not of the clicks',
+    JSON.stringify(cleanSel({ roe: { abort: ['cms', 'winch', 'bingo'] } }).roe.abort) == '["bingo","winch","cms"]'
+  );
   const K = roeKey(sel);
   ok(
     'the key box: WPN TIGHT, ID, no commit set ' + JSON.stringify(K),

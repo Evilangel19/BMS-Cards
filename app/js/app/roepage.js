@@ -2,7 +2,7 @@
 // presets of the squadron, the commander changes them); the first of each list is the Standard (the squadron's, or mine without a squadron). A click on a
 // preset puts it on the datacard of the flight; what is changed by hand goes on the datacard at once and can be kept as a preset (a name, the kinds of
 // mission it is the default of). A flight just chosen gets its default by itself (the list of the button chosen wins). The datacard gets the short form:
-// 5 lines a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's by the commander) join the SOP.
+// what fits in a box (ROE one rule a line, SOP one line a phase). The custom sections (mine on this PC, the squadron's by the commander) join the SOP.
 // "Add card" puts the whole text on Kneeboard cards. A click on the ROE or SOP box of the datacard opens this page.
 import { otherLook, cardDark } from '../core/cardink.js';
 import {
@@ -15,9 +15,9 @@ import {
   cleanPresets,
   sopShort,
   pickDefault,
-  BOX_MAX,
   capSel,
-  sopPhaseOn,
+  setBoxFit,
+  boxFits,
   sopAll,
   topicsAll,
   setCustom,
@@ -29,12 +29,12 @@ import { categoryOf } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, dEl, setField } from './datacard.js';
 import { esc, appToast, animOn } from './base.js';
-import { draw } from './cardview.js';
+import { draw, freeLayout, freeDraw } from './cardview.js';
 import { markMan } from './selection.js';
 import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
-import { drawSmartText, SC_W, SC_H, wrap } from '../core/smartcard.js';
+import { drawSmartText, SC_W, SC_H, wrap, keyFit } from '../core/smartcard.js';
 import {
   fullText,
   smartSop,
@@ -109,7 +109,6 @@ const handLines = (typed, made) => {
     .filter(l => l.trim() && !M.includes(l))
     .join('\n');
 };
-const lines = t => (t ? t.split('\n').filter(l => l.trim()).length : 0);
 // the choices of the flight on the datacard: F.roesel, with the lines typed by hand on the datacard (a flight just chosen got its default: roeAuto)
 function flightSel() {
   let s;
@@ -419,17 +418,38 @@ const card = (k, title, hint, body, extra = '') => {
   const shut = CLOSED().has(k);
   return `<div class="wcard rsk${shut ? ' shut' : ''}" data-k="${esc(k)}"><div class="wh rsh" title="Click to fold or unfold"><i class="rsar">${shut ? '▸' : '▾'}</i><h3>${title}</h3><span class="hint">${hint}</span>${extra}</div><div class="rsbd">${body}</div></div>`;
 };
+// what a box of the datacard holds: the text measured as the card draws it (cardview.js freeLayout: 154 wide, 97 high, 11 at the smallest)
+let MXC = null;
+const boxUse = t => freeLayout(MXC || (MXC = document.createElement('canvas').getContext('2d')), t, 154, 97);
+setBoxFit(t => boxUse(t).fit);
 function counts() {
-  return { r: lines(roeText(R.sel)), s: lines(sopText(R.sel)) };
+  const a = boxUse(roeText(R.sel)),
+    b = boxUse(sopText(R.sel));
+  return { r: a.used, s: b.used, cap: a.cap };
 }
+// the preview of a box: drawn as the datacard draws it (twice the size, for a sharp picture); its text for the screen readers and the tests
+function pvPaint(el, t) {
+  const cv = el.querySelector('canvas'),
+    x = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
+  el.dataset.t = t;
+  el.setAttribute('aria-label', t);
+  x.setTransform(2, 0, 0, 2, 0, 0);
+  x.clearRect(0, 0, 158, 101);
+  x.fillStyle = '#111';
+  x.textAlign = 'left';
+  x.textBaseline = 'middle';
+  if (t) freeDraw(x, t, { x: 0, y: 2, w: 158 }, 2, 97, 2);
+}
+// the SOP box with a topic ticked for the card
+const sopWith = id => sopText({ ...R.sel, sop: { ...R.sel.sop, [id]: { ...R.sel.sop[id], c: true } } });
 function render0(box) {
   if (flightOn() && key(R.sel) !== R.wrote) writeCard(); // every change goes on the datacard of the flight at once
   const st = [...box.querySelectorAll('.rsc')].map(c => c.scrollTop),
     { own, squad, sections: SQS } = R.ctx,
     MY = mySecs(),
-    { r: nR, s: nS } = counts(),
-    fullR = nR >= BOX_MAX,
-    fullS = nS >= BOX_MAX;
+    { r: nR, s: nS, cap } = counts(),
+    fullR = nR >= cap,
+    fullS = nS >= cap;
   const D = smartData(),
     onSmart = D ? D.on : new Set(),
     man = R.sel.mode == 'man',
@@ -438,8 +458,9 @@ function render0(box) {
     sub = sub0 == 'sop' || (sub0 == 'rules' && rulesOn()) ? sub0 : 'roe';
   const chip = (id, kind, [v, long, short]) => {
     const on = kind == 'many' ? R.sel.roe[id].includes(v) : R.sel.roe[id] === v,
-      off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
-    return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
+      off =
+        !on && !boxFits(roeText({ ...R.sel, roe: { ...R.sel.roe, [id]: kind == 'many' ? [...R.sel.roe[id], v] : v } }));
+    return `<button type="button" class="rpk${on ? ' on' : ''}${off ? ' off' : ''}${short.length > 14 ? ' w2' : ''}" data-r="${id}" data-v="${v}" title="${esc(long)}"${off ? ' disabled' : ''}>${esc(short)}</button>`;
   };
   const fa = R.sel.faor,
     ag = R.sel.ag;
@@ -456,7 +477,7 @@ function render0(box) {
   };
   const why = !msn ? (R.sel.adapt ? 'Manual ROE: not written' : 'Adapt to mission off: not written') : '';
   const block = (lab, btn, act, L) =>
-    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span>${why ? `<span class="hint">${why}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn g" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div><div class="rpfl">${L.map(esc).join('<br>')}</div></div>`;
+    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span><span style="flex:1"></span><button type="button" class="btn g" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div>${why ? `<div class="hint rpwhy">${why}</div>` : ''}<div class="rpfl">${L.map(esc).join('<br>')}</div></div>`;
   const KEYS = ['ws', 'id', 'commit', 'abort'],
     oca = fa && fa.pos != null ? 'OCA' : 'DCA';
   const roePane = `<div class="rstool"><button type="button" class="tgl${R.sel.manroe ? ' on' : ''}" data-a="manroe"${R.sel.adapt ? '' : ' disabled'} title="${R.sel.adapt ? 'Write only your ROE, not the ROE of the mission (A-A and A-G pages). The SOP stay adapted to the mission. For the datacard and the Smart card.' : 'Adapt to mission is off: the ROE are only yours.'}">Manual ROE</button><span class="hint">${msn ? 'The ROE of the mission and your choices. Your choice replaces a mission value of the same rule.' : 'Only your ROE are written.'}</span></div><div class="rspg2"><div class="wcard"><div class="wh"><h3>Key rules</h3><span class="hint">the table of the Smart card</span></div>${ROE.filter(
@@ -465,7 +486,7 @@ function render0(box) {
     .map(rule)
     .join(
       ''
-    )}</div><div class="wcard"><div class="wh"><h3>Other rules</h3><span class="hint">${BOX_MAX} lines at most on the card</span></div>${ROE.filter(
+    )}</div><div class="wcard"><div class="wh"><h3>Other rules</h3><span class="hint">as many as the card holds</span></div>${ROE.filter(
     r => !KEYS.includes(r[0])
   )
     .map(rule)
@@ -482,14 +503,14 @@ function render0(box) {
       cust = !!v.t || R.cust.has(id),
       long = cust ? '' : (opts.find(x => x[0] === v.o) || [])[1] || '',
       set = !!(v.o || v.t),
-      cOff = !set || (fullS && !v.c && !sopPhaseOn(R.sel, id)), // a topic of a phase already on the card does not add a line
+      cOff = !set || (!v.c && !boxFits(sopWith(id))),
       lk = smartLink(R.sel, id, CTX), // the change of the mission on the Smart card (Adapt to mission)
       dot = !man && onSmart.has(id);
     return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
       .map(([x, , sh]) => `<option value="${x}"${!cust && v.o === x ? ' selected' : ''}>${esc(sh)}</option>`)
       .join(
         ''
-      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label>${man ? `<label class="rpon rpsm" title="${set ? 'Write this topic on the Smart card' : 'Choose a value first'}"><input type="checkbox"${v.s ? ' checked' : ''}${set ? '' : ' disabled'}> Smart</label>` : ''}</span>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
+      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><button type="button" class="btn${v.c ? '' : ' g'} rptg" data-tg="c" aria-pressed="${!!v.c}"${cOff && !v.c ? ' disabled' : ''} title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}">CARD</button>${man ? `<button type="button" class="btn${v.s ? '' : ' g'} rptg" data-tg="s" aria-pressed="${!!v.s}"${set ? '' : ' disabled'} title="${set ? 'Write this topic on the Smart card' : 'Choose a value first'}">SMART</button>` : ''}</span>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
   };
   const myIds = new Set(MY.map(c => c.id)),
     sqIds = new Set((SQS || []).map(c => c.id));
@@ -516,8 +537,9 @@ function render0(box) {
     phases = ALL.filter(x => !x[3]).map(phaseCard),
     cols = L => `<div class="rspg">${L.join('')}</div>`; // in the order of the flight: down the first column, then the next ones
   const SK = sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)),
-    anyOpen = SK.some(k => !CLOSED().has(k));
-  const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Show only the topics that you chose">Chosen only</button></div><button type="button" class="btn g" data-a="fold" title="${anyOpen ? 'Fold all the SOP sections' : 'Unfold all the SOP sections'}">${anyOpen ? 'Fold all' : 'Unfold all'}</button><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="Make a section of your own (on this PC${own ? ', or for the squadron' : ''}), with its topics and options">＋ Custom section</button></div>`;
+    anyOpen = SK.some(k => !CLOSED().has(k)),
+    wide = !!LS.get('bmsroewide', false);
+  const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Show only the topics that you chose">Chosen only</button></div><button type="button" class="btn${wide ? '' : ' g'}" data-a="wide" aria-pressed="${wide}" title="${wide ? 'Show the columns of the presets and of the Smart card again' : 'Hide the columns of the presets and of the Smart card: more space for the SOP'}">Wide view</button><button type="button" class="btn g" data-a="fold" title="${anyOpen ? 'Fold all the SOP sections' : 'Unfold all the SOP sections'}">${anyOpen ? 'Fold all' : 'Unfold all'}</button><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="Make a section of your own (on this PC${own ? ', or for the squadron' : ''}), with its topics and options">＋ Custom section</button></div>`;
   const customBlock = custom.length
     ? `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span></div>${cols(custom)}</div>`
     : '';
@@ -569,10 +591,8 @@ function render0(box) {
     'card',
     'Preview',
     'Datacard · MDC',
-    `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"></div><div class="b rpv2"></div></div><div class="rscnt"><span>ROE <b class="${fullR ? 'full' : ''}">${nR}/${BOX_MAX}</b></span><span>SOP <b class="${fullS ? 'full' : ''}">${nS}/${BOX_MAX}</b> (one line a phase)</span></div>${
-      warn.length
-        ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
-        : ''
+    `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"><canvas width="316" height="202"></canvas></div><div class="b rpv2"><canvas width="316" height="202"></canvas></div></div><div class="rscnt"><span title="The lines of the box at the smallest text size">ROE <b class="${fullR ? 'full' : ''}">${nR}/${cap}</b> lines</span><span title="The lines of the box at the smallest text size (one line a phase, long ones wrap)">SOP <b class="${fullS ? 'full' : ''}">${nS}/${cap}</b> lines</span></div>${
+      warn.length ? `<div class="rswarn">${warn.join(', ')}: take a line away to add another one.</div>` : ''
     }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
@@ -592,10 +612,10 @@ function render0(box) {
     )
     .join('')}</div>`;
   const main = sub == 'roe' ? roePane : sub == 'rules' ? rulesPane() : `${tools}${customBlock}${cols(phases)}${other}`; // the custom sections above the standard ones; Other SOP lines right under the phases
-  box.innerHTML = `<div class="rsq${sub == 'rules' ? ' rlw' : ''}"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
+  box.innerHTML = `<div class="rsq${sub == 'rules' ? ' rlw' : sub == 'sop' && wide ? ' rwide' : ''}"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
-  box.querySelector('.rpv1').textContent = roeText(R.sel);
-  box.querySelector('.rpv2').textContent = sopText(R.sel);
+  pvPaint(box.querySelector('.rpv1'), roeText(R.sel));
+  pvPaint(box.querySelector('.rpv2'), sopText(R.sel));
   smartPaint(box, D);
   wire(box);
 }
@@ -929,7 +949,16 @@ function roeSmart(sel, sub) {
     v = k => (F[k] != null && String(F[k]).trim() ? String(F[k]).trim() : '--'),
     lsr = v('fl' + seatIdx() + '_5'),
     keyLab = new Set(['Weapons status', 'ID criteria', 'Commit', 'Abort / bugout']),
+    mx = document.createElement('canvas').getContext('2d'),
+    // a key value too long for its cell (cut with "…"): the whole rule under the key box
+    cut = [
+      ['WPN', K.wpn],
+      ['ID', K.id],
+      ['COMMIT', K.commit],
+      ['BUGOUT', K.bugout],
+    ].filter(([, t]) => t && keyFit(mx, t).cut),
     roeB = [
+      ...(cut.length ? [['KEY ROE', cut.map(([l, t]) => [l + ': ' + t, false, l.length + 1])]] : []),
       ...T.roe.filter(([lab]) => !keyLab.has(lab)).map(([lab, L]) => [String(lab).toUpperCase(), L]),
       ...(T.roeFree.length ? [['ROE', T.roeFree]] : []),
     ],
@@ -937,8 +966,8 @@ function roeSmart(sel, sub) {
     sfree = T.sopFree;
   if (!roeB.length && !S.items.length && !S.emerg.length && !sfree.length && !K.wpn && !K.id) return null;
   // the height of the blocks, as drawSmartText draws them
-  const mx = document.createElement('canvas').getContext('2d'),
-    rowsH = L => L.reduce((a, r) => a + wrap(mx, '• ' + (Array.isArray(r) ? r[0] : r), SM.fs, SM.w).length * SM.lh, 0),
+  const rowsH = L =>
+      L.reduce((a, r) => a + wrap(mx, '• ' + (Array.isArray(r) ? r[0] : r), SM.fs, SM.w).length * SM.lh, 0),
     blocksH = B => B.reduce((a, [, L]) => a + SM.head + rowsH(L) + SM.gap, 0),
     sopB = items => {
       const L = [...smartSopLines(items), ...sfree];
@@ -1137,6 +1166,15 @@ function wire(box) {
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
     if (ed) return editSection(ed.dataset.sec);
+    const tg = e.target.closest('.rptg');
+    if (tg && !tg.disabled) {
+      const id = tg.closest('.rpr').dataset.t,
+        v = R.sel.sop[id];
+      if (!v) return;
+      if (tg.dataset.tg == 's') v.s = !v.s;
+      else v.c = !v.c && boxFits(sopWith(id));
+      return render();
+    }
     const rc = e.target.closest('.rlc');
     if (rc) return rulesClick(rc);
     const rr = e.target.closest('.rlr');
@@ -1300,6 +1338,10 @@ function wire(box) {
       return;
     }
     if (act == 'kb') return addCards();
+    if (act == 'wide') {
+      LS.set('bmsroewide', !LS.get('bmsroewide', false));
+      return render();
+    }
     if (act == 'rexp') return rulesExport();
     if (act == 'rimp') return rulesImport();
     if (act == 'rreset')
@@ -1366,8 +1408,7 @@ function wire(box) {
     if (!r) return;
     const id = r.dataset.t,
       t = topicsAll().find(x => x[0] == id),
-      v = R.sel.sop[id] || { o: null, t: '', c: false },
-      room = lines(sopText(R.sel)) < BOX_MAX || sopPhaseOn(R.sel, id);
+      v = R.sel.sop[id] || { o: null, t: '', c: false };
     if (e.target.tagName == 'SELECT') {
       const x = e.target.value;
       R.cust.delete(id);
@@ -1376,10 +1417,6 @@ function wire(box) {
         R.cust.add(id);
         R.sel.sop[id] = { o: null, t: v.t || sopShort(t, v) || '', c: v.c, s: v.s };
       } else R.sel.sop[id] = { o: x, t: '', c: v.c, s: v.s }; // the tick "card" is the pilot's choice: off for a topic just chosen
-    } else if (e.target.closest('.rpsm')) {
-      if (R.sel.sop[id]) R.sel.sop[id].s = e.target.checked;
-    } else if (e.target.type == 'checkbox') {
-      if (R.sel.sop[id]) R.sel.sop[id].c = e.target.checked && (room || R.sel.sop[id].c);
     }
     render();
     if (e.target.tagName == 'SELECT' && e.target.value == '*') {
@@ -1396,10 +1433,9 @@ function wire(box) {
         c: R.sel.sop[id] ? R.sel.sop[id].c : false,
         s: R.sel.sop[id] ? R.sel.sop[id].s : false,
       };
-      const cb = e.target.closest('.rpr').querySelector('.rpon input'),
-        room = lines(sopText(R.sel)) < BOX_MAX || sopPhaseOn(R.sel, id) || R.sel.sop[id].c;
-      cb.disabled = !e.target.value.trim() || !room; // an own text can go on the card once it is written
-      box.querySelector('.rpv2').textContent = sopText(R.sel);
+      const cb = e.target.closest('.rpr').querySelector('.rptg[data-tg=c]');
+      cb.disabled = !e.target.value.trim() || !(R.sel.sop[id].c || boxFits(sopWith(id))); // an own text can go on the card once it is written
+      pvPaint(box.querySelector('.rpv2'), sopText(R.sel));
     } else if (e.target.classList.contains('rpnm')) {
       e.target.classList.remove('err');
       if (e.target.classList.contains('rsname')) R.name = e.target.value;
@@ -1409,16 +1445,18 @@ function wire(box) {
 // the other lines count in the box too: what is beyond the limit is cut, with a word
 function limitText(ta) {
   const f = ta.dataset.f,
-    other = f == 'free' ? lines(roeText({ ...R.sel, free: '' })) : lines(sopText({ ...R.sel, sfree: '' })),
+    txt = () => (f == 'free' ? roeText(R.sel) : sopText(R.sel)),
     L = R.sel[f].split('\n').filter(l => l.trim()),
-    room = Math.max(0, BOX_MAX - other);
-  if (L.length > room) {
-    R.sel[f] = L.slice(0, room).join('\n');
+    n = L.length;
+  while (L.length && !boxFits(txt())) {
+    L.pop();
+    R.sel[f] = L.join('\n');
+  }
+  if (L.length < n)
     appToast(
-      `The ${f == 'free' ? 'ROE' : 'SOP'} box holds ${BOX_MAX} lines: the last ${L.length - room} line${L.length - room == 1 ? ' was' : 's were'} left out.`,
+      `The ${f == 'free' ? 'ROE' : 'SOP'} box of the card is full: the last ${n - L.length} line${n - L.length == 1 ? ' was' : 's were'} left out.`,
       true
     );
-  }
 }
 // a flight just chosen gets its default by itself: the preset marked "Default for" its kind of mission (the list of the button chosen wins: Squadron or
 // Flight), else the Standard; what the pilot changed on that flight stays (the hand changes come back over it)

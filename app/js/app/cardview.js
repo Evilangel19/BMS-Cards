@@ -128,16 +128,22 @@ export const wezFit = (x, v, w, fs, sq = 1) => {
   x.font = fs + 'px Arial';
   return x.measureText(v).width * sq <= w ? v : v.replace(WEZ_NAME, '$1');
 };
-// The notes of the Datacard (airfields, UHF2 backup, the targets of the other flights, the notes of the rules): the biggest size from 14 to 11 at
-// which every line fits the box, a line too long is wrapped (not squeezed); the blank lines are thin separators, "UHF2 backup" a small heading.
-// When even at 11 the box is too short the lines get closer; what still does not fit is left out (no smaller text).
+// The ROE and SOP boxes of the Datacard: the biggest size from 14 to 11 at which every line fits the box. A line that starts with a label (WPN, COMMIT, or
+// a short word with a colon: "ID:", "BUGOUT:", "T/O:") has the label in bold and its text after it; a text too long goes on in the lines under it, a
+// little in from the left (the label stands out), broken at a space or right after a "+" or a "/". When even at 11 the box is too short the lines get closer; what
+// still does not fit is left out (fit: false; the ROE / SOP page does not let the boxes get so full: roepage.js setBoxFit).
 const FREE_ROOM = 116;
+const BOX_LAB = /^(WPN|COMMIT|[A-Z][A-Z0-9/&-]{0,6}:) +(\S.*)$/;
 export function freeLayout(x, v, w, room = FREE_ROOM) {
-  const L = String(v).split('\n');
-  // a line too long wraps at a space, or right after a "+" or a "/" ("ID: AWACS DECLARE+VID+" / "NCTR"): the box fills before the text gets smaller
-  const wrap = (t, fs) => {
+  const L = String(v)
+    .split('\n')
+    .map(t => {
+      const m = t.match(BOX_LAB);
+      return m ? { lab: m[1].replace(/:$/, ''), t: m[2] } : { lab: '', t };
+    });
+  const wrap = (t, fs, W, W2 = W) => {
     x.font = fs + 'px Arial';
-    if (x.measureText(t).width <= w) return [t];
+    if (x.measureText(t).width <= W) return [t];
     const P = [];
     let cur = '';
     for (const ch of t) {
@@ -158,7 +164,7 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
       prev = null;
     P.forEach(p => {
       const q = line ? line + (prev.sp ? ' ' : '') + p.w : p.w;
-      if (line && x.measureText(q).width > w) {
+      if (line && x.measureText(q).width > (out.length ? W2 : W)) {
         out.push(line);
         line = p.w;
       } else line = q;
@@ -167,8 +173,17 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
     if (line) out.push(line);
     return out;
   };
-  const rowsAt = fs =>
-    L.flatMap(t => (t === '' ? [{ sep: 1 }] : wrap(t, fs).map(r => ({ t: r, h: /^UHF2 backup$/.test(t) }))));
+  // a label: in bold, then a space; the lines under it start a little in
+  const labW = (lab, fs) => ((x.font = 'bold ' + fs + 'px Arial'), Math.ceil(x.measureText(lab).width + fs * 0.35));
+  const rowsAt = fs => {
+    const ind = Math.round(fs * 0.8);
+    return L.flatMap(l => {
+      if (l.t === '' && !l.lab) return [{ sep: 1 }];
+      if (!l.lab) return wrap(l.t, fs, w).map(r => ({ t: r, ind: 0 }));
+      const lw = labW(l.lab, fs);
+      return wrap(l.t, fs, w - lw, w - ind).map((r, i) => (i ? { t: r, ind } : { t: r, lab: l.lab, ind: lw }));
+    });
+  };
   const hOf = (R, lh, gp) => R.reduce((s, r) => s + (r.sep ? gp : lh), 0);
   // the biggest size (half a pixel at a time) that fits, first with the normal spacing, then with closer lines
   for (let fs = 14; fs >= 11; fs -= 0.5) {
@@ -177,16 +192,17 @@ export function freeLayout(x, v, w, room = FREE_ROOM) {
       [fs + 2, 7],
       [fs + 1, 5],
     ])
-      if (hOf(R, lh, gp) <= room) return { fs, lh, gp, rows: R };
+      if (hOf(R, lh, gp) <= room)
+        return { fs, lh, gp, rows: R, fit: true, used: rowsAt(11).length, cap: Math.floor(room / 12) };
   }
-  // what does not fit at 11 is left out (the notes of a big package use the short callsigns, so this is rare; the text stays in the cell)
   const fs = 11,
     lh = fs + 0.5,
     gp = 4,
-    R = rowsAt(fs);
+    R = rowsAt(fs),
+    used = R.length;
   while (R.length > 1 && hOf(R, lh, gp) > room) R.pop();
   while (R.length && R[R.length - 1].sep) R.pop();
-  return { fs, lh, gp, rows: R };
+  return { fs, lh, gp, rows: R, fit: false, used, cap: Math.floor(room / 12) };
 }
 // The notes of the Datacard: one section a label (TWR, UHF2, TGT, JTAC, IFF...), the label and the cells of a line divided by tabs (core/fillcard.js).
 // The labels in a narrow column on the left, the text from the left, the cells of a line in columns of the same width (the UHF2 backups line up); a
@@ -295,9 +311,12 @@ export function freeDraw(x, v, d, cx, room = FREE_ROOM, top = d.y) {
       return;
     }
     x.save();
-    x.font = (r.h ? 'bold ' + (fs - 2) : fs) + 'px Arial';
-    if (r.h) x.fillStyle = '#555';
-    x.fillText(r.t, cx, yy + lh / 2, d.w);
+    if (r.lab) {
+      x.font = 'bold ' + fs + 'px Arial';
+      x.fillText(r.lab, cx, yy + lh / 2, r.ind);
+    }
+    x.font = fs + 'px Arial';
+    x.fillText(r.t, cx + r.ind, yy + lh / 2, d.w - r.ind);
     x.restore();
     yy += lh;
   });

@@ -1007,7 +1007,8 @@ export function cleanSel(s) {
   ROE.forEach(([id, , k, , opts]) => {
     const ok = x => opts.some(p => p[0] === x),
       v = s.roe && s.roe[id];
-    if (k == 'many') o.roe[id] = Array.isArray(v) ? [...new Set(v.filter(ok))] : [];
+    if (k == 'many')
+      o.roe[id] = Array.isArray(v) ? opts.map(p => p[0]).filter(x => v.includes(x)) : []; // in the order of the list
     else o.roe[id] = ok(v) ? v : null;
   });
   topicsAll().forEach(([id, , , opts]) => {
@@ -1164,34 +1165,33 @@ export function sopText(sel) {
   if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
   return R.join('\n');
 }
-// a topic ticked for the card adds a line only when its phase has none yet
-export function sopPhaseOn(sel, id) {
-  const ph = sopAll().find(([, T]) => T.some(t => t[0] == id));
-  return !!ph && ph[1].some(t => t[0] != id && sel.sop[t[0]] && sel.sop[t[0]].c);
-}
-// each box of the card holds BOX_MAX lines (one rule or one topic a line; a long one may wrap on the card, it still counts once)
+// what a box of the card holds: the program measures the text in the box (setBoxFit, app/roepage.js: as much as fits at the smallest size); without
+// it (the tests in Node) BOX_MAX lines
 export const BOX_MAX = 5;
 const nl = t => (t ? t.split('\n').filter(l => l.trim()).length : 0);
+let FITS = t => nl(t) <= BOX_MAX;
+export const setBoxFit = f => (FITS = f);
+export const boxFits = t => FITS(t);
 // a choice cut to the boxes: the last SOP topics on the card lose the tick, the last ROE choices of the lists go, then the other lines
 export function capSel(sel) {
   const s = cleanSel(sel);
   const sf = s.sfree.split('\n').filter(l => l.trim());
-  while (nl(sopText(s)) > BOX_MAX && sf.length) {
+  while (!boxFits(sopText(s)) && sf.length) {
     sf.pop();
     s.sfree = sf.join('\n');
   }
   // the last phases on the card lose their ticks
   const T = topicsAll().filter(t => s.sop[t[0]] && s.sop[t[0]].c);
-  for (let i = T.length - 1; i >= 0 && nl(sopText(s)) > BOX_MAX; i--) s.sop[T[i][0]].c = false;
+  for (let i = T.length - 1; i >= 0 && !boxFits(sopText(s)); i--) s.sop[T[i][0]].c = false;
   const rf = s.free.split('\n').filter(l => l.trim());
-  while (nl(roeText(s)) > BOX_MAX && rf.length) {
+  while (!boxFits(roeText(s)) && rf.length) {
     rf.pop();
     s.free = rf.join('\n');
   }
   for (const [id, , kind] of [...ROE].reverse()) {
-    while (kind == 'many' && s.roe[id].length && nl(roeText(s)) > BOX_MAX) s.roe[id].pop();
+    while (kind == 'many' && s.roe[id].length && !boxFits(roeText(s))) s.roe[id].pop();
   }
-  for (const [id, , kind] of [...ROE].reverse()) if (kind == 'one' && nl(roeText(s)) > BOX_MAX) s.roe[id] = null;
+  for (const [id, , kind] of [...ROE].reverse()) if (kind == 'one' && !boxFits(roeText(s))) s.roe[id] = null;
   return s;
 }
 // the mission categories a squadron preset can be the default of (the categories of the ATO, core/ato.js)
