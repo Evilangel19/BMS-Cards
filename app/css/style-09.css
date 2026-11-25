@@ -274,7 +274,7 @@
 /* Squadron > ROE / SOP (app/roepage.js) */
 .rsq {
   display: grid;
-  grid-template-columns: 320px minmax(0, 0.85fr) minmax(0, 1.6fr);
+  grid-template-columns: 300px minmax(0, 1fr) 288px;
   gap: 12px;
   align-items: start;
 }
@@ -284,17 +284,25 @@
   gap: 12px;
   min-width: 0;
 }
+/* the SOP sections: up to three columns, in the order of the flight down each column */
 .rsq .rspg {
+  columns: 3 270px;
+  column-gap: 12px;
+}
+.rsq .rspg > .wcard {
+  break-inside: avoid;
+  margin-bottom: 12px;
+}
+.rsq .rspg2 {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 12px;
   align-items: start;
 }
-.rsq .rsg {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  min-width: 0;
+@media (max-width: 1350px) {
+  .rsq .rspg2 {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 .rsq .rss {
   display: flex;
@@ -302,12 +310,15 @@
   gap: 12px;
   min-width: 0;
 }
-@media (max-width: 1500px) {
-  .rsq .rspg {
-    grid-template-columns: minmax(0, 1fr);
+@media (max-width: 1250px) {
+  .rsq {
+    grid-template-columns: 300px minmax(0, 1fr);
+  }
+  .rsq .rsr {
+    grid-column: 1;
   }
 }
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
   .rsq {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -393,19 +404,98 @@
   flex-direction: column;
   gap: 1px;
 }
-/* the change of the day on the Smart card (IMC, night): a line under the topic */
-.rsq .rpauto {
+/* the change of the mission on the Smart card (IMC, night): a line under the topic, read only */
+.rsq .rplk {
   grid-column: 2 / 4;
-  display: flex;
-  gap: 5px;
-  align-items: center;
   font-size: 11px;
   color: #e3b341;
-  cursor: pointer;
+  animation: fadein 0.2s;
 }
-.rsq .rpauto input {
-  width: auto;
-  box-shadow: none;
+/* a topic on the Smart card (AUTO): a green dot before its name */
+.rsq .rpon1 {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #3ddc84;
+  margin-right: 5px;
+  vertical-align: 1px;
+}
+/* a value of the mission (the A-A and A-G pages): yellow; replaced by the pilot's choice: struck through */
+.rsq .rpmsn {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e3b341;
+  margin: 0 0 4px;
+  animation: fadein 0.2s;
+}
+.rsq .rpmsn.over {
+  color: var(--mu);
+  font-weight: 400;
+}
+.rsq .wh .rpmsn {
+  margin: 0 0 0 4px;
+  border: 1px solid #e3b34166;
+  border-radius: 4px;
+  padding: 0 5px;
+}
+.rsq .rsoff .rpfl {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.rsq .rstool .tgl,
+.rsq .rpfa .wh .btn {
+  white-space: nowrap;
+}
+/* the two sub-pages, ROE and SOP */
+.rsq .wtabs.rssub {
+  margin: 0;
+}
+/* the column of the Smart card: it stays in sight while the page scrolls */
+.rsq .rsr {
+  position: sticky;
+  top: 8px;
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+}
+.rsq .rssc .rsmode {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+.rsq .rssc .rsmode button {
+  padding: 6px 4px;
+  font-weight: 600;
+}
+.rsq .rssc .rsadapt {
+  width: 100%;
+  margin-top: 8px;
+}
+.rsq .rsinfo {
+  cursor: help;
+  margin-left: auto;
+}
+.rsq .rsctx {
+  color: var(--mu);
+  font-size: 11.5px;
+  margin: 6px 0 8px;
+}
+.rsq .rsprev {
+  display: block;
+  width: 260px;
+  height: 390px;
+  border: 0;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px #0008;
+}
+.rsq .rsnone {
+  padding: 30px 8px;
+  text-align: center;
+  border: 1px dashed var(--line);
+  border-radius: 6px;
+}
+.rsq .rsdotl {
+  margin-top: 6px;
 }
 .rsq .rpon input,
 .rsq .rpr .rpd input {
@@ -733,8 +823,9 @@
   padding: 4px 10px;
   font-size: 12px;
 }
-@media (max-width: 1100px) {
-  .rsq .rsl {
+@media (max-width: 1250px) {
+  .rsq .rsl,
+  .rsq .rsr {
     position: static;
     max-height: none;
   }

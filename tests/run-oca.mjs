@@ -214,8 +214,12 @@ const sel = cleanSel({
   faor: b,
 });
 ok(
-  'the ROE box: WPN FREE and COMMIT 40NM in place of the chosen ones, then STOP',
-  roeText(sel) == 'WPN FREE\nCOMMIT 40NM\nSTOP 30NM FROM PKG'
+  'the ROE box: the WPN and COMMIT chosen by the pilot win over those of the block, then STOP',
+  roeText(sel) == 'WPN TIGHT\nCOMMIT 20NM\nSTOP 30NM FROM PKG'
+);
+ok(
+  'the ROE box without a choice of the pilot: WPN FREE and COMMIT 40NM of the block, then STOP',
+  roeText({ ...sel, roe: { ...sel.roe, ws: null, commit: null } }) == 'WPN FREE\nCOMMIT 40NM\nSTOP 30NM FROM PKG'
 );
 ok('the ROE card: the A-A · SWEEP block', fullText(sel).roe[0][0] == 'A-A · SWEEP');
 // the DTC lines

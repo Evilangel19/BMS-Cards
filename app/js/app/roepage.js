@@ -35,11 +35,10 @@ import { sqPage } from './pages.js';
 import { kbAddPic } from './kneeboard.js';
 import { roeCardPlan, roeCardDraw, CARD_W, CARD_H } from './roecard.js';
 import { drawSmartText, SC_W, SC_H, wrap } from '../core/smartcard.js';
-import { fullText, smartSop, smartSopLines, roeKey, smartLink } from '../core/roesop.js';
+import { fullText, smartSop, smartSopLines, roeKey, smartLink, msnOn, faorOwn } from '../core/roesop.js';
 import { seatIdx } from './seat.js';
 import { flightTag } from './ato.js';
 import { chooseCards } from '../core/tgdlg.js';
-import { faorLines } from '../core/faor.js';
 import { agLines } from '../core/agrules.js';
 
 // ---- what stays on this PC: my presets (bmsroepre), my Standard (bmsroestd), my custom sections (bmsroesec), the list shown (bmsroesrc), the sections
@@ -379,14 +378,16 @@ function render() {
   BUSY = true;
   // the warnings already shown do not fade in again when the page is drawn again (a choice draws the page again: they flickered)
   const seen = new Set(
-    [...box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot')].map(e => e.className + '|' + e.textContent)
+    [...box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn')].map(
+      e => e.className + '|' + e.textContent
+    )
   );
   try {
     render0(box);
     const kb = /** @type {HTMLButtonElement|null} */ (document.getElementById('sqroekb')),
       n = counts();
     if (kb) kb.disabled = !(n.r || n.s); // Add card: dimmed while nothing is chosen
-    box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot').forEach(e => {
+    box.querySelectorAll('.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn').forEach(e => {
       if (seen.has(e.className + '|' + e.textContent)) e.style.animation = 'none';
     });
   } finally {
@@ -415,6 +416,11 @@ function render0(box) {
     { r: nR, s: nS } = counts(),
     fullR = nR >= BOX_MAX,
     fullS = nS >= BOX_MAX;
+  const D = smartData(),
+    onSmart = D ? D.on : new Set(),
+    man = R.sel.mode == 'man',
+    msn = msnOn(R.sel),
+    sub = LS.get('bmsroesub', 'roe') == 'sop' ? 'sop' : 'roe';
   const chip = (id, kind, [v, long, short]) => {
     const on = kind == 'many' ? R.sel.roe[id].includes(v) : R.sel.roe[id] === v,
       off = !on && fullR && (kind == 'many' || !R.sel.roe[id]);
@@ -422,19 +428,39 @@ function render0(box) {
   };
   const fa = R.sel.faor,
     ag = R.sel.ag;
-  const roeCard = card(
-    'roe',
-    'ROE',
-    `one rule a line on the card · ${BOX_MAX} lines at most`,
-    `${fa ? `<div class="rpfa"><div class="rpt rg">A-A · ${esc(fa.pos != null ? 'OCA' : 'DCA')}${fa.kind ? ' · ' + esc(fa.kind) : ''}<small>written by A-A &gt; ${fa.pos != null ? 'OCA' : 'DCA'}</small><button type="button" class="btn g" data-a="faor" title="The page that writes this block">Edit in ${fa.pos != null ? 'OCA' : 'DCA'}</button></div><div class="rpfl">${faorLines(fa, false).map(esc).join('<br>')}</div></div>` : ''}${ag ? `<div class="rpfa"><div class="rpt rg">A-G · ${esc(ag.kind)}<small>written by A-G</small><button type="button" class="btn g" data-a="agpage" title="The page that writes this block">Edit in A-G</button></div><div class="rpfl">${agLines(ag, false).map(esc).join('<br>')}</div></div>` : ''}${ROE.map(
-      ([id, lab, kind, , opts]) =>
-        fa && (id == 'ws' || id == 'commit')
-          ? `<div class="rpt rg">${esc(lab)}<small>set by A-A</small></div><div class="rpo"><span class="hint">${id == 'ws' ? 'WPN ' + esc(fa.wpn.toUpperCase()) : 'COMMIT ' + fa.commit + 'NM'}</span></div>`
-          : `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div><div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`
-    ).join(
+  // a rule of the list: its options, with the value of the mission over them (a choice of the pilot replaces it)
+  const rule = ([id, lab, kind, , opts]) => {
+    const mv =
+        fa && msn && id == 'ws'
+          ? 'WPN ' + fa.wpn.toUpperCase()
+          : fa && msn && id == 'commit'
+            ? 'COMMIT ' + fa.commit + 'NM'
+            : '',
+      mine = mv && R.sel.roe[id];
+    return `<div class="rpt rg">${esc(lab)}<small>${kind == 'many' ? 'one or more' : 'one'}</small></div>${mv ? `<div class="rpmsn${mine ? ' over' : ''}" title="${mine ? 'Your choice replaces the value of the mission. Click your choice again to use the value of the mission.' : 'The value of the mission (A-A page). Click an option to replace it.'}">MISSION: ${esc(mv)}${mine ? ' → your choice' : ''}</div>` : ''}<div class="rpo">${opts.map(o => chip(id, kind, o)).join('')}</div>`;
+  };
+  const why = !msn ? (R.sel.adapt ? 'Manual ROE: not written' : 'Adapt to mission off: not written') : '';
+  const block = (lab, btn, act, L) =>
+    `<div class="wcard rpfa${msn ? '' : ' rsoff'}"><div class="wh"><h3>${esc(lab)}</h3><span class="rpmsn">MISSION</span>${why ? `<span class="hint">${why}</span>` : ''}<span style="flex:1"></span><button type="button" class="btn g" data-a="${act}" title="Open the page that writes this block">${esc(btn)}</button></div><div class="rpfl">${L.map(esc).join('<br>')}</div></div>`;
+  const KEYS = ['ws', 'id', 'commit', 'abort'],
+    oca = fa && fa.pos != null ? 'OCA' : 'DCA';
+  const roePane = `<div class="rstool"><button type="button" class="tgl${R.sel.manroe ? ' on' : ''}" data-a="manroe"${R.sel.adapt ? '' : ' disabled'} title="${R.sel.adapt ? 'Write only your ROE, not the ROE of the mission (A-A and A-G pages). The SOP stay adapted to the mission. For the datacard and the Smart card.' : 'Adapt to mission is off: the ROE are only yours.'}">Manual ROE</button><span class="hint">${msn ? 'The ROE of the mission and your choices. Your choice replaces a mission value of the same rule.' : 'Only your ROE are written.'}</span></div><div class="rspg2"><div class="wcard"><div class="wh"><h3>Key rules</h3><span class="hint">the table of the Smart card</span></div>${ROE.filter(
+    r => KEYS.includes(r[0])
+  )
+    .map(rule)
+    .join(
       ''
-    )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea>`
-  );
+    )}</div><div class="wcard"><div class="wh"><h3>Other rules</h3><span class="hint">${BOX_MAX} lines at most on the card</span></div>${ROE.filter(
+    r => !KEYS.includes(r[0])
+  )
+    .map(rule)
+    .join(
+      ''
+    )}<div class="rpt rg">Other ROE lines<small>one a line, they count too</small></div><textarea class="rpfr" data-f="free" rows="2" maxlength="600" placeholder="Written in the ROE box as they are">${esc(R.sel.free)}</textarea></div></div>${
+    fa || ag
+      ? `<div class="rspg2">${fa ? block('A-A · ' + oca + (fa.kind ? ' · ' + fa.kind : ''), 'Edit in ' + oca, 'faor', faorOwn(R.sel, false)) : ''}${ag ? block('A-G · ' + ag.kind, 'Edit in A-G', 'agpage', agLines(ag, false)) : ''}</div>`
+      : `<div class="hint">No ROE of the mission for this flight. The A-A (DCA, OCA) and A-G pages write them.</div>`
+  }`;
   const row = t => {
     const [id, lab, , opts] = t,
       v = R.sel.sop[id] || { o: null, t: '', c: false },
@@ -442,14 +468,13 @@ function render0(box) {
       long = cust ? '' : (opts.find(x => x[0] === v.o) || [])[1] || '',
       set = !!(v.o || v.t),
       cOff = !set || (fullS && !v.c && !sopPhaseOn(R.sel, id)), // a topic of a phase already on the card does not add a line
-      lk = smartLink({ ...R.sel, noauto: [] }, id, CTX), // the change of the day on the Smart card (shown also when switched off)
-      lkOn = !!lk && !R.sel.noauto.includes(id),
-      lkTxt = lk ? lk.say : '';
-    return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
+      lk = smartLink(R.sel, id, CTX), // the change of the mission on the Smart card (Adapt to mission)
+      dot = !man && onSmart.has(id);
+    return `<div class="rpr${set ? ' set' : ''}" data-t="${id}"><span class="rpn">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}${esc(lab)}</span><select aria-label="${esc(lab)}"><option value="">—</option>${opts
       .map(([x, , sh]) => `<option value="${x}"${!cust && v.o === x ? ' selected' : ''}>${esc(sh)}</option>`)
       .join(
         ''
-      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label><label class="rpon rpsm" title="${set ? 'Write this topic on the Smart ROE / SOP card first' : 'Choose a value first'}"><input type="checkbox"${v.s ? ' checked' : ''}${set ? '' : ' disabled'}> Smart</label></span>${lk ? `<label class="rpauto" title="The conditions of the mission change this topic on the Smart card today. The page and the datacard keep your choice. Clear the box to keep your choice on the Smart card too."><input type="checkbox"${lkOn ? ' checked' : ''}> Smart card today: ${esc(lkTxt)}</label>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
+      )}<option value="*"${cust ? ' selected' : ''}>Own text…</option></select><span class="rpck"><label class="rpon" title="${cOff && set ? 'The SOP box of the card is full' : 'Write this topic in the SOP box of the card (short form)'}"><input type="checkbox"${v.c ? ' checked' : ''}${cOff ? ' disabled' : ''}> card</label>${man ? `<label class="rpon rpsm" title="${set ? 'Write this topic on the Smart card' : 'Choose a value first'}"><input type="checkbox"${v.s ? ' checked' : ''}${set ? '' : ' disabled'}> Smart</label>` : ''}</span>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}<div class="rpd">${cust ? `<input type="text" class="rpi" maxlength="120" value="${esc(v.t)}" placeholder="Short text for the card">` : esc(long)}</div></div>`;
   };
   const myIds = new Set(MY.map(c => c.id)),
     sqIds = new Set((SQS || []).map(c => c.id));
@@ -474,10 +499,13 @@ function render0(box) {
   const ALL = sopAll().filter(([, T]) => !only || T.some(t => R.sel.sop[t[0]])),
     custom = ALL.filter(x => x[3]).map(phaseCard),
     phases = ALL.filter(x => !x[3]).map(phaseCard),
-    cols = L =>
-      `<div class="rspg"><div class="rsg">${L.slice(0, Math.ceil(L.length / 2)).join('')}</div><div class="rsg">${L.slice(Math.ceil(L.length / 2)).join('')}</div></div>`; // in the order of the flight: down the left column, then the right one
-  const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Only the topics chosen: your SOP at a glance">Chosen only</button></div><span style="flex:1"></span><button type="button" class="btn g" data-a="foldall" title="Fold every SOP section">Fold all</button><button type="button" class="btn g" data-a="unfoldall" title="Unfold every SOP section">Unfold all</button></div>`;
-  const customBlock = `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="A section of your own (on this PC${own ? ', or for the squadron' : ''}) with its topics and options">＋ Custom section</button></div>${custom.length ? cols(custom) : ''}</div>`;
+    cols = L => `<div class="rspg">${L.join('')}</div>`; // in the order of the flight: down the first column, then the next ones
+  const SK = sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)),
+    anyOpen = SK.some(k => !CLOSED().has(k));
+  const tools = `<div class="rstool"><div class="seg rsonly" role="group" aria-label="Show"><button type="button" data-only="0" class="${only ? '' : 'on'}">All topics</button><button type="button" data-only="1" class="${only ? 'on' : ''}" title="Show only the topics that you chose">Chosen only</button></div><button type="button" class="btn g" data-a="fold" title="${anyOpen ? 'Fold all the SOP sections' : 'Unfold all the SOP sections'}">${anyOpen ? 'Fold all' : 'Unfold all'}</button><span style="flex:1"></span><button type="button" class="btn g" data-a="newsec" title="Make a section of your own (on this PC${own ? ', or for the squadron' : ''}), with its topics and options">＋ Custom section</button></div>`;
+  const customBlock = custom.length
+    ? `<div class="rscust"><div class="rsct"><h3>Custom sections</h3><span class="hint">yours on this PC${own ? ', or of the squadron' : ''}</span></div>${cols(custom)}</div>`
+    : '';
   const src = SRC(),
     C = chips(src),
     cur = R.pick ? C.find(c => c.k == R.pick) : null,
@@ -526,7 +554,7 @@ function render0(box) {
     'card',
     'Preview',
     'Datacard · MDC',
-    `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"></div><div class="b rpv2"></div></div><div class="rscnt"><span>ROE <b class="${fullR ? 'full' : ''}">${nR}/${BOX_MAX}</b></span><span>SOP <b class="${fullS ? 'full' : ''}">${nS}/${BOX_MAX}</b> (one line a phase)</span></div>${smartCount()}${
+    `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"></div><div class="b rpv2"></div></div><div class="rscnt"><span>ROE <b class="${fullR ? 'full' : ''}">${nR}/${BOX_MAX}</b></span><span>SOP <b class="${fullS ? 'full' : ''}">${nS}/${BOX_MAX}</b> (one line a phase)</span></div>${
       warn.length
         ? `<div class="rswarn">${warn.join(', ')} (${BOX_MAX} lines): take a line away to add another one.</div>`
         : ''
@@ -538,10 +566,21 @@ function render0(box) {
     'one a line, they count too',
     `<textarea class="rpfr" data-f="sfree" rows="2" maxlength="600" placeholder="Written in the SOP box as they are">${esc(R.sel.sfree)}</textarea>`
   );
-  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc">${roeCard}</div><div class="rsc rss">${tools}${customBlock}${cols(phases)}${other}</div></div>`; // the custom sections above the standard ones; Other SOP lines right under the phases (folded or not)
+  const subs = `<div class="wtabs rssub" role="tablist">${[
+    ['roe', 'ROE'],
+    ['sop', 'SOP'],
+  ]
+    .map(
+      ([k, l]) =>
+        `<button type="button" role="tab" data-sub="${k}" class="${sub == k ? 'on' : ''}" aria-selected="${sub == k}">${l}</button>`
+    )
+    .join('')}</div>`;
+  const main = sub == 'roe' ? roePane : `${tools}${customBlock}${cols(phases)}${other}`; // the custom sections above the standard ones; Other SOP lines right under the phases
+  box.innerHTML = `<div class="rsq"><div class="rsc rsl">${presetCard}${cardCard}</div><div class="rsc rsm${sub == 'sop' ? ' rss' : ''}">${subs}${main}</div><div class="rsc rsr">${smartCol(D)}</div></div>`;
   box.querySelectorAll('.rsc').forEach((c, i) => (c.scrollTop = st[i] || 0));
   box.querySelector('.rpv1').textContent = roeText(R.sel);
   box.querySelector('.rpv2').textContent = sopText(R.sel);
+  smartPaint(box, D);
   wire(box);
 }
 // the datacard of the flight: the two boxes and the choices (no word: every change goes there at once)
@@ -629,17 +668,63 @@ export async function roeAllCards() {
     }))
     .concat(sm ? [sm] : []);
 }
-// the line under the counts of the datacard: what the Smart ROE / SOP card holds, and the SOP topics that do not fit
-function smartCount() {
-  let D = null;
+// ---- the column of the Smart ROE / SOP card: AUTO / MANUAL, Adapt to mission, its picture and what it holds
+const SMART_TIP =
+  'AUTO: the program chooses the SOP topics for the Smart card, in this order: the topics that the mission changes, the texts that you wrote, the phases of the mission conditions (weather, night, training, tanker), the fixed topics. The Emergencies go at the bottom when there is space. Other topics that you chose fill the space that stays.\nMANUAL: only the topics with the Smart tick.\nAdapt to mission: the ROE of the A-A and A-G pages, and the weather and the night of the mission change some topics (for example: IMC at the field, instrument recovery). The page and the datacard keep your choices.';
+// the data of the Smart card for the choices of the page (null: nothing to write)
+function smartData() {
   try {
-    D = roeSmart(R.sel, '');
+    return roeSmart(R.sel, '');
   } catch (e) {
-    D = null;
+    return null;
   }
-  if (!D) return '';
-  const n = D.blocks.reduce((a, [h, L]) => a + (h == 'SOP' ? L.length : 0), 0);
-  return `<div class="rscnt rssm" title="The Smart ROE / SOP card: the ROE first, then the SOP in this order: the topics that the conditions of the day change, the topics ticked Smart, the phases of the conditions (Weather, Night, Training, Tanker), the fixed topics. The Emergencies go at the bottom when there is space."><span>Smart card: SOP <b>${n}</b> line${n == 1 ? '' : 's'}, Emergencies <b>${D.emerg.length}</b>${D.left ? ` · <b class="full">${D.left}</b> topic${D.left == 1 ? '' : 's'} not written (no space)` : ''}</span></div>`;
+}
+// what Adapt to mission sees in the mission, in words
+function ctxSay() {
+  const c = CTX,
+    L = [
+      c.imcDep && c.imcArr
+        ? 'IMC at take-off and landing'
+        : c.imcDep
+          ? 'IMC at take-off'
+          : c.imcArr
+            ? 'IMC at landing'
+            : c.wx
+              ? 'bad weather'
+              : '',
+      c.night ? 'night' : '',
+      c.train ? 'training' : '',
+      c.tank ? 'tanker' : '',
+      c.ag ? 'A-G' : '',
+    ].filter(Boolean);
+  return L.length ? L.join(' · ') : 'no special conditions';
+}
+function smartCol(D) {
+  const man = R.sel.mode == 'man',
+    n = D ? D.blocks.reduce((a, [h, L]) => a + (h == 'SOP' ? L.length : 0), 0) : 0;
+  return `<div class="wcard rssc"><div class="wh"><h3>Smart card</h3><span class="hint rsinfo" title="${esc(SMART_TIP)}">ⓘ How it works</span></div><div class="seg rsmode" role="group" aria-label="Smart card SOP"><button type="button" data-mode="auto" class="${man ? '' : 'on'}" title="The program chooses the SOP topics">AUTO</button><button type="button" data-mode="man" class="${man ? 'on' : ''}" title="You choose the SOP topics with the Smart tick">MANUAL</button></div><button type="button" class="tgl rsadapt${R.sel.adapt ? ' on' : ''}" data-a="adapt" title="Use the ROE of the mission and change some SOP topics for the weather and the night of the mission">Adapt to mission</button><div class="rsctx">${R.sel.adapt ? 'Mission: ' + esc(flightOn() ? ctxSay() : 'no flight chosen') : 'The Smart card does not change with the mission.'}</div>${D ? '<canvas class="rsprev" width="520" height="780" aria-label="The Smart ROE / SOP card"></canvas>' : '<div class="rsnone hint">Choose ROE or SOP topics to make the Smart card.</div>'}${
+    D
+      ? `<div class="rscnt rssm"><span>SOP <b>${n}</b> line${n == 1 ? '' : 's'} · Emergencies <b>${D.emerg.length}</b></span></div>${D.left ? `<div class="rscnt rssm"><span><b class="full">${D.left}</b> topic${D.left == 1 ? '' : 's'} not written (no space)</span></div>` : ''}`
+      : ''
+  }${man ? '' : '<div class="hint rsdotl"><i class="rpon1"></i> on the Smart card</div>'}</div>`;
+}
+// the picture of the Smart card, drawn at its size and made smaller
+let SCV = null;
+function smartPaint(box, D) {
+  const cv = /** @type {HTMLCanvasElement|null} */ (box.querySelector('.rsprev'));
+  if (!cv || !D) return;
+  if (!SCV) {
+    SCV = document.createElement('canvas');
+    SCV.width = SC_W;
+    SCV.height = SC_H;
+  }
+  const x = /** @type {CanvasRenderingContext2D} */ (SCV.getContext('2d'));
+  x.setTransform(1, 0, 0, 1, 0, 0);
+  x.clearRect(0, 0, SC_W, SC_H);
+  drawSmartText(x, D);
+  const y = /** @type {CanvasRenderingContext2D} */ (cv.getContext('2d'));
+  y.imageSmoothingQuality = 'high';
+  y.drawImage(SCV, 0, 0, cv.width, cv.height);
 }
 // the conditions of the mission for the Smart card (pages.js registers it): {imcDep, imcArr, wx, night, train, tank, ag, enemy}
 let CTX_OF = async () => ({}),
@@ -683,11 +768,12 @@ function roeSmart(sel, sub) {
     },
     room = SM.foot - 26 - SM.top; // the last line at the bottom
   // the SOP that fit, the most important first: an item that does not fit is left out, a smaller one after it can still go in
-  let pick = [];
+  const pick = [];
   for (const it of S.items) if (blocksH([...roeB, ...sopB([...pick, it])]) <= room) pick.push(it);
   // the Emergencies in the space left: their box takes a label and its lines
   const free = room - blocksH([...roeB, ...sopB(pick)]) - 30,
-    em = [];
+    em = [],
+    on = new Set();
   let eh = 0;
   for (const it of S.emerg) {
     const t = it.txt + (it.tag ? ' (' + it.tag + ')' : ''),
@@ -695,12 +781,14 @@ function roeSmart(sel, sub) {
     if (eh + h > free) break;
     eh += h;
     em.push(t);
+    on.add(it.id);
   }
   // still space: the other topics chosen, by tier
   const n0 = pick.length;
   for (const it of S.fill)
     if (blocksH([...roeB, ...sopB([...pick, it])]) <= room - (em.length ? eh + 30 : 0)) pick.push(it);
   const blocks = [...roeB, ...sopB(pick)];
+  pick.forEach(it => on.add(it.id));
   return {
     title: 'ROE / SOP',
     right: flightTag() || F.cs || '',
@@ -722,6 +810,7 @@ function roeSmart(sel, sub) {
     blocks,
     emerg: em,
     left: S.items.length - n0, // the SOP topics of the card that did not fit (not those that only fill the space)
+    on, // the ids of the SOP topics on the card (the page marks them)
     foot: [],
     last: sub ? 'ROE preset: ' + sub : '',
   };
@@ -869,6 +958,16 @@ function wire(box) {
       ed = e.target.closest('.rsed'),
       fold = e.target.closest('.rsh');
     if (ed) return editSection(ed.dataset.sec);
+    const sb2 = e.target.closest('[data-sub]');
+    if (sb2) {
+      LS.set('bmsroesub', sb2.dataset.sub);
+      return render();
+    }
+    const md = e.target.closest('[data-mode]');
+    if (md) {
+      R.sel.mode = md.dataset.mode == 'man' ? 'man' : 'auto';
+      return render();
+    }
     const ob = e.target.closest('[data-only]');
     if (ob) {
       LS.set('bmsroeonly', ob.dataset.only == '1');
@@ -884,6 +983,12 @@ function wire(box) {
       LS.set(CKEY, [...S]);
       c.classList.toggle('shut', shut);
       fold.querySelector('.rsar').textContent = shut ? '▸' : '▾';
+      const fb = box.querySelector('[data-a=fold]'),
+        op = sopAll().some(([ph, , , cid]) => !S.has(cid ? 'c:' + cid : 'p:' + ph));
+      if (fb) {
+        fb.textContent = op ? 'Fold all' : 'Unfold all';
+        fb.title = op ? 'Fold all the SOP sections' : 'Unfold all the SOP sections';
+      }
       if (!shut && animOn()) c.querySelector('.rsbd').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 });
       return;
     }
@@ -1003,10 +1108,15 @@ function wire(box) {
       return;
     }
     if (act == 'kb') return addCards();
-    if (act == 'foldall' || act == 'unfoldall') {
+    if (act == 'adapt' || act == 'manroe') {
+      R.sel[act] = !R.sel[act];
+      return render();
+    }
+    if (act == 'fold') {
       const S = CLOSED(),
-        K = [...box.querySelectorAll('.rss .rsk')].map(c => c.dataset.k).filter(k => k != 'other');
-      K.forEach(k => (act == 'foldall' ? S.add(k) : S.delete(k)));
+        K = sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)),
+        shut = K.some(k => !S.has(k)); // one open: fold them all
+      K.forEach(k => (shut ? S.add(k) : S.delete(k)));
       LS.set(CKEY, [...S]);
       return render();
     }
@@ -1057,12 +1167,6 @@ function wire(box) {
         R.cust.add(id);
         R.sel.sop[id] = { o: null, t: v.t || sopShort(t, v) || '', c: v.c, s: v.s };
       } else R.sel.sop[id] = { o: x, t: '', c: v.c, s: v.s }; // the tick "card" is the pilot's choice: off for a topic just chosen
-    } else if (e.target.closest('.rpauto')) {
-      // the change of the day on the Smart card: on, or the choice kept
-      const na = new Set(R.sel.noauto);
-      if (e.target.checked) na.delete(id);
-      else na.add(id);
-      R.sel.noauto = [...na];
     } else if (e.target.closest('.rpsm')) {
       if (R.sel.sop[id]) R.sel.sop[id].s = e.target.checked;
     } else if (e.target.type == 'checkbox') {

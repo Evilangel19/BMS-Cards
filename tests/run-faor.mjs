@@ -196,21 +196,30 @@ const sel = cleanSel({
   roe: { ws: 'hold', id: ['vid'], commit: 'n20', abort: ['bingo'], extra: [], restr: [] },
   faor: fa,
 });
-const txt = roeText(sel).split('\n');
+const txt = roeText(sel).split('\n'),
+  txt0 = roeText({ ...sel, roe: { ...sel.roe, ws: null, commit: null } }).split('\n');
 ok(
-  'the ROE box: the FAOR weapons control and commit in place of the chosen ones, then STOP and the FEZ block ' + txt,
-  txt[0] == 'WPN TIGHT' &&
-    txt.includes('COMMIT 35NM') &&
-    !txt.includes('COMMIT 20NM') &&
-    txt[txt.indexOf('COMMIT 35NM') + 1].startsWith('STOP ') &&
+  'the ROE box: the weapons control and commit chosen by the pilot win over the FAOR ones, then STOP and the FEZ block ' +
+    txt,
+  txt[0] == 'WPN HOLD' &&
+    txt.includes('COMMIT 20NM') &&
+    !txt.includes('COMMIT 35NM') &&
+    txt[txt.indexOf('COMMIT 20NM') + 1].startsWith('STOP ') &&
     txt.length == 5
 );
-const ft = fullText(sel);
 ok(
-  'the ROE card: a FAOR block first, without the weapons status and commit of the menu',
+  'the ROE box without a choice of the pilot: the FAOR weapons control and commit ' + txt0,
+  txt0[0] == 'WPN TIGHT' && txt0.includes('COMMIT 35NM')
+);
+const ft = fullText(sel),
+  ft0 = fullText({ ...sel, roe: { ...sel.roe, ws: null, commit: null } });
+ok(
+  'the ROE card: a FAOR block first; the weapons status and commit of the pilot replace those of the block',
   ft.roe[0][0] == 'A-A · BARCAP' &&
-    ft.roe[0][1].length == faorLines(fa, true).length &&
-    !ft.roe.some(r => /Weapons status|Commit/.test(r[0]))
+    ft.roe[0][1].length == faorLines(fa, true).length - 2 &&
+    ft.roe.some(r => /Weapons status/.test(r[0])) &&
+    ft0.roe[0][1].length == faorLines(fa, true).length &&
+    !ft0.roe.some(r => /Weapons status|Commit/.test(r[0]))
 );
 ok(
   'the short lines: FEZ WPN, COMMIT, STOP, DROP, the block, HARDWALL, NO FIRE OUTSIDE FEZ',
