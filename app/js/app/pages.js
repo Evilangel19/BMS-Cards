@@ -685,7 +685,8 @@ async function roeCtx() {
   const S = (D && D.prof) || [],
     agl = p => (p ? p.cu - (p.elev || 0) : 1e9),
     imc = p => !!p && ((p.cond >= 2 && agl(p) < 1500) || p.fogEnd < 5),
-    bad = p => !!p && (p.cond >= 2 || (p.cond >= 1 && agl(p) < 3000)),
+    // marginal weather (MVFR) or worse: IMC, Inclement, clouds below 3,000 ft AGL or a visibility below 8 km
+    bad = p => !!p && (imc(p) || p.cond >= 3 || (p.cond >= 1 && agl(p) < 3000) || p.fogEnd < 8),
     T = D && D.route && D.route[D.tgt >= 0 ? D.tgt : 0],
     sT = T && S.length ? S.reduce((b, q) => (Math.abs(q.d - T.d) < Math.abs(b.d - T.d) ? q : b)) : null,
     w = timed(e.f.wps),
@@ -701,7 +702,9 @@ async function roeCtx() {
   return {
     imcDep: imc(S[0]),
     imcArr: imc(S[S.length - 1]),
-    wx: [S[0], sT, S[S.length - 1]].some(bad),
+    wxDep: bad(S[0]),
+    wxArr: bad(S[S.length - 1]),
+    wxTgt: bad(sT),
     night:
       (!!w0 && dark(w0.x, w0.y, w0.dep || w0.arr)) ||
       (!!t && dark(t.x, t.y, t.t0)) ||

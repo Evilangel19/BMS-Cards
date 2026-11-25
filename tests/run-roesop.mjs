@@ -161,19 +161,32 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
     dep = r1.items.find(i => i.id == 'dep'),
     fl = r1.items.find(i => i.id == 'formland'),
     br = r1.items.find(i => i.id == 'brk');
+  const tu = r1.items.find(i => i.id == 'turns');
   ok(
-    'IMC at the fields: Recovery INSTRUMENT (WX), Departure RADAR TRAIL (WX) even without a choice, Break STRAIGHT-IN, Formation landing NO; first on the list ' +
+    'IMC at the fields: Recovery STAR (WX), Departure SID (WX) even without a choice, Break SINGLE SHIP, Formation landing PROHIBITED, turns CALLED (IMC wins over the enemy) ' +
       ids(r1),
     rec &&
-      /INSTRUMENT/.test(rec.txt) &&
+      /STAR/.test(rec.txt) &&
       rec.tag == 'WX' &&
       dep &&
-      /RADAR TRAIL/.test(dep.txt) &&
+      /SID/.test(dep.txt) &&
       br &&
-      /STRAIGHT-IN/.test(br.txt) &&
+      /SINGLE SHIP/.test(br.txt) &&
       fl &&
-      /NO$/.test(fl.txt) &&
-      r1.items[0].id == 'rec'
+      /PROHIBITED$/.test(fl.txt) &&
+      tu &&
+      /CALLED/.test(tu.txt) &&
+      ['dep', 'rec'].includes(r1.items[0].id)
+  );
+  const r2 = smartSop(sel, { wxArr: true, enemy: true }),
+    f2 = id => (r2.items.find(i => i.id == id) || {}).txt || '';
+  ok(
+    'marginal weather at the landing field: Recovery RADAR TRAIL, Break STRAIGHT-IN; over the enemy: turns SILENT; night: formation landing stays ' +
+      ['rec', 'brk', 'turns'].map(f2).join(' | '),
+    /RADAR TRAIL/.test(f2('rec')) &&
+      /STRAIGHT-IN/.test(f2('brk')) &&
+      /SILENT/.test(f2('turns')) &&
+      /XW<15KT/.test((smartSop(sel, { night: true }).items.find(i => i.id == 'formland') || {}).txt || '')
   );
   ok(
     'night: the Night phase comes in (NVG); over the enemy CSAR is the first Emergency',
@@ -189,7 +202,7 @@ ok('squadron presets: unknown mission categories dropped', SQ[0].cats.join() == 
   const man = smartSop({ ...sel, mode: 'man', sop: { ...sel.sop, rec: { o: 'ovhd', s: true } } }, { imcArr: true });
   ok(
     'MANUAL: only the topics ticked Smart, the day changes their value; nothing to fill ' + ids(man),
-    ids(man) == 'rec gawe' && /INSTRUMENT/.test(man.items[0].txt) && !man.fill.length && !man.emerg.length
+    ids(man) == 'rec gawe' && /STAR/.test(man.items[0].txt) && !man.fill.length && !man.emerg.length
   );
   ok(
     'already right for the day: no change (Recovery straight-in in IMC)',

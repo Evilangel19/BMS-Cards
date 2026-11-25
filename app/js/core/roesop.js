@@ -151,8 +151,13 @@ export const SOP = [
         [
           ['start', 'On / flash at engine start, when ready', 'FLASH START'],
           ['move', 'Flash as soon as the aircraft moves', 'FLASH MOVING'],
-          ['hold', 'Flash after the holding position', 'FLASH HOLD'],
+          ['hold', 'Flash at the end of the runway / holding position', 'FLASH EOR/HOLD'],
           ['rwy', 'Steady while taxiing, flash on the runway', 'FLASH RWY'],
+          [
+            'steady',
+            'Night: strobe off and position lights steady while taxiing when they distract (AFMAN)',
+            'STEADY TAXI',
+          ],
         ],
       ],
       [
@@ -535,8 +540,8 @@ export const SOP = [
           ['si', 'Straight-in (instrument approach)', 'STRAIGHT-IN'],
           [
             'inst',
-            'Instrument recovery: TACAN or ILS approach for each aircraft, radar trail between them, straight-in',
-            'INSTRUMENT',
+            'Standard arrival (STAR), then a TACAN or ILS approach for each aircraft, radar trail between them, straight-in',
+            'STAR + ILS/TACAN',
           ],
         ],
       ],
@@ -578,7 +583,7 @@ export const SOP = [
             'Formation approach: symmetric loads, 500 ft / 1.5 SM, the wingman upwind with more than 5 kt of crosswind, 10 ft wingtip',
             'SYM, 500/1.5, UPWIND',
           ],
-          ['no', 'Not allowed', 'NO'],
+          ['no', 'Not allowed', 'PROHIBITED'],
         ],
       ],
       [
@@ -769,6 +774,12 @@ export const SOP = [
             'AFTER G-EX',
           ],
         ],
+      ],
+      [
+        'ntolt',
+        'Night take-off lights',
+        'T/O LTS',
+        [['afman', 'Anti-collision light on, position lights flash for the take-off (AFMAN)', 'AC ON, POS FLASH']],
       ],
     ],
   ],
@@ -1297,65 +1308,143 @@ export function fullText(sel) {
 }
 
 // ---- THE SMART ROE / SOP CARD (app/roepage.js): which SOP topics go on it, in which order of importance.
-// The tier of a topic: A, flight safety; B, the procedures of the flight; C, routine (the others). When everything does not fit, A goes first.
-const TIER_A =
-    'breakaway kio floor bubble lost aarlost nordo aarnordo imc recall nmin n30 fuelmin fuel rec fence jett csar airabort toabort'.split(
-      ' '
-    ),
-  TIER_B =
-    'push takeoff dep rejoin blind ops bull rv obs order offload aarjoin brk sep formland wxdep wxvfr wxag shots marm hung bdchk nvg lightsout nform'.split(
-      ' '
-    );
-export const tierOf = id => (TIER_A.includes(id) ? 0 : TIER_B.includes(id) ? 1 : 2);
-// always on the Smart card when they have a value: all of Mission, the departure and rejoin, FENCE and the bullseye, the recovery
-export const SMART_FIXED =
-  'push spare bda iff takeoff dep rejoin turns blind ops fence bull fuelmin rec brk formland'.split(' ');
-// the phases that come with the conditions of the mission, in this order: weather first, then night, training, tanker
-export const SMART_DYN = [
-  ['wx', 'Weather'],
-  ['night', 'Night'],
-  ['train', 'Training'],
-  ['tank', 'Tanker'],
-];
-// a few topics follow the conditions of the day on the Smart card (not on the page, not on the datacard), with Adapt to mission on: [id, when (ctx),
-// already right (option), the option of the day, tag]. Recovery and departure are written even without a choice (AUTO).
-// the reason of a tag, for the page
-const WHY = { WX: 'IMC at the field', NIGHT: 'night' };
-// what the Smart card writes today, for the page: in words
-const LINK_SAY = {
-  rec: 'Instrument recovery',
-  dep: 'Radar trail departure',
-  brk: 'Straight-in, no overhead',
-  formland: 'No formation landing',
+// The conditions of the mission (pages.js roeCtx), in the order they win when more than one is true: IMC at the departure / landing field, marginal
+// weather (MVFR or worse) at the departure field / landing field / target, night, training, a tanker, an A-G mission, over the enemy.
+export const SMART_CONDS = ['imcDep', 'imcArr', 'wxDep', 'wxArr', 'wxTgt', 'night', 'train', 'tank', 'ag', 'enemy'];
+// THE RULES of each SOP topic: [tier, fixed, {condition: rule}]. Tier: A flight safety, B procedures, C routine (A goes first when everything does
+// not fit). Fixed: always on the Smart card when it has a value. Rule of a condition that is true (the first one in SMART_CONDS wins): 'in' (the
+// topic goes on the card when it has a value), 'first' (an Emergency at the top), 'out' (not on the card), {o, ok} / {t} (on the card with this
+// option or text, even without a choice; a choice in ok is already right). The topics of the own sections: tier C, no rule.
+// Checked with AFMAN 11-2F-16V3 (16 April 2026).
+export const SMART_RULES = {
+  // Mission
+  push: ['B', 1],
+  spare: ['C', 1],
+  abortcw: ['B', 0],
+  bda: ['C', 0, { enemy: 'in' }],
+  iff: ['B', 1],
+  // Ground
+  lights: ['C', 0, { night: { o: 'steady' } }],
+  tlight: ['C', 0],
+  taxi: ['C', 0, { night: { o: 'night' } }],
+  checkin: ['C', 0],
+  eor: ['C', 0],
+  // Take-off and departure
+  lineup: ['C', 0],
+  takeoff: ['B', 1],
+  power: ['B', 0],
+  cms: ['B', 0],
+  dep: ['B', 1, { imcDep: { o: 'sid', ok: ['trail', 'trail3'] }, wxDep: { o: 'trail', ok: ['trail3', 'sid'] } }],
+  rejoin: ['B', 1],
+  // En route
+  form2: ['C', 0],
+  form4: ['C', 0],
+  turns: ['C', 1, { imcDep: { o: 'called' }, imcArr: { o: 'called' }, enemy: { o: 'silent' } }],
+  blind: ['B', 1],
+  lchg: ['C', 0],
+  ops: ['B', 1, { enemy: 'in' }],
+  // Tanker
+  rv: ['B', 0, { tank: 'in' }],
+  obs: ['B', 0, { tank: 'in' }],
+  order: ['B', 0, { tank: 'in' }],
+  offload: ['B', 0, { tank: 'in' }],
+  aarlost: ['A', 0, { tank: 'in' }],
+  aarnordo: ['A', 0, { tank: 'in' }],
+  breakaway: ['A', 0, { tank: 'in' }],
+  aarjoin: ['B', 0, { tank: 'in' }],
+  // FENCE, comms and fuel
+  fence: ['B', 1],
+  intra: ['C', 0],
+  chatter: ['B', 0],
+  bull: ['B', 1],
+  fuel: ['A', 0],
+  fuelmin: ['A', 1],
+  // Recovery
+  rec: ['B', 1, { imcArr: { o: 'inst', ok: ['trail', 'si'] }, wxArr: { o: 'trail', ok: ['inst', 'si'] } }],
+  brk: ['B', 1, { imcArr: { t: 'SINGLE SHIP' }, wxArr: { t: 'STRAIGHT-IN, NO OVHD' } }],
+  sep: ['B', 0],
+  formland: ['B', 1, { imcArr: { o: 'no' }, wxArr: { o: 'no' } }],
+  hung: ['B', 0, { ag: 'in' }],
+  bdchk: ['B', 1, { ag: 'in' }],
+  gear: ['C', 0],
+  // Weather
+  wxvfr: ['B', 0, { wxDep: 'in', wxArr: 'in', wxTgt: 'in' }],
+  wxdep: ['B', 0, { wxDep: 'in' }],
+  wxclr: ['C', 0, { wxDep: 'in', wxArr: 'in', wxTgt: 'in' }],
+  imc: ['A', 0, { wxDep: 'in', wxArr: 'in', wxTgt: 'in' }],
+  recall: ['A', 0, { wxArr: 'in' }],
+  // Night
+  nlights: ['C', 0, { night: 'in' }],
+  strobe: ['C', 0, { night: 'in' }],
+  lightsout: ['B', 0, { night: 'in' }],
+  nvg: ['B', 0, { night: 'in' }],
+  nmin: ['A', 0, { night: 'in' }],
+  nform: ['B', 0, { night: 'in' }],
+  nchg: ['C', 0, { night: 'in' }],
+  n30: ['A', 0, { night: 'in' }],
+  // Training
+  kio: ['A', 0, { train: 'in' }],
+  floor: ['A', 0, { train: 'in' }],
+  bubble: ['A', 0, { train: 'in' }],
+  marm: ['B', 0, { train: 'in' }],
+  gawe: ['C', 0, { train: 'in' }],
+  shots: ['C', 0, { train: 'in' }],
+  wxag: ['B', 0, { train: 'in' }],
+  popup: ['A', 0, { train: 'in' }],
+  // Emergencies
+  lost: ['A', 0],
+  nordo: ['A', 0],
+  csar: ['A', 0, { enemy: 'first' }],
+  jett: ['A', 0],
+  airabort: ['A', 0],
+  toabort: ['A', 0],
+  // Night
+  ntolt: ['B', 0, { night: 'in' }],
 };
-export const SMART_LINKS = [
-  ['rec', c => c.imcArr, o => ['inst', 'trail', 'si'].includes(o), 'inst', 'WX'],
-  ['dep', c => c.imcDep, o => ['trail', 'trail3', 'sid'].includes(o), 'trail', 'WX'],
-  ['brk', c => c.imcArr, () => false, null, 'WX'], // no overhead: straight-in
-  ['formland', c => c.imcArr || c.night, o => o == 'no', 'no', c => (c.imcArr ? 'WX' : 'NIGHT')],
-];
-const LINK_TXT = { brk: 'STRAIGHT-IN, NO OVHD' };
-// the link of a topic active today, or null: {o (the option of the day, or null), t (a text), tag}
+// for the page: a condition in words, and its tag on the card
+const WHY = {
+  imcDep: 'IMC at take-off',
+  imcArr: 'IMC at landing',
+  wxDep: 'marginal weather at take-off',
+  wxArr: 'marginal weather at landing',
+  wxTgt: 'marginal weather at the target',
+  night: 'night',
+  train: 'training',
+  tank: 'tanker',
+  ag: 'A-G mission',
+  enemy: 'over the enemy',
+};
+const TAG = { night: 'NIGHT', train: 'TRNG', tank: 'AAR', ag: 'A-G', enemy: 'THREAT' };
+export const tierOf = id => (SMART_RULES[id] ? 'ABC'.indexOf(SMART_RULES[id][0]) : 2);
+const fixedOf = id => !!(SMART_RULES[id] && SMART_RULES[id][1]);
+// the rule of a topic that applies today: [condition, rule], or null
+function ruleOf(id, ctx) {
+  const R = SMART_RULES[id] && SMART_RULES[id][2];
+  if (!R || !ctx) return null;
+  const k = SMART_CONDS.find(c => ctx[c] && R[c]);
+  return k ? [k, R[k]] : null;
+}
+// the change of a topic on the Smart card today (Adapt to mission), or null: {o (the option of the day, or null), t (a text), tag, say (for the page)}
 export function smartLink(sel, id, ctx) {
   const s = cleanSel(sel),
-    l = SMART_LINKS.find(x => x[0] === id);
-  if (!l || !ctx || !s.adapt || !l[1](ctx)) return null;
-  const v = s.sop[id];
-  if (v && v.o && l[2](v.o)) return null; // the choice is already right for the day
-  if (!v && !['rec', 'dep'].includes(id)) return null; // the others change a choice, they do not add a topic
-  const tag = typeof l[4] == 'function' ? l[4](ctx) : l[4];
-  return { o: l[3], t: LINK_TXT[id] || '', tag, say: LINK_SAY[id] + ' (' + WHY[tag] + ')' };
+    r = s.adapt && ruleOf(id, ctx);
+  if (!r || typeof r[1] == 'string') return null;
+  const [k, x] = r,
+    v = s.sop[id];
+  if (v && v.o && x.o && (v.o === x.o || (x.ok || []).includes(v.o))) return null; // the choice is already right for the day
+  const T = topicsAll().find(t => t[0] === id),
+    sh = x.o ? ((T && T[3].find(o => o[0] === x.o)) || [])[2] || x.o : x.t;
+  return { o: x.o || null, t: x.t || '', tag: TAG[k] || 'WX', say: sh + ' (' + WHY[k] + ')' };
 }
 // the SOP topics of the Smart card, most important first (what the pilot wrote comes before the fixed topics): [{id, ph (phase), txt (short, with its MINI), tag}]; emerg: the Emergencies, for the
-// box at the bottom. ctx: {imcDep, imcArr, wx (bad weather), night, train, tank, ag (an A-G mission), enemy (over the enemy)}; not used with Adapt to
-// mission off. MANUAL: only the topics ticked Smart (the day changes their value), nothing to fill the space.
+// box at the bottom. ctx: the conditions of SMART_CONDS (true / false); not used with Adapt to mission off. The rules: SMART_RULES. MANUAL: only the
+// topics ticked Smart (the day changes their value), nothing to fill the space.
 export function smartSop(sel, ctx0 = {}) {
   const s = cleanSel(sel),
     ctx = s.adapt ? ctx0 || {} : {},
     man = s.mode === 'man',
     all = sopAll(),
     T = all.flatMap(([ph, L, ctag]) => L.map(t => ({ t, ph, ctag }))),
-    byId = id => T.find(x => x.t[0] === id),
     item = (x, lk) => {
       const v = lk && lk.o ? { o: lk.o, t: lk.t } : lk && lk.t ? { t: lk.t } : s.sop[x.t[0]],
         mini = x.ctag ? x.t[2] : MINI[x.t[0]],
@@ -1366,8 +1455,12 @@ export function smartSop(sel, ctx0 = {}) {
     },
     out = [],
     seen = new Set(),
+    kind = x => {
+      const r = ruleOf(x.t[0], ctx);
+      return r ? (typeof r[1] == 'string' ? r[1] : 'set') : '';
+    },
     add = (x, force) => {
-      if (!x || seen.has(x.t[0])) return;
+      if (!x || seen.has(x.t[0]) || kind(x) == 'out') return;
       const lk = smartLink(s, x.t[0], ctx);
       if (!force && !s.sop[x.t[0]] && !lk) return;
       const it = item(x, lk);
@@ -1391,8 +1484,8 @@ export function smartSop(sel, ctx0 = {}) {
         .filter(Boolean),
     };
   }
-  // 1. the topics that the day changes (recovery and departure in IMC are written even without a choice)
-  SMART_LINKS.forEach(([id]) => smartLink(s, id, ctx) && add(byId(id), true));
+  // 1. the topics that the day changes (written even without a choice)
+  byTier(T.filter(x => body(x) && smartLink(s, x.t[0], ctx))).forEach(x => add(x, true));
   // 2. what the pilot wrote (a free text, a topic of an own section): always, first
   byTier(
     T.filter(x => {
@@ -1400,17 +1493,18 @@ export function smartSop(sel, ctx0 = {}) {
       return body(x) && v && ((v.t && !v.o) || !!x.ctag);
     })
   ).forEach(x => add(x));
-  // 3. the phases of the conditions of the mission, weather first; hung ordnance with an A-G mission
-  SMART_DYN.forEach(([k, ph]) => ctx[k] && byTier(T.filter(x => x.ph === ph)).forEach(x => add(x)));
-  if (ctx.ag) add(byId('hung'));
+  // 3. the topics that a condition of the mission brings in, in the order of the conditions (IMC and weather first)
+  SMART_CONDS.forEach(
+    k => ctx[k] && byTier(T.filter(x => body(x) && kind(x) == 'in' && ruleOf(x.t[0], ctx)[0] == k)).forEach(x => add(x))
+  );
   // 4. the fixed topics
-  byTier(SMART_FIXED.map(byId).filter(Boolean)).forEach(x => add(x));
+  byTier(T.filter(x => fixedOf(x.t[0]))).forEach(x => add(x));
   const core = out.length;
   // 5. to fill the space left after the Emergencies: the other topics chosen, by tier
   byTier(T.filter(x => body(x) && s.sop[x.t[0]])).forEach(x => add(x));
-  // the Emergencies: CSAR first over the enemy, then by tier
-  const E = byTier(T.filter(x => !body(x) && s.sop[x.t[0]]))
-    .sort((a, b) => (ctx.enemy ? (b.t[0] == 'csar') - (a.t[0] == 'csar') : 0))
+  // the Emergencies: those that a condition puts first (CSAR over the enemy), then by tier
+  const E = byTier(T.filter(x => !body(x) && s.sop[x.t[0]] && kind(x) != 'out'))
+    .sort((a, b) => (kind(b) == 'first') - (kind(a) == 'first'))
     .map(x => item(x, null))
     .filter(Boolean);
   return { items: out.slice(0, core), fill: out.slice(core), emerg: E };

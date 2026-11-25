@@ -670,7 +670,7 @@ export async function roeAllCards() {
 }
 // ---- the column of the Smart ROE / SOP card: AUTO / MANUAL, Adapt to mission, its picture and what it holds
 const SMART_TIP =
-  'AUTO: the program chooses the SOP topics for the Smart card, in this order: the topics that the mission changes, the texts that you wrote, the phases of the mission conditions (weather, night, training, tanker), the fixed topics. The Emergencies go at the bottom when there is space. Other topics that you chose fill the space that stays.\nMANUAL: only the topics with the Smart tick.\nAdapt to mission: the ROE of the A-A and A-G pages, and the weather and the night of the mission change some topics (for example: IMC at the field, instrument recovery). The page and the datacard keep your choices.';
+  'AUTO: the program chooses the SOP topics for the Smart card, in this order: the topics that the mission changes, the texts that you wrote, the topics of the mission conditions (IMC, marginal weather, night, training, tanker, A-G, over the enemy), the fixed topics. In each group the safety topics go first. The Emergencies go at the bottom when there is space. Other topics that you chose fill the space that stays.\nMANUAL: only the topics with the Smart tick.\nAdapt to mission: the ROE of the A-A and A-G pages, and the conditions of the mission at the departure field, the target and the landing field. Some topics change (for example: IMC at landing, STAR + ILS/TACAN). The page and the datacard keep your choices.\nMarginal weather (MVFR): clouds below 3,000 ft AGL, a visibility below 8 km or Inclement weather. IMC: clouds below 1,500 ft AGL or a visibility below 5 km.';
 // the data of the Smart card for the choices of the page (null: nothing to write)
 function smartData() {
   try {
@@ -682,20 +682,16 @@ function smartData() {
 // what Adapt to mission sees in the mission, in words
 function ctxSay() {
   const c = CTX,
+    W = (i, w, k) => (i ? 'IMC ' + k : w ? 'MVFR ' + k : ''),
     L = [
-      c.imcDep && c.imcArr
-        ? 'IMC at take-off and landing'
-        : c.imcDep
-          ? 'IMC at take-off'
-          : c.imcArr
-            ? 'IMC at landing'
-            : c.wx
-              ? 'bad weather'
-              : '',
+      W(c.imcDep, c.wxDep, 'at take-off'),
+      W(c.imcArr, c.wxArr, 'at landing'),
+      c.wxTgt ? 'MVFR at the target' : '',
       c.night ? 'night' : '',
       c.train ? 'training' : '',
       c.tank ? 'tanker' : '',
       c.ag ? 'A-G' : '',
+      c.enemy ? 'over the enemy' : '',
     ].filter(Boolean);
   return L.length ? L.join(' · ') : 'no special conditions';
 }

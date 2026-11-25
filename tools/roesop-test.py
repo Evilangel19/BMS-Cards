@@ -45,7 +45,7 @@ try:
         sub('sop')
         pg.click(B + '.rpr[data-t=lights] select'); pg.wait_for_timeout(250)
         dd = pg.evaluate("()=>{const d=document.querySelector('.ddp');if(!d)return null;const r=d.getBoundingClientRect(),e=document.elementFromPoint(r.left+r.width/2,r.top+12);return {n:d.children.length,top:!!e&&d.contains(e),bg:getComputedStyle(document.querySelector('#sqroe .rpr select')).backgroundColor}}")
-        check('a SOP drop-down opens the list of the program, dark like the others %s' % dd, dd and dd['n'] == 6 and dd['top'] and dd['bg'] == 'rgb(11, 15, 20)')
+        check('a SOP drop-down opens the list of the program, dark like the others %s' % dd, dd and dd['n'] == 7 and dd['top'] and dd['bg'] == 'rgb(11, 15, 20)')
         pg.click('.ddp .ddi:has-text("FLASH MOVING")'); pg.wait_for_timeout(250)
         check('a SOP topic just chosen shows its full text and is not in the SOP box until ticked', 'as soon as the aircraft moves' in pg.inner_text(B + '.rpr[data-t=lights] .rpd') and not pg.is_checked(B + '.rpr[data-t=lights] .rpon input') and pg.inner_text(B + '.rpv2').strip() == '')
         tick('lights')
