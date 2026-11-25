@@ -409,7 +409,6 @@
   border-left: 3px solid var(--hc, #4aa3ff);
   background: #0f141a;
   border-radius: 0 0 8px 0;
-  animation: fadein 0.15s;
 }
 .rsq .spo {
   display: grid;
@@ -1068,6 +1067,10 @@
   padding: 5px 12px;
   font-size: 12px;
 }
+/* on (green) or off, a button keeps its width: the same border */
+.rsq .rstool .btn:not(.g) {
+  border: 1px solid transparent;
+}
 /* AUTO / MANUAL: the main switch of the sub-page */
 .rsq .rstool .seg.main button {
   padding: 5px 14px;
@@ -1081,13 +1084,12 @@
 .rsq .rstool .rsonly {
   margin-left: 6px;
 }
-/* the bar of a sub-page stays at the top while the page scrolls */
-.rsq .rsm > .rstool {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  padding: 6px 0;
-  background: var(--bg);
+/* Wide view: the sub-pages and the bar stay where they are without it (the place of the side columns kept empty), the sections take the
+   whole width under them */
+.rsq.rwide .rsm > .rssub,
+.rsq.rwide .rsm > .rstool {
+  margin-left: 312px;
+  margin-right: 300px;
 }
 /* + Custom section and Clear SOP: together at the right, on the next line together when the bar is narrow */
 .rsq .rstool .rsgr {

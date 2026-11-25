@@ -28,7 +28,7 @@ import {
 import { categoryOf } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, dEl, setField } from './datacard.js';
-import { esc, appToast, animOn } from './base.js';
+import { esc, appToast, animOn, expand, collapse } from './base.js';
 import { draw, freeLayout, freeDraw } from './cardview.js';
 import { markMan } from './selection.js';
 import { sqPage } from './pages.js';
@@ -397,7 +397,7 @@ function render() {
   BUSY = true;
   // what was already shown does not fade in again when the page is drawn again (a choice draws the page again: it flickered); an element
   // with data-seen is known by it (the options of a topic stay the same panel while a choice changes them)
-  const ANIM = '.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn,.spx,.rpfa',
+  const ANIM = '.rswarn,.rsdirty,.rsedit,.rpdot,.rplk,.rpmsn,.rpfa',
     seenKey = e => e.dataset.seen || e.className + '|' + e.textContent,
     seen = new Set([...box.querySelectorAll(ANIM)].map(seenKey));
   try {
@@ -562,7 +562,7 @@ function render0(box) {
     // a strip: the name, CARD / SMART when it goes there, the value; a click opens its options under it
     return `<div class="rpr${set ? ' set' : ''}${open ? ' op' : ''}" data-t="${id}"><button type="button" class="sps" aria-expanded="${open}" title="${open ? 'Close' : 'Show the options'}">${dot ? '<i class="rpon1" title="On the Smart card"></i>' : ''}<span class="rpn">${esc(lab)}</span>${v.c ? '<b class="cd">CARD</b>' : ''}${man && v.s ? '<b class="cd">SMART</b>' : ''}<em>${esc(val) || '—'}</em><i class="ar">${open ? '▾' : '▸'}</i></button>${lk && (!man || v.s) ? `<div class="rplk" title="The mission changes this topic on the Smart card. The page and the datacard keep your choice.">Smart card: ${esc(lk.say)}</div>` : ''}${
       open
-        ? `<div class="spx" data-seen="spx:${id}"><div class="spo">${opts
+        ? `<div class="spx"><div class="spo">${opts
             .map(
               ([x, lg, sh]) =>
                 `<button type="button" class="sps2${!cust && v.o === x ? ' on' : ''}" data-o="${x}" title="${esc(lg)}">${esc(sh)}</button>`
@@ -1245,9 +1245,16 @@ function wire(box) {
     if (ed) return editSection(ed.dataset.sec);
     const sp = e.target.closest('.rpr .sps');
     if (sp) {
-      const id = sp.closest('.rpr').dataset.t;
-      R.sopOpen = R.sopOpen === id ? null : id;
-      return render();
+      // a topic opens (its options unroll, as the ATO), the one open closes first
+      const id = sp.closest('.rpr').dataset.t,
+        old = box.querySelector('.rpr.op .spx');
+      const show = () => {
+        R.sopOpen = R.sopOpen === id ? null : id;
+        render();
+        const x = R.sopOpen && box.querySelector(`.rpr[data-t="${R.sopOpen}"] .spx`);
+        if (x) expand([x]);
+      };
+      return old ? collapse([old], show) : show();
     }
     const so = e.target.closest('.rpr [data-o]');
     if (so && !so.disabled) return sopPick(so.closest('.rpr').dataset.t, so.dataset.o);
@@ -1300,19 +1307,24 @@ function wire(box) {
       const c = fold.closest('.rsk'),
         kk = c.dataset.k,
         S = CLOSED();
-      const shut = !c.classList.contains('shut');
+      const shut = !c.classList.contains('shut'),
+        bd = c.querySelector('.rsbd');
       if (shut) S.add(kk);
       else S.delete(kk);
       LS.set(CKEY, [...S]);
-      c.classList.toggle('shut', shut);
       fold.querySelector('.rsar').textContent = shut ? '▸' : '▾';
+      // the section rolls up or unrolls (the times of the ATO)
+      if (shut) collapse([bd], () => c.classList.add('shut'));
+      else {
+        c.classList.remove('shut');
+        expand([bd]);
+      }
       const fb = box.querySelector('[data-a=fold]'),
         op = sopAll().some(([ph, , , cid]) => !S.has(cid ? 'c:' + cid : 'p:' + ph));
       if (fb) {
         fb.textContent = op ? 'Fold all' : 'Unfold all';
         fb.title = op ? 'Fold all the SOP sections' : 'Unfold all the SOP sections';
       }
-      if (!shut && animOn()) c.querySelector('.rsbd').animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 });
       return;
     }
     if (sb) {
@@ -1442,8 +1454,23 @@ function wire(box) {
     }
     if (act == 'kb') return addCards();
     if (act == 'wide') {
-      LS.set('bmsroewide', !LS.get('bmsroewide', false));
-      return render();
+      // the side columns fade away and the sections take the room (or the other way); the bar does not move
+      const on = !LS.get('bmsroewide', false),
+        go = () => {
+          LS.set('bmsroewide', on);
+          render();
+          if (!animOn()) return;
+          const F = [{ opacity: 0 }, { opacity: 1 }];
+          box
+            .querySelectorAll(on ? '.rspg, .rscust' : '.rsl, .rsr, .rspg, .rscust')
+            .forEach(e => e.animate(F, { duration: 200, easing: 'ease-out' }));
+        };
+      if (!on || !animOn()) return go();
+      const out = [...box.querySelectorAll('.rsl, .rsr')].map(e =>
+        e.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'ease-in', fill: 'forwards' })
+      );
+      out[0].onfinish = go;
+      return;
     }
     if (act == 'rexp') return rulesExport();
     if (act == 'rimp') return rulesImport();
@@ -1461,10 +1488,19 @@ function wire(box) {
     if (act == 'fold') {
       const S = CLOSED(),
         K = sopAll().map(([ph, , , cid]) => (cid ? 'c:' + cid : 'p:' + ph)),
-        shut = K.some(k => !S.has(k)); // one open: fold them all
+        shut = K.some(k => !S.has(k)), // one open: fold them all
+        open0 = [...box.querySelectorAll('.rsk.php:not(.shut) .rsbd, .rscust .rsk:not(.shut) .rsbd')];
       K.forEach(k => (shut ? S.add(k) : S.delete(k)));
       LS.set(CKEY, [...S]);
-      return render();
+      if (shut) return collapse(open0, render);
+      const was = new Set(open0.map(b => b.closest('.rsk').dataset.k));
+      render();
+      expand(
+        [...box.querySelectorAll('.rsk.php .rsbd, .rscust .rsk .rsbd')].filter(
+          b => !was.has(b.closest('.rsk').dataset.k)
+        )
+      );
+      return;
     }
     if (act == 'newsec') return editSection(null);
     if (act == 'psave' || act == 'pnew') {
