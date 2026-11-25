@@ -209,6 +209,11 @@ export function roeDraw(box, ctx) {
     // the conditions of the mission (weather, night…): the rows that the day changes on the Smart card show it
     roeCtxLoad().then(() => R.box && render());
   }
+  // the values of the key box of the Smart card (JOKER, BINGO, LASER, M4: from the datacard) changed while the page was hidden
+  const D = R.box ? smartData() : null,
+    ks = D ? JSON.stringify(D.key) : '';
+  if (ks != R.ks) fresh = true;
+  R.ks = ks;
   if (box !== R.box || sig !== R.sig || !box.firstChild || fresh) {
     R.stale = false;
     if (sig !== R.sig && R.box && !dirty()) matchPick(); // the lists changed (saved here, or by the commander): the preset of now again
@@ -481,7 +486,7 @@ function render0(box) {
           ? 'The value of the mission: your choice replaces it. Click your choice again to use the value of the mission.'
           : 'The value of the mission (A-A page). ' + long
         : long;
-    return `<button type="button" class="rpk rps${KEYS.includes(id) ? ' k' : ''}${on ? ' on' : ''}${mv && !R.sel.roe[id] ? ' msn' : ''}${over ? ' over' : ''}${off ? ' off' : ''}${short.length > 14 ? ' w2' : ''}" data-r="${id}" data-v="${v}" title="${esc(tip)}"${off ? ' disabled' : ''}><span>${esc(short)}</span>${mv ? '<i class="rpmd"></i>' : ''}</button>`;
+    return `<button type="button" class="rpk rps${KEYS.includes(id) ? ' k' : ''}${on ? ' on' : ''}${mv && !R.sel.roe[id] ? ' msn' : ''}${over ? ' over' : ''}${off ? ' off' : ''}" data-r="${id}" data-v="${v}" title="${esc(tip)}"${off ? ' disabled' : ''}><span>${esc(short)}</span>${mv ? '<i class="rpmd"></i>' : ''}</button>`;
   };
   // a rule of the list and its strips
   const rule = ([id, lab, kind, , opts]) =>
@@ -583,8 +588,8 @@ function render0(box) {
           ? cur.ed
             ? `${nameIn}<div class="rpt">Default for<small>every kind of mission with no preset of its own: it is the Standard</small></div>`
             : ''
-          : `${nameIn}<div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo">${ROE_CATS.map(c => `<button type="button" class="rpk rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}">${esc(c)}</button>`).join('')}</div>`
-      }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' g bl' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g" data-a="pdisc">Discard</button>' : ''}</div>${
+          : `${nameIn}<div class="rpt">Default for<small>flights of these kinds of mission get it by themselves</small></div><div class="rpo rps">${ROE_CATS.map(c => `<button type="button" class="rpk rps k rpcat${R.cats.includes(c) ? ' on' : ''}" data-cat="${esc(c)}" title="${esc(c)}"><span>${esc(c)}</span></button>`).join('')}</div>`
+      }<div class="rsbar">${upd ? `<button type="button" class="btn${src == 'sq' ? ' g bl' : ''}" data-a="psave">${cur.std ? 'Save Standard' : 'Save "' + esc(cur.name) + '"'}${src == 'sq' ? ' &amp; send' : ''}</button>` : ''}${canNew() ? `<button type="button" class="btn g" data-a="pnew">Save as new</button>` : ''}${chg ? '<button type="button" class="btn g rd" data-a="pdisc">Discard</button>' : ''}</div>${
         !upd && !canNew()
           ? '<div class="hint">The squadron presets are changed by the commander: switch to Flight to keep these changes as your preset.</div>'
           : ''
@@ -607,7 +612,7 @@ function render0(box) {
     'Datacard · MDC',
     `<div class="rscard"><div class="h">ROE</div><div class="h">SOP</div><div class="b rpv1"><canvas width="316" height="202"></canvas></div><div class="b rpv2"><canvas width="316" height="202"></canvas></div></div><div class="rscnt"><span title="The lines of the box at the smallest text size">ROE <b class="${fullR ? 'full' : ''}">${nR}/${cap}</b> lines</span><span title="The lines of the box at the smallest text size (one line a phase, long ones wrap)">SOP <b class="${fullS ? 'full' : ''}">${nS}/${cap}</b> lines</span></div>${
       warn.length ? `<div class="rswarn">${warn.join(', ')}: take a line away to add another one.</div>` : ''
-    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Take every choice away">Clear</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
+    }<div class="rsbar"><button type="button" class="btn g rd" data-a="clear" title="Clear the datacard: no ROE (Manual ROE comes on, so the ROE of the mission are not written) and no SOP topic in the SOP box. The SOP topics stay chosen for the Smart card.">Clear</button><span style="flex:1"></span><button type="button" class="btn g" data-a="back" title="The Datacard">Back to the datacard</button></div>`
   );
   const other = card(
     'other',
@@ -918,7 +923,7 @@ function smartCol(D) {
     D
       ? `<div class="rscnt rssm"><span>SOP <b>${n}</b> line${n == 1 ? '' : 's'} · Emergencies <b>${D.emerg.length}</b></span></div>${D.left ? `<div class="rscnt rssm"><span><b class="full">${D.left}</b> topic${D.left == 1 ? '' : 's'} not written (no space)</span></div>` : ''}`
       : ''
-  }${man ? '' : '<div class="hint rsdotl"><i class="rpon1"></i> on the Smart card</div>'}</div>`;
+  }<div class="rsbar rsdotl">${man ? '' : '<span class="hint"><i class="rpon1"></i> on the Smart card</span>'}<span style="flex:1"></span>${LS.get('bmsroesub', 'roe') == 'rules' ? '' : `<button type="button" class="btn g rd" data-a="sclear" title="${LS.get('bmsroesub', 'roe') == 'sop' ? (man ? 'Clear the Smart card: take every Smart tick away' : 'Clear the Smart card: take away the SOP topics that are not in the SOP box of the datacard') : 'Clear the ROE of the Smart card (the same ROE as the datacard): Manual ROE comes on, so the ROE of the mission are not written'}">Clear</button>`}</div></div>`;
 }
 // the picture of the Smart card, drawn at its size and made smaller
 let SCV = null;
@@ -1343,7 +1348,28 @@ function wire(box) {
     if (act == 'agpage') return ST.agGo && ST.agGo(R.sel.ag);
     if (act == 'faor') return ST.bvrGo && ST.bvrGo(R.sel.faor && R.sel.faor.pos != null ? 'oca' : 'faor');
     if (act == 'clear') {
-      setSel(emptySel(), false);
+      // the datacard: no ROE, the ROE of the mission out (Manual ROE), no SOP in its box
+      R.sel.roe = emptySel().roe;
+      R.sel.free = '';
+      R.sel.manroe = true;
+      Object.values(R.sel.sop).forEach(v => (v.c = false));
+      R.sel.sfree = '';
+      return render();
+    }
+    if (act == 'sclear') {
+      // the Smart card: on the ROE sub-page its ROE (the same list as the datacard); on the SOP sub-page its SOP (MANUAL: the Smart ticks; AUTO:
+      // the topics that are not in the SOP box of the datacard)
+      if (LS.get('bmsroesub', 'roe') == 'sop') {
+        const man = R.sel.mode == 'man';
+        Object.keys(R.sel.sop).forEach(k => {
+          if (man) R.sel.sop[k].s = false;
+          else if (!R.sel.sop[k].c) delete R.sel.sop[k];
+        });
+      } else {
+        R.sel.roe = emptySel().roe;
+        R.sel.free = '';
+        R.sel.manroe = true;
+      }
       return render();
     }
     if (act == 'back') {
