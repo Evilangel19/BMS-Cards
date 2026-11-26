@@ -614,6 +614,8 @@ export function createWeaponsPage(deps) {
     }, ELEV_WAIT);
   }
   const ELEV_WAIT = 150;
+  const ROE_WAIT = 400;
+  let roeT = 0;
   let updRaf = 0;
   let elT = 0;
   function askElev(tok, ks, P) {
@@ -863,13 +865,19 @@ export function createWeaponsPage(deps) {
         res.an.flags = { ...res.an.flags, ...res.mav.flags };
         AGC = { ...AGC, list: [...AGC.list, ...res.mav.list.filter(x => x[1]).map(x => x[0])] };
       }
-      // the A-G block of the ROE of the flight
-      if (ATK.includes(st.mode) && deps.roeAg)
-        try {
-          deps.roeAg(agAttack(st.mode, res.an.mra ? res.an.mra.value : null, deps.night ? !!deps.night() : false));
-        } catch (e) {
-          /* no flight */
-        }
+      // the A-G block of the ROE of the flight: written when the sliders stop (a change of the block writes the datacard, a third of a second; the
+      // MRA of a Maverick changes at almost every step of a slider)
+      if (ATK.includes(st.mode) && deps.roeAg) {
+        const b = agAttack(st.mode, res.an.mra ? res.an.mra.value : null, deps.night ? !!deps.night() : false);
+        clearTimeout(roeT);
+        roeT = setTimeout(() => {
+          try {
+            deps.roeAg(b);
+          } catch (e) {
+            /* no flight */
+          }
+        }, ROE_WAIT);
+      }
     } else AGC = { flags: {}, list: [] };
     if (!noElev) loadElev();
   }
