@@ -3146,7 +3146,7 @@ export function createMap(host, deps) {
         deps.esc(m.cat) +
         ' · ' +
         deps.esc(teamName(C.D, m.owner)) +
-        (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') +
+        (m.sam || m.navSam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') +
         (m.u.kind == 'sea' && patrolBoat(m) ? '<br>MANPADS ' + m.low + ' km, under 15,000 ft' : '') +
         (m.telar >= 0
           ? m.telar
@@ -3197,8 +3197,8 @@ export function createMap(host, deps) {
     UL.forEach(m => {
       m.hit = false;
     });
-    UL.filter(m => m.sam && !m.noFcr).forEach(m => {
-      // no FCR: no ring
+    UL.filter(m => (m.sam && !m.noFcr) || m.navSam).forEach(m => {
+      // no FCR: no ring; a ship with a SAM has its ring too
       const hit = !m.ally && only && crossesRoute(r, m.u.x, m.u.y, m.rng);
       m.hit = hit;
       if (!m.ally && only && !hit) return;

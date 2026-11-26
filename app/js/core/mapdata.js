@@ -143,7 +143,7 @@ export { allyOf, hostileOf };
 export const spottedBy = (u, teams) => teams.some(t => ((u.spA | 0) >> t) & 1);
 const SAMCAT = new Set(['Air Defense', 'SHORAD']);
 
-// Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, noFcr, ally, spotted}] seen from team `view`.
+// Ground and naval units: [{u, ll, owner, name, cat, rng, low, sam, navSam, noFcr, ally, spotted}] seen from team `view`.
 // noFcr: a SAM unit whose fire control radar vehicle is gone (the class names the slot of that vehicle, the roster has 2 bits of count per slot): it cannot engage, so no ring and no automatic threat.
 // telar: for the classes whose radar is in every launcher vehicle (slot 0, SA-8/11/15/17/19...) the TELARs that are left (-1 for the others); 0 = no TELAR, the same as noFcr there.
 export function mapUnits(C, view) {
@@ -169,6 +169,7 @@ export function mapUnits(C, view) {
         detAir: i[5] || i[4] || 0,
         slot: i[3] == null ? -1 : i[3],
         sam: SAMCAT.has(i[0]) && i[1] > 0,
+        navSam: u.kind == 'sea' && i[1] > 0, // a ship with a SAM: its ring with the SAM rings of the Map page (not a SAM site for SEAD / DEAD)
         noFcr: SAMCAT.has(i[0]) && i[1] > 0 && i[3] >= 0 && u.roster != null && ((u.roster >>> (i[3] * 2)) & 3) === 0,
         telar: SAMCAT.has(i[0]) && i[1] > 0 && i[3] === 0 && u.roster != null ? u.roster & 3 : -1,
         ally,

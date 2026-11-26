@@ -3896,16 +3896,29 @@ export function createWeaponsPage(deps) {
         ctx = c0;
       }
     },
-    // the target steerpoint nearest to a point (x, y km; A-G > HARM > DEAD: its SAM), chosen for the attack pages; null when none is within 10 nm
-    aimAt: (x, y) => {
-      const T = gather().T,
+    // the point of the DTC nearest to a point (x, y km), within 10 NM: {label, nm} or null; no change (A-G > TASMO asks before it writes one)
+    nearTarget: (x, y) => {
+      const T = gather().TA,
         d = q => Math.hypot(q.e / FT_KM - x, q.n / FT_KM - y) / 1.852,
         b = T.slice().sort((a, c) => d(a) - d(c))[0];
+      return b && d(b) <= 10 ? { label: b.label, nm: d(b) } : null;
+    },
+    // the point nearest to a point (x, y km; A-G > HARM > DEAD: its SAM, A-G > TASMO: its ship), chosen as the target of the attack pages; null when none
+    // is within 10 nm. The points of the entry first; else a point that is not a route steerpoint 1-24 (STPT 90, 99) sets Manual entry (the game loads
+    // the offsets only on those)
+    aimAt: (x, y) => {
+      const G = gather(),
+        d = q => Math.hypot(q.e / FT_KM - x, q.n / FT_KM - y) / 1.852,
+        near = L => L.slice().sort((a, c) => d(a) - d(c))[0],
+        a = near(G.T),
+        b = a && d(a) <= 10 ? a : near(G.TA);
       if (!b || d(b) > 10) return null;
+      const man = st.src == 'dtc' && !G.T.includes(b);
+      if (man) st.src = 'man';
       st.tgt = b.v;
       st.applied = st.cleared = null;
       save();
-      return { label: b.label, nm: d(b) };
+      return { label: b.label, nm: d(b), man };
     },
     btn,
     clearAll,

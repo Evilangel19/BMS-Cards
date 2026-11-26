@@ -54,15 +54,26 @@ try:
         check('the map: the lent map with the ship, the launch', pg.locator('#tsmap .leaflet-container, #tsmap.leaflet-container').count() >= 1 and 'LAUNCH · OA1' in pg.inner_text('#tsmap') and 'HPN STPT 90' in pg.inner_text('#tsmap'))
         # the profile
         pg.click('[data-tsview=prof]'); pg.wait_for_timeout(300)
-        check('the profile: the SAM, the horizon, the launch, the seeker, the fly-out', pg.locator('#tsprof svg').count() == 1 and 'LAUNCH' in pg.inner_text('#tsprof') and 'SEEKER ON' in pg.inner_text('#tsprof') and 'LOW FLY-OUT · POP' in pg.inner_text('#tsprof .wleg') and pg.locator('#tsmapw[hidden]').count() == 1)
-        m0 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        pt = pg.evaluate("()=>[...document.querySelectorAll('#tsprof svg text')].map(e=>e.textContent).join('|')")
+        check('the profile as the vertical envelope: the launch, the descent, the seeker, the POP point, the target, the SAM', pg.locator('#tsprof .wpvs svg').count() == 1 and all(k in pt for k in ('LAUNCH · OA1', 'DESCEND', 'SEEKER ON', 'POP 2 NM', 'TGT ±3', 'SAM')) and pg.locator('#tsprof .wleg span').count() == 7 and pg.locator('#tsmapw[hidden]').count() == 1)
+        check('...the turns rounded (curves), OA1 / OA2 as triangles', pg.evaluate("()=>[...document.querySelectorAll('#tsprof svg path')].some(e=>/Q/.test(e.getAttribute('d')))") and pg.locator('#tsprof svg path[fill="#a78bfa"]').count() == 2)
+        msl = "()=>[...document.querySelectorAll('#tsprof svg path')].filter(e=>/38bdf8|e879f9/.test(e.getAttribute('stroke'))).map(e=>e.getAttribute('d')).join('|')"
+        m0 = pg.evaluate(msl)
         pg.click('[data-tsset=fly][data-v=HIGH]'); pg.wait_for_timeout(300)
-        m1 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        m1 = pg.evaluate(msl)
         pg.click('[data-tsset=term][data-v=SKIM]'); pg.wait_for_timeout(300)
-        m2 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        m2 = pg.evaluate(msl)
         check('the fly-out and the terminal change the flight of the missile in the profile', m0 != m1 != m2 and m0 != m2)
         pg.click('[data-tsset=fly][data-v=LOW]'); pg.click('[data-tsset=term][data-v=POP]'); pg.wait_for_timeout(300)
         if OUT: pg.screenshot(path=os.path.join(OUT, 'tasmo-prof.png'))
+        # the sliders in real time (input, no change): the plan and the profile drawn again, the slider kept
+        s0 = pg.inner_text('#tssh'); p0 = pg.inner_html('#tsprof')
+        pg.evaluate("()=>{const e=document.querySelector('[data-tssl=dist]');window.__sl=e;e.value=50;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
+        check('the distance slider in real time: the shot, the profile, the text, the same slider', plan()['S']['dist'] == 50 and pg.inner_text('#tssh') != s0 and pg.inner_html('#tsprof') != p0 and '50 NM' in pg.inner_text('#tsal') and pg.evaluate("()=>window.__sl===document.querySelector('[data-tssl=dist]')"))
+        pg.evaluate("()=>{const e=document.querySelector('[data-tssl=alt]');e.value=3000;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
+        check('the altitude slider in real time', plan()['S']['alt'] == 3000 and '3,000 ft' in pg.inner_text('#tsal'))
+        pg.evaluate("()=>{const e=document.querySelector('[data-tssl=alt]');e.value=500;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
+        check('the missiles: as many as the aircraft carries (2)', pg.locator('#tswp [data-tsset=n]').all_inner_texts() == ['1', '2'])
         pg.click('[data-tsview=map]'); pg.wait_for_timeout(300)
         # inside the ring
         pg.evaluate("()=>{const e=document.querySelector('[data-tssl=dist]');e.value=30;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
@@ -82,7 +93,8 @@ try:
         check('Write OA1 / OA2 on STPT 4 (%s, %s)' % (v1, v2), v1 and v1 == '180,364567,500' and v2 and v2.endswith(',22000'))
         pg.click('[data-tshpn]'); pg.wait_for_timeout(500)
         t90 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='STPT'&&l.k=='target_89')||{}).v")
-        check('Write HPN STPT 90: the ship on target_89 (%s)' % t90, t90 and 'Kuznetsov' in t90 and not t90.startswith('0.000000'))
+        t99 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='STPT'&&l.k=='target_98')||{}).v")
+        check('Write HPN STPT 90: the ship on target_89 (%s) and on target_98, STPT 99' % t90, t90 and 'Kuznetsov' in t90 and not t90.startswith('0.000000') and t99 == t90)
         # not spotted: ±40 NM, the radar acquisition
         pg.evaluate(SETUP, {'spot': False}); pg.click('[data-tsset=n][data-v="2"]'); pg.wait_for_timeout(500)
         P = plan()
@@ -97,10 +109,15 @@ try:
         sm = pg.evaluate("()=>{const d=__app.tasmoPage.smart();return d&&{key:d.key.map(k=>k[0]),box:d.boxTitle,sop:d.sop}}")
         check('Smart TASMO: the key, the threats box', sm['key'][:3] == ['TARGET', 'STPT', 'LAUNCH'] and sm['box'] == 'THREATS' and any('KUZNETSOV' in l for l in sm['sop']) and any('PATROL' in l for l in sm['sop']))
         # the Maverick: the attack in Pop-up
-        pg.evaluate(SETUP, {}); pg.select_option('[data-tswpn]', '160'); pg.wait_for_timeout(500)
+        pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)  # a new DTC: no steerpoint near the ship
+        pg.evaluate(SETUP, {}); pg.click('[data-t=wp]'); pg.click('#wp [data-mode=tasmo]'); pg.wait_for_timeout(500)
+        pg.select_option('[data-tswpn]', '160'); pg.wait_for_timeout(500)
         check('a Maverick: no launch, the button to Pop-up', pg.locator('[data-tspop]').count() == 1 and pg.locator('[data-tssl=dist]').count() == 0 and plan()['P'] is None)
         pg.click('[data-tspop]'); pg.wait_for_timeout(800)
-        check('...Attack in A-G > Pop-up opens Pop-up', pg.locator('#wp .wtabs [data-mode=popup].on').count() == 1)
+        t99 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='STPT'&&l.k=='target_98')||{}).v")
+        check('...no steerpoint near the ship: asked, the ship written as STPT 99 (%s)' % t99, any('steerpoint 99' in m for m in msgs) and t99 and 'Kuznetsov' in t99)
+        sel = pg.evaluate("()=>{const s=document.querySelector('#wp [data-pick=tgt]');return s?s.options[s.selectedIndex].text:''}")
+        check('...Attack in A-G > Pop-up opens Pop-up on STPT 99 (%s)' % sel, pg.locator('#wp .wtabs [data-mode=popup].on').count() == 1 and 'STPT 99' in sel)
         # Display > TASMO and the patrol boat rings on the Map page
         pg.click('[data-t=mp]'); pg.wait_for_timeout(1200)
         dsp = pg.evaluate("()=>{const e=document.getElementById('mpdsp');return e?e.innerText:''}")

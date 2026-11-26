@@ -1549,6 +1549,7 @@ export async function init9() {
       snap: scale => mapV.snap(scale),
       kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
       openMode: d.openMode,
+      nearTarget: pt => (ST.wpPage && ST.wpPage.nearTarget ? ST.wpPage.nearTarget(pt.x, pt.y) : null),
       cyclePlan: () => mapV.cyclePlan(),
       planMode: () => mapV.planMode(),
       dtc: {
