@@ -44,7 +44,9 @@ try:
         P = plan()
         check('EN ROUTE from the SOP: the join at 09:18, the ARIP before it, no red check', P['S']['mode'] == 'enr' and abs(P['R']['arct'] - 9.3 * 3600000) < 1 and P['R']['tip'] < P['R']['arct'] and not any(w[1] for w in P['warn']))
         check('FULL: onload 12,000 - the fuel at the join', P['FU']['onload'] == round(12000 - P['FU']['fArct']))
-        check('the tiles and the tables: ARCT 09:18, Times, Procedure BOOM with the right wing of the SOP', '09:18' in pg.inner_text('#aartl') and 'Push · STPT 2' in pg.inner_text('#aartb') and 'Procedure · BOOM'.upper() in pg.inner_text('#aartb').upper() and 'Right wing of the tanker' in pg.inner_text('#aartb') and 'AR door OPEN' in pg.inner_text('#aartb'))
+        check('the four values on one line', len(set(round(b['y']) for b in pg.evaluate("()=>[...document.querySelectorAll('#aartl .tile')].map(t=>t.getBoundingClientRect().toJSON())"))) == 1)
+        check('the tiles and the tables: ARCT 09:18, Times, Procedure BOOM with the right wing of the SOP', '09:18' in pg.inner_text('#aartl') and 'Push · STPT 2' in pg.inner_text('#pfr2 #aartt') and 'Procedure · BOOM'.upper() in pg.inner_text('#aartb').upper() and 'Right wing of the tanker' in pg.inner_text('#aartb') and 'AR door OPEN' in pg.inner_text('#aartb'))
+        check('the turns: both sides on the map legend, the line of the track', 'LEFT OR RIGHT' in pg.inner_text('#aarleg'))
         check('the map: the lent map with the track, the ARIP and the join', pg.locator('#aarmap .leaflet-container, #aarmap.leaflet-container').count() >= 1 and 'ARIP · OA2' in pg.inner_text('#aarmap') and 'ARCT' in pg.inner_text('#aarmap'))
         check('the Smart card preview', pg.locator('#pf .aarpv').is_visible())
         # the other tanker: a KC-130H has no boom
@@ -61,6 +63,12 @@ try:
         pg.evaluate("()=>{const e=document.querySelector('[data-arsl=gap]');e.value=6;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
         pg.click('[data-arset=fill][data-v=amount]'); pg.wait_for_timeout(300)
         check('AMOUNT: its slider', pg.locator('[data-arsl=amount]').count() == 1)
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=amount]');e.value=16000;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
+        check('Onload above what the tanks take: the slider red, the max written', pg.locator('#aarl .slr.bad [data-arsl=amount]').count() == 1 and 'max' in pg.inner_text('#aarl .slr.bad label'))
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=amount]');e.value=1000;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
+        check('...under it: not red', pg.locator('#aarl .slr.bad').count() == 0)
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=amount]');e.value=16000;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
+        if OUT: pg.screenshot(path=os.path.join(OUT, 'aar-amount.png'))
         pg.click('[data-arset=fill][data-v=full]'); pg.wait_for_timeout(300)
         # OA1 / OA2 on STPT 3
         msgs = []

@@ -57,18 +57,28 @@ ok('300 KCAS at 22,000 ft is about 415 KTAS ' + (T && T.tas), T && near(T.tas, 4
 ok('turn radius at 30° of bank about 4.4 NM ' + (T && T.r), T && near(T.r, 4.4, 0.4));
 ok('on station 10:00 to 11:30', T && T.t0 == t0 && T.t1 == 11.5 * H);
 // along the racetrack: the end of the first leg, the far end of the turn (2 radii to the left: west), back at the anchor after a period
-const e1 = onTrack(T, 50),
-  e2 = onTrack(T, 50 + Math.PI * T.r),
-  e3 = onTrack(T, 2 * 50 + 2 * Math.PI * T.r);
+const e1 = onTrack(T, 50, -1),
+  e2 = onTrack(T, 50 + Math.PI * T.r, -1),
+  e2r = onTrack(T, 50 + Math.PI * T.r, 1),
+  e3 = onTrack(T, 2 * 50 + 2 * Math.PI * T.r, -1);
 ok('end of the first leg', near(e1.x, 0, 0.01) && near(e1.y, L, 0.01) && near(e1.hdg, 0, 0.5));
 ok(
   'after the left turn: west of the track, heading south',
   near(e2.x, -2 * T.r * KM_NM, 0.01) && near(e2.hdg, 180, 0.5)
 );
+ok('after the right turn: east of the track', near(e2r.x, 2 * T.r * KM_NM, 0.01));
 ok('a whole period: back at the anchor', near(e3.x, 0, 0.01) && near(e3.y, 0, 0.01));
-const half = onTrack(T, 50 + (Math.PI * T.r) / 2);
+const half = onTrack(T, 50 + (Math.PI * T.r) / 2, -1);
 ok('middle of the turn: beyond the second point, heading west', half.y > L && near(half.hdg, 270, 0.5));
-ok('the racetrack is a closed line', racetrack(T).length == 72);
+ok('the racetrack is a closed line', racetrack(T, -1).length == 72);
+// the side not known: on the line of the track, a stop of the time of a turn at each end
+const m1 = onTrack(T, 50 + 1),
+  m2 = onTrack(T, 50 + Math.PI * T.r + 10);
+ok('side not known: at the far end during the turn', near(m1.x, 0, 0.001) && near(m1.y, L, 0.01));
+ok(
+  'side not known: back on the line, heading south',
+  near(m2.x, 0, 0.001) && near(m2.y, L - 10 * KM_NM, 0.01) && near(m2.hdg, 180, 0.5)
+);
 // where the tanker is: on its route before the track, on the track after
 const p1 = tankerAt(T, 9.75 * H),
   p2 = tankerAt(T, t0 + (25 / T.tas) * H);

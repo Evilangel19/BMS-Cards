@@ -163,7 +163,17 @@ export function createAarPage(deps) {
     const n = X.k + 1,
       lab = (p, text, col, ink) => ({ t: 'label', p, text, col, ink: ink || false });
     return [
-      { t: 'poly', pts: racetrack(T), col: COL.trk, w: 2, dash: [7, 5], close: true, ink: { dash: [4, 3] } },
+      // the side of the turns is not known: both racetracks, faint, and the line of the track
+      ...[-1, 1].map(sd => ({
+        t: 'poly',
+        pts: racetrack(T, sd),
+        col: COL.trk,
+        w: 1.5,
+        dash: [4, 6],
+        close: true,
+        ink: { dash: [2, 4], grey: true },
+      })),
+      { t: 'poly', pts: [T.a, T.b], col: COL.trk, w: 3, ink: { w: 2 } },
       // the join leg fits the view; the way in from the steerpoint before does not (the cards stay on the track)
       ...(R.from ? [{ t: 'poly', pts: [R.from, R.arip], col: COL.me, w: 2.5, fit: false, ink: { w: 2 } }] : []),
       { t: 'poly', pts: [R.arip, R.arcp], col: COL.me, w: 2.5, ink: { w: 2 } },
@@ -238,10 +248,13 @@ export function createAarPage(deps) {
         ['amount', 'AMOUNT', 'A fixed onload'],
       ],
       S.fill
-    )}</div>${S.fill == 'amount' ? slr('amount', 'Onload', [500, 20000, 500], S.amount, fmt(S.amount) + ' lb') : ''}${slr('gap', 'Tanker ahead at the ARIP', GAP, S.gap, S.gap + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On the Refuel steerpoint ${X.k + 1}: OA1 = the ${S.mode == 'anchor' ? 'anchor' : 'join point (ARCP)'}, OA2 = the ARIP, at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
+    )}</div>${S.fill == 'amount' ? slr('amount', amLab(S.amount), [500, 20000, 500], S.amount, fmt(S.amount) + ' lb', FU && S.amount > maxOn()) : ''}${slr('gap', 'Tanker ahead at the ARIP', GAP, S.gap, S.gap + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On the Refuel steerpoint ${X.k + 1}: OA1 = the ${S.mode == 'anchor' ? 'anchor' : 'join point (ARCP)'}, OA2 = the ARIP, at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
   }
-  const slr = (k, lab, r, v, txt) =>
-    `<div class="slr"><label>${lab}</label><input type="range" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${v}" data-arsl="${k}"><em data-are="${k}">${txt}</em></div>`;
+  // the most the tanks take at the join; the Onload slider is red above it
+  const maxOn = () => (FU ? Math.max(0, Math.round(FU.full - FU.fArct)) : Infinity);
+  const amLab = v => 'Onload' + (FU && v > maxOn() ? ' · max ' + fmt(maxOn()) + ' lb' : '');
+  const slr = (k, lab, r, v, txt, bad) =>
+    `<div class="slr${bad ? ' bad' : ''}"><label>${lab}</label><input type="range" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${v}" data-arsl="${k}"><em data-are="${k}">${txt}</em></div>`;
   function tiles() {
     const ab = R.from ? Math.round(R.gs || 0) : 0,
       on = FU ? fmt(FU.onload) + ' lb' : '--';
@@ -300,7 +313,10 @@ export function createAarPage(deps) {
       ],
       proc = procedure(method(), (sopOf('obs') || {}).o).map(r => [r[0], esc(r[1])]),
       W = warns();
-    return `${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wcard"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate).">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}</div><div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`;
+    return {
+      mid: `${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
+      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate).">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}</div>`,
+    };
   }
   /** the middle and right columns, in the Performance page (#pfr, #pfr2) */
   function mount(root) {
@@ -312,7 +328,7 @@ export function createAarPage(deps) {
     failed = false;
     pend = null;
     c.innerHTML = `<div id="aartl"></div><div class="wcard" id="aarmc"><div class="wh"><h3 id="aarmh">Map</h3><span style="flex:1"></span><button class="btn g" type="button" data-arfit>Fit view</button></div><div id="aarmap" class="wmapbox"></div><div class="wleg" id="aarleg"></div></div><div id="aartb"></div>`;
-    r.innerHTML = `<div class="wcard"><h3>Smart card<span class="wtip" title="Add card (top right) puts it on the Kneeboard, with the classic card">ⓘ</span></h3><canvas class="aarpv" width="520" height="780" aria-label="The Smart AAR card"></canvas></div>`;
+    r.innerHTML = `<div class="wcard"><h3>Smart card<span class="wtip" title="Add card (top right) puts it on the Kneeboard, with the classic card">ⓘ</span></h3><canvas class="aarpv" width="520" height="780" aria-label="The Smart AAR card"></canvas></div><div id="aartt"></div>`;
     wire(root);
     update();
   }
@@ -329,6 +345,7 @@ export function createAarPage(deps) {
     if (!ok) {
       if (q('#aartl')) q('#aartl').innerHTML = '';
       if (q('#aartb')) q('#aartb').innerHTML = '';
+      if (q('#aartt')) q('#aartt').innerHTML = '';
       const cv = q('.aarpv');
       if (cv) cv.hidden = true;
       detachMap(true);
@@ -340,12 +357,15 @@ export function createAarPage(deps) {
       fit = true;
     }
     q('#aartl').innerHTML = tiles();
-    q('#aartb').innerHTML = tables();
+    const tb = tables();
+    q('#aartb').innerHTML = tb.mid;
+    q('#aartt').innerHTML = tb.times; // the Times under the Smart card
     q('#aarmh').textContent = 'Map · STPT ' + (X.k + 1) + ' Refuel · ' + tk().name;
     const it = (c, t, dash) =>
       `<span><i style="border-top:2px ${dash ? 'dashed' : 'solid'} ${c};width:18px;display:inline-block;vertical-align:middle;margin-right:4px"></i>${t}</span>`;
     q('#aarleg').innerHTML = [
-      it(COL.trk, 'TRACK (turns left: assumed)', true),
+      it(COL.trk, 'TRACK'),
+      it(COL.trk, 'TURNS LEFT OR RIGHT (as the tanker comes)', true),
       it(COL.me, 'YOU: STPT ' + X.k + ' > ARIP > JOIN'),
     ].join(' ');
     const cv = /** @type {HTMLCanvasElement|null} */ (q('.aarpv'));
@@ -398,6 +418,11 @@ export function createAarPage(deps) {
       set(k, +i.value);
       const em = l() && l().querySelector(`[data-are="${k}"]`);
       if (em) em.textContent = k == 'gap' ? i.value + ' NM' : fmt(+i.value) + ' lb';
+      if (k == 'amount') {
+        const sl = i.closest('.slr');
+        sl.classList.toggle('bad', !!FU && +i.value > maxOn());
+        sl.querySelector('label').textContent = amLab(+i.value);
+      }
     };
     root.onchange = e => {
       const i = /** @type {HTMLInputElement} */ (e.target);
@@ -511,7 +536,7 @@ export function createAarPage(deps) {
         T.kcas +
         'KCAS · ' +
         flOf(T.alt) +
-        ' · TURNS LEFT (ASSUMED) · ' +
+        ' · TURNS L/R · ' +
         (S.mode == 'anchor' ? 'ANCHOR' : 'EN ROUTE'),
       blocks: [
         ...(W.some(w => w[1]) ? [['CHECK', W.filter(w => w[1]).map(w => [w[0].toUpperCase(), true])]] : []),
@@ -616,7 +641,7 @@ export function createAarPage(deps) {
     M.map.invalidateSize();
     paint();
     const S0 = spec(),
-      pts = [...racetrack(T), R.arip, R.arcp, ...(R.from ? [R.from] : [])],
+      pts = [...racetrack(T, -1), ...racetrack(T, 1), R.arip, R.arcp, ...(R.from ? [R.from] : [])],
       p = await snapMap(M, deps, pts, AR, keep, [T.a, { x: T.a.x + 10 * KM_NM, y: T.a.y }]);
     return p ? { img: p.img, coast: p.coast, nm: p.nm, ...toPx(S0, p.px, p.nm) } : null;
   }

@@ -3,6 +3,8 @@
 // to take and the procedure. Pure maths, no DOM. Units: km of the theater (x east, y north), times in ms, speeds in kt, altitudes in ft.
 // BMS 4.38 (Training Manual, mission 4D): the tanker flies a racetrack on its two track steerpoints (action 24): a leg from the first to the second,
 // a 180° turn at 30° of bank, the leg back, a turn; about 300 KCAS at 20-24,000 ft. It does not turn to meet the receiver: the receiver joins it.
+// The side of its turns depends on where it comes from (the game decides): the times use the line of the track (the turn as a stop of its length at
+// each end, the place known within two turn radii), the drawings show the two possible racetracks.
 // A-A TACAN: the KC-10 gives distance and bearing, the KC-135 and the KC-130H the distance only. Drogue (probe): KC-135, KC/DC-10, KC-130H, C-160R NG,
 // IL-78M (since BMS 4.36); boom: KC-135 and KC/DC-10.
 import { timed, posAt } from './sead.js';
@@ -35,11 +37,11 @@ export const turnNm = (tas, bank = TURN_BANK) =>
   (tas * KT_FTS) ** 2 / (32.174 * Math.tan((bank * Math.PI) / 180)) / FT_NM;
 /**
  * The track of a tanker from its route (the campaign waypoints): the two track steerpoints, the time on station, the altitude, the speed and the racetrack.
- * side: -1 = turns left (assumed), 1 = right. null without two track steerpoints.
+ * null without two track steerpoints.
  * @returns {{w: any[], a: {x: number, y: number}, b: {x: number, y: number}, t0: number, t1: number, alt: number, tas: number, kcas: number,
- *   leg: number, r: number, hdg: number, per: number, side: number} | null}
+ *   leg: number, r: number, hdg: number, per: number} | null}
  */
-export function trackOf(wps, side = -1) {
+export function trackOf(wps) {
   const w = timed(wps || []),
     g = w.filter(p => p.act == 24);
   if (g.length < 2) return null;
@@ -63,23 +65,29 @@ export function trackOf(wps, side = -1) {
     r,
     hdg: brg(b.x - a.x, b.y - a.y),
     per: ((2 * leg + 2 * Math.PI * r) / tas) * 3600000,
-    side,
   };
 }
-/** a point s NM along the racetrack from the first track steerpoint: {x, y, hdg} */
-export function onTrack(T, s) {
+/** a point s NM along the racetrack from the first track steerpoint: {x, y, hdg}; side: -1 turns left, 1 right, 0 on the line of the track (the
+ * turns not known: the tanker waits the time of a turn at each end) */
+export function onTrack(T, s, side = 0) {
   const L = T.leg,
     r = T.r,
     P = 2 * L + 2 * Math.PI * r;
   s = ((s % P) + P) % P;
   const ux = (T.b.x - T.a.x) / (L * KM_NM),
     uy = (T.b.y - T.a.y) / (L * KM_NM),
-    nx = T.side < 0 ? -uy : uy, // the side of the turns
-    ny = T.side < 0 ? ux : -ux,
+    nx = side < 0 ? -uy : uy, // the side of the turns
+    ny = side < 0 ? ux : -ux,
     R = r * KM_NM,
     at = (p, dx, dy) => ({ x: p.x, y: p.y, hdg: brg(dx, dy) });
   if (s <= L) return at({ x: T.a.x + ux * s * KM_NM, y: T.a.y + uy * s * KM_NM }, ux, uy);
   s -= L;
+  if (!side) {
+    const t = Math.PI * r;
+    if (s <= t) return at(T.b, ux, uy);
+    if (s <= t + L) return at({ x: T.b.x - ux * (s - t) * KM_NM, y: T.b.y - uy * (s - t) * KM_NM }, -ux, -uy);
+    return at(T.a, -ux, -uy);
+  }
   if (s <= Math.PI * r) {
     const f = s / r,
       cx = T.b.x + nx * R,
@@ -101,9 +109,9 @@ export function onTrack(T, s) {
     -ny * Math.sin(f) - uy * Math.cos(f)
   );
 }
-/** the racetrack as a closed line of points */
-export const racetrack = (T, n = 72) =>
-  Array.from({ length: n }, (_, i) => onTrack(T, (i / n) * (2 * T.leg + 2 * Math.PI * T.r))).map(p => ({
+/** a racetrack (side -1 left, 1 right) as a closed line of points */
+export const racetrack = (T, side, n = 72) =>
+  Array.from({ length: n }, (_, i) => onTrack(T, (i / n) * (2 * T.leg + 2 * Math.PI * T.r), side)).map(p => ({
     x: p.x,
     y: p.y,
   }));
