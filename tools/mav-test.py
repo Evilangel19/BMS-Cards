@@ -19,7 +19,7 @@ INI = '\r\n'.join(['[MISSION]', 'title=x', '[STPT]'] + ['target_%d=%s, 0' % (i, 
 # the flight plan of the campaign (km, ms): STPT 4 the target at 10:20; the load: four AGM-65D
 SETUP = r"""o => {
   const H = 3600000, M = 60000;
-  const fp = [[1, 500, 400, 9.5 * H], [2, 500, 430, 10 * H], [3, 500, 460, 10 * H + 14 * M], [4, 500, 490, 10 * H + 20 * M], [5, 500, 520, 10.8 * H]].map(([n, x, y, arr]) => ({ n, x, y, arr, act: 0 }));
+  const fp = [[1, 500, 400, 9.5 * H], [2, 500, 430, 10 * H], [3, 500, 460, 10 * H + 14 * M], [4, 500, 490, 10 * H + 20 * M], [5, 500, 520, 10.8 * H]].map(([n, x, y, arr]) => ({ n, x, y, arr, act: n == 1 ? 1 : n == 4 ? 15 : n == 5 ? 7 : 0 }));
   __app.wpPage._test({ loadout: () => [{ name: o.name || 'AGM-65D Maverick', n: 4 }, { name: 'MK-82', n: 6 }], fplan: () => fp, roeAg: () => true, night: () => false, wxBase: async () => null });
 }"""
 try:
@@ -31,6 +31,8 @@ try:
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
         pg.evaluate(SETUP, {})
         pg.click('[data-t=wp]'); pg.wait_for_timeout(600); pg.click('#wp [data-mode=popup]'); pg.wait_for_timeout(700)
+        pg.evaluate("()=>__app.wpPage.setState({mode:'popup',tgt:null,src:'dtc',bomb:'auto'})"); pg.wait_for_timeout(600)
+        check('the target to start with: the first steerpoint of an action (STPT 4, a strike), not STPT 1', pg.evaluate("()=>{const s=document.querySelector('#wp [data-pick=tgt]');return s?s.options[s.selectedIndex].text:''}").startswith('STPT 4'))
         pg.evaluate("()=>__app.wpPage.setState({mode:'popup',tgt:'r:4',src:'dtc',bomb:'auto'})"); pg.wait_for_timeout(600)
         opts = pg.evaluate("()=>[...document.querySelectorAll('select[data-pick=bomb] option')].map(o=>o.value)")
         check('the Weapon list: the bombs, then the Maverick of the load (%s)' % opts, 'msl:AGM-65D Maverick' in opts and 'auto' in opts)
@@ -64,12 +66,24 @@ try:
         pg.select_option('select[data-pick=bsstpt]', '2'); pg.wait_for_timeout(300)
         pg.evaluate("()=>{const e=document.querySelector('[data-bs=brg]');e.value=90;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
         pg.evaluate("()=>{const e=document.querySelector('[data-bs=nm]');e.value=1;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(500)
-        check('the boresight: OA1 of STPT 2 in the NAV OFFSETS and on the map', 'OA1 · STPT 2 · boresight' in pg.inner_text('#wpr') and 'Boresight' in pg.inner_text('#wph'))
+        check('the boresight: OA1 of STPT 2 in the NAV OFFSETS and on the map', 'OA1 · STPT 2 · boresight' in pg.inner_text('#wpr') and pg.locator('.wpbsg').count() == 1)
+        check('the Boresight card above the Weapon settings, under the Egress', pg.evaluate("()=>{const h=[...document.querySelectorAll('#wp .wpl .wcard h3, #wp .wpl .wcard .wh h3')].map(e=>e.textContent.toUpperCase());const b=h.findIndex(t=>t.startsWith('BORESIGHT')),w=h.findIndex(t=>t.startsWith('WEAPON')),e=h.findIndex(t=>t.startsWith('EGRESS'));return e>=0&&e<b&&b<w}"))
+        # drag the boresight point with Edit points on
+        if pg.locator('[data-edit]').inner_text().endswith('Off'): pg.click('[data-edit]'); pg.wait_for_timeout(400)
+        mk = pg.locator('.wpbsg').first
+        pg.click('[data-fit]'); pg.wait_for_timeout(500)
+        pg.evaluate("()=>document.querySelector('#wpmc').scrollIntoView()"); pg.wait_for_timeout(300)
+        bb = mk.bounding_box()
+        pg.mouse.move(bb['x'] + 8, bb['y'] + 8); pg.mouse.down(); pg.mouse.move(bb['x'] + 60, bb['y'] - 40, steps=8); pg.mouse.up(); pg.wait_for_timeout(600)
+        bs = pg.evaluate("()=>__app.wpPage.state().bs")
+        check('...dragged on the map: its bearing and range from STPT 2 follow (%s)' % bs, bs['mode'] == 'oa' and (bs['brg'] != 90 or abs(bs['nm'] - 1) > 0.05) and abs(float(pg.input_value('[data-bs=nm]')) - bs['nm']) < 0.01)
+        pg.click('[data-edit]'); pg.wait_for_timeout(300)
         if OUT: pg.screenshot(path=os.path.join(OUT, 'mav-popup.png'))
         pg.on('dialog', lambda d: d.accept())
         pg.evaluate("()=>__app.wpPage.apply()"); pg.wait_for_timeout(700)
         o1 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='NAV OFFSETS'&&l.k=='OA1-2')||{}).v")
-        check('Apply: OA1-2 the boresight point, 090° 6076 ft, 0 ft (%s)' % o1, o1 and o1.startswith('90,6076,0') or (o1 or '').startswith('90,6076'))
+        v1 = (o1 or '0,0,0').split(',')
+        check('Apply: OA1-2 the boresight point where it was dragged, %s° %s NM, 0 ft (%s)' % (bs['brg'], bs['nm'], o1), abs(float(v1[0]) - bs['brg']) <= 1 and abs(float(v1[1]) / 6076.12 - bs['nm']) < 0.06 and v1[2] == '0')
         agb = pg.evaluate("()=>__app.lines.some(l=>l.s=='FCC_AGB')")
         check('Apply: no bomb profile written (no FCC_AGB)', not agb)
         # the cards

@@ -26,6 +26,7 @@ import {
 } from './strike.js';
 import { toMag } from './magvar.js';
 import { agChecks, agAttack, TOSS_MAX } from './agrules.js';
+import { BASIC } from './fuelplan.js';
 import {
   isMav,
   isLaserMav,
@@ -473,6 +474,7 @@ export function createWeaponsPage(deps) {
           e: w.x * FT_KM,
           name: 'STPT ' + w.n,
           stpt: w.n,
+          act: w.act, // the action of the steerpoint in the campaign (the first task steerpoint is the target to start with)
         })
       );
     else
@@ -509,7 +511,8 @@ export function createWeaponsPage(deps) {
     // DTC entry: the game loads the pull-up point and the OA rows only on the route steerpoints 1-24 (25 is the bullseye); Manual entry: any steerpoint 1-99, typed in the DED
     const TR = TA.filter(x => x.group == G.route && x.stpt >= 1 && x.stpt <= 24),
       T = st.src == 'man' || !TR.length ? TA : TR; // no route steerpoint at all: every point stays choosable, with a red warning
-    const t = T.find(x => x.v === st.tgt) || T[0] || null,
+    // the target: the one chosen, else the first steerpoint of an action of the flight plan (not a take-off, a landing or a plain waypoint), else the first
+    const t = T.find(x => x.v === st.tgt) || T.find(x => x.act != null && !BASIC.includes(x.act)) || T[0] || null,
       tPos = t ? { n: t.n, e: t.e } : null;
     const RL = [{ v: 'tgt', label: 'Target itself', group: '' }, ...TA.map(x => ({ ...x, pos: { n: x.n, e: x.e } }))],
       pick = RL.find(x => x.v === st.refPt) || RL[0];
@@ -2116,7 +2119,37 @@ export function createWeaponsPage(deps) {
           interactive: false,
         }).addTo(WL);
       });
+    // the boresight point of the Maverick: with Edit points on it is dragged on the map (its bearing and range from its steerpoint follow)
+    const bp = mav() && bsPoint(),
+      bed = !!bp && !!(deps.isEdit && deps.isEdit()) && !!deps.fromLL;
+    if (bp) {
+      const m = L.marker(ll(bp.p), {
+        icon: L.divIcon({
+          className: 'wpdia wpbsg',
+          html: '<i style="background:#f0b040"></i>',
+          iconSize: [16, 16],
+          iconAnchor: [8, 8],
+        }),
+        keyboard: false,
+        draggable: bed,
+        zIndexOffset: 600,
+      }).addTo(WL);
+      m.bindTooltip(esc('Boresight · STPT ' + bp.n + (bed ? ' · drag it' : ' · Edit points: On to drag it')));
+      if (bed)
+        m.on('dragend', () => {
+          const q = m.getLatLng(),
+            [gx, gy] = deps.fromLL(q.lat, q.lng),
+            dn = gy * FT_KM - bp.at.n,
+            de = gx * FT_KM - bp.at.e;
+          st.bs.brg = Math.round((((Math.atan2(de, dn) * 180) / Math.PI) % 360) + 360) % 360;
+          st.bs.nm = Math.min(BS_NM, Math.round((Math.hypot(dn, de) / FT_NM) * 10) / 10);
+          st.applied = st.cleared = null;
+          save();
+          draw(false);
+        });
+    }
     D.marks.forEach(([p, label, fill, kind, dir, off, tip]) => {
+      if (label == 'Boresight' && bp) return; // drawn above
       if (kind == 'dia') dia(p, fill, label);
       else dot(p, fill, kind == 'big' ? 7 : kind == 'small' ? 4 : kind == 'small5' ? 5 : 6, tip || label);
       if (label) lab(p, label, dir || 'right', off || [8, 0]);
@@ -2829,6 +2862,7 @@ export function createWeaponsPage(deps) {
     return `<div class="slr"><label>${k == 'c2ba' ? 'Burst alt.' : 'AD' + (k.endsWith('2') ? '2' : '1')}</label><input type="range" min="${a}" max="${b}" step="${q}" value="${v}" data-fz="${k}"><em data-fzem="${k}">${ba ? fmt(v) + ' ft' : v.toFixed(2) + ' s'}</em></div>`;
   };
   const MOFF = 'Not used with the Maverick: no fall, no fuze, no stick';
+  const BS_NM = 20; // the boresight point: within 20 NM of its steerpoint
   // the dive angle of the Maverick: from the launch altitude and range, shown dark
   const diveDim = () => {
     const d = Math.round(diveFor(cur().mAlt, cur().mRange) * 10) / 10;
@@ -3523,13 +3557,13 @@ export function createWeaponsPage(deps) {
               st.bs.mode
             )}</div>${
               st.bs.mode != 'off'
-                ? `<div class="wrow"><label>From STPT</label><select data-pick="bsstpt">${BL.map(x => `<option value="${x.stpt}"${(bsPoint() || {}).n == x.stpt ? ' selected' : ''}>STPT ${x.stpt}</option>`).join('') || '<option>no route steerpoint</option>'}</select></div><div class="slr"><label>Bearing</label><input type="range" min="0" max="355" step="5" value="${+st.bs.brg || 0}" data-bs="brg"><em data-bsem="brg">${String(+st.bs.brg || 0).padStart(3, '0')}° T</em></div><div class="slr"><label>Range</label><input type="range" min="0" max="10" step="0.5" value="${+st.bs.nm || 0}" data-bs="nm"><em data-bsem="nm">${(+st.bs.nm || 0).toFixed(1)} nm</em></div>${
+                ? `<div class="wrow"><label>From STPT</label><select data-pick="bsstpt">${BL.map(x => `<option value="${x.stpt}"${(bsPoint() || {}).n == x.stpt ? ' selected' : ''}>STPT ${x.stpt}</option>`).join('') || '<option>no route steerpoint</option>'}</select></div><div class="slr"><label>Bearing</label><input type="range" min="0" max="359" step="1" value="${+st.bs.brg || 0}" data-bs="brg"><em data-bsem="brg">${String(+st.bs.brg || 0).padStart(3, '0')}° T</em></div><div class="slr"><label>Range</label><input type="range" min="0" max="${BS_NM}" step="0.1" value="${+st.bs.nm || 0}" data-bs="nm"><em data-bsem="nm">${(+st.bs.nm || 0).toFixed(1)} nm</em></div>${
                     st.bs.mode == 'ppt'
                       ? `<div class="wbtns"><button class="btn g" type="button" data-bsppt${bsPptName() ? '' : ' disabled'} title="${bsPptName() ? 'Adds the point to the DTC as a PPT named ' + esc(bsPptName()) : 'No Boresight entry in the Ppt.ini of BMS'}">Write PPT ${esc(bsPptName() || 'Boresight')}</button></div>`
                       : ''
                   }`
                 : ''
-            }<p class="hint wnote">In flight (the dome covers): a point the TGP can track, before the push. OA1: written with the attack by Apply. Then PWR OFF, and on again by AUTO PWR.</p></div>`
+            }<p class="hint wnote">In flight (the dome covers): a point the TGP can track, before the push. With Edit points on, drag it on the map. OA1: written with the attack by Apply. Then PWR OFF, and on again by AUTO PWR.</p></div>`
           : '';
       const PL = ctx.TA.filter(x => x.v.startsWith('ppt:')),
         pDef = PL.find(x => x.ringFt > 0);
@@ -3560,7 +3594,7 @@ export function createWeaponsPage(deps) {
       if (md == 'hadb')
         mid = mav()
           ? `<div class="wcard"><h3>Launch</h3>${diveDim()}${sl(['mAlt', 'mRange', 'releaseSpeed'])}${slider('timeOnFinal', 'Lock time', ' s', 0)}<p class="hint wnote">The Maverick from a high altitude dive: roll in at the VIP, dive on the line to the target, lock, launch at the slant range. The dive angle comes from the launch altitude and range. Speeds are true airspeed.</p></div>
-        <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}</div>${egressCard}${weaponCard}${bsCard}`
+        <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}</div>${egressCard}${bsCard}${weaponCard}`
           : `<div class="wcard"><h3>Release</h3>${sl(['diveAngle', 'releaseAltitude', 'releaseSpeed', 'timeOnFinal'])}<p class="hint wnote">High altitude dive bombing: roll in at the VIP, turn and dive onto the target. The ingress altitude is not chosen: release altitude, dive angle and tracking time give it. Speeds are true airspeed.</p></div>
         <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">The ingress heading is the attack heading turned away by the angle off. Fly over OA1 and the VIP, at the VIP turn in with the chosen G.</p></div>${egressCard}${weaponCard}`;
       else if (md == 'toss')
@@ -3586,7 +3620,7 @@ export function createWeaponsPage(deps) {
             i.headingMode
           )}</div>${slider('heading', 'Heading', '°', 0)}
           ${oa1Row}
-          <p class="hint wnote">${mav() ? 'Lock time: seconds after rolling out on the dive line to lock and launch (bank under 30°). The dive angle comes from the launch altitude and range.' : 'Tracking time: seconds to aim after rolling out of the turn, until release.'} Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}${mav() ? bsCard : ''}`;
+          <p class="hint wnote">${mav() ? 'Lock time: seconds after rolling out on the dive line to lock and launch (bank under 30°). The dive angle comes from the launch altitude and range.' : 'Tracking time: seconds to aim after rolling out of the turn, until release.'} Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${mav() ? bsCard : ''}${weaponCard}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
         <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><span style="flex:1"></span><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
           <div class="wrow wmap"><label>Map layer</label>${seg(
@@ -4036,6 +4070,7 @@ export function createWeaponsPage(deps) {
       eb.onclick = () => {
         if (deps.toggleEdit) deps.toggleEdit();
         lab();
+        if (mav() && st.bs.mode != 'off' && res && !res.error) paint(); // the boresight point: draggable or not
       };
       lab();
     }

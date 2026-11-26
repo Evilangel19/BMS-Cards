@@ -4,6 +4,7 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Changed: A-G > Pop-up, HADB and TOSS: the target to start with is the first steerpoint of an action of the flight plan (not the take-off or a plain waypoint); the choice stays. With a Maverick, the boresight point is dragged on the map with **Edit points: On** (its bearing and range from its steerpoint follow, 1° and 0.1 NM; up to 20 NM), and the Boresight card is above the Weapon settings, under the Egress.
 - Fixed: choosing a flight in the ATO and moving the mouse over the datacard were slower than needed: the program read a pixel of the card (a wait for the graphics card) at each flight chosen and at each move of the mouse. It now knows the card is drawn.
 - Fixed: A-G > Pop-up / HADB / TOSS, the sliders stopped for a third of a second at many steps (most with a Maverick): the A-G block of the ROE wrote the datacard each time the minimum altitude changed. It is written when the sliders stop.
 - Added: A-G > TASMO, a **Launch speed** slider (the speed of the route by default, with its Mach): it sets the range of the Misdata and the times of the run, and is red outside Mach 0.45 to 0.95 for the Harpoon. A yellow check when the descent to the launch altitude is steeper than 22°: start it earlier and be level at the launch.
