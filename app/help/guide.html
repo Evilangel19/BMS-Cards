@@ -430,9 +430,18 @@
                 Harpoon options of the WPN page (RBL, BOL, LOS, search area, priority, fly-out, terminal); the steps;
                 the map or the profile. <span class="ui">Write OA1 / OA2</span> puts the launch and the acquisition (or
                 the descent) on the steerpoint of the route nearest to the ship;
-                <span class="ui">Write HPN STPT 90</span> puts the ship on the Harpoon steerpoint 90. The patrol boats
-                have a MANPADS ring under 15 000 ft. With a Maverick or bombs,
-                <span class="ui">Attack in A-G > Pop-up</span> plans the attack there.
+                <span class="ui">Write HPN STPT 90</span> puts the ship on the Harpoon steerpoint 90 and on STPT 99. The
+                patrol boats have a MANPADS ring under 15 000 ft. With a Maverick or bombs,
+                <span class="ui">Attack in A-G > Pop-up</span> plans the attack there. From the Dash-34: in RBL the
+                <span class="ui">Waypoint</span> (TGT-TO-WPT: the true bearing and the range from the ship, typed in the
+                DED on STPT 90) sends the missile to it first, and the range counts the flight through it; the priority
+                is for the LARGE area only. In BOL you set the enable and destruct ranges (ENBL, DSTR, 99 NM at most).
+                In LOS you fly wings level to the ship for 40 s after the power on, and the seeker turns on shortly
+                after the launch. The sliders are red for the alerts of the WPN page (OUT OF RANGE, TGT TO WPT RANGE TOO
+                SMALL, WPT TOO CLOSE, ACTIVE / DSTR RANGE TOO SMALL) and for a launch too near for the missile to
+                descend and search; the limits that the Dash-34 does not give are estimates. A ship, friendly or not, on
+                the line of the missile in LOS or BOL is a check. The power of the Harpoon is for 20 minutes at most:
+                the steps turn it on 5 minutes before the launch.
               </li>
               <li>
                 <span class="ui">Target</span>: the target picture (Basic Target Graphic). The plan of the objective, a

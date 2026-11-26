@@ -19,7 +19,7 @@ SETUP = r"""o => {
   const ship = (id, x, y, name, rng, low, det, detAir, spotted, boat) => ({ id, x, y, name, cat: boat ? 'SAG' : 'CSG', rng, low, det, detAir, spotted, boat, d: Math.hypot(x - 600, y - 520) / K });
   const X = { ok: true, me: { key: '9', name: 'Hawk 2', n: 2, ac: 'KF-16C-52', pkgNo: 3, tag: 'HAWK 2 · PKG 3' }, wps: me, task: { n: 4, x: 600, y: 520, t0: 14.333 * H },
     ships: [ship('1:1', 600, 520, 'Kuznetsov CLS', 80, 67, 92, 115, o.spot !== false, false), ship('2:1', 610, 515, 'Udaloy CLS', 30, 20, 60, 80, true, false), ship('3:1', 597, 380, 'Osa II CLS', 0, 4, 33, 41, true, true)],
-    weapons: [{ id: '152', name: 'AGM-84A Harpoon', n: 2, rngKm: 124, kind: 'asm' }, { id: '160', name: 'AGM-65D Maverick', n: 4, rngKm: 0, kind: 'mav' }], radar: 35, target: '1:1' };
+    weapons: [{ id: '152', name: 'AGM-84A Harpoon', n: 2, rngKm: 124, kind: 'asm' }, { id: '160', name: 'AGM-65D Maverick', n: 4, rngKm: 0, kind: 'mav' }], radar: 35, target: '1:1', friends: o.friend ? [{ x: 600, y: 470, name: 'Perry FFG' }] : [] };
   __app.tasmoPage._test({ ctx: () => X, mis: null });
 }"""
 INI = '\r\n'.join(['[MISSION]', 'title=x', '[STPT]'] + ['target_%d=0.000000, 0.000000, 0.000000, -1, Not set' % i for i in range(99)] + ['[NAV OFFSETS]'] + ['OA%d-%d=0,0,0' % (a, n) for n in range(1, 25) for a in (1, 2)] + ['[COMMS]', 'X=1', ''])
@@ -82,8 +82,32 @@ try:
         # BOL options
         check('RBL: the search area on the map', 'SEARCH LARGE' in pg.inner_text('#tsmap'))
         pg.click('[data-tsset=mode][data-v=bol]'); pg.wait_for_timeout(300)
-        check('BOL: no search area, the enable and destruct ranges, on the map too', pg.locator('[data-tsset=area]').count() == 0 and 'enable' in pg.inner_text('#tssh') and 'DESTRUCT' in pg.inner_text('#tsmap') and 'SEARCH' not in pg.inner_text('#tsmap'))
-        pg.click('[data-tsset=mode][data-v=rbl]'); pg.wait_for_timeout(300)
+        check('BOL: no search area, the enable and destruct ranges, on the map too', pg.locator('[data-tsset=area]').count() == 0 and 'ENBL' in pg.inner_text('#tssh') and pg.locator('#tswp [data-tssl=en]').count() == 1 and pg.locator('#tswp [data-tssl=ds]').count() == 1 and 'DESTRUCT' in pg.inner_text('#tsmap') and 'SEARCH' not in pg.inner_text('#tsmap'))
+        sl = lambda k, v: pg.evaluate("([k,v])=>{const e=document.querySelector('[data-tssl='+k+']');e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}", [k, v]) or pg.wait_for_timeout(300)
+        sl('ds', 50)
+        check('BOL: DSTR before the ship: red slider, red check', pg.locator('#tswp .slr.bad [data-tssl=ds]').count() == 1 and any(c[1] and 'DSTR RANGE TOO SMALL' in c[0] for c in plan()['checks']))
+        sl('ds', 99)
+        # LOS: no options, the steps of the 40 s, the friendly ship on the line (red)
+        pg.evaluate(SETUP, {'friend': True}); pg.click('[data-tsset=mode][data-v=los]'); pg.wait_for_timeout(400)
+        check('LOS: no fly-out / terminal, the 40 s wings level in the steps, the friendly ship on the line (red)', pg.locator('#tswp [data-tsset=fly]').count() == 0 and '40 s' in pg.inner_text('#tsstp') and any(c[1] and 'Friendly ship Perry FFG' in c[0] for c in plan()['checks']))
+        pg.evaluate(SETUP, {}); pg.click('[data-tsset=mode][data-v=rbl]'); pg.wait_for_timeout(300)
+        # RBL: the priority with LARGE only; the waypoint (TGT-TO-WPT)
+        pg.click('[data-tsset=area][data-v=MED]'); pg.wait_for_timeout(300)
+        check('RBL MED: no priority (LARGE only)', pg.locator('#tswp [data-tsset=prio]').count() == 0)
+        pg.click('[data-tsset=area][data-v=LARGE]'); pg.wait_for_timeout(300)
+        r0 = plan()['P']['reach']
+        pg.click('[data-tsset=wpt][data-v="1"]'); pg.wait_for_timeout(400)
+        P = plan()
+        check('the waypoint: its sliders, on the map, in the shot and the steps, the path longer (%s)' % P['P']['path'], pg.locator('#tswp [data-tssl=wbrg]').count() == 1 and pg.locator('#tswp [data-tssl=wrng]').count() == 1 and 'HPN WPT' in pg.inner_text('#tsmap') and 'TGT-TO-WPT' in pg.inner_text('#tssh') and 'TBRG' in pg.inner_text('#tsstp') and P['P']['reach'] < r0)
+        sl('wrng', 5)
+        check('...5 NM from the ship: TGT TO WPT RANGE TOO SMALL, the slider red', pg.locator('#tswp .slr.bad [data-tssl=wrng]').count() == 1 and any(c[1] and 'TGT TO WPT RANGE TOO SMALL' in c[0] for c in plan()['checks']))
+        pg.click('[data-tsview=prof]'); pg.wait_for_timeout(300)
+        check('...the waypoint in the profile', 'HPN WPT' in pg.inner_text('#tsprof'))
+        if OUT: pg.screenshot(path=os.path.join(OUT, 'tasmo-wpt.png'))
+        pg.click('[data-tsview=map]'); pg.click('[data-tsset=wpt][data-v="0"]'); pg.wait_for_timeout(300)
+        sl('dist', 6)
+        check('6 NM: too near for the missile (red)', any(c[1] and 'Too near' in c[0] for c in plan()['checks']) and pg.locator('#tsal .slr.bad [data-tssl=dist]').count() == 1)
+        sl('dist', 60)
         # OA and STPT 90 in the DTC
         msgs = []
         pg.on('dialog', lambda d: (msgs.append(d.message), d.accept()))

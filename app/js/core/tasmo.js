@@ -42,8 +42,9 @@ const along = (p, u, nm) => ({ x: p.x + u.x * nm * KM_NM, y: p.y + u.y * nm * KM
 
 /**
  * The attack. o: {ship {x, y, rng, low, det, detAir (km), spotted}, from {x, y} (where the attack comes from: the steerpoint before the task),
- * cruise (ft), alt (ft: the launch altitude), dist (NM: the launch distance from the ship), rmax (NM at the launch altitude), radar (NM: the
- * detection range of the radar of the aircraft), tot (ms: the impact, the time of the task steerpoint), gs (kt), mslKt, n (missiles)}
+ * cruise (ft), alt (ft: the launch altitude), dist (NM: the launch distance from the ship), path (NM: the flight of the missile, through the
+ * Harpoon waypoint; dist when none), rmax (NM at the launch altitude), radar (NM: the detection range of the radar of the aircraft), tot (ms: the
+ * impact, the time of the task steerpoint), gs (kt), mslKt, n (missiles)}
  * @returns {{U: number, axis: {x: number, y: number}, launch: {x: number, y: number}, ring: number, ringLow: boolean, margin: number,
  *   seen: number, hidden: boolean, reach: number, covers: boolean, desc: {x: number, y: number, nm: number} | null, acq: {x: number, y: number,
  *   nm: number, alt: number} | null, mode: string, enable: number, destruct: number, tof: number, tLaunch: number, tDesc: number | null,
@@ -60,7 +61,8 @@ export function tasmoPlan(o) {
     margin = o.dist - U - ring,
     seen = Math.min(((low ? s.det : s.detAir) || s.det || 0) / KM_NM, horizonNm(o.alt)),
     hidden = o.dist - U > seen,
-    reach = o.rmax - o.dist,
+    path = o.path || o.dist,
+    reach = o.rmax - path,
     covers = reach >= (s.spotted ? 0 : U),
     // the descent: before the ship sees you at the cruise altitude
     dDesc = Math.min((s.detAir || s.det || 0) / KM_NM, horizonNm(o.cruise)) + U + MARGIN_NM,
@@ -70,14 +72,23 @@ export function tasmoPlan(o) {
     aNm = Math.min(o.radar || 0, horizonNm(acqAlt)),
     acq = !s.spotted && aNm > 0 ? { ...along(s, axis, aNm), nm: aNm, alt: acqAlt } : null,
     mode = s.spotted || (acq && aNm >= o.dist) ? 'rbl' : 'bol',
-    tof = (o.dist / (o.mslKt || 500)) * 3600000,
+    tof = (path / (o.mslKt || 500)) * 3600000,
     tLaunch = o.tot - tof,
     gs = o.gs || 480,
     back = nm => tLaunch - ((nm - o.dist) / gs) * 3600000,
     warn = [];
   if (!(o.rmax > 0)) warn.push(['No range for this missile.', true]);
   else if (reach < 0)
-    warn.push(['The launch is beyond the range of the missile (' + o.rmax.toFixed(0) + ' NM).', true]);
+    warn.push([
+      'OUT OF RANGE: the missile flies ' +
+        path.toFixed(0) +
+        ' NM' +
+        (path > o.dist + 0.5 ? ' (through the waypoint)' : '') +
+        ', its range is ' +
+        o.rmax.toFixed(0) +
+        ' NM.',
+      true,
+    ]);
   else if (!covers)
     warn.push([
       'The missile does not reach the far side of the area of the ship (±' + U + ' NM): launch nearer.',
@@ -120,8 +131,9 @@ export function tasmoPlan(o) {
     desc,
     acq,
     mode,
-    enable: Math.max(1, Math.round(o.dist - U - 2)),
-    destruct: Math.round(o.dist + U + MARGIN_NM),
+    path,
+    enable: Math.max(1, Math.min(99, Math.round(o.dist - U - 2))),
+    destruct: Math.min(99, Math.round(o.dist + U + MARGIN_NM)),
     tof,
     tLaunch,
     tDesc: desc ? back(desc.nm) : null,
@@ -135,19 +147,24 @@ export const SKIM_FT = 100, // the cruise of the missile over the sea
   POP_FT = 1500, // the top of the terminal pop-up
   POP_NM = 2, // where the pop-up starts before the ship
   HIGH_NM = 10; // HIGH fly-out: the missile stays at the launch altitude to 10 NM (or the enable range in BOL), then descends
-/** where the seeker turns on, NM from the ship: RBL at the edge of its search area, BOL at the enable range from the launch, LOS near the ship */
+/** where the seeker turns on, NM from the ship (dist: the flight of the missile to the ship): RBL at the edge of its search area, BOL at the enable
+ * range from the launch, LOS shortly after the launch (Dash-34) */
 export function seekerNm(mode, dist, area, enable) {
-  return mode == 'bol' ? Math.max(0, dist - enable) : mode == 'los' ? Math.min(dist, 10) : Math.min(dist, area + 2);
+  return mode == 'bol' ? Math.max(0, dist - enable) : mode == 'los' ? Math.max(0, dist - 1) : Math.min(dist, area + 2);
 }
 /** the radius of the search area (NM, an estimate): LARGE grows with the range (and covers the area of the ship), MED and SMALL are fixed */
 export const areaNm = (size, dist, U) =>
   size == 'SMALL' ? 3 : size == 'MED' ? 6 : Math.max(U, Math.round(dist * 0.15));
-/** the vertical flight of the missile: [[NM from the ship, ft]] from the launch to the impact; o: {dist, alt, fly: 'LOW' | 'HIGH', term: 'POP' | 'SKIM',
- * mode, enable} */
+// a 30° descent of the missile: about 1 NM a 3,500 ft
+const drop = a => Math.max(0.3, (a - SKIM_FT) / 3500);
+/** the vertical flight of the missile: [[NM to go to the ship, ft]] from the launch to the impact; o: {dist (NM: its flight, through the waypoint),
+ * alt, fly: 'LOW' | 'HIGH', term: 'POP' | 'SKIM', mode, enable, wpt (NM from the launch to the waypoint, 0: none)}. HIGH: down at 10 NM, the waypoint
+ * or the enable range (BOL), the shortest */
 export function missilePath(o) {
-  const hi = o.fly == 'HIGH' ? Math.min(HIGH_NM, o.mode == 'bol' ? o.enable : HIGH_NM, o.dist - 3) : 0,
-    // a 30° descent: about 1 NM a 3,500 ft
-    drop = a => Math.max(0.3, (a - SKIM_FT) / 3500),
+  const hi =
+      o.fly == 'HIGH'
+        ? Math.min(HIGH_NM, o.wpt > 0 ? o.wpt : HIGH_NM, o.mode == 'bol' ? o.enable : HIGH_NM, o.dist - 3)
+        : 0,
     P = [[o.dist, o.alt]];
   if (hi > 0) P.push([o.dist - hi, o.alt]);
   const d0 = o.dist - hi;
@@ -155,6 +172,115 @@ export function missilePath(o) {
   if (o.term == 'POP') P.push([POP_NM, SKIM_FT], [POP_NM / 2, POP_FT], [0, 0]);
   else P.push([0, 30]);
   return P;
+}
+
+/** the nearest launch (NM of flight, an estimate: the Dash-34 gives no number): the 30° descent of the missile, then its seeker on before the ship
+ * (RBL: the search area; BOL: the enable range, 1 NM at least; LOS: 1 NM) and 2 NM to search */
+export const minNm = (mode, alt, area, enable) =>
+  Math.ceil(drop(alt) + (mode == 'rbl' ? area + 2 : mode == 'bol' ? Math.max(1, enable) : 1) + 2);
+
+const deg = r => ((((r * 180) / Math.PI) % 360) + 360) % 360;
+const turnOf = (a, b) => {
+  const d = Math.abs(deg(Math.atan2(a.x, a.y)) - deg(Math.atan2(b.x, b.y)));
+  return d > 180 ? 360 - d : d;
+};
+export const WPT_TURN = 90, // the turns of the missile that the checks call too large (estimates: the Dash-34 names the alerts, not the limits)
+  WPT_LEG_TURN = 135;
+/**
+ * The Harpoon waypoint of RBL (Dash-34 4.2.6.1.1, TGT-TO-WPT: the true bearing and the range from the target to the waypoint, on a target STPT 90-99):
+ * the missile flies to it, then turns to the ship. o: {ship {x, y}, launch {x, y}, brg (° true, from the ship), rng (NM), seek (NM from the ship: the
+ * seeker on), alt (ft: the launch)}
+ * @returns {{p: {x: number, y: number}, leg: number, path: number, turn0: number, turnW: number, warn: [string, boolean][]}}
+ */
+export function hpnWpt(o) {
+  const b = (o.brg * Math.PI) / 180,
+    p = { x: o.ship.x + Math.sin(b) * o.rng * KM_NM, y: o.ship.y + Math.cos(b) * o.rng * KM_NM },
+    v = (a, c) => ({ x: c.x - a.x, y: c.y - a.y }),
+    leg = Math.hypot(p.x - o.launch.x, p.y - o.launch.y) / KM_NM,
+    turn0 = turnOf(v(o.launch, o.ship), v(o.launch, p)), // the aircraft heads to the ship at the launch
+    turnW = turnOf(v(o.launch, p), v(p, o.ship)),
+    near = Math.ceil(drop(o.alt) + 2),
+    warn = [];
+  if (o.rng < o.seek + 2)
+    warn.push([
+      'TGT TO WPT RANGE TOO SMALL: the waypoint ' +
+        o.rng +
+        ' NM from the ship, the seeker turns on at about ' +
+        o.seek.toFixed(0) +
+        ' NM: put it at ' +
+        Math.ceil(o.seek + 2) +
+        ' NM or more.',
+      true,
+    ]);
+  if (leg < near)
+    warn.push([
+      'WPT TOO CLOSE: ' + leg.toFixed(1) + ' NM from the launch (the missile still descends): move it away.',
+      true,
+    ]);
+  if (turn0 > WPT_TURN)
+    warn.push([
+      'INITIAL TURN TOO LARGE: ' +
+        Math.round(turn0) +
+        '° from your heading to the waypoint (an estimate): turn toward it.',
+      false,
+    ]);
+  if (turnW > WPT_LEG_TURN)
+    warn.push(['WPT TURN TOO LARGE: ' + Math.round(turnW) + '° at the waypoint (an estimate): move it.', false]);
+  return { p, leg, path: leg + o.rng, turn0, turnW, warn };
+}
+/** the default waypoint: 60° off the line of the attack (the side of the turn given), the seeker range plus 8 NM from the ship */
+export function defaultWpt(ship, launch, seek, side = 1) {
+  const b = deg(Math.atan2(launch.x - ship.x, launch.y - ship.y)) + 60 * side;
+  return { brg: Math.round((((b % 360) + 360) % 360) / 5) * 5 || 360, rng: Math.ceil(seek + 8) };
+}
+
+/** BOL: the checks of the enable and destruct ranges (Dash-34 4.2.6.1.4; ACTIVE RANGE TOO SMALL, DSTR RANGE TOO SMALL) for the ship at dist NM, ±U */
+export function bolWarn(enable, destruct, dist, U) {
+  const W = [];
+  if (destruct < dist)
+    W.push([
+      'DSTR RANGE TOO SMALL: the missile destructs ' +
+        destruct +
+        ' NM from the launch, before the ship (' +
+        dist +
+        ' NM).',
+      true,
+    ]);
+  else if (destruct < dist + U)
+    W.push([
+      'The destruct range (' +
+        destruct +
+        ' NM) does not cover the far side of the area of the ship (' +
+        (dist + U) +
+        ' NM).',
+      false,
+    ]);
+  if (destruct - enable < 2 * Math.max(2, U) && destruct >= dist)
+    W.push([
+      'ACTIVE RANGE TOO SMALL: ' +
+        (destruct - enable) +
+        ' NM between the enable and the destruct ranges: the seeker has no time to search.',
+      true,
+    ]);
+  else if (enable > dist - Math.min(U, 2))
+    W.push([
+      'The seeker turns on at ' + enable + ' NM, past the near side of the area of the ship: a lower enable range.',
+      false,
+    ]);
+  return W;
+}
+
+/** the ships within 5 NM of the line of the missile, before the target (LOS and BOL fly the bearing: the first ship found is the target);
+ * ships [{x, y, name, friend}] */
+export function inTheWay(launch, ship, ships) {
+  const L = Math.hypot(ship.x - launch.x, ship.y - launch.y) || 1,
+    ux = (ship.x - launch.x) / L,
+    uy = (ship.y - launch.y) / L;
+  return ships.filter(s => {
+    const a = (s.x - launch.x) * ux + (s.y - launch.y) * uy,
+      c = Math.abs(-(s.x - launch.x) * uy + (s.y - launch.y) * ux);
+    return s !== ship && a > 0 && a < L - KM_NM && c < 5 * KM_NM;
+  });
 }
 
 /** the launch distance to start with: outside the ring (the ship U NM nearer) with a margin, inside the range; null when there is no room */
@@ -167,24 +293,39 @@ export function defaultDist(ship, alt, rmax) {
   return Math.round(Math.max(Math.min(hi, Math.max(lo, rmax * 0.85)), Math.min(lo, rmax * 0.9)));
 }
 
-/** the steps of the Harpoon (Dash-34 4.2.6.1) or of another missile; opt: {mode, area, prio, fly, term}; at: the launch (point, altitude) */
+/** the steps of the Harpoon (Dash-34 4.2.6.1) or of another missile; opt: {mode, area, prio, fly, term, enable, destruct (BOL), wpt {brg, rng} | null
+ * (RBL), rmax (NM), hdg (the heading of the launch, 3 digits)}; at: the launch (point, altitude). The keys Power and Launch take the times of the page */
 export function tasmoSteps(name, opt, P, at) {
-  const hpn = isHarpoon(name);
+  const hpn = isHarpoon(name),
+    m = opt.mode,
+    en = opt.enable != null ? opt.enable : P.enable,
+    ds = opt.destruct != null ? opt.destruct : P.destruct;
   return [
-    ...(hpn ? [['Before take-off', 'SMS: AG84 PWR ON and BIT (power for 20 minutes at most)']] : []),
+    ...(hpn ? [['Before take-off', 'SMS: AG84 PWR ON, BIT, then PWR OFF (the power for 20 minutes at most)']] : []),
     ...(hpn
       ? [
           [
             'Before the descent',
             'WPN: ' +
-              opt.mode.toUpperCase() +
-              (opt.mode == 'rbl'
-                ? ' · ' + opt.area + ' · ' + opt.prio
-                : ' · enable ' + P.enable + ' NM · destruct ' + P.destruct + ' NM') +
-              ' · ' +
-              opt.fly +
-              ' · ' +
-              opt.term,
+              m.toUpperCase() +
+              (m == 'rbl'
+                ? ' · ' + opt.area + (opt.area == 'LARGE' ? ' · ' + opt.prio : '')
+                : m == 'bol'
+                  ? ' · ENBL ' + en + ' NM · DSTR ' + ds + ' NM'
+                  : '') +
+              (m == 'los' ? '' : ' · ' + opt.fly + ' · ' + opt.term),
+          ],
+        ]
+      : []),
+    ...(hpn && m == 'rbl' && opt.wpt
+      ? [
+          [
+            'Waypoint',
+            'DED: LIST 1 · DEST STPT 90 · SEQ to TGT-TO-WPT · TBRG ' +
+              String(opt.wpt.brg).padStart(3, '0') +
+              '° · RNG ' +
+              (+opt.wpt.rng).toFixed(1) +
+              ' NM · mode select it',
           ],
         ]
       : []),
@@ -194,11 +335,34 @@ export function tasmoSteps(name, opt, P, at) {
       : []),
     [
       'Target',
-      opt.mode == 'bol'
-        ? 'The bearing to the centre of the area (STPT 90)'
-        : 'STPT 90 (HPN TGT), or the SPI from the radar or the pod',
+      m == 'rbl'
+        ? 'STPT 90 (HPN TGT), or the SPI from the radar or the pod'
+        : 'No target point: the missile flies the heading of the aircraft at the launch',
     ],
-    ['Launch', (hpn ? 'PWR ON (ready in 15 s) · ' : '') + 'MASTER ARM · in range · ' + at],
+    ...(hpn
+      ? [
+          m == 'los'
+            ? [
+                'Power',
+                'LOS turns the power off · fly straight and wings level to the ship, then PWR ON · FLY WINGS LEVEL 40 s before the launch',
+              ]
+            : ['Power', 'SMS: PWR ON (ready in 15 s, NOT READY until then; 20 minutes at most)'],
+        ]
+      : []),
+    ...(hpn && m == 'rbl' && opt.rmax > 0
+      ? [
+          [
+            'In range',
+            'The HUD launch scale from ' +
+              Math.round(opt.rmax * 1.2) +
+              ' NM (120% of the range): the in-range cue between the minimum and the maximum',
+          ],
+        ]
+      : []),
+    [
+      'Launch',
+      'MASTER ARM · ' + (m == 'rbl' ? 'in range · ' : 'heading ' + (opt.hdg || '---') + ' to the ship · ') + at,
+    ],
     [
       'Release',
       hpn

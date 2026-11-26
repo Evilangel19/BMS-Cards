@@ -889,10 +889,13 @@ function tasmoCtx() {
     KM = 1.852,
     tw = e.f.wps[tk.n - 1],
     tid = tw && tw.tid;
-  let ships = [];
+  let ships = [],
+    friends = [];
   try {
-    ships = mapUnits(ST.C, e.team)
-      .filter(m => m.u.kind == 'sea' && m.hostile)
+    const MU = mapUnits(ST.C, e.team);
+    // the friendly ships: always known; LOS and BOL must not find one first on the line of the missile
+    friends = MU.filter(m => m.u.kind == 'sea' && m.ally).map(m => ({ x: m.u.x, y: m.u.y, name: m.name }));
+    ships = MU.filter(m => m.u.kind == 'sea' && m.hostile)
       .map(m => ({
         id: m.u.id.n + ':' + m.u.id.c,
         x: m.u.x,
@@ -959,6 +962,7 @@ function tasmoCtx() {
     wps: e.f.wps,
     task: { n: tk.n, x: tk.x, y: tk.y, t0: tk.t0 },
     ships: ships.slice(0, 30),
+    friends,
     weapons,
     radar: (D.rr || {})[e.ac] || 0,
     // the ship of the task, else the nearest to the task steerpoint that is not a patrol boat, else the nearest
