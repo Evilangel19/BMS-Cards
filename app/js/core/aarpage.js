@@ -5,7 +5,7 @@
 // with the calls by their names, the map (the lent Leaflet map), the cards (Smart AAR, classic with the map), Display > AAR on the Map page, OA1 / OA2 of the
 // Refuel steerpoint in the DTC. One list of shapes for the map and the cards (core/aakit.js).
 // The page draws inside the Performance page (core/perfpage.js): left() is its card in the left column, mount() the middle and the right columns.
-// deps: {esc, toast, confirm, ctx() -> X, fuel(wps) -> {plan, need(k), loaded, joker, cap (the tanks full)} | null, toLL, attach, detach, snap, kbAdd, dtc {open, has, setOA}, sop()}
+// deps: {esc, toast, confirm, ctx() -> X, cyclePlan, planMode, fuel(wps) -> {plan, need(k), loaded, joker, cap (the tanks full)} | null, toLL, attach, detach, snap, kbAdd, dtc {open, has, setOA}, sop()}
 // X: {ok, why, me {key, name, n, ac, pkgNo, tag}, wps (the waypoints of the flight), k (index of its Refuel steerpoint), tankers [{name, type, tcn, uhf, win,
 //     wps}], sop [{id, o, txt}] (the Tanker topics of its SOP)}
 import {
@@ -43,6 +43,7 @@ const KINDS = [
   ['map', 'With the map'],
 ];
 const DIST = [10, 80, 5];
+const PFL = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; // the button of the filters of the map (as DEAD and TASMO)
 const PUSH_KT = 420, // to the ARIP from the push steerpoint when the Refuel steerpoint has no time (the speed of the fuel plan without times)
   ARRIVE = 1000; // the least fuel at the join (lb): as the tanker arrival of the fuel plan
 const MODE = { golf: 'RV GOLF', echo: 'RV ECHO', head: 'RV HEAD-ON' };
@@ -444,8 +445,8 @@ export function createAarPage(deps) {
       proc = procedure(method(), (sopOf('obs') || {}).o, R.turn).map(r => [r[0], esc(r[1])]),
       W = warns();
     return {
-      mid: `${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
-      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate).">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}</div>`,
+      mid: `<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
+      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate).">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}</div>${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}`,
     };
   }
   /** the middle and right columns, in the Performance page (#pfr, #pfr2) */
@@ -457,7 +458,7 @@ export function createAarPage(deps) {
     detachMap(true);
     failed = false;
     pend = null;
-    c.innerHTML = `<div id="aartl"></div><div class="wcard" id="aarmc"><div class="wh"><h3 id="aarmh">Map</h3><span style="flex:1"></span><button class="btn g" type="button" data-arfit>Fit view</button></div><div id="aarmap" class="wmapbox"></div><div class="wleg" id="aarleg"></div></div><div id="aartb"></div>`;
+    c.innerHTML = `<div id="aartl"></div><div class="wcard" id="aarmc"><div class="wh"><h3 id="aarmh">Map</h3><span style="flex:1"></span><button class="btn g" type="button" data-arfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-arpf>${PFL[deps.planMode ? deps.planMode() : 0]}</button></div><div id="aarmap" class="wmapbox"></div><div class="wleg" id="aarleg"></div></div><div id="aartb"></div>`;
     r.innerHTML = `<div class="wcard"><h3>Smart card<span class="wtip" title="Add card (top right) puts it on the Kneeboard, with the classic card">ⓘ</span></h3><canvas class="aarpv" width="520" height="780" aria-label="The Smart AAR card"></canvas></div><div id="aartt"></div>`;
     wire(root);
     update();
@@ -536,6 +537,11 @@ export function createAarPage(deps) {
         update();
       }
       if (t.closest('[data-aroa]')) writeOA();
+      const pf = /** @type {HTMLElement|null} */ (t.closest('[data-arpf]'));
+      if (pf && deps.cyclePlan) {
+        pf.textContent = PFL[deps.cyclePlan()];
+        paint();
+      }
       if (t.closest('[data-arfit]') && M) {
         fit = true;
         paint();

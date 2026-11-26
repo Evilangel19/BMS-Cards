@@ -738,7 +738,7 @@ export function createPerfPage(deps) {
     // AAR: its own page in the middle and right columns (core/aarpage.js); a slider of the left column only computes it again
     if (aarOn()) {
       if (keepLeft && root.querySelector('#aarl')) return deps.aar.update();
-      root.innerHTML = `${tabs}<div class="wpg w3"><div class="wpl">${inputs()}</div><div class="wpc" id="pfr" style="grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px"></div><div class="wpr" id="pfr2"></div></div>`;
+      root.innerHTML = `${tabs}<div class="wpg w3 ar"><div class="wpl">${inputs()}</div><div class="wpc" id="pfr" style="grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px"></div><div class="wpr" id="pfr2"></div></div>`;
       wire(root, false);
       deps.aar.mount(root);
       return;

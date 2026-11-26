@@ -1908,6 +1908,8 @@ export async function init11() {
     toast: appToast,
     confirm: m => confirm(m),
     ctx: aarCtx,
+    cyclePlan: () => mapV.cyclePlan(),
+    planMode: () => mapV.planMode(),
     fuel: w => (pfPage ? pfPage.fuelFor(w) : null),
     toLL: (x, y) => mapV.toLL(x, y),
     attach: el => mapV.attach(el),
