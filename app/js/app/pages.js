@@ -878,6 +878,11 @@ function tasmoCtx() {
   const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
     e = x && ATOL.find(z => z.f === x.f);
   if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  if (e.mission != 'TASMO' && categoryOf(e.mission) != 'Countersea')
+    return {
+      ok: false,
+      why: e.callsign + ' flies ' + e.mission + ': TASMO is planned for a TASMO (Countersea) flight.',
+    };
   const tk = taskOf(e.f.wps);
   if (!tk) return { ok: false, why: e.callsign + ' has no task steerpoint.' };
   const D = ST.C.D,
@@ -903,12 +908,14 @@ function tasmoCtx() {
         tgt: !!(tid && m.u.id && m.u.id.n == tid.n && m.u.id.c == tid.c),
         d: Math.hypot(m.u.x - tk.x, m.u.y - tk.y) / KM,
       }))
-      .filter(m => m.tgt || m.d < 150)
+      // only what our side knows: the ships it spotted, and the ship of the task (the ATO gives it, spotted or not); no peek at the others
+      .filter(m => m.tgt || (m.spotted && m.d < 150))
       .sort((a, b) => b.tgt - a.tgt || a.d - b.d);
   } catch (er) {
     /* no unit table */
   }
-  if (!ships.length) return { ok: false, why: 'No enemy ship within 150 NM of the task of ' + e.callsign + '.' };
+  if (!ships.length)
+    return { ok: false, why: 'No enemy ship spotted within 150 NM of the task of ' + e.callsign + '.' };
   // the weapons of the lead for a ship: the anti-ship missiles (the weapon table), the Mavericks, the bombs
   const g = CAM.loadGroups(e.f).find(z => z.ac.includes(1)),
     weapons = g
@@ -947,6 +954,7 @@ function tasmoCtx() {
     ships: ships.slice(0, 30),
     weapons,
     radar: (D.rr || {})[e.ac] || 0,
+    // the ship of the task, else the nearest to the task steerpoint that is not a patrol boat, else the nearest
     target: (ships.find(s => s.tgt) || ships.find(s => !s.boat) || ships[0]).id,
   };
 }
@@ -1534,6 +1542,8 @@ export async function init9() {
       snap: scale => mapV.snap(scale),
       kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
       openMode: d.openMode,
+      cyclePlan: () => mapV.cyclePlan(),
+      planMode: () => mapV.planMode(),
       dtc: {
         open: () => lines.length > 0,
         has: d.dtc.has,

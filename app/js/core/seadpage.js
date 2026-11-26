@@ -264,7 +264,7 @@ export function createSeadPage(deps) {
     // the slider stays while it moves (the plan follows it): the table and the note are written again, not the slider
     if (!q('#sdthb'))
       q('#sdth').innerHTML =
-        `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p><div class="slr"><label>Package time</label><input type="range" min="-300" max="300" step="15" value="${st.dt}" data-sddt aria-label="The package late (ROLEX) or early (LEEROY)"><em data-sddte></em></div><p class="hint wnote" id="sddtn"></p>`;
+        `<div id="sdthb"></div><div class="slr"><label>First impact at</label><input type="range" min="50" max="100" step="5" value="${st.k}" data-sdk><em data-sdke>${st.k}% R</em></div><p class="hint wnote" id="sdkn"></p><div class="slr sdtm"><label>Package time</label><input type="range" min="-300" max="300" step="15" value="${st.dt}" data-sddt aria-label="The package late (ROLEX) or early (LEEROY)"><em data-sddte></em></div><p class="hint wnote" id="sddtn"></p>`;
     // how much of the time the protected flights spend inside the rings the HARMs cover
     const act = P.rows.filter(r => !st.skip[r.id]),
       needT = act.reduce((a, r) => a + r.need.reduce((x, [t0, t1]) => x + t1 - t0, 0), 0),

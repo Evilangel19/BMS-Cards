@@ -1434,6 +1434,14 @@
   font-size: 12px;
   cursor: pointer;
 }
+.sdout input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+.wpg .slr.sdtm {
+  grid-template-columns: 104px 1fr auto;
+}
 .sdtot {
   margin: 6px 0 0;
   font-size: 12px;
@@ -1538,8 +1546,31 @@
   flex: 1 1 0;
   min-width: 0;
 }
-.wpg.sdg.ts .wh select {
-  max-width: 260px;
+.wpg.sdg.ts {
+  grid-template-columns: 440px minmax(0, 1fr) 360px;
+}
+@media (max-width: 1499px) {
+  .wpg.sdg.ts {
+    grid-template-columns: 400px minmax(0, 1fr);
+  }
+}
+#wptasmo #tsmap {
+  height: 640px;
+}
+#wptasmo select {
+  background: #0b0f14;
+  color: var(--tx);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 3px 6px;
+  font: inherit;
+  max-width: 62%;
+  cursor: pointer;
+}
+#wptasmo select:hover,
+#wptasmo select:focus {
+  border-color: var(--ac, #4cc38a);
+  outline: none;
 }
 .tsprof {
   width: 100%;

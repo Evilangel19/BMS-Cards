@@ -36,6 +36,8 @@ try:
         check('the TASMO tab between HARM and Target', pg.locator('#wp .wtabs [data-mode]').all_inner_texts()[-3:] == ['HARM', 'TASMO', 'Target'])
         pg.click('#wp [data-mode=tasmo]'); pg.wait_for_timeout(1500)
         check('the page as DEAD: three columns, no Smart card preview', pg.locator('#wptasmo .wpg.sdg.dg .wpl').count() == 1 and pg.locator('#wptasmo .wpr #tssh').count() == 1 and pg.locator('#wptasmo .wpr canvas').count() == 0)
+        check('Map filters at the right of Fit view; the dark menus', pg.locator('#wptasmo [data-tsfit] + [data-tspf]').count() == 1 and pg.evaluate("()=>getComputedStyle(document.querySelector('#wptasmo select')).backgroundColor") == 'rgb(11, 15, 20)')
+        check('the map larger than the side panels allow on DEAD (640 px high)', pg.evaluate("()=>document.querySelector('#tsmap').getBoundingClientRect().height") == 640)
         check('Add card in the bar of the tabs, usable', pg.locator('#wp .wtabs [data-tabcard]').count() == 1 and pg.locator('#wp .wtabs [data-tabcard]').is_enabled())
         P = plan()
         check('the target ship of the task, spotted: ±3 NM', P['ship'] == '1:1' and P['P']['U'] == 3)

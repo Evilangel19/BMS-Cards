@@ -4,7 +4,7 @@
 // Pop-up), the altitudes, the map or the profile, the steps; the shot, the nav offsets (OA1 the launch, OA2 the radar acquisition or the descent, from
 // the steerpoint of the route nearest to the ship) and the ship as the Harpoon steerpoint 90 in the DTC, the checks. The cards: Smart TASMO and the
 // classic card with the map. Display > TASMO on the Map page. One list of shapes for the map and the cards (core/aakit.js).
-// deps: {esc, toast, confirm, ctx() -> X, mis() -> Promise<Misdata table | null>, toLL, attach, detach, snap, kbAdd, openMode(mode, {x, y}),
+// deps: {esc, toast, confirm, ctx() -> X, mis() -> Promise<Misdata table | null>, toLL, attach, detach, snap, kbAdd, openMode(mode, {x, y}), cyclePlan, planMode,
 //   dtc {open(), has(sec), setOA(key, v), setTarget(key, t)}}
 // X: {ok, why, me {key, name, n, ac, pkgNo, tag}, wps, task {n, x, y, t0}, ships [{id, x, y, name, cat, rng, low, det, detAir, spotted, boat, d, grp}],
 //   weapons [{id, name, n, rngKm, kind: 'asm' | 'mav' | 'bomb'}], radar (NM), target (ship id)}
@@ -43,7 +43,8 @@ const KINDS = [
   ['smart', 'Smart TASMO'],
   ['map', 'With the map'],
 ];
-const FT_NM = 6076.12;
+const FT_NM = 6076.12,
+  PFL = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; // the button of the filters of the map (as DEAD)
 const fmt = v => (v == null || !isFinite(v) ? '--' : Math.round(v).toLocaleString('en-US'));
 const hm = t => {
   const m = Math.floor((t || 0) / 60000);
@@ -164,9 +165,8 @@ export function createTasmoPage(deps) {
   };
   const hpn = () => !!W && isHarpoon(W.name);
   const grp = () => X.ships.filter(s => s !== ship && nmOf(s, ship) <= 10);
-  const threats = () =>
-    X.ships.filter(s => s.rng > 0 && (s === ship || nmOf(s, ship) <= 60) && (s.boat ? false : true));
-  const boats = () => X.ships.filter(s => s.boat && nmOf(s, ship) <= 80);
+  const threats = () => X.ships.filter(s => s.rng > 0 && !s.boat && (s === ship || nmOf(s, ship) <= 60));
+  const boats = () => X.ships.filter(s => s.boat && s !== ship && nmOf(s, ship) <= 80);
   // all the checks: the plan, the patrol boats near the way in
   function checks() {
     const C = P ? [...P.warn] : [];
@@ -337,7 +337,7 @@ export function createTasmoPage(deps) {
         .map(([v, l]) => `<button type="button" class="${st.view == v ? 'on' : ''}" data-tsview="${v}">${l}</button>`)
         .join(
           ''
-        )}</span><span style="flex:1"></span><button class="btn g" type="button" data-tsfit>Fit view</button></div>
+        )}</span><span style="flex:1"></span><button class="btn g" type="button" data-tsfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-tspf>Map filters</button></div>
       <div id="tsmapw"${st.view == 'map' ? '' : ' hidden'}><div id="tsmap" class="wmapbox"></div><div class="wleg" id="tsleg"></div></div><div id="tsprof"${st.view == 'prof' ? '' : ' hidden'}></div></div><div class="wcard" id="tsstp"></div></div>
       <div class="wpr"><div class="wcard" id="tssh"></div><div class="wcard" id="tsoa"></div><div id="tswn"></div></div></div>`;
     wire();
@@ -348,6 +348,8 @@ export function createTasmoPage(deps) {
     if (!root.querySelector('.ts') || !X || !X.ok || !ship) {
       build();
       if (!X || !X.ok || !ship) return detachMap(true);
+      const pf = root.querySelector('[data-tspf]');
+      if (pf) pf.textContent = PFL[deps.planMode ? deps.planMode() : 0];
     }
     const q = s => /** @type {HTMLElement} */ (root.querySelector(s));
     const fk = X.me.key + ':' + ship.id;
@@ -374,7 +376,7 @@ export function createTasmoPage(deps) {
   function target() {
     const g = grp(),
       U = ship.spotted ? 3 : 40;
-    return `<div class="wh"><h3>Target · ${esc(ship.name)}</h3><span style="flex:1"></span><select data-tsship aria-label="Ship">${X.ships
+    return `<div class="wh"><h3>Target</h3><span style="flex:1"></span><select data-tsship aria-label="Ship">${X.ships
       .map(
         s =>
           `<option value="${esc(s.id)}"${s === ship ? ' selected' : ''}>${esc(s.name)} · ${s.d.toFixed(0)} NM${s.spotted ? '' : ' · not spotted'}</option>`
@@ -538,6 +540,11 @@ export function createTasmoPage(deps) {
         root.querySelector('#tsprof').toggleAttribute('hidden', st.view != 'prof');
         root.querySelector('#tsph').textContent = st.view == 'map' ? 'Horizontal plan' : 'Profile';
         if (st.view == 'map') paint();
+      }
+      const pf = /** @type {HTMLElement|null} */ (t.closest('[data-tspf]'));
+      if (pf && deps.cyclePlan) {
+        pf.textContent = PFL[deps.cyclePlan()];
+        paint();
       }
       if (t.closest('[data-tsfit]') && M) {
         fit = true;
