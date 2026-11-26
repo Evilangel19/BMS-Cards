@@ -1574,3 +1574,12 @@
   display: block;
   border-radius: 8px;
 }
+/* A-G > Pop-up / HADB with a Maverick: the controls that do not apply, dark (core/weaponspage.js) */
+#wp .woff {
+  opacity: 0.4;
+}
+#wp .woff input,
+#wp .woff button,
+#wp .woff select {
+  cursor: not-allowed;
+}

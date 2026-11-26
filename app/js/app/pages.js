@@ -1665,6 +1665,8 @@ export async function init9() {
   if (isDesktop()) onFilesDropped(files => ST.tgPage.drop(files));
   ST.wpPage = createWeaponsPage({
     ...agDeps(),
+    mis: misLoad, // the Misdata of the Maverick (its range)
+    addPpt: m => mapV.addPpt(m), // the Boresight PPT of the Maverick
     offs: OFFS,
     harm: harmTab,
     tasmo: tasmoPage,

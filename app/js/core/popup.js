@@ -2,6 +2,7 @@
 // Pop-up attack calculator (CCRP / CCIP dive delivery): pure functions, no DOM.
 // Plane geometry in BMS coordinates {n, e} = north / east feet. Written from scratch for BMS Cards; the numbers were
 // cross-checked against the UOAF bms_html_briefing pop-up computer (see the archive of the dev branch, docs/archive/ARCHITECTURE-history.md, "Pop-up engine").
+import { mavFall } from './maverick.js';
 export const FT_NM = 6076.12,
   FT_KT = 1.68781,
   MRA_BUFFER = 120;
@@ -51,6 +52,10 @@ export const LIMITS = {
   burstAltitude: [100, 10000, 100],
   egressAngle: [15, 90, 5],
   egressHeading: [1, 360, 1],
+  // the Maverick (core/maverick.js): the launch altitude (ft AGL), the slant range (NM), the interval of two launches (s)
+  mAlt: [500, 30000, 100],
+  mRange: [1, 15, 0.1],
+  mGap: [1, 15, 1],
 };
 
 const rad = d => (d * Math.PI) / 180,
@@ -264,9 +269,12 @@ export function computePopup(target, ref, inp) {
     v.egressAngle >= 0
   );
   if (bad) return { error: 'Pop-up parameters are outside valid ranges.' };
+  // the Maverick (v.msl): one launch on the dive line, no stick (core/maverick.js)
+  if (v.msl) Object.assign(v, { ripplePulses: 1, stickSpacing: 0 });
   const pulses = Math.max(1, Math.round(v.ripplePulses));
-  const fall =
-    v.rangeModel === 'manual'
+  const fall = v.msl
+    ? mavFall(v.releaseAltitude, v.diveAngle, v.mRange)
+    : v.rangeModel === 'manual'
       ? { range: v.bombRange, time: NaN }
       : bombFall(v.releaseAltitude, v.releaseSpeed, v.diveAngle, v.rangeModel);
   if (!fall || !(fall.range > 0)) return { error: 'Could not compute bomb range.' };
@@ -280,7 +288,8 @@ export function computePopup(target, ref, inp) {
     trackV = v.releaseSpeed * 1.69 * v.timeOnFinal * Math.sin(A);
   const mapDist = relRange + trackH,
     aod = v.releaseAltitude / Math.tan(A) - relRange;
-  if (aod <= 0) return { error: 'AOD is negative for this profile. Increase release altitude or reduce bomb range.' };
+  if (aod <= 0 && !v.msl)
+    return { error: 'AOD is negative for this profile. Increase release altitude or reduce bomb range.' };
   const climb = v.diveAngle <= 15 ? v.diveAngle + 5 : v.diveAngle + 10,
     C = rad(climb),
     angleOff = 2 * climb;

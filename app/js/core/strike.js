@@ -16,6 +16,7 @@ import {
   offsetRow,
 } from './popup.js';
 import { toMag } from './magvar.js';
+import { mavFall } from './maverick.js';
 
 const rad = d => (d * Math.PI) / 180,
   deg = r => (r * 180) / Math.PI,
@@ -126,8 +127,12 @@ export function computeHadb(target, ref, inp) {
     v.stickSpacing >= 0
   ))
     return { error: 'HADB parameters are outside valid ranges.' };
+  // the Maverick (v.msl): one launch on the dive line, no stick (core/maverick.js)
+  if (v.msl) Object.assign(v, { ripplePulses: 1, stickSpacing: 0 });
   const pulses = Math.max(1, Math.round(v.ripplePulses)),
-    fall = bombFall(v.releaseAltitude, v.releaseSpeed, v.diveAngle, v.rangeModel);
+    fall = v.msl
+      ? mavFall(v.releaseAltitude, v.diveAngle, v.mRange)
+      : bombFall(v.releaseAltitude, v.releaseSpeed, v.diveAngle, v.rangeModel);
   if (!fall || !(fall.range > 0)) return { error: 'Could not compute bomb range.' };
   const gs = v.releaseSpeed * Math.cos(A),
     gsFps = gs * FT_KT,
@@ -137,7 +142,8 @@ export function computeHadb(target, ref, inp) {
     trackH = gsFps * v.timeOnFinal,
     trackV = vFps * Math.sin(A) * v.timeOnFinal;
   const aod = v.releaseAltitude / Math.tan(A) - relRange;
-  if (aod <= 0) return { error: 'AOD is negative for this profile. Increase release altitude or reduce bomb range.' };
+  if (aod <= 0 && !v.msl)
+    return { error: 'AOD is negative for this profile. Increase release altitude or reduce bomb range.' };
   const attack = norm(v.heading),
     hin = norm(attack + (v.side === 'right' ? -v.angleOff : v.angleOff));
   const u0 = { n: unit(hin).n, e: unit(hin).e, v: 0 },

@@ -26,6 +26,25 @@ import {
 } from './strike.js';
 import { toMag } from './magvar.js';
 import { agChecks, agAttack, TOSS_MAX } from './agrules.js';
+import {
+  isMav,
+  isLaserMav,
+  mavKey,
+  mavShot,
+  diveFor,
+  autoPwr,
+  boresightAt,
+  scaleNm,
+  MAV_DEF,
+  MAX_BANK,
+  G_MIN,
+  G_MAX,
+  SPIN_MIN,
+  PWR_MIN,
+  VIDEO_MIN,
+  AUTO_PWR_NM,
+} from './maverick.js';
+import { rmax as misRmax } from '../bmsdata/missiledata.js';
 
 const KEY = 'wppopup3';
 const MODES = [
@@ -52,6 +71,9 @@ const SL = [
   ['angleOff', 'Angle off', '°', 0],
   ['oa1ToVip', 'OA1 to VIP', ' nm', 1],
   ['egressHeading', 'Egress heading', '°', 0],
+  ['mAlt', 'Launch alt.', ' ft', 0],
+  ['mRange', 'Launch range', ' nm', 1],
+  ['mGap', 'Interval', ' s', 0],
 ];
 const fmt = (v, d = 0) =>
   Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, ' ');
@@ -64,6 +86,11 @@ const nm2 = ft => (ft / FT_NM).toFixed(2) + ' nm';
 const h3 = h => String(Math.round(h) % 360 || 360).padStart(3, '0');
 // a heading the pilot flies: magnetic (BMS 4.38); the bearings of the NAV OFFSETS and of the VIP stay true, as the DED takes them
 const hm = h => h3(toMag(h));
+// a time of the campaign (ms) as hh:mm
+const hmT = t => {
+  const m = Math.floor((t || 0) / 60000);
+  return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+};
 
 // a NAV OFFSETS value: steerpoint first for the four VIP / VRP rows (as the game and WDP write it), the older order (bearing, range, elevation, steerpoint) is recognised by its first value
 export function navRow(text, withStpt = true) {
@@ -98,8 +125,10 @@ export function createWeaponsPage(deps) {
     refPt: 'tgt',
     stpt: null,
     tgt: null,
-    inp: { ...DEFAULTS },
-    hadb: { ...HADB_DEFAULTS },
+    inp: { ...DEFAULTS, ...MAV_DEF.popup, mN: 1, mGap: 4 },
+    hadb: { ...HADB_DEFAULTS, ...MAV_DEF.hadb, mN: 1, mGap: 4 },
+    // the boresight point of the Maverick (Pop-up / HADB): off, OA1 on a route steerpoint, or a PPT named Boresight; from the steerpoint stpt, a bearing and a range
+    bs: { mode: 'off', stpt: 0, brg: 0, nm: 0 },
     toss: { ...TOSS_DEFAULTS },
     mat: { on: 0, ppt: '', samMax: 30000, samMin: 500 },
     map: { on: true, op: 80 },
@@ -121,7 +150,17 @@ export function createWeaponsPage(deps) {
   const take = (o, keep) => {
     const d = blank(),
       g = k => (o[k] && typeof o[k] == 'object' && !Array.isArray(o[k]) ? part(d[k], o[k]) : keep[k]),
-      r = { ...keep, ...o, inp: g('inp'), hadb: g('hadb'), toss: g('toss'), map: g('map'), mat: g('mat'), fz: g('fz') };
+      r = {
+        ...keep,
+        ...o,
+        inp: g('inp'),
+        hadb: g('hadb'),
+        toss: g('toss'),
+        map: g('map'),
+        mat: g('mat'),
+        fz: g('fz'),
+        bs: g('bs'),
+      };
     // the sets of the lead and of the element belong to the state they came with (an older file has none: the flight only)
     r.grp = o.grp && typeof o.grp == 'object' ? o.grp : {};
     r.fls = o.fls && typeof o.fls == 'object' ? o.fls : null;
@@ -157,6 +196,20 @@ export function createWeaponsPage(deps) {
 
   const cur = () => (st.mode == 'hadb' ? st.hadb : st.mode == 'toss' ? st.toss : st.inp);
   const ENG = m => (m == 'hadb' ? computeHadb : m == 'toss' ? computeToss : computePopup);
+  // the Maverick chosen in the Weapon list (Pop-up and HADB only): its name, else null
+  const mavOf = m =>
+    (m == 'popup' || m == 'hadb') && String(st.bomb || '').startsWith('msl:') ? st.bomb.slice(4) : null;
+  const mav = () => mavOf(st.mode);
+  // the inputs of an engine: with a Maverick the launch altitude and slant range give the release altitude and the dive angle (core/maverick.js)
+  const engIn = (m, b) =>
+    mavOf(m)
+      ? {
+          ...b,
+          msl: true,
+          releaseAltitude: b.mAlt,
+          diveAngle: Math.round(diveFor(b.mAlt, b.mRange) * 10) / 10,
+        }
+      : b;
 
   // ---------- the flight and its split: one attack for the whole flight (the lead's), or, after Split, a second one for the ELEMENT (3-4; 3 in a three-ship)
   // or the WINGMAN (2 in a two-ship). Each attack section (Pop-up, HADB, TOSS) has its own split. The element's attack starts as the mirror of the
@@ -239,7 +292,7 @@ export function createWeaponsPage(deps) {
       putSnap(m, s);
       const c = gather();
       if (!c.t || !c.ref) return null;
-      const r = ENG(m)(c.tPos, c.ref, { ...st[PK(m)], ...fuzeInputs() });
+      const r = ENG(m)(c.tPos, c.ref, engIn(m, { ...st[PK(m)], ...fuzeInputs() }));
       if (!r || r.error) return null;
       // the axis of the mirror: the line from the target through the split point (Type 1 PUP, Type 2 VRP, HADB line-up point, TOSS OA2): mirrored
       // about it the attack keeps the target and the split point, the two come there together and turn to opposite sides
@@ -600,8 +653,10 @@ export function createWeaponsPage(deps) {
     ['off', 'Not calculated'],
   ];
   function bombSel() {
+    const mn = mav();
+    if (mn) return { env: null, label: mn, loadout: true, msl: true };
     if (st.fz.mode == 'c2') return { env: null, label: 'cluster bomb: lethality not calculated' };
-    const b = st.bomb || 'auto';
+    const b = String(st.bomb || 'auto').startsWith('msl:') ? 'auto' : st.bomb || 'auto'; // a Maverick chosen on Pop-up: TOSS takes a bomb
     if (b == 'off') return { env: null, label: 'not calculated' };
     if (b != 'auto') return { env: envelope(+b), label: BOMBS.find(x => x[0] == b)[1], manual: true };
     const L = deps.loadout ? deps.loadout(acOf()) : [],
@@ -624,8 +679,25 @@ export function createWeaponsPage(deps) {
   const GUIDED_NOTE =
     'Guided bomb (JDAM, JSOW, GBU-54): set its arming delay and impact azimuth by hand on the SMS CNTL page, PROF 1-4. The profiles here are ballistic and not accurate for guided bombs, which glide.';
   const fzKeys = () => (st.fz.mode == 'c2' ? ['c2ad'] : ['c1ad1', 'c1ad2']);
-  const bombOpts = () =>
-    `<option value="auto"${(st.bomb || 'auto') == 'auto' ? ' selected' : ''}>Auto · ${esc(bombSel().label)}</option>${BOMBS.map(([v, l]) => `<option value="${v}"${st.bomb == v ? ' selected' : ''}>${l}</option>`).join('')}`;
+  // the Mavericks of the load of the aircraft (Pop-up and HADB): [{name, n}]
+  const mavsOf = () =>
+    st.mode == 'popup' || st.mode == 'hadb'
+      ? ((deps.loadout && deps.loadout(acOf())) || []).filter(w => isMav(w.name))
+      : [];
+  const bombOpts = () => {
+    const M = mavsOf(),
+      cur0 = mav();
+    return `<optgroup label="Bombs"><option value="auto"${(st.bomb || 'auto') == 'auto' || (String(st.bomb).startsWith('msl:') && !cur0) ? ' selected' : ''}>Auto · ${esc(cur0 ? 'from the loadout' : bombSel().label)}</option>${BOMBS.map(([v, l]) => `<option value="${v}"${st.bomb == v ? ' selected' : ''}>${l}</option>`).join('')}</optgroup>${
+      M.length || cur0
+        ? `<optgroup label="Maverick">${[...M.map(w => w.name), ...(cur0 && !M.some(w => w.name == cur0) ? [cur0] : [])]
+            .map(
+              nm =>
+                `<option value="msl:${esc(nm)}"${cur0 == nm ? ' selected' : ''}>${esc(nm)}${(M.find(w => w.name == nm) || {}).n ? ' × ' + M.find(w => w.name == nm).n : ''}</option>`
+            )
+            .join('')}</optgroup>`
+        : ''
+    }`;
+  };
   // the shared egress (visual): the element goes out to the egress point of the lead (its OA2 Egress: the egress heading and range from the lead's
   // release), on the heading from its own release; the lead's egress altitude, or 1 000 ft above it
   function shareEgress(m) {
@@ -639,7 +711,7 @@ export function createWeaponsPage(deps) {
       putSnap(m, L);
       const c = gather();
       if (c.t && c.ref) {
-        const r = ENG(m)(c.tPos, c.ref, { ...st[PK(m)], ...fuzeInputs() });
+        const r = ENG(m)(c.tPos, c.ref, engIn(m, { ...st[PK(m)], ...fuzeInputs() }));
         if (r && !r.error && relOf(r)) {
           lp = { ...st[PK(m)] };
           P = project(relOf(r), r.v.egressHeading, lp.egressRange);
@@ -654,7 +726,7 @@ export function createWeaponsPage(deps) {
     const c = gather();
     if (!c.t || !c.ref) return;
     const me = st[PK(m)],
-      r = ENG(m)(c.tPos, c.ref, { ...me, ...fuzeInputs() });
+      r = ENG(m)(c.tPos, c.ref, engIn(m, { ...me, ...fuzeInputs() }));
     if (!r || r.error || !relOf(r)) return;
     me.egressTurn = 'set';
     me.egressHeading = Math.round(bearing(relOf(r), P)) || 360;
@@ -680,6 +752,20 @@ export function createWeaponsPage(deps) {
       if (L[k] !== undefined) st[k] = clone(L[k]);
     });
   }
+  // the Misdata of the missiles (deps.mis): loaded once, the page drawn again when it comes
+  let MIS;
+  const misTab = () => {
+    if (MIS === undefined && deps.mis) {
+      MIS = null;
+      Promise.resolve(deps.mis())
+        .then(t => {
+          MIS = t || null;
+          if (MIS && mav()) draw(true);
+        })
+        .catch(() => {});
+    }
+    return MIS;
+  };
   function compute(noElev) {
     sync();
     if (ATK.includes(st.mode) && st.inMode === st.mode) {
@@ -692,7 +778,7 @@ export function createWeaponsPage(deps) {
     res = null;
     if (!ctx.t || !ctx.ref) return;
     const eng = ENG(st.mode);
-    res = eng(ctx.tPos, ctx.ref, { ...cur(), ...fuzeInputs() });
+    res = eng(ctx.tPos, ctx.ref, engIn(st.mode, { ...cur(), ...fuzeInputs() }));
     if (st.mode == 'toss' && st.mat.on && res && !res.error) {
       // MAT: the toss against the WEZ of a PPT
       const P = ctx.TA.filter(x => x.ringFt > 0 && x.pname !== undefined && x.v.startsWith('ppt:')),
@@ -720,7 +806,7 @@ export function createWeaponsPage(deps) {
     if (res && !res.error) {
       const sel = bombSel(),
         keys = fzKeys();
-      res.an = analyse(res, sel.env, sel.guided && st.fz.mode == 'c1' ? [] : keys.map(k => st.fz[k]));
+      res.an = analyse(res, sel.env, (sel.guided && st.fz.mode == 'c1') || sel.msl ? [] : keys.map(k => st.fz[k]));
       res.an.sel = sel;
       // the rules of the manuals (pop-up speed, rack interval, ceiling): their sliders red with the others, their lines over the results
       AGC = ATK.includes(st.mode)
@@ -732,6 +818,30 @@ export function createWeaponsPage(deps) {
           })
         : { flags: {}, list: [] };
       res.an.flags = { ...(res.an.flags || {}), ...AGC.flags };
+      // the Maverick: its launch, the limits of the Dash-34 and its range in the Misdata of BMS (core/maverick.js)
+      if (mav()) {
+        const i = cur(),
+          mn = mav(),
+          m = misTab() && misTab()[mavKey(mn)],
+          tg = el && has(el.tgt) ? el.tgt : 0,
+          rm = m && m.range ? misRmax(m, i.mAlt + tg, i.releaseSpeed * 1.68781, tg) / FT_NM : null;
+        res.mav = {
+          ...mavShot({
+            name: mn,
+            alt: i.mAlt,
+            range: i.mRange,
+            speed: i.releaseSpeed,
+            rmax: rm,
+            n: +i.mN,
+            gap: +i.mGap,
+            mra: res.an.mra && res.an.mra.value != null ? res.an.mra.value : null,
+          }),
+          rmax: rm,
+          name: mn,
+        };
+        res.an.flags = { ...res.an.flags, ...res.mav.flags };
+        AGC = { ...AGC, list: [...AGC.list, ...res.mav.list.filter(x => x[1]).map(x => x[0])] };
+      }
       // the A-G block of the ROE of the flight
       if (ATK.includes(st.mode) && deps.roeAg)
         try {
@@ -841,6 +951,23 @@ export function createWeaponsPage(deps) {
           ['top', 'PUP'],
           ['aim', 'Line-up point'],
         ];
+  // the boresight point of the Maverick: {p {n, e}, n (its steerpoint), at {n, e} (the steerpoint)} or null
+  const bsStpts = () =>
+    (ctx ? ctx.TA : []).filter(
+      x => x.group == 'Flight plan' && x.stpt >= 1 && x.stpt <= 24 && !(ctx.sp && x.stpt == ctx.sp.n)
+    );
+  const bsPoint = () => {
+    if (!mav() || st.bs.mode == 'off') return null;
+    const L = bsStpts(),
+      s = L.find(x => x.stpt == st.bs.stpt) || L[0];
+    if (!s) return null;
+    const at = { n: s.n, e: s.e };
+    return { p: boresightAt(at, +st.bs.brg || 0, +st.bs.nm || 0), n: s.stpt, at };
+  };
+  const bsPptName = () => {
+    const e = PPTL.find(x => /boresight/i.test(x[0]) || /boresight/i.test(String(x[2] || '')));
+    return e ? e[0] : '';
+  };
   // the drawing of the plan: the diamond of OA1 goes where the button says
   function oa1Plan(D, r) {
     let marks = D.marks.filter(m => m[1] !== 'OA1'),
@@ -853,6 +980,12 @@ export function createWeaponsPage(deps) {
       else marks.push([t, 'OA1', '#a78bfa', 'dia']);
       if (st.mode == 'popup') segs = segs.filter(z => !(z[0] == 'egress' && z[1][1] === r.oa));
     } else marks.push([r.oa, 'OA1', '#a78bfa', 'dia']);
+    if (mav()) {
+      marks = marks.map(m => (m[1] == 'Release' ? [m[0], 'Launch', ...m.slice(2)] : m));
+      const b = bsPoint();
+      if (b)
+        marks.push([b.p, 'Boresight', '#f0b040', 'dia', 'right', [8, 0], 'Boresight of the Maverick · STPT ' + b.n]);
+    }
     return { ...D, marks, segs };
   }
   function popupDraw(r, vip) {
@@ -978,11 +1111,15 @@ export function createWeaponsPage(deps) {
         const x = a + ((b - a) * k) / 12;
         if (Math.abs(x - now) < 1e-9) continue;
         try {
-          const r = eng(ctx.tPos, ctx.ref, {
-            ...base,
-            [f]: NM[f] ? x * FT_NM : x,
-            ...(f == 'egressHeading' ? { egressTurn: 'set' } : {}),
-          });
+          const r = eng(
+            ctx.tPos,
+            ctx.ref,
+            engIn(m, {
+              ...base,
+              [f]: NM[f] ? x * FT_NM : x,
+              ...(f == 'egressHeading' ? { egressTurn: 'set' } : {}),
+            })
+          );
           if (!r || r.error) continue;
           const [A, B] = sidesOf(r, env, ot),
             d = deconflict(A, B, dcOpt()),
@@ -1257,6 +1394,10 @@ export function createWeaponsPage(deps) {
   };
   function wpnShort() {
     const b = bombSel();
+    if (b.msl) {
+      const w = ((deps.loadout && deps.loadout(0)) || []).find(z => z.name == b.label);
+      return (w && w.n > 1 ? w.n + '×' : '') + wpnName(b.label);
+    }
     if (b.manual) return wpnName(b.label);
     const L = (deps.loadout && deps.loadout(0)) || [],
       w =
@@ -1265,6 +1406,13 @@ export function createWeaponsPage(deps) {
         L[0];
     return w ? (w.n > 1 ? w.n + '×' : '') + wpnName(w.name) : b.loadout ? wpnName(b.label) : '--';
   }
+  // the line of the Maverick on the cards: the slant range of the launch, the time of flight, the missiles of the pass
+  const mslFoot = v => [
+    'MSL',
+    'LAUNCH ' + (+v.mRange).toFixed(1) + ' NM',
+    'TOF ' + Math.round(v.timeOfFall || 0) + ' s',
+    +v.mN == 2 ? '2 × ' + v.mGap + ' s' : 'single',
+  ];
   function smartBase(r, PD0, spec, mra, offs, c, who) {
     const v = r.v,
       T = r.target,
@@ -1342,8 +1490,13 @@ export function createWeaponsPage(deps) {
       kind == 'popup'
         ? [
             ['INGRESS', 'PULL ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
-            ['ROLL-IN', 'CLIMB ' + c.cl, 'AOD ' + fmt(v.aod), 'TRACK ' + v.timeOnFinal + ' s'],
-            ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+            [
+              'ROLL-IN',
+              'CLIMB ' + c.cl,
+              v.msl ? 'DIVE ' + v.diveAngle + '°' : 'AOD ' + fmt(v.aod),
+              (v.msl ? 'LOCK ' : 'TRACK ') + v.timeOnFinal + ' s',
+            ],
+            v.msl ? mslFoot(v) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
           ]
         : kind == 'hadb'
           ? [
@@ -1351,10 +1504,10 @@ export function createWeaponsPage(deps) {
               [
                 'ROLL-IN',
                 'TURN ' + Math.round(v.turnAngle || 0) + '° ' + v.turnG + ' G',
-                'AOD ' + (v.aod / FT_NM).toFixed(1) + ' NM',
-                'TRACK ' + v.timeOnFinal + ' s',
+                v.msl ? 'DIVE ' + v.diveAngle + '°' : 'AOD ' + (v.aod / FT_NM).toFixed(1) + ' NM',
+                (v.msl ? 'LOCK ' : 'TRACK ') + v.timeOnFinal + ' s',
               ],
-              ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+              v.msl ? mslFoot(v) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
             ]
           : [
               ['INGRESS', 'HDG ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
@@ -1955,7 +2108,7 @@ export function createWeaponsPage(deps) {
         if (e) e.hidden = h;
       };
     hid('#wpmc', !ok);
-    hid('#wpic', !ok);
+    hid('#wpic', !ok || !!mav()); // the Maverick: no impact pattern of a stick
     hid('#wpe', ok || !ctx.t || !ctx.ref);
     const eb = root.querySelector('#wpe');
     if (eb && !ok) eb.innerHTML = res && res.error ? `<div class="wperr">${esc(res.error)}</div>` : '';
@@ -2336,6 +2489,10 @@ export function createWeaponsPage(deps) {
     Object.values(o).forEach(x => {
       if (x.alt !== undefined && x.alt < 0) x.alt = 0;
     });
+    // the boresight point of the Maverick as OA1 of a route steerpoint before the attack (written with the attack, at ground level)
+    const bs = st.bs.mode == 'oa' ? bsPoint() : null;
+    if (bs)
+      o.bsg = { key: 'OA1-' + bs.n, label: 'OA1 · STPT ' + bs.n + ' · boresight', row: offsetRow(bs.at, bs.p), alt: 0 };
     return o;
   }
 
@@ -2498,7 +2655,7 @@ export function createWeaponsPage(deps) {
       await deps.alert(deps.lines().length ? 'This DTC has no NAV OFFSETS section.' : 'No DTC: open one first.', 'bad');
       return;
     }
-    const agb = deps.lines().some(l => l.s == 'FCC_AGB');
+    const agb = deps.lines().some(l => l.s == 'FCC_AGB') && !mav(); // a Maverick: no bomb profile to write
     const { rows, clr } = plan(),
       tell = [];
     // VIP / VRP rows (and their PUP rows) are "steerpoint, bearing, range, elevation" as the game and WDP write them; OA rows are "bearing, range, elevation" and carry the steerpoint in their name.
@@ -2638,6 +2795,12 @@ export function createWeaponsPage(deps) {
       ba = k == 'c2ba';
     return `<div class="slr"><label>${k == 'c2ba' ? 'Burst alt.' : 'AD' + (k.endsWith('2') ? '2' : '1')}</label><input type="range" min="${a}" max="${b}" step="${q}" value="${v}" data-fz="${k}"><em data-fzem="${k}">${ba ? fmt(v) + ' ft' : v.toFixed(2) + ' s'}</em></div>`;
   };
+  const MOFF = 'Not used with the Maverick: no fall, no fuze, no stick';
+  // the dive angle of the Maverick: from the launch altitude and range, shown dark
+  const diveDim = () => {
+    const d = Math.round(diveFor(cur().mAlt, cur().mRange) * 10) / 10;
+    return `<div class="slr woff" title="The dive angle of the line from the launch point to the target: from the launch altitude and range"><label>Dive angle</label><input type="range" min="0" max="60" step="0.1" value="${d}" disabled><em data-em="diveDim">${d.toFixed(1)}°</em></div>`;
+  };
   const sliderOf = f =>
     SL.find(x => x[0] === f) ||
     (f == 'heading'
@@ -2716,6 +2879,88 @@ export function createWeaponsPage(deps) {
     return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and fuze ${f.mode == 'c2' ? 'C2 (CBU)' : 'C1'}</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
   }
 
+  // the Maverick: the launch(es), the limits of the Dash-34 (4.2.4.1), the power, the acquisition, the boresight, the escape
+  function mavCard(v, MV, turn) {
+    const i = cur(),
+      k = (a, b, bad) => `<span>${a}</span><b class="${bad ? 'wbad' : ''}">${b}</b>`,
+      L = isLaserMav(MV.name),
+      fp = (deps.fplan && deps.fplan()) || [],
+      tTgt = ctx.sp && (fp.find(w => w.n == ctx.sp.n) || {}).arr,
+      ap = tTgt
+        ? autoPwr(
+            fp.map(w => ({ n: w.n, x: w.x, y: w.y, t: w.arr })),
+            tTgt - MV.tof * 1000
+          )
+        : null,
+      bs = bsPoint(),
+      notes = MV.list.filter(x => !x[1]).map(x => x[0]);
+    let h =
+      k(
+        'MISSILE',
+        esc(MV.name) +
+          ' · ' +
+          (MV.rmax != null ? 'range ' + MV.rmax.toFixed(1) + ' NM here (Misdata)' : 'range: no Misdata') +
+          '<br>HUD scale ' +
+          scaleNm(MV.name) +
+          ' NM'
+      ) +
+      k(
+        'LAUNCH',
+        cur().mRange.toFixed(1) +
+          ' NM slant · ' +
+          MV.horiz.toFixed(1) +
+          ' NM ground · ' +
+          fmt(i.mAlt) +
+          ' ft AGL<br>dive ' +
+          v.diveAngle +
+          '° · TOF ≈ ' +
+          MV.tof.toFixed(0) +
+          ' s',
+        !!(res.an.flags.mRange || res.an.flags.mAlt)
+      ) +
+      (MV.second
+        ? k(
+            '2ND LAUNCH',
+            '+' +
+              i.mGap +
+              ' s · ' +
+              MV.second.range.toFixed(1) +
+              ' NM · ' +
+              fmt(MV.second.alt) +
+              ' ft AGL<br>MSL STEP, TMS UP on the 2nd target before the 1st launch (two LOS: 1 and 2)',
+            !!res.an.flags.mGap
+          )
+        : '') +
+      k(
+        'LIMITS',
+        `Mach ${MV.mach.toFixed(2)} (carried: 600 KIAS / M 0.95; launch: M 1.2)<br>bank under ${MAX_BANK}° at the lock and the handoff<br>at the launch ${G_MIN} to ${G_MAX} g, roll under 30°/s, dive under 60°`,
+        !!res.an.flags.releaseSpeed
+      ) +
+      k(
+        'POWER',
+        (ap
+          ? `CNTL: AUTO PWR · STPT ${ap.n} · ${ap.side} (within ${AUTO_PWR_NM} NM, ${hmT(ap.t)})<br>`
+          : `PWR ON ${SPIN_MIN} min before the launch at least<br>`) +
+          `${SPIN_MIN} min for the gyros (NOT TIMED OUT) · ${PWR_MIN} min power, ${VIDEO_MIN} min video a mission`
+      ) +
+      k(
+        'ACQUISITION',
+        L
+          ? 'Laser: the target lased for the whole flight of the missile, the code of the missile the same as the laser (no handoff)'
+          : 'TGP POINT track: HANDOFF IN PROGRESS, then C above the station · NFOV<br>or PRE / VIS / BORE on the WPN page · a steady pointing cross (keyhole)' +
+              (/65G/i.test(MV.name) ? '<br>AGM-65G AREA (force correlate): no handoff' : '')
+      ) +
+      (bs
+        ? k(
+            'BORESIGHT',
+            (st.bs.mode == 'oa' ? 'OA1 of STPT ' + bs.n : 'PPT ' + (bsPptName() || 'Boresight')) +
+              ': TGP POINT track, slew the gates, TMS UP, BSGT (OSB 20), MSL STEP for the next launcher; then PWR OFF'
+          )
+        : '') +
+      notes.map(t => k('NOTE', esc(t))).join('') +
+      safetyRows(v).replace(/<span>BOMB<\/span><b[^>]*>.*?<\/b>/, '');
+    return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and Maverick</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
+  }
   // MAT: what the flight path does against the SAM's WEZ
   function matResult(r) {
     const m = r.mat;
@@ -2830,7 +3075,18 @@ export function createWeaponsPage(deps) {
         k('ATTACK HDG', hm(v.attackHeading) + '°') +
         k('TURN', v.side == 'left' ? 'Left' : 'Right');
     }
-    const fzc = fuzeCard(v, r.fuze, turn);
+    const MV = r.mav;
+    if (MV) {
+      tiles =
+        pupTile +
+        `<div class="tile"><span>Dive / launch range</span><b>${v.diveAngle}° / ${cur().mRange.toFixed(1)} nm</b></div>`;
+      kv = kv
+        .replace(/<span>AOD<\/span><b>[^<]*<\/b>/, '')
+        .replace(/<span>TOF STICK<\/span><b>[^<]*<\/b>/, '')
+        .replace('<span>RALT</span>', '<span>LAUNCH ALT</span>');
+      kv += k('TOF', MV.tof.toFixed(0) + ' s');
+    }
+    const fzc = MV ? mavCard(v, MV, turn) : fuzeCard(v, r.fuze, turn);
     return `${AGC.list.length ? `<div class="wcard"><h3>Checks</h3>${AGC.list.map(t => `<div class="wbad">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wpt">${tiles}</div>${matResult(r)}
     <div class="wcard"><div class="wh"><h3>Vertical envelope</h3><span class="hint">altitudes AGL · distances to scale</span></div>${profile(r)}</div>
     <div class="wcard"><h3>NAV OFFSETS</h3><table class="dt"><tr><th></th><th>Bearing</th><th>Range ft</th><th>Elev.</th></tr>${rowsH}</table>
@@ -3014,7 +3270,7 @@ export function createWeaponsPage(deps) {
           ${st.src == 'dtc' && !routeOk() ? `<p class="wwarn">The game loads offsets only on the route steerpoints 1-24 (25 is the bullseye). This point is not one, so Apply writes no offsets: add a route steerpoint, or use Manual.</p>` : st.src == 'dtc' ? '' : `<p class="hint">Any steerpoint 1-99, offsets typed in the DED in flight.</p>`}
           <div class="wrow wvip"${st.ref == 'vip' ? '' : ' hidden'}><label>VIP point</label><select data-pick="refpt">${refOpts}</select></div>
           ${md == 'popup' ? `<div class="wvrp"${st.ref == 'vrp' ? '' : ' hidden'}>${slider('vrpToPup', 'VRP to PUP', ' nm', 1)}</div>` : ''}
-          <div class="wrow"><label>Range model</label>${seg(
+          <div class="wrow${mav() ? ' woff' : ''}"${mav() ? ` title="${MOFF}"` : ''}><label>Range model</label>${seg(
             'rangeModel',
             [
               ['low_drag', 'Low drag'],
@@ -3076,7 +3332,18 @@ export function createWeaponsPage(deps) {
               i.oa2Mode
             )}</div><div class="wegr"${i.oa2Mode == 'egress' ? '' : ' hidden'}>${egrBody}</div></div>`;
       // Weapon settings: the bomb profile of the DTC (fuze, arming, burst altitude) and how the stick is released
-      const weaponCard = `<div class="wcard"><h3>Weapon settings</h3>
+      const selRow = `<div class="wrow"><label>Weapon</label><select data-pick="bomb" title="The bomb sets the lethal zone, the minimum release altitude and the escape check; a Maverick of the loadout (Pop-up, HADB) is launched on the dive line">${bombOpts()}</select></div>`,
+        mavRows = mav()
+          ? `<div class="wrow"><label>Missiles</label>${seg(
+              'mN',
+              [
+                [1, '1'],
+                [2, '2'],
+              ],
+              i.mN
+            )}<span class="hint">a pass</span></div>${+i.mN == 2 ? slider('mGap', 'Interval', ' s', 0) : ''}<p class="hint wnote">Two launches: two LOS stabilised before the first launch (1 and 2 on the HUD, MSL STEP between them), the second launch after the interval on the dive line.</p>`
+          : '';
+      const weaponCard = `<div class="wcard"><h3>Weapon settings</h3>${selRow}${mavRows}${mav() ? `<div class="woff" title="${MOFF}">` : ''}
           <div class="wrow"><label>Pulses</label><input data-num="ripplePulses" type="number" min="1" max="12" value="${i.ripplePulses}"></div>
           ${slider('stickSpacing', 'Spacing', ' ft', 0)}
           <div class="wrow"><label>Release</label>${seg(
@@ -3128,13 +3395,34 @@ export function createWeaponsPage(deps) {
             ],
             st.fz.mode
           )}</div>
-          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><div class="wrow"><label>Bomb</label><select data-pick="bomb" title="Sets the lethal zone, the minimum release altitude and the escape check">${bombOpts()}</select></div><p class="hint wguide"${guided() ? '' : ' hidden'}>${GUIDED_NOTE}</p><div class="wads"${guided() ? ' hidden' : ''}>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div></div>
+          <div class="wfz" data-m="c1"${st.fz.mode == 'c1' ? '' : ' hidden'}><p class="hint wguide"${guided() ? '' : ' hidden'}>${GUIDED_NOTE}</p><div class="wads"${guided() ? ' hidden' : ''}>${fzSlider('c1ad1', 'AD1')}${fzSlider('c1ad2', 'AD2')}</div></div>
           <div class="wfz" data-m="c2"${st.fz.mode == 'c2' ? '' : ' hidden'}><div class="wrow"><label>Weapon</label><select data-pick="cbu">${Object.keys(
             BD
           )
             .map(k => `<option${k === st.fz.cbu ? ' selected' : ''}>${esc(k)}</option>`)
             .join('')}</select></div>${fzSlider('c2ad', 'AD1')}${fzSlider('c2ba', 'Burst alt.')}</div>
-          <p class="hint wnote">Arming delay: seconds after release. AD1 is used with the NOSE fuze, AD2 with TAIL or NSTL (TO 4.2.7.6.10). Burst altitude: ft above the target.</p></div>`;
+          <p class="hint wnote">Arming delay: seconds after release. AD1 is used with the NOSE fuze, AD2 with TAIL or NSTL (TO 4.2.7.6.10). Burst altitude: ft above the target.</p>${mav() ? '</div>' : ''}</div>`;
+      // the boresight of the Maverick to the TGP (Dash-34 4.2.4.1.9): in flight, once a launcher; on a point of the route
+      const BL = mav() ? bsStpts() : [],
+        bsCard = mav()
+          ? `<div class="wcard"><h3>Boresight · TGP</h3><div class="wrow"><label>Point</label>${seg(
+              'bsmode',
+              [
+                ['off', 'Off'],
+                ['oa', 'OA1'],
+                ['ppt', 'PPT'],
+              ],
+              st.bs.mode
+            )}</div>${
+              st.bs.mode != 'off'
+                ? `<div class="wrow"><label>From STPT</label><select data-pick="bsstpt">${BL.map(x => `<option value="${x.stpt}"${(bsPoint() || {}).n == x.stpt ? ' selected' : ''}>STPT ${x.stpt}</option>`).join('') || '<option>no route steerpoint</option>'}</select></div><div class="slr"><label>Bearing</label><input type="range" min="0" max="355" step="5" value="${+st.bs.brg || 0}" data-bs="brg"><em data-bsem="brg">${String(+st.bs.brg || 0).padStart(3, '0')}° T</em></div><div class="slr"><label>Range</label><input type="range" min="0" max="10" step="0.5" value="${+st.bs.nm || 0}" data-bs="nm"><em data-bsem="nm">${(+st.bs.nm || 0).toFixed(1)} nm</em></div>${
+                    st.bs.mode == 'ppt'
+                      ? `<div class="wbtns"><button class="btn g" type="button" data-bsppt${bsPptName() ? '' : ' disabled'} title="${bsPptName() ? 'Adds the point to the DTC as a PPT named ' + esc(bsPptName()) : 'No Boresight entry in the Ppt.ini of BMS'}">Write PPT ${esc(bsPptName() || 'Boresight')}</button></div>`
+                      : ''
+                  }`
+                : ''
+            }<p class="hint wnote">In flight (the dome covers): a point the TGP can track, before the push. OA1: written with the attack by Apply. Then PWR OFF, and on again by AUTO PWR.</p></div>`
+          : '';
       const PL = ctx.TA.filter(x => x.v.startsWith('ppt:')),
         pDef = PL.find(x => x.ringFt > 0);
       const matCard = `<div class="wcard"><h3>MAT · SAM standoff</h3><div class="wrow"><label>MAT</label><span class="seg">${[
@@ -3162,15 +3450,24 @@ export function createWeaponsPage(deps) {
         .join('')}</span></div>`;
       let mid;
       if (md == 'hadb')
-        mid = `<div class="wcard"><h3>Release</h3>${sl(['diveAngle', 'releaseAltitude', 'releaseSpeed', 'timeOnFinal'])}<p class="hint wnote">High altitude dive bombing: roll in at the VIP, turn and dive onto the target. The ingress altitude is not chosen: release altitude, dive angle and tracking time give it. Speeds are true airspeed.</p></div>
+        mid = mav()
+          ? `<div class="wcard"><h3>Launch</h3>${diveDim()}${sl(['mAlt', 'mRange', 'releaseSpeed'])}${slider('timeOnFinal', 'Lock time', ' s', 0)}<p class="hint wnote">The Maverick from a high altitude dive: roll in at the VIP, dive on the line to the target, lock, launch at the slant range. The dive angle comes from the launch altitude and range. Speeds are true airspeed.</p></div>
+        <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}</div>${egressCard}${weaponCard}${bsCard}`
+          : `<div class="wcard"><h3>Release</h3>${sl(['diveAngle', 'releaseAltitude', 'releaseSpeed', 'timeOnFinal'])}<p class="hint wnote">High altitude dive bombing: roll in at the VIP, turn and dive onto the target. The ingress altitude is not chosen: release altitude, dive angle and tracking time give it. Speeds are true airspeed.</p></div>
         <div class="wcard"><h3>Ingress and turn</h3>${sl(['ingressSpeed', 'heading'])}${sideRow('Turn to target')}${sl(['angleOff'])}${gRow('Turn G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">The ingress heading is the attack heading turned away by the angle off. Fly over OA1 and the VIP, at the VIP turn in with the chosen G.</p></div>${egressCard}${weaponCard}`;
       else if (md == 'toss')
         mid = `<div class="wcard"><h3>Release</h3>${sl(['releaseAngle', 'ingressAltitude', 'ingressSpeed', 'releaseSpeed', 'releaseExtra'])}<p class="hint wnote">Low altitude toss: level at the ingress altitude, at the VIP pull up to the release angle, release, turn away. The release altitude is the lowest the pull-up gives plus the extra climb. Speeds are true airspeed.</p></div>${matCard}
         <div class="wcard"><h3>Line-up and turn</h3>${sl(['heading'])}${sideRow('Turn')}${sl(['angleOff'])}${gRow('Pull-up G')}${sl(['oa1ToVip'])}${oa1Row}<p class="hint wnote">Angle off 0 = no turn before the line-up (then there are no VRP and OA2). Otherwise the ingress comes in turned away by the angle off, VRP is where the turn starts and OA2 lines up with it. OA1 sits on the attack line before the VIP: it is the line-up point, fly toward it before the pull-up. OA2 exists only when the angle off is more than 0: it sits on the ingress leg before the turn. Both are cues to steer by, not mandatory.</p></div>${egressCard}${weaponCard}`;
       else
-        mid = `<div class="wcard"><h3>Attack profile</h3>${SL.slice(0, 5)
-          .map(x => slider(x[0], x[1], x[2], x[3]))
-          .join('')}
+        mid = `<div class="wcard"><h3>Attack profile</h3>${
+          mav()
+            ? diveDim() +
+              sl(['mAlt', 'mRange', 'ingressAltitude', 'releaseSpeed']) +
+              slider('timeOnFinal', 'Lock time', ' s', 0)
+            : SL.slice(0, 5)
+                .map(x => slider(x[0], x[1], x[2], x[3]))
+                .join('')
+        }
           ${sideRow('Turn')}${gRow('Turn G')}
           <div class="wrow"><label>Heading of</label>${seg(
             'headingMode',
@@ -3181,7 +3478,7 @@ export function createWeaponsPage(deps) {
             i.headingMode
           )}</div>${slider('heading', 'Heading', '°', 0)}
           ${oa1Row}
-          <p class="hint wnote">Tracking time: seconds to aim after rolling out of the turn, until release. Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}`;
+          <p class="hint wnote">${mav() ? 'Lock time: seconds after rolling out on the dive line to lock and launch (bank under 30°). The dive angle comes from the launch altitude and range.' : 'Tracking time: seconds to aim after rolling out of the turn, until release.'} Heading, attack run: the heading of the dive over the target; climb: the heading flown up from the PUP (the attack run is then that heading turned by the angle off).</p></div>${egressCard}${weaponCard}${mav() ? bsCard : ''}`;
       root.innerHTML = `${tabs}<div class="wpg"><div class="wpl">${refCard}${tipNotes(mid)}</div>
         <div class="wpc"><div class="wcard" id="wpmc"><div class="wh"><h3>Horizontal envelope</h3><button class="btn g${deps.isEdit && deps.isEdit() ? ' on' : ''}" type="button" data-edit title="Edit points: the DTC points of the map (PPT, targets, lines) can be dragged only when this is on. Off by default, so a point is not moved by mistake.">Edit points: ${deps.isEdit && deps.isEdit() ? 'On' : 'Off'}</button><span style="flex:1"></span><button class="btn g" type="button" data-fit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-planonly title="Map filters: as chosen on the Map page, none, only the flight plan, or the flight plan with the PPT rings. Press to change.">All filters</button></div>
           <div class="wrow wmap"><label>Map layer</label>${seg(
@@ -3212,6 +3509,8 @@ export function createWeaponsPage(deps) {
       wire(root);
     }
     const rv = root.querySelector('#wpr');
+    // the Maverick: the line after the launch is the missile
+    PH.fall[0] = mav() ? 'Missile' : 'Bomb fall';
     paint();
     rv.innerHTML = dcCard() + results();
     rv.querySelectorAll('.wpvs').forEach(e => {
@@ -3434,6 +3733,21 @@ export function createWeaponsPage(deps) {
             draw(false);
             return;
           }
+          if (f == 'bsmode') {
+            st.bs.mode = v;
+            st.applied = st.cleared = null;
+            save();
+            draw(false);
+            return;
+          }
+          if (f == 'mN') {
+            own();
+            cur().mN = +v;
+            st.applied = st.cleared = null;
+            save();
+            draw(false);
+            return;
+          }
           if (f == 'objon') {
             if (deps.objectsAll) deps.objectsAll(v == '1');
             b.parentElement.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
@@ -3480,6 +3794,30 @@ export function createWeaponsPage(deps) {
       const a = root.querySelector('.wegalt');
       if (a) a.hidden = cur().oa2Mode != 'egress' || +cur().angleOff > 0;
     };
+    // the Maverick: the rows that do not apply are dark; the boresight point
+    root.querySelectorAll('.woff input, .woff button, .woff select').forEach(e => {
+      /** @type {HTMLInputElement} */ (e).disabled = true;
+    });
+    root.querySelectorAll('input[data-bs]').forEach(inp => {
+      inp.oninput = () => {
+        const k = inp.dataset.bs,
+          v = +inp.value;
+        st.bs[k] = v;
+        const em = root.querySelector(`[data-bsem="${k}"]`);
+        if (em) em.textContent = k == 'brg' ? String(v).padStart(3, '0') + '° T' : v.toFixed(1) + ' nm';
+        st.applied = st.cleared = null;
+        upd();
+      };
+    });
+    const bp = root.querySelector('[data-bsppt]');
+    if (bp)
+      bp.onclick = () => {
+        const b = bsPoint(),
+          nm = bsPptName();
+        if (!b || !nm || !deps.addPpt) return;
+        const r = deps.addPpt({ x: b.p.e / FT_KM, y: b.p.n / FT_KM, name: nm, label: 'Boresight' });
+        if (r && deps.toast) deps.toast(r.msg, r.bad);
+      };
     root.querySelectorAll('input[data-sl]').forEach(inp => {
       inp.oninput = () => {
         const f = inp.dataset.sl,
@@ -3490,6 +3828,12 @@ export function createWeaponsPage(deps) {
         oa2Vis();
         const em = root.querySelector(`[data-em="${f}"]`);
         if (em) em.textContent = fmt(inp.value, x[3]) + x[2];
+        const dd = (f == 'mAlt' || f == 'mRange') && root.querySelector('[data-em="diveDim"]');
+        if (dd) {
+          const d = Math.round(diveFor(cur().mAlt, cur().mRange) * 10) / 10;
+          dd.textContent = d.toFixed(1) + '°';
+          dd.closest('.slr').querySelector('input').value = String(d);
+        }
         const nb = root.querySelector(`[data-slnum="${f}"]`);
         if (nb) nb.value = inp.value;
         st.applied = st.cleared = null;
@@ -3610,7 +3954,16 @@ export function createWeaponsPage(deps) {
         (s.onchange = () => {
           own();
           if (s.dataset.pick == 'bomb') {
+            const was = !!mav();
             st.bomb = s.value;
+            st.applied = st.cleared = null;
+            save();
+            draw(was == !!mav()); // a Maverick in or out: the panel changes
+            return;
+          }
+          if (s.dataset.pick == 'bsstpt') {
+            st.bs.stpt = +s.value;
+            st.applied = st.cleared = null;
             save();
             draw(true);
             return;
@@ -3654,7 +4007,8 @@ export function createWeaponsPage(deps) {
       st.refPt = remap(st.refPt, oldT, ctx.T);
       compute();
       if (deps.root.closest('.hide')) return;
-      draw(sig(ctx) === was);
+      // the panel is drawn again when the targets change, or a Maverick comes in or goes out
+      draw(sig(ctx) === was && !!deps.root.querySelector('input[data-sl=mAlt]') == !!mav());
     } catch (e) {
       /* none */
     }
@@ -3931,7 +4285,8 @@ export function createWeaponsPage(deps) {
     },
     // the tests (tools/agrules-test.py): the A-G block, the night and the weather made up
     _test: o => {
-      ['roeAg', 'night', 'wxBase'].forEach(k => o[k] && (deps[k] = o[k]));
+      ['roeAg', 'night', 'wxBase', 'loadout', 'fplan', 'mis', 'addPpt'].forEach(k => o[k] && (deps[k] = o[k]));
+      if (o.mis) MIS = undefined;
       WXB = null;
       refresh();
     },
