@@ -26,6 +26,7 @@ import {
   hpnWpt,
   hpnLaunch,
   HPN_MIN_FT,
+  HPN_PITCH,
   defaultWpt,
   bolWarn,
   inTheWay,
@@ -157,12 +158,14 @@ export function createTasmoPage(deps) {
       wrng: +raw.wrng || 0, // its range from the ship (NM; 0: the default)
       en: +raw.en || 0, // BOL: the enable range (0: from the plan)
       ds: +raw.ds || 0, // BOL: the destruct range (0: from the plan)
+      kt: +raw.kt || 0, // the speed of the run to the launch and of the launch (kt true; 0: the speed of the route to the target)
     };
+    G.kt = S.kt || Math.round(gs / 10) * 10;
     if (!W || W.kind != 'asm') return;
     S.n = Math.min(S.n, Math.max(1, Math.min(6, W.n))); // the missiles of the aircraft
     // the range: the Misdata of the missile at the launch altitude (else the range of the campaign)
     const m = MIS && MIS[misKey(W.name)],
-      r = m && m.range ? rmax(m, S.alt, gs * 1.68781, 0) : null;
+      r = m && m.range ? rmax(m, S.alt, G.kt * 1.68781, 0) : null;
     G.rmax = r ? r / FT_NM : W.rngKm / KM_NM;
     G.src = r ? 'Misdata' : 'the campaign';
     if (!S.dist) S.dist = defaultDist(ship, S.alt, G.rmax);
@@ -175,7 +178,7 @@ export function createTasmoPage(deps) {
       rmax: G.rmax,
       radar: X.radar,
       tot: at.arr,
-      gs,
+      gs: G.kt,
       mslKt: missileKt(W.name),
       n: S.n,
     };
@@ -226,7 +229,22 @@ export function createTasmoPage(deps) {
   function checks() {
     const C = P ? [...P.warn] : [];
     if (P && H) C.push(...H.warn);
-    if (P && hpn()) C.push(...hpnLaunch(S.alt, G.gs).W);
+    if (P && hpn()) C.push(...hpnLaunch(S.alt, G.kt).W);
+    // the descent: from the cruise at the descent point to the launch altitude, level before the launch (PITCH TOO GREAT over a 22° dive)
+    const dd = P && descDeg();
+    if (dd != null && dd > -HPN_PITCH[0])
+      C.push([
+        'The descent to the launch altitude takes ' +
+          Math.round(dd) +
+          '° (from ' +
+          fmt(G.cruise) +
+          ' ft in ' +
+          (P.desc.nm - S.dist).toFixed(0) +
+          ' NM): start it earlier, and be level at the launch (PITCH TOO GREAT over a ' +
+          -HPN_PITCH[0] +
+          '° dive).',
+        'y',
+      ]);
     if (P && hpn() && mode() == 'rbl' && P.U > area())
       C.push([
         'The area of the ship (±' +
@@ -735,22 +753,30 @@ export function createTasmoPage(deps) {
   function alts() {
     if (!P)
       return `<h3>Altitude · speed</h3><div class="kv">${kv('CRUISE', fmt(G.cruise) + ' ft · ' + Math.round(G.gs) + ' kt')}${kv('RADAR HORIZON', horizonNm(G.cruise).toFixed(0) + ' NM at the cruise')}</div>`;
-    return `<h3>Altitude · speed</h3>${slr('alt', 'Launch altitude', [200, 35000, 100], S.alt, fmt(S.alt) + ' ft', slBad('alt'))}${slr('dist', 'Launch distance', [5, Math.max(10, Math.ceil(G.rmax + 10)), 1], S.dist, S.dist + ' NM', bad())}<div class="kv" id="tsalkv">${altKv()}</div>`;
+    return `<h3>Altitude · speed</h3>${slr('alt', 'Launch altitude', [200, 35000, 100], S.alt, fmt(S.alt) + ' ft', slBad('alt'))}${slr('dist', 'Launch distance', [5, Math.max(10, Math.ceil(G.rmax + 10)), 1], S.dist, S.dist + ' NM', bad())}${slr('kt', 'Launch speed', [250, 700, 10], G.kt, slTxt('kt'), slBad('kt'))}<div class="kv" id="tsalkv">${altKv()}</div>`;
   }
   const bad = () => P.reach < 0 || P.samRed || S.dist < nearest();
+  // the angle of the descent from the descent point to the launch (°), or null without one
+  const descDeg = () =>
+    P && P.desc && P.desc.nm > S.dist
+      ? (Math.atan((G.cruise - S.alt) / ((P.desc.nm - S.dist) * FT_NM)) * 180) / Math.PI
+      : null;
+  const machOf = () => hpnLaunch(S.alt, G.kt).mach;
   // the sliders: their text and when they are red (the checks of the Dash-34 alerts)
   const slTxt = k =>
     k == 'alt'
       ? fmt(S.alt) + ' ft'
       : k == 'dist'
         ? S.dist + ' NM'
-        : k == 'wbrg'
-          ? h3(H ? H.brg : S.wbrg) + '° T'
-          : k == 'en'
-            ? P.enable + ' NM'
-            : k == 'ds'
-              ? P.destruct + ' NM'
-              : (H ? H.rng : S.wrng) + ' NM';
+        : k == 'kt'
+          ? G.kt + ' kt · M ' + machOf().toFixed(2)
+          : k == 'wbrg'
+            ? h3(H ? H.brg : S.wbrg) + '° T'
+            : k == 'en'
+              ? P.enable + ' NM'
+              : k == 'ds'
+                ? P.destruct + ' NM'
+                : (H ? H.rng : S.wrng) + ' NM';
   const slBad = k =>
     k == 'dist'
       ? bad()
@@ -762,7 +788,9 @@ export function createTasmoPage(deps) {
             ? bolWarn(P.enable, P.destruct, S.dist, P.U).some(w => w[1] === true)
             : k == 'alt'
               ? hpn() && S.alt <= HPN_MIN_FT
-              : false;
+              : k == 'kt'
+                ? hpn() && hpnLaunch(S.alt, G.kt).W.some(w => /MACH/.test(w[0]))
+                : false;
   const altKv = () =>
     kv('CRUISE', fmt(G.cruise) + ' ft · ' + Math.round(G.gs) + ' kt') +
     kv(
@@ -810,7 +838,7 @@ export function createTasmoPage(deps) {
   }
   function shot() {
     if (!P) return `<h3>Shot</h3><p class="hint">No anti-ship missile chosen.</p>`;
-    return `<h3>Shot · ${S.n}× ${esc(W.name)}</h3><div class="kv">${kv('LAUNCH', hm(P.tLaunch) + ' · ' + launchTxt(), P.samRed || P.reach < 0 ? 'wbad' : 'sdme')}${H ? kv('HPN WPT', 'TGT-TO-WPT · TGT 90 · TBRG ' + h3(H.brg) + '° · RNG ' + H.rng.toFixed(1) + ' NM · the missile flies ' + P.path.toFixed(0) + ' NM', H.warn.some(w => w[1] === true) ? 'wbad' : '') : ''}${kv('RANGE', G.rmax.toFixed(0) + ' NM · ' + (P.reach >= 0 ? P.reach.toFixed(0) + ' NM to spare' : 'SHORT by ' + (-P.reach).toFixed(0) + ' NM'), P.reach < 0 ? 'wbad' : '')}${kv('FLIGHT TIME', '≈ ' + (P.tof / 60000).toFixed(1) + ' min')}${kv('IMPACT', hm(P.tLaunch + P.tof) + ' · the time of STPT ' + X.task.n)}${kv('SAM MARGIN', (P.margin >= 0 ? '+' : '−') + Math.abs(P.margin).toFixed(0) + ' NM ' + (P.margin >= 0 ? 'outside' : 'INSIDE') + ' the ' + (P.ringLow ? 'low ' : '') + 'ring' + (P.margin < 0 && !P.samRed ? ' (the area of the ship)' : ''), P.samRed ? 'wbad' : P.margin < 0 ? 'sdw' : 'sdok')}${hpn() ? kv('MACH', hpnLaunch(S.alt, G.gs).mach.toFixed(2) + ' at the launch (' + Math.round(G.gs) + ' kt)', hpnLaunch(S.alt, G.gs).W.some(w => /MACH/.test(w[0])) ? 'wbad' : '') : ''}${kv('SEEN', P.hidden ? 'no: under the horizon (' + P.seen.toFixed(0) + ' NM)' : 'yes, from ' + P.seen.toFixed(0) + ' NM', P.hidden ? 'sdok' : 'sdw')}${hpn() && S.mode == 'bol' ? kv('BOL', 'ENBL ' + P.enable + ' NM · DSTR ' + P.destruct + ' NM') : ''}${hpn() && S.mode == 'los' ? kv('LOS', 'wings level 40 s after PWR ON · heading ' + h3(brg(P.launch, ship))) : ''}${P.acq ? kv('RADAR', '≈ ' + P.acq.nm.toFixed(0) + ' NM at ' + fmt(P.acq.alt) + ' ft (the range of the radar of the aircraft, the horizon)') : ''}</div>`;
+    return `<h3>Shot · ${S.n}× ${esc(W.name)}</h3><div class="kv">${kv('LAUNCH', hm(P.tLaunch) + ' · ' + launchTxt(), P.samRed || P.reach < 0 ? 'wbad' : 'sdme')}${H ? kv('HPN WPT', 'TGT-TO-WPT · TGT 90 · TBRG ' + h3(H.brg) + '° · RNG ' + H.rng.toFixed(1) + ' NM · the missile flies ' + P.path.toFixed(0) + ' NM', H.warn.some(w => w[1] === true) ? 'wbad' : '') : ''}${kv('RANGE', G.rmax.toFixed(0) + ' NM · ' + (P.reach >= 0 ? P.reach.toFixed(0) + ' NM to spare' : 'SHORT by ' + (-P.reach).toFixed(0) + ' NM'), P.reach < 0 ? 'wbad' : '')}${kv('FLIGHT TIME', '≈ ' + (P.tof / 60000).toFixed(1) + ' min')}${kv('IMPACT', hm(P.tLaunch + P.tof) + ' · the time of STPT ' + X.task.n)}${kv('SAM MARGIN', (P.margin >= 0 ? '+' : '−') + Math.abs(P.margin).toFixed(0) + ' NM ' + (P.margin >= 0 ? 'outside' : 'INSIDE') + ' the ' + (P.ringLow ? 'low ' : '') + 'ring' + (P.margin < 0 && !P.samRed ? ' (the area of the ship)' : ''), P.samRed ? 'wbad' : P.margin < 0 ? 'sdw' : 'sdok')}${hpn() ? kv('MACH', machOf().toFixed(2) + ' at the launch (' + G.kt + ' kt' + (S.kt ? '' : ', the speed of the route') + ')', slBad('kt') ? 'wbad' : '') : ''}${kv('SEEN', P.hidden ? 'no: under the horizon (' + P.seen.toFixed(0) + ' NM)' : 'yes, from ' + P.seen.toFixed(0) + ' NM', P.hidden ? 'sdok' : 'sdw')}${hpn() && S.mode == 'bol' ? kv('BOL', 'ENBL ' + P.enable + ' NM · DSTR ' + P.destruct + ' NM') : ''}${hpn() && S.mode == 'los' ? kv('LOS', 'wings level 40 s after PWR ON · heading ' + h3(brg(P.launch, ship))) : ''}${P.acq ? kv('RADAR', '≈ ' + P.acq.nm.toFixed(0) + ' NM at ' + fmt(P.acq.alt) + ' ft (the range of the radar of the aircraft, the horizon)') : ''}</div>`;
   }
   // the nav offsets from the steerpoint of the route nearest to the ship: OA1 the launch, OA2 the radar acquisition (not spotted) or the descent
   const oa2Acq = () => !!(P && P.acq && P.acq.nm > S.dist); // the radar acquisition before the launch: OA2 (else the descent)

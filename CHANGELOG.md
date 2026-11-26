@@ -4,6 +4,8 @@ What changed for the people who use BMS Cards, version by version. The detailed 
 
 ## 1.4.0 (not released yet)
 
+- Added: A-G > TASMO, a **Launch speed** slider (the speed of the route by default, with its Mach): it sets the range of the Misdata and the times of the run, and is red outside Mach 0.45 to 0.95 for the Harpoon. A yellow check when the descent to the launch altitude is steeper than 22°: start it earlier and be level at the launch.
+- Fixed: A-G > Pop-up / HADB / TOSS, the sliders were slow (most with a Maverick): the page is drawn once a frame, the terrain asked when the points stop moving (it drew the results again at each step), the flight plan read once.
 - Changed: A-G > TASMO, the launch of the Harpoon as tested in BMS: AIRCRAFT TOO LOW at 1,000 ft AGL and under (was 1,500 ft); the Launch step gives the pitch between a 22° dive and a 13° climb (PITCH TOO GREAT).
 - Fixed: Performance > AAR, the sliders move the plan in real time. The loadout in short writes the low altitude camera as "Camera" (was "Low"). BVR timeline: the Su-30SM2 next to the other Su-30.
 - Changed: A-G > TASMO: the checks in one card, red, yellow or grey. The SAM ring of a ship not spotted is yellow when only its area is inside (a launch in range is always inside it), red when the ship's centre is. The search area LARGE is 20% of the range, 8 to 15 NM (no more ±40 NM for a ship not spotted: a yellow check says the area of the ship is larger); ACTIVE RANGE TOO SMALL in BOL under 5 NM between ENBL and DSTR (an estimate). **Write HPN STPT 90** writes STPT 90 only. Each missile keeps its own choices.

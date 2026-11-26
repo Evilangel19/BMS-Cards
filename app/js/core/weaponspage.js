@@ -452,6 +452,7 @@ export function createWeaponsPage(deps) {
   };
   // everything the page needs from the DTC. On board the pull-up point and the OA rows hang on steerpoints 1-99 (not on the weapon targets),
   // so the target IS a steerpoint: the route (1-24), geo-line points (31-54), pre-planned threats (56-70) or precision targets (81-99).
+  let FPL = []; // the flight plan of the campaign, as gather() last read it (the Maverick card reads its times at each frame)
   function gather() {
     const R = (deps.route() || []).filter(x => x.n >= 0 && x.n <= 23),
       P = deps.points && deps.points();
@@ -461,7 +462,7 @@ export function createWeaponsPage(deps) {
     };
     const G = { prec: 'TGT STPT', sam: 'PPT SAM', route: 'Flight plan', oth: 'PPT others', line: 'Lines' },
       T0 = [];
-    const FP = deps.fplan ? deps.fplan() : []; // the flight picked in the Datacard, as on the Map page and in the Steerpoints page; without one the route points saved in the file (target_N = STPT N + 1)
+    const FP = (FPL = deps.fplan ? deps.fplan() : []); // the flight picked in the Datacard, as on the Map page and in the Steerpoints page; without one the route points saved in the file (target_N = STPT N + 1)
     if (FP.length)
       FP.filter(w => w.n <= 24).forEach(w =>
         T0.push({
@@ -606,6 +607,16 @@ export function createWeaponsPage(deps) {
     if (key.split('|')[0] !== elKey.split('|')[0]) el = null;
     elKey = key;
     const tok = ++elTok;
+    // asked when the points stop moving (a slider drawn at each frame asked the terrain, and drew the results again, at each step)
+    clearTimeout(elT);
+    elT = setTimeout(() => {
+      if (tok === elTok) askElev(tok, ks, P);
+    }, ELEV_WAIT);
+  }
+  const ELEV_WAIT = 150;
+  let updRaf = 0;
+  let elT = 0;
+  function askElev(tok, ks, P) {
     Promise.resolve(deps.elev(ks.map(k => P[k])))
       .then(h => {
         if (tok !== elTok) return;
@@ -2898,7 +2909,7 @@ export function createWeaponsPage(deps) {
     const i = cur(),
       k = (a, b, bad) => `<span>${a}</span><b class="${bad ? 'wbad' : ''}">${b}</b>`,
       L = isLaserMav(MV.name),
-      fp = (deps.fplan && deps.fplan()) || [],
+      fp = FPL || [],
       tTgt = ctx.sp && (fp.find(w => w.n == ctx.sp.n) || {}).arr,
       ap = tTgt
         ? autoPwr(
@@ -3699,9 +3710,14 @@ export function createWeaponsPage(deps) {
   };
 
   function wire(root) {
+    // a change drawn once a frame: a slider gives many input events between two frames
     const upd = () => {
-      save();
-      draw(true);
+      if (!updRaf)
+        updRaf = requestAnimationFrame(() => {
+          updRaf = 0;
+          save();
+          draw(true);
+        });
     };
     const sb = root.querySelector('[data-split]');
     if (sb)
