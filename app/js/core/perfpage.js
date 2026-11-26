@@ -1,5 +1,6 @@
 // Performance page: turn and energy (Ps), cruise and range, take-off and landing, from the BMS aircraft tables (bmsdata/acperf.js, maths in airperf.js).
-// deps: {root, esc, aircraft: {list() -> [names], get(name) -> Promise<perf data | null>}, loadout() -> {ac, gw, fuel, drag, label} | null, runway?() }
+// deps: {root, esc, aircraft: {list() -> [names], get(name) -> Promise<perf data | null>}, loadout() -> {ac, gw, fuel, drag, label} | null, runway?(),
+//   aar?: the AAR page (core/aarpage.js), drawn under the AAR tab }
 import * as P from './airperf.js';
 import { resolveAcName } from '../bmsdata/bmsdata.js';
 import { fuelPlan, climbAltitude } from './fuelplan.js';
@@ -10,6 +11,7 @@ const MODES = [
   ['cruise', 'Cruise & range'],
   ['turn', 'Turn & energy'],
   ['plan', 'Fuel plan'],
+  ['aar', 'AAR'],
 ];
 const fmt = (v, d = 0) =>
   Number(v).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }).replace(/,/g, ' ');
@@ -171,6 +173,7 @@ export function createPerfPage(deps) {
       : ' · no weather for this flight';
     return `<p class="hint wnote" data-envnote>Auto: ${esc(e.name)}${e.ship ? ' · ship deck, about 60 ft above the sea (assumed)' : ''}${w}${ov.size ? ' · <a href="#" data-envreset style="color:#ff5d5d">use the flight values again</a>' : ''}</p>`;
   };
+  const aarOn = () => st.mode == 'aar' && !!deps.aar;
   const empty = () => (ac ? ac.af.emptyLb : 0);
   const gw = () => empty() + st.fuel + st.stores;
   const base = () => ({ W: gw(), dIsa: V('isa'), di: st.di });
@@ -682,7 +685,7 @@ export function createPerfPage(deps) {
                       st.power
                     )}</div>`
               }${s(['elev', 'hw', 'slope', 'lfuel'])}${envNote()}<div class="wrow"><label>Runway</label><input type="number" data-rwy min="0" max="20000" step="100" value="${rwMan() || ''}" placeholder="${rwAuto() || 'length, ft'}" style="width:110px"> <span class="hint">${rwHint()}</span></div>`;
-    return `<div class="wcard"><h3>Aircraft and load</h3>${acsel}${loadBtn}${note ? `<p class="hint wnote">${esc(note)}</p>` : ''}${ac ? s(['fuel', 'stores', 'di', 'isa']) : ''}${w}</div><div class="wcard"><h3>${MODES.find(m => m[0] == st.mode)[1]}</h3>${ac ? per : ''}</div>`;
+    return `<div class="wcard"><h3>Aircraft and load</h3>${acsel}${loadBtn}${note ? `<p class="hint wnote">${esc(note)}</p>` : ''}${ac ? s(['fuel', 'stores', 'di', 'isa']) : ''}${w}</div>${aarOn() ? deps.aar.left() : `<div class="wcard"><h3>${MODES.find(m => m[0] == st.mode)[1]}</h3>${ac ? per : ''}</div>`}`;
   }
 
   function draw(keepLeft) {
@@ -717,7 +720,22 @@ export function createPerfPage(deps) {
       pick(st.ac);
       return;
     }
-    const tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}</div>`;
+    const tabs = `<div class="wtabs" role="tablist">${MODES.filter(([k]) => k != 'aar' || deps.aar)
+      .map(
+        ([k, l]) =>
+          `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`
+      )
+      .join(
+        ''
+      )}${aarOn() ? '<button type="button" class="btn wtcard" data-aarcard title="Kneeboard cards of the refuelling: Smart AAR and the classic card with the map">Add card</button>' : ''}</div>`;
+    // AAR: its own page in the middle and right columns (core/aarpage.js); a slider of the left column only computes it again
+    if (aarOn()) {
+      if (keepLeft && root.querySelector('#aarl')) return deps.aar.update();
+      root.innerHTML = `${tabs}<div class="wpg w3"><div class="wpl">${inputs()}</div><div class="wpc" id="pfr" style="grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px"></div><div class="wpr" id="pfr2"></div></div>`;
+      wire(root, false);
+      deps.aar.mount(root);
+      return;
+    }
     let r = { tiles: '', body: '' };
     if (ac) {
       try {
@@ -789,6 +807,7 @@ export function createPerfPage(deps) {
       root.querySelectorAll('[data-mode]').forEach(
         b =>
           (b.onclick = () => {
+            if (aarOn() && b.dataset.mode != 'aar') deps.aar.leave();
             st.mode = b.dataset.mode;
             save();
             draw(false);
@@ -845,6 +864,8 @@ export function createPerfPage(deps) {
           ov.clear();
           draw(false);
         };
+      const ab = /** @type {HTMLButtonElement|null} */ (root.querySelector('[data-aarcard]'));
+      if (ab) ab.onclick = () => deps.aar.addCard(ab);
       const dc = root.querySelector('[data-dc]');
       if (dc) dc.onclick = fromDatacard;
       const bm = root.querySelector('[data-bestm]');
@@ -899,5 +920,27 @@ export function createPerfPage(deps) {
     },
     calc: () => ac,
     fromDatacard,
+    leave: () => {
+      if (aarOn()) deps.aar.leave();
+    },
+    // AAR (core/aarpage.js): the fuel plan of a flight with the aircraft and load of the page; need(k): the fuel to fly on from the steerpoint k and land
+    fuelFor: wps => {
+      if (!ac || !wps || wps.length < 2) return null;
+      const o = {
+        ...base(),
+        empty: empty(),
+        stores: st.stores,
+        reserve: st.lres,
+        jokerMargin: st.jok,
+        loaded: st.fuel,
+        wind: deps.wind,
+      };
+      return {
+        plan: fuelPlan(ac, wps, o),
+        need: k => fuelPlan(ac, wps.slice(k), { ...o, loaded: null }).rows[0].minExact,
+        loaded: st.fuel,
+        joker: st.jok,
+      };
+    },
   };
 }

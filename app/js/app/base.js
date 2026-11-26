@@ -180,6 +180,7 @@ export async function init1() {
       (b.onclick = () => {
         document.querySelectorAll('.tab').forEach(x => x.classList.toggle('on', x == b));
         if (b.dataset.t != 'sq' && sqPage) sqPage.leave(); // the Briefing gives the map back before another page takes it
+        if (b.dataset.t != 'pf' && pfPage) pfPage.leave(); // Performance > AAR too
         ['dtc', 'kb', 'kn', 'mp', 'wp', 'ms', 'pf', 'wx', 'sq', 'dc'].forEach(i =>
           $(i).classList.toggle('hide', i != b.dataset.t)
         );

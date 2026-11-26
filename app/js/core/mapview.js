@@ -470,7 +470,7 @@ export function createMap(host, deps) {
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
     map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
-    map.on('zoomend', () => (st.on.fa || st.on.oc) && !away && faorDraw());
+    map.on('zoomend', () => (st.on.fa || st.on.oc || st.on.ar) && !away && faorDraw());
     zc();
     host.addEventListener(
       'click',
@@ -544,6 +544,7 @@ export function createMap(host, deps) {
     hm: 'SEAD/DEAD',
     fa: 'DCA',
     oc: 'OCA',
+    ar: 'Tanker and rendezvous',
   };
   // the details of the filters, in the tooltips (the rows stay on one line)
   const TIP = {
@@ -563,6 +564,7 @@ export function createMap(host, deps) {
     hm: 'The drawing of A-G > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
     fa: 'The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT, STOP and the HARDWALL',
     oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the sweep area, COMMIT, STOP and the target area',
+    ar: 'The tanker of the selected flight (Performance > AAR): its racetrack, the anchor, the ARIP, the join and your path to it',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
   // the two "only ..." switches sit under their layer; when on, the layer's row is amber and says so
@@ -857,7 +859,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label><div class="mpsh">A-A</div>${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}<div class="mpsh">A-G</div>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}<div class="mpsh">AAR</div>${layerRow(['ar', DSPTXT.ar])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -3101,7 +3103,7 @@ export function createMap(host, deps) {
       HMON = !!st.on.hm;
       harmDraw();
     }
-    ['fa', 'oc'].forEach(k => {
+    ['fa', 'oc', 'ar'].forEach(k => {
       if (!!st.on[k] !== AAON[k]) {
         AAON[k] = !!st.on[k];
         aaDraw(k);
@@ -4421,10 +4423,11 @@ export function createMap(host, deps) {
   // page draws it itself while it has the map. Drawn again at every zoom (the texts of DEAD are placed for the scale); the last call wins.
   let HMN = 0,
     HMON = false;
-  // Display > DCA and OCA: the pages of A-A draw the plan of the flight in a group given to them (deps.faor, deps.oca), as the HARM page does
-  const AAN = { fa: 0, oc: 0 },
-    AAON = { fa: false, oc: false },
-    AADEP = { fa: 'faor', oc: 'oca' };
+  // Display > DCA, OCA and AAR: the pages of A-A and Performance > AAR draw the plan of the flight in a group given to them (deps.faor, deps.oca, deps.aar),
+  // as the HARM page does
+  const AAN = { fa: 0, oc: 0, ar: 0 },
+    AAON = { fa: false, oc: false, ar: false },
+    AADEP = { fa: 'faor', oc: 'oca', ar: 'aar' };
   function aaDraw(k) {
     const n = ++AAN[k],
       dep = deps[AADEP[k]];
@@ -4447,6 +4450,7 @@ export function createMap(host, deps) {
   const faorDraw = () => {
     aaDraw('fa');
     aaDraw('oc');
+    aaDraw('ar');
   };
   function harmDraw() {
     const n = ++HMN;

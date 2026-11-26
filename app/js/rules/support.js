@@ -3,6 +3,7 @@
 import { ord, acOf, actName, els0, hms, nearObj, csOf } from '../core/flight.js';
 import { geoLL, hmN, locXY } from './geo.js';
 import { allyOf, hostileOf } from '../core/coalitions.js';
+import { methodOf, prefer } from './tankers.js';
 function svc(C, f) {
   const B = [0, 1, 2, 3, 4, 7, 8],
     w = f.wps,
@@ -55,8 +56,6 @@ function gndName(C, u) {
   const c = (C.D.gu && C.D.gu[u.c.i]) || (C.D.un && C.D.un[u.c.i] && C.D.un[u.c.i][0]) || '';
   return (ord(u.nameId) + ' ' + c + ' Battalion').replace(/\s+/g, ' ').trim();
 }
-const PROBE =
-  /F\/A-18|F-18|EF-18|CF-188|AV-8|Harrier|F-14|Tornado|Typhoon|EF-2000|Rafale|Mirage|^A-4|^A-6|EA-6|^S-3|Su-30|Su-33|J-15|MiG-29K|F-35[BC]/i;
 function pickTankers(C, f, P) {
   const el = els0(C, f),
     all = el.flatMap(e => e.wps),
@@ -70,13 +69,14 @@ function pickTankers(C, f, P) {
   };
   const asg = P && P.tanker && C.byId[P.tanker.n + ':' + P.tanker.c],
     ty = u => acOf(C, u),
-    // aircraft refuelled with a probe (a drogue tanker: the KC-130 first); the others take the boom (KC-135, KC-10)
-    probe = PROBE.test(ty(f));
-  const pref = u => (probe ? /^KC-130/.test(ty(u)) : /^KC-(135|10)/.test(ty(u)));
+    // the tankers made for the method of the flight first, then the others that refuel it (rules/tankers.js: since BMS 4.36 the KC-135 and the
+    // KC-10 have a drogue too; the KC-130, C-160 and IL-78 have only the drogue)
+    m = methodOf(ty(f));
+  const pref = u => prefer(ty(u), m);
   const c = C.units.filter(
     u =>
       u.kind == 'flight' &&
-      /^KC-/.test(ty(u)) &&
+      (/^KC-/.test(ty(u)) || (C.D.S[300 + u.omis] || '') == 'AIR REFUEL') &&
       u.wps.length &&
       (u === asg || (allyOf(C, u.owner, f.owner) && (w => w[0] <= b && w[1] >= a)(win(u))))
   );

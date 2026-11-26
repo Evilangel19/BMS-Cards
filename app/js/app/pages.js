@@ -57,7 +57,10 @@ import { timed } from '../core/sead.js';
 import { sunAlt } from '../rules/ephemerides.js';
 import { wxAtTarget } from '../core/smartwx.js';
 import { capKind } from '../core/faor.js';
-import { nearAb, nearObj } from '../core/flight.js';
+import { nearAb, nearObj, csOf, acOf, tcnStr, rmf, opWin } from '../core/flight.js';
+import { createAarPage } from '../core/aarpage.js';
+import { pickTankers } from '../rules/support.js';
+import { sopPhase } from '../core/roesop.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
 export const nearName = (x, y) => {
   try {
@@ -127,6 +130,7 @@ export let harmTab; // the HARM tab of the A-G page: SEAD or Single shot
 // Squadron page: the pilot is read from the logbook (User\Config\*.lbk), the mission of the leader goes to the pilots peer to peer
 export let sqPage;
 export let pfPage;
+export let aarPage; // Performance > AAR
 export let faorPage; // A-A > DCA (the FAOR)
 export let ocaPage; // A-A > OCA
 export let qraPage; // A-A > DCA for a QRA flight
@@ -157,6 +161,8 @@ export async function init6() {
     faor: o => (faorPage ? dcaPage().overlay(o) : false),
     // Display > OCA: the SWEEP or ESCORT of the flight (A-A > OCA)
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
+    // Display > AAR: the tanker track and the rendezvous of the flight (Performance > AAR)
+    aar: o => (aarPage ? aarPage.overlay(o) : false),
     // AUTO > FEZ of the DTC editing: the lines of the A-A page of the flight (DCA, QRA or OCA)
     aaCan: () => [dcaPage(), ocaPage].some(p => p && p.usable()),
     attackLines: () => (ST.wpPage ? ST.wpPage.attackLines() : null),
@@ -1240,6 +1246,53 @@ function ocaCtx() {
     aa: aaLoad(e.f),
   };
 }
+// ---- Performance > AAR: the flight chosen, its Refuel steerpoint, its tankers (as the datacard picks them: TANKER 1 / 2), the Tanker topics of its SOP
+function aarCtx() {
+  if (!ST.C) return { ok: false, why: 'Open a campaign: AAR plans the refuelling of a flight of its ATO.' };
+  const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+    e = x && ATOL.find(z => z.f === x.f);
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  const C = ST.C,
+    f = e.f,
+    wps = f.wps || [],
+    k = wps.findIndex((p, i) => i > 0 && p.act == 4);
+  if (k < 1)
+    return { ok: false, why: e.callsign + ' has no Refuel steerpoint: AAR plans the join with the tanker on it.' };
+  let tk = [];
+  try {
+    tk = pickTankers(C, f, f.pkg && C.byId[f.pkg.n + ':' + f.pkg.c]);
+  } catch (er) {
+    tk = [];
+  }
+  let sop = [];
+  try {
+    sop = sopPhase(roeOfFlight(), 'Tanker');
+  } catch (er) {
+    sop = [];
+  }
+  return {
+    ok: true,
+    me: {
+      key: String(f.id.n),
+      name: e.callsign,
+      n: e.n,
+      ac: e.ac,
+      pkgNo: e.pkgNo,
+      tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
+    },
+    wps,
+    k,
+    tankers: tk.map(u => ({
+      name: csOf(C, u).replace(' ', ''),
+      type: acOf(C, u),
+      tcn: tcnStr(u.tcn && u.tcn[0], u.band && u.band[0]),
+      uhf: rmf(C, csOf(C, u))[0],
+      win: opWin(u),
+      wps: u.wps,
+    })),
+    sop,
+  };
+}
 // ---- A-A > DCA for a QRA flight: its base and take-off, the Intercept steerpoint once the campaign launched it and the enemy flight it names (its
 // state now only when the side of the flight has spotted it), the friendly radars and AWACS, the enemy airbases
 function qraCtx() {
@@ -1714,9 +1767,49 @@ export async function init11() {
   beforeClose(() => sqPage.flush());
   KBX.send = it => sqPage.sendCard(it);
   KBX.can = () => sqPage.canSendCard();
+  aarPage = createAarPage({
+    esc,
+    toast: appToast,
+    confirm: m => confirm(m),
+    ctx: aarCtx,
+    fuel: w => (pfPage ? pfPage.fuelFor(w) : null),
+    toLL: (x, y) => mapV.toLL(x, y),
+    attach: el => mapV.attach(el),
+    detach: () => mapV.detach(),
+    snap: scale => mapV.snap(scale),
+    kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
+    dtc: {
+      open: () => lines.length > 0,
+      has: sec => lines.some(l => l.s == sec),
+      setOA: (key, v) => {
+        S('NAV OFFSETS', key, v);
+        dtcChanged('NAV OFFSETS', key);
+      },
+    },
+  });
+  // Add all cards: the classic card takes the picture of the map of the page, so Performance > AAR is shown while it is made, then the page as it was
+  KBX.src.aar = async () => {
+    if (!aarPage.usable()) return [];
+    const m0 = pfPage.state().mode,
+      t = /** @type {HTMLElement|null} */ (document.querySelector('.tab[data-t=pf]'));
+    pfPage.setState({ mode: 'aar' });
+    if (t && !t.classList.contains('on')) t.click();
+    else pfPage.render();
+    await new Promise(r => setTimeout(r, 1200));
+    try {
+      return await aarPage.allCards();
+    } finally {
+      if (m0 != 'aar') {
+        aarPage.leave();
+        pfPage.setState({ mode: m0 });
+        pfPage.render();
+      }
+    }
+  };
   pfPage = createPerfPage({
     esc,
     root: $('pf'),
+    aar: aarPage,
     wind: (x, y, t, a) => wxWind(x, y, t, a),
     aircraft: {
       list: async () => {

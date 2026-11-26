@@ -1174,6 +1174,19 @@ export function sopText(sel) {
   if (s.sfree.trim()) R.push(...s.sfree.split('\n').filter(l => l.trim()));
   return R.join('\n');
 }
+// the topics of one phase that have a choice: [{id, o (the option, '' when typed), txt (the short form, with its MINI)}] (the SOP box of the Smart AAR card)
+export function sopPhase(sel, phase) {
+  const s = cleanSel(sel),
+    P = sopAll().find(([ph]) => ph === phase);
+  if (!P) return [];
+  return P[1]
+    .filter(t => s.sop[t[0]] && sopShort(t, s.sop[t[0]]))
+    .map(t => {
+      const v = s.sop[t[0]],
+        mini = P[2] ? t[2] : MINI[t[0]];
+      return { id: t[0], o: v.t ? '' : v.o, txt: v.t || (mini ? mini + ' ' : '') + sopShort(t, v) };
+    });
+}
 // what a box of the card holds: the program measures the text in the box (setBoxFit, app/roepage.js: as much as fits at the smallest size); without
 // it (the tests in Node) BOX_MAX lines
 export const BOX_MAX = 5;

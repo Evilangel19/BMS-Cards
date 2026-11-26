@@ -152,8 +152,8 @@ export function aaPlanView(x, P, box) {
   scText(x, sx + s10 / 2, sy + 13, 10, '10 NM', { al: 'center', c: '#444444' });
 }
 
-/** blocks of text in two columns from y to yMax */
-function blocks(x, B, y0, yMax) {
+/** blocks of text in two columns from y to yMax (the Smart AAR card too: core/smartaar.js) */
+export function blocks(x, B, y0, yMax) {
   const col = [12, 236],
     W = 212;
   let c = 0,

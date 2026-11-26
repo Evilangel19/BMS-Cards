@@ -93,6 +93,7 @@ export const MAP_LAYERS = [
   ['hm', 'HARM', false, 'Display'],
   ['fa', 'DCA', false, 'Display'],
   ['oc', 'OCA', false, 'Display'],
+  ['ar', 'Tanker and rendezvous', false, 'Display'],
   ...OBJ_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Objects']),
   ...PLACE_LAYERS.map(([t, l]) => ['o' + t, l, false, 'Political']),
 ];
