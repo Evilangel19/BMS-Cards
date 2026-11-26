@@ -18,13 +18,9 @@ export const boxOf = d => {
     yc = YC && YC[d.k] !== undefined ? YC[d.k] : d.y;
   return b ? { x: d.x, y: b[0], w: d.w, h: b[1] - b[0] } : { x: d.x, y: yc - 12, w: d.w, h: 24 };
 };
-export const cardOn = () => {
-  try {
-    return $('cv').getContext('2d').getImageData(2, 2, 1, 1).data[3] > 0;
-  } catch (e) {
-    return false;
-  }
-};
+// the card is drawn: cardview.js draw() fills the whole canvas (the card or the MDC) and counts its drawings in ST.CVV. (A pixel of the canvas was read
+// here: a read waits for the GPU, about 30 ms, at every move of the mouse over the card and at every flight chosen)
+export const cardOn = () => (ST.CVV || 0) > 0;
 export function cellAt(ev) {
   if (!cardOn()) return null;
   const c = $('cv'),
