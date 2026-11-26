@@ -22,6 +22,7 @@ import {
   bolWarn,
   inTheWay,
   minNm,
+  hpnLaunch,
 } from '../app/js/core/tasmo.js';
 let bad = 0,
   n = 0;
@@ -147,11 +148,12 @@ ok(
   seekerNm('rbl', 60, 9, 0) == 11 && seekerNm('bol', 60, 0, 18) == 42
 );
 ok(
-  'the search area: SMALL and MED fixed, LARGE grows and covers the area',
-  areaNm('SMALL', 60, 3) == 3 &&
-    areaNm('MED', 60, 3) == 6 &&
-    areaNm('LARGE', 60, 3) == 9 &&
-    areaNm('LARGE', 60, 40) == 40
+  'the search area: SMALL and MED fixed, LARGE 20% of the range, 8 to 15 NM (not the ±40 NM of a ship not spotted)',
+  areaNm('SMALL', 60) == 3 &&
+    areaNm('MED', 60) == 6 &&
+    areaNm('LARGE', 60) == 12 &&
+    areaNm('LARGE', 20) == 8 &&
+    areaNm('LARGE', 120) == 15
 );
 
 // the Dash-34 pages (1.4.0-beta.31): the RBL waypoint (TGT-TO-WPT), BOL enable / destruct, LOS, the nearest launch
@@ -190,13 +192,14 @@ ok(
 );
 ok(
   'BOL: the defaults pass, a destruct before the ship is red',
-  !bolWarn(18, 99, 60, 40).some(w => w[1]) &&
-    bolWarn(18, 50, 60, 40).some(w => w[1] && /DSTR RANGE TOO SMALL/.test(w[0]))
+  !bolWarn(18, 99, 60, 40).some(w => w[1] === true) &&
+    bolWarn(18, 50, 60, 40).some(w => w[1] === true && /DSTR RANGE TOO SMALL/.test(w[0]))
 );
 ok(
   'BOL: ACTIVE RANGE TOO SMALL (red), an enable past the near side (note)',
-  bolWarn(60, 64, 60, 3).some(w => w[1] && /ACTIVE RANGE/.test(w[0])) &&
-    bolWarn(59, 99, 60, 3).some(w => !w[1] && /past the near side/.test(w[0]))
+  bolWarn(60, 64, 60, 3).some(w => w[1] === true && /ACTIVE RANGE/.test(w[0])) &&
+    bolWarn(59, 99, 60, 3).some(w => w[1] == 'y' && /past the near side/.test(w[0])) &&
+    !bolWarn(26, 86, 37, 40).some(w => /ACTIVE RANGE/.test(w[0]))
 );
 const sh2 = { x: 500, y: 500 - 20 * KM_NM, name: 'Frigate' },
   sh3 = { x: 500 + 20 * KM_NM, y: 500 - 20 * KM_NM, name: 'Far' };
@@ -234,5 +237,26 @@ ok(
     SL.some(r => r[0] == 'Launch' && r[1].includes('heading 010'))
 );
 
+// the limits seen in BMS 4.38 (1.4.0-beta.36): AIRCRAFT TOO LOW at 1,000 ft, MACH NUMBER OUT OF RANGE at 0.40 and 0.95
+ok(
+  'the launch of the Harpoon: 1,000 ft too low, 1,580 ft and Mach 0.66 good',
+  hpnLaunch(1000, 430).W.some(w => /TOO LOW/.test(w[0])) && !hpnLaunch(1580, 430).W.length
+);
+ok(
+  '...Mach 0.40 and 0.95 out of range, 0.47 and 0.81 in',
+  hpnLaunch(6000, 0.4 * 654.9).W.some(w => /MACH/.test(w[0])) &&
+    hpnLaunch(6000, 0.95 * 654.9).W.some(w => /MACH/.test(w[0])) &&
+    !hpnLaunch(6500, 0.47 * 654.0).W.length &&
+    !hpnLaunch(11700, 0.81 * 638.7).W.length
+);
+// the SAM ring of a ship not spotted: yellow when only the area is inside, red when the centre is
+const NS = { ...ship, spotted: false };
+const Py = tasmoPlan({ ...base, ship: NS, dist: 60 });
+ok(
+  'not spotted, launch outside the ring of the centre: the SAM check yellow',
+  Py.margin < 0 && !Py.samRed && Py.warn.some(w => w[1] == 'y' && /SAM ring/.test(w[0]))
+);
+const Pr = tasmoPlan({ ...base, ship: NS, dist: 20 });
+ok('...inside the ring of the centre: red', Pr.samRed && Pr.warn.some(w => w[1] === true && /SAM ring/.test(w[0])));
 console.log(bad ? `${bad} of ${n} FAILED` : `tasmo: ${n} checks ok`);
 process.exit(bad ? 1 : 0);

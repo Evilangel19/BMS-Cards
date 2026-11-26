@@ -90,16 +90,17 @@ export function tasmoPlan(o) {
       true,
     ]);
   else if (!covers)
-    warn.push([
-      'The missile does not reach the far side of the area of the ship (±' + U + ' NM): launch nearer.',
-      false,
-    ]);
+    warn.push(['The missile does not reach the far side of the area of the ship (±' + U + ' NM): launch nearer.', 'y']);
+  // inside the ring where the campaign has the ship: red; only inside it with the ship nearer by the area (its position not known): yellow
+  const samRed = o.dist - ring < 0 || (margin < 0 && s.spotted);
   if (margin < 0)
     warn.push([
       'The launch is inside the SAM ring of the ship' +
         (U ? ' (taking the ship ' + U + ' NM nearer, the fog of war)' : '') +
-        ': launch farther.',
-      true,
+        (samRed
+          ? ': launch farther.'
+          : ': its position is not known, a launch in range is always inside the area of its ring.'),
+      samRed ? true : 'y',
     ]);
   if (!hidden)
     warn.push([
@@ -124,6 +125,7 @@ export function tasmoPlan(o) {
     ring,
     ringLow: low && s.low > 0,
     margin,
+    samRed,
     seen,
     hidden,
     reach,
@@ -152,9 +154,39 @@ export const SKIM_FT = 100, // the cruise of the missile over the sea
 export function seekerNm(mode, dist, area, enable) {
   return mode == 'bol' ? Math.max(0, dist - enable) : mode == 'los' ? Math.max(0, dist - 1) : Math.min(dist, area + 2);
 }
-/** the radius of the search area (NM, an estimate): LARGE grows with the range (and covers the area of the ship), MED and SMALL are fixed */
-export const areaNm = (size, dist, U) =>
-  size == 'SMALL' ? 3 : size == 'MED' ? 6 : Math.max(U, Math.round(dist * 0.15));
+/** the radius of the search area (NM, an estimate: the Dash-34 names SMALL, MED and LARGE, not their size): MED and SMALL fixed, LARGE 20% of the
+ * range, 8 to 15 NM. A ship not spotted (±40 NM) is a larger area than the seeker searches: a check says so */
+export const areaNm = (size, dist) =>
+  size == 'SMALL' ? 3 : size == 'MED' ? 6 : Math.max(8, Math.min(15, Math.round(dist * 0.2)));
+// the launch of the Harpoon in BMS 4.38 (seen in the game: AIRCRAFT TOO LOW at 1,000 ft AGL, not at 1,580 ft; MACH NUMBER OUT OF RANGE at 0.40 and
+// at 0.95, not at 0.47 nor at 0.81). The limits between: estimates
+export const HPN_MIN_FT = 1500,
+  HPN_MACH = [0.45, 0.95];
+const soundKt = altFt => 661.47 * Math.sqrt(Math.max(0.75, 1 - 6.8756e-6 * Math.min(altFt, 36089)));
+/** the checks of the launch of the Harpoon: the altitude (ft AGL) and the speed (kt true) */
+export function hpnLaunch(altFt, kt) {
+  const W = [],
+    mach = kt / soundKt(altFt);
+  if (altFt < HPN_MIN_FT)
+    W.push([
+      'AIRCRAFT TOO LOW: launch at ' +
+        HPN_MIN_FT.toLocaleString('en-US') +
+        ' ft AGL or higher (BMS: too low at 1,000 ft).',
+      true,
+    ]);
+  if (mach < HPN_MACH[0] || mach >= HPN_MACH[1])
+    W.push([
+      'MACH NUMBER OUT OF RANGE: Mach ' +
+        mach.toFixed(2) +
+        ' at the launch; launch between Mach ' +
+        HPN_MACH[0] +
+        ' and ' +
+        HPN_MACH[1] +
+        ' (BMS: out at 0.40 and at 0.95).',
+      true,
+    ]);
+  return { mach, W };
+}
 // a 30° descent of the missile: about 1 NM a 3,500 ft
 const drop = a => Math.max(0.3, (a - SKIM_FT) / 3500);
 /** the vertical flight of the missile: [[NM to go to the ship, ft]] from the launch to the impact; o: {dist (NM: its flight, through the waypoint),
@@ -221,8 +253,8 @@ export function hpnWpt(o) {
     warn.push([
       'INITIAL TURN TOO LARGE: ' +
         Math.round(turn0) +
-        '° from your heading to the waypoint (an estimate): turn toward it.',
-      false,
+        '° from your heading to the waypoint (more than 90°, as in BMS): turn toward it.',
+      true,
     ]);
   if (turnW > WPT_LEG_TURN)
     warn.push(['WPT TURN TOO LARGE: ' + Math.round(turnW) + '° at the waypoint (an estimate): move it.', false]);
@@ -234,6 +266,7 @@ export function defaultWpt(ship, launch, seek, side = 1) {
   return { brg: Math.round((((b % 360) + 360) % 360) / 5) * 5 || 360, rng: Math.ceil(seek + 8) };
 }
 
+export const ACTIVE_NM = 5; // BOL: the least distance between the enable and the destruct ranges (an estimate: the Dash-34 gives no number)
 /** BOL: the checks of the enable and destruct ranges (Dash-34 4.2.6.1.4; ACTIVE RANGE TOO SMALL, DSTR RANGE TOO SMALL) for the ship at dist NM, ±U */
 export function bolWarn(enable, destruct, dist, U) {
   const W = [];
@@ -253,19 +286,21 @@ export function bolWarn(enable, destruct, dist, U) {
         ' NM) does not cover the far side of the area of the ship (' +
         (dist + U) +
         ' NM).',
-      false,
+      'y',
     ]);
-  if (destruct - enable < 2 * Math.max(2, U) && destruct >= dist)
+  if (destruct - enable < ACTIVE_NM && destruct >= dist)
     W.push([
       'ACTIVE RANGE TOO SMALL: ' +
         (destruct - enable) +
-        ' NM between the enable and the destruct ranges: the seeker has no time to search.',
+        ' NM between the enable and the destruct ranges: ' +
+        ACTIVE_NM +
+        ' NM at least for the seeker to search (an estimate).',
       true,
     ]);
   else if (enable > dist - Math.min(U, 2))
     W.push([
       'The seeker turns on at ' + enable + ' NM, past the near side of the area of the ship: a lower enable range.',
-      false,
+      'y',
     ]);
   return W;
 }
@@ -361,7 +396,10 @@ export function tasmoSteps(name, opt, P, at) {
       : []),
     [
       'Launch',
-      'MASTER ARM · ' + (m == 'rbl' ? 'in range · ' : 'heading ' + (opt.hdg || '---') + ' to the ship · ') + at,
+      'MASTER ARM · ' +
+        (m == 'rbl' ? 'in range · ' : 'heading ' + (opt.hdg || '---') + ' to the ship · ') +
+        at +
+        (hpn ? ' · level (PITCH TOO GREAT in a climb or a dive), Mach 0.45 to 0.95, 1,500 ft AGL or higher' : ''),
     ],
     [
       'Release',

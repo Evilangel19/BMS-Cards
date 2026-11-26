@@ -24,6 +24,8 @@ import {
   missilePath,
   POP_NM,
   hpnWpt,
+  hpnLaunch,
+  HPN_MIN_FT,
   defaultWpt,
   bolWarn,
   inTheWay,
@@ -110,22 +112,24 @@ export function createTasmoPage(deps) {
 
   // ---- the numbers
   // the seeker and the search area of the missile (the Harpoon options): RBL its area (LARGE grows with the range), BOL the enable range, LOS none
-  const area = () => (P ? areaNm(S.area, S.dist, P.U) : 0);
+  const area = () => (P ? areaNm(S.area, S.dist) : 0);
   const mode = () => (hpn() ? S.mode : 'rbl');
   const seeker = () => seekerNm(mode(), P.path || S.dist, mode() == 'rbl' ? area() : 0, P.enable);
   function compute() {
     X = deps.ctx();
     P = G = W = H = ship = null;
     if (!X || !X.ok) return;
-    const raw = st.f[X.me.key] || {};
-    ship = X.ships.find(s => s.id == raw.ship) || X.ships.find(s => s.id == X.target) || X.ships[0] || null;
+    // the flight: its ship and its weapon; the choices of each weapon kept apart (f.by[weapon id]; an older store had them on f)
+    const f = st.f[X.me.key] || {};
+    ship = X.ships.find(s => s.id == f.ship) || X.ships.find(s => s.id == X.target) || X.ships[0] || null;
     W =
-      X.weapons.find(w => w.id == raw.wpn) ||
+      X.weapons.find(w => w.id == f.wpn) ||
       X.weapons.find(w => w.kind == 'asm') ||
       X.weapons.find(w => w.kind == 'mav') ||
       X.weapons[0] ||
       null;
     if (!ship) return;
+    const raw = (f.by ? W && f.by[W.id] : f) || {};
     const w = timed(X.wps),
       at = w.find(p => p.n == X.task.n) || w[w.length - 1],
       prev = w.find(p => p.n == X.task.n - 1) || w[0],
@@ -139,7 +143,7 @@ export function createTasmoPage(deps) {
         .reduce((a, p) => (!a || nmOf(p, ship) < nmOf(a, ship) ? p : a), null);
     G = { from: prev, at, near, cruise, gs, tot: at.arr };
     S = {
-      alt: Math.max(200, Math.min(40000, +raw.alt || 500)),
+      alt: Math.max(200, Math.min(40000, +raw.alt || (W && isHarpoon(W.name) ? HPN_MIN_FT : 500))),
       dist: +raw.dist || 0,
       n: Math.max(1, Math.min(6, +raw.n || 2)),
       mode: raw.mode || '',
@@ -195,14 +199,20 @@ export function createTasmoPage(deps) {
       P = { ...tasmoPlan({ ...po, path: H.path }), enable: en, destruct: ds };
     }
   }
+  // a choice: the ship and the weapon for the flight, the rest for the weapon (each missile keeps its own choices). A new ship: the distance, the mode,
+  // the BOL ranges and the waypoint again, for every weapon
   const set = (k, v) => {
-    st.f[X.me.key] = { ...(st.f[X.me.key] || {}), ship: ship && ship.id, wpn: W && W.id, ...S, [k]: v };
-    if (k == 'ship' || k == 'wpn') {
-      st.f[X.me.key].dist = 0; // the distance again for the ship or the missile
-      st.f[X.me.key].mode = '';
-      st.f[X.me.key].en = st.f[X.me.key].ds = st.f[X.me.key].wbrg = st.f[X.me.key].wrng = 0;
+    const f0 = st.f[X.me.key] || {},
+      by = { ...(f0.by || {}) },
+      f = { ship: ship && ship.id, wpn: W && W.id, by };
+    if (W && !(k == 'ship' || k == 'wpn')) by[W.id] = { ...S, [k]: v, ...(k == 'alt' ? { dist: 0 } : {}) };
+    else if (W && !by[W.id]) by[W.id] = { ...S };
+    if (k == 'ship') {
+      f.ship = v;
+      Object.keys(by).forEach(id => (by[id] = { ...by[id], dist: 0, mode: '', en: 0, ds: 0, wbrg: 0, wrng: 0 }));
     }
-    if (k == 'alt') st.f[X.me.key].dist = 0;
+    if (k == 'wpn') f.wpn = v;
+    st.f[X.me.key] = f;
     save();
   };
   const hpn = () => !!W && isHarpoon(W.name);
@@ -215,6 +225,16 @@ export function createTasmoPage(deps) {
   function checks() {
     const C = P ? [...P.warn] : [];
     if (P && H) C.push(...H.warn);
+    if (P && hpn()) C.push(...hpnLaunch(S.alt, G.gs).W);
+    if (P && hpn() && mode() == 'rbl' && P.U > area())
+      C.push([
+        'The area of the ship (±' +
+          P.U +
+          ' NM) is larger than the search area of the seeker (±' +
+          area() +
+          ' NM): spot the ship, or BOL.',
+        'y',
+      ]);
     if (P && hpn() && mode() == 'bol') C.push(...bolWarn(P.enable, P.destruct, S.dist, P.U));
     if (P && S.dist < nearest())
       C.push([
@@ -566,13 +586,13 @@ export function createTasmoPage(deps) {
     q('#tsleg').innerHTML = legend();
     live();
   }
-  const checksHtml = () =>
-    checks()
-      .map(
-        ([t, red]) =>
-          `<div class="wcard${red ? ' sdpb' : ''}"><h3>Check</h3><p class="${red ? 'wbad' : 'hint'}">${esc(t)}</p></div>`
-      )
-      .join('');
+  // the checks in one card: red (the plan fails or a limit of the game), yellow (a risk to know), grey (a note)
+  const checksHtml = () => {
+    const C = checks();
+    return C.length
+      ? `<div class="wcard${C.some(c => c[1] === true) ? ' sdpb' : ''}"><h3>Checks</h3>${C.map(([t, l]) => `<p class="tsck ${l === true ? 'wbad' : l == 'y' ? 'sdw' : 'hint'}">${esc(t)}</p>`).join('')}</div>`
+      : '';
+  };
   // the parts that a slider changes: drawn again while it moves (not the sliders themselves)
   function live() {
     const q = s => /** @type {HTMLElement} */ (root.querySelector(s));
@@ -714,9 +734,9 @@ export function createTasmoPage(deps) {
   function alts() {
     if (!P)
       return `<h3>Altitude · speed</h3><div class="kv">${kv('CRUISE', fmt(G.cruise) + ' ft · ' + Math.round(G.gs) + ' kt')}${kv('RADAR HORIZON', horizonNm(G.cruise).toFixed(0) + ' NM at the cruise')}</div>`;
-    return `<h3>Altitude · speed</h3>${slr('alt', 'Launch altitude', [200, 35000, 100], S.alt, fmt(S.alt) + ' ft')}${slr('dist', 'Launch distance', [5, Math.max(10, Math.ceil(G.rmax + 10)), 1], S.dist, S.dist + ' NM', bad())}<div class="kv" id="tsalkv">${altKv()}</div>`;
+    return `<h3>Altitude · speed</h3>${slr('alt', 'Launch altitude', [200, 35000, 100], S.alt, fmt(S.alt) + ' ft', slBad('alt'))}${slr('dist', 'Launch distance', [5, Math.max(10, Math.ceil(G.rmax + 10)), 1], S.dist, S.dist + ' NM', bad())}<div class="kv" id="tsalkv">${altKv()}</div>`;
   }
-  const bad = () => P.reach < 0 || P.margin < 0 || S.dist < nearest();
+  const bad = () => P.reach < 0 || P.samRed || S.dist < nearest();
   // the sliders: their text and when they are red (the checks of the Dash-34 alerts)
   const slTxt = k =>
     k == 'alt'
@@ -734,12 +754,14 @@ export function createTasmoPage(deps) {
     k == 'dist'
       ? bad()
       : k == 'wrng'
-        ? !!(H && H.warn.some(w => w[1] && /RANGE TOO SMALL/.test(w[0])))
+        ? !!(H && H.warn.some(w => w[1] === true && /RANGE TOO SMALL/.test(w[0])))
         : k == 'wbrg'
-          ? !!(H && H.warn.some(w => w[1] && /WPT TOO CLOSE/.test(w[0])))
+          ? !!(H && H.warn.some(w => w[1] === true && /WPT TOO CLOSE/.test(w[0])))
           : k == 'en' || k == 'ds'
-            ? bolWarn(P.enable, P.destruct, S.dist, P.U).some(w => w[1])
-            : false;
+            ? bolWarn(P.enable, P.destruct, S.dist, P.U).some(w => w[1] === true)
+            : k == 'alt'
+              ? hpn() && S.alt < HPN_MIN_FT
+              : false;
   const altKv = () =>
     kv('CRUISE', fmt(G.cruise) + ' ft · ' + Math.round(G.gs) + ' kt') +
     kv(
@@ -787,7 +809,7 @@ export function createTasmoPage(deps) {
   }
   function shot() {
     if (!P) return `<h3>Shot</h3><p class="hint">No anti-ship missile chosen.</p>`;
-    return `<h3>Shot · ${S.n}× ${esc(W.name)}</h3><div class="kv">${kv('LAUNCH', hm(P.tLaunch) + ' · ' + launchTxt(), P.margin < 0 || P.reach < 0 ? 'wbad' : 'sdme')}${H ? kv('HPN WPT', 'TGT-TO-WPT · TGT 90 · TBRG ' + h3(H.brg) + '° · RNG ' + H.rng.toFixed(1) + ' NM · the missile flies ' + P.path.toFixed(0) + ' NM', H.warn.some(w => w[1]) ? 'wbad' : '') : ''}${kv('RANGE', G.rmax.toFixed(0) + ' NM · ' + (P.reach >= 0 ? P.reach.toFixed(0) + ' NM to spare' : 'SHORT by ' + (-P.reach).toFixed(0) + ' NM'), P.reach < 0 ? 'wbad' : '')}${kv('FLIGHT TIME', '≈ ' + (P.tof / 60000).toFixed(1) + ' min')}${kv('IMPACT', hm(P.tLaunch + P.tof) + ' · the time of STPT ' + X.task.n)}${kv('SAM MARGIN', (P.margin >= 0 ? '+' : '−') + Math.abs(P.margin).toFixed(0) + ' NM ' + (P.margin >= 0 ? 'outside' : 'INSIDE') + ' the ' + (P.ringLow ? 'low ' : '') + 'ring', P.margin < 0 ? 'wbad' : 'sdok')}${kv('SEEN', P.hidden ? 'no: under the horizon (' + P.seen.toFixed(0) + ' NM)' : 'yes, from ' + P.seen.toFixed(0) + ' NM', P.hidden ? 'sdok' : 'sdw')}${hpn() && S.mode == 'bol' ? kv('BOL', 'ENBL ' + P.enable + ' NM · DSTR ' + P.destruct + ' NM') : ''}${hpn() && S.mode == 'los' ? kv('LOS', 'wings level 40 s after PWR ON · heading ' + h3(brg(P.launch, ship))) : ''}${P.acq ? kv('RADAR', '≈ ' + P.acq.nm.toFixed(0) + ' NM at ' + fmt(P.acq.alt) + ' ft (the range of the radar of the aircraft, the horizon)') : ''}</div>`;
+    return `<h3>Shot · ${S.n}× ${esc(W.name)}</h3><div class="kv">${kv('LAUNCH', hm(P.tLaunch) + ' · ' + launchTxt(), P.samRed || P.reach < 0 ? 'wbad' : 'sdme')}${H ? kv('HPN WPT', 'TGT-TO-WPT · TGT 90 · TBRG ' + h3(H.brg) + '° · RNG ' + H.rng.toFixed(1) + ' NM · the missile flies ' + P.path.toFixed(0) + ' NM', H.warn.some(w => w[1] === true) ? 'wbad' : '') : ''}${kv('RANGE', G.rmax.toFixed(0) + ' NM · ' + (P.reach >= 0 ? P.reach.toFixed(0) + ' NM to spare' : 'SHORT by ' + (-P.reach).toFixed(0) + ' NM'), P.reach < 0 ? 'wbad' : '')}${kv('FLIGHT TIME', '≈ ' + (P.tof / 60000).toFixed(1) + ' min')}${kv('IMPACT', hm(P.tLaunch + P.tof) + ' · the time of STPT ' + X.task.n)}${kv('SAM MARGIN', (P.margin >= 0 ? '+' : '−') + Math.abs(P.margin).toFixed(0) + ' NM ' + (P.margin >= 0 ? 'outside' : 'INSIDE') + ' the ' + (P.ringLow ? 'low ' : '') + 'ring' + (P.margin < 0 && !P.samRed ? ' (the area of the ship)' : ''), P.samRed ? 'wbad' : P.margin < 0 ? 'sdw' : 'sdok')}${hpn() ? kv('MACH', hpnLaunch(S.alt, G.gs).mach.toFixed(2) + ' at the launch (' + Math.round(G.gs) + ' kt)', hpnLaunch(S.alt, G.gs).W.some(w => /MACH/.test(w[0])) ? 'wbad' : '') : ''}${kv('SEEN', P.hidden ? 'no: under the horizon (' + P.seen.toFixed(0) + ' NM)' : 'yes, from ' + P.seen.toFixed(0) + ' NM', P.hidden ? 'sdok' : 'sdw')}${hpn() && S.mode == 'bol' ? kv('BOL', 'ENBL ' + P.enable + ' NM · DSTR ' + P.destruct + ' NM') : ''}${hpn() && S.mode == 'los' ? kv('LOS', 'wings level 40 s after PWR ON · heading ' + h3(brg(P.launch, ship))) : ''}${P.acq ? kv('RADAR', '≈ ' + P.acq.nm.toFixed(0) + ' NM at ' + fmt(P.acq.alt) + ' ft (the range of the radar of the aircraft, the horizon)') : ''}</div>`;
   }
   // the nav offsets from the steerpoint of the route nearest to the ship: OA1 the launch, OA2 the radar acquisition (not spotted) or the descent
   const oa2Acq = () => !!(P && P.acq && P.acq.nm > S.dist); // the radar acquisition before the launch: OA2 (else the descent)
@@ -811,7 +833,7 @@ export function createTasmoPage(deps) {
   }
   function oaHtml() {
     const O = oas();
-    return `<h3>Nav offsets · STPT ${G.near ? G.near.n : '--'}</h3>${O.length ? `<table class="oat"><tr><th>OA</th><th>Point</th><th>Bearing</th><th>Range</th><th>Elev</th></tr>${O.map(o => `<tr><td>${o.k}</td><td>${o.l}</td><td>${h3(o.brg)}° T</td><td>${o.nm.toFixed(1)} nm</td><td>${fmt(o.el)}</td></tr>`).join('')}</table>` : '<p class="hint">No point for an offset.</p>'}<div class="ddbtns"><button class="btn g" type="button" data-tsoa${O.length ? '' : ' disabled'}>Write OA1 / OA2</button><button class="btn g" type="button" data-tshpn title="The ship (the centre of its area) as the Harpoon target, steerpoint 90 of the DTC, and as the target of the attack pages, steerpoint 99">Write HPN STPT 90</button></div>`;
+    return `<h3>Nav offsets · STPT ${G.near ? G.near.n : '--'}</h3>${O.length ? `<table class="oat"><tr><th>OA</th><th>Point</th><th>Bearing</th><th>Range</th><th>Elev</th></tr>${O.map(o => `<tr><td>${o.k}</td><td>${o.l}</td><td>${h3(o.brg)}° T</td><td>${o.nm.toFixed(1)} nm</td><td>${fmt(o.el)}</td></tr>`).join('')}</table>` : '<p class="hint">No point for an offset.</p>'}<div class="ddbtns"><button class="btn g" type="button" data-tsoa${O.length ? '' : ' disabled'}>Write OA1 / OA2</button><button class="btn g" type="button" data-tshpn title="The ship (the centre of its area) as the Harpoon target, steerpoint 90 of the DTC">Write HPN STPT 90</button></div>`;
   }
   function legend() {
     const it = (c, t, d) =>
@@ -961,13 +983,12 @@ export function createTasmoPage(deps) {
           ship.name +
           ' (the centre of its area, ±' +
           (ship.spotted ? 3 : 40) +
-          ' NM) as the Harpoon target, steerpoint 90, and as the target of the attack pages, steerpoint 99?'
+          ' NM) as the Harpoon target, steerpoint 90?'
       ))
     )
       return;
     deps.dtc.setTarget('target_89', shipTgt());
-    tgt99();
-    deps.toast(ship.name + ' written as STPT 90 and STPT 99.');
+    deps.toast(ship.name + ' written as STPT 90.');
   }
   // the ship (the centre of its area, sea level) as a target of the DTC; target_N = STPT N + 1
   const shipTgt = () => ({ n: ship.y * 3280.84, e: ship.x * 3280.84, elv: 0, name: ship.name });
@@ -999,7 +1020,7 @@ export function createTasmoPage(deps) {
   // ---- the cards
   function smartData() {
     const w = W ? W.name : '--',
-      red = checks().filter(c => c[1]);
+      red = checks().filter(c => c[1] === true);
     return {
       title: 'TASMO · ' + (P ? misKey(w) + (hpn() ? ' · ' + S.mode.toUpperCase() : '') : w.toUpperCase()),
       right: X.me.tag,
@@ -1095,7 +1116,7 @@ export function createTasmoPage(deps) {
         ],
       ],
       warn: checks()
-        .filter(c => c[1])
+        .filter(c => c[1] === true)
         .map(c => c[0]),
       rows: [
         ['SHIP', ship.name + ' · ±' + (ship.spotted ? 3 : 40) + ' NM'],

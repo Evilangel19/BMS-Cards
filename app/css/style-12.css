@@ -1583,3 +1583,13 @@
 #wp .woff select {
   cursor: not-allowed;
 }
+/* A-G > TASMO: the checks in one card, one line a check (red, yellow, grey) */
+#wptasmo .tsck {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.45;
+}
+#wptasmo .tsck:last-child {
+  margin-bottom: 0;
+}

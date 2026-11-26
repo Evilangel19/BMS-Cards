@@ -15,11 +15,11 @@ def check(n, c):
 # a carrier group 120 NM north of the strike steerpoint path; the flight comes from the south at 22,000 ft, its task steerpoint 4 on the ship at 14:20
 SETUP = r"""o => {
   const K = 1.852, H = 3600000, mk = (x, y, z, arr, dep, act) => ({ x, y, z, arr, dep, act });
-  const me = [mk(600, 100, 0, 13 * H, 13 * H, 1), mk(600, 200, 2200, 13.4 * H, 0, 0), mk(600, 300, 2200, 13.8 * H, 0, 0), mk(600, 520, 2200, 14.333 * H, 0, 15), mk(600, 100, 0, 15.2 * H, 0, 7)];
+  const me = [mk(600, 100, 0, 13 * H, 13 * H, 1), mk(600, 200, 2200, 13.4 * H, 0, 0), mk(600, 300, 2200, 13.8 * H, 0, 0), mk(600, 520, 2200, 14.05 * H, 0, 15), mk(600, 100, 0, 15.2 * H, 0, 7)];
   const ship = (id, x, y, name, rng, low, det, detAir, spotted, boat) => ({ id, x, y, name, cat: boat ? 'SAG' : 'CSG', rng, low, det, detAir, spotted, boat, d: Math.hypot(x - 600, y - 520) / K });
-  const X = { ok: true, me: { key: '9', name: 'Hawk 2', n: 2, ac: 'KF-16C-52', pkgNo: 3, tag: 'HAWK 2 · PKG 3' }, wps: me, task: { n: 4, x: 600, y: 520, t0: 14.333 * H },
+  const X = { ok: true, me: { key: '9', name: 'Hawk 2', n: 2, ac: 'KF-16C-52', pkgNo: 3, tag: 'HAWK 2 · PKG 3' }, wps: me, task: { n: 4, x: 600, y: 520, t0: 14.05 * H },
     ships: [ship('1:1', 600, 520, 'Kuznetsov CLS', 80, 67, 92, 115, o.spot !== false, false), ship('2:1', 610, 515, 'Udaloy CLS', 30, 20, 60, 80, true, false), ship('3:1', 597, 380, 'Osa II CLS', 0, 4, 33, 41, true, true)],
-    weapons: [{ id: '152', name: 'AGM-84A Harpoon', n: 2, rngKm: 124, kind: 'asm' }, { id: '160', name: 'AGM-65D Maverick', n: 4, rngKm: 0, kind: 'mav' }], radar: 35, target: '1:1', friends: o.friend ? [{ x: 600, y: 470, name: 'Perry FFG' }] : [] };
+    weapons: [{ id: '152', name: 'AGM-84A Harpoon', n: 2, rngKm: 124, kind: 'asm' }, ...(o.two ? [{ id: '153', name: 'AGM-84D Harpoon', n: 2, rngKm: 124, kind: 'asm' }] : []), { id: '160', name: 'AGM-65D Maverick', n: 4, rngKm: 0, kind: 'mav' }], radar: 35, target: '1:1', friends: o.friend ? [{ x: 600, y: 470, name: 'Perry FFG' }] : [] };
   __app.tasmoPage._test({ ctx: () => X, mis: null });
 }"""
 INI = '\r\n'.join(['[MISSION]', 'title=x', '[STPT]'] + ['target_%d=0.000000, 0.000000, 0.000000, -1, Not set' % i for i in range(99)] + ['[NAV OFFSETS]'] + ['OA%d-%d=0,0,0' % (a, n) for n in range(1, 25) for a in (1, 2)] + ['[COMMS]', 'X=1', ''])
@@ -41,10 +41,11 @@ try:
         check('Add card in the bar of the tabs, usable', pg.locator('#wp .wtabs [data-tabcard]').count() == 1 and pg.locator('#wp .wtabs [data-tabcard]').is_enabled())
         P = plan()
         check('the target ship of the task, spotted: ±3 NM', P['ship'] == '1:1' and P['P']['U'] == 3)
-        check('the Harpoon first, launch from the south, 500 ft', P['wpn'] == 'AGM-84A Harpoon' and P['S']['alt'] == 500 and P['P']['launch']['y'] < 520)
+        check('the Harpoon first, launch from the south, 1,500 ft (AIRCRAFT TOO LOW at 1,000 ft in BMS)', P['wpn'] == 'AGM-84A Harpoon' and P['S']['alt'] == 1500 and P['P']['launch']['y'] < 520)
         check('outside the low ring with a margin, in range, no red check (%s)' % P['checks'], P['P']['margin'] > 0 and P['P']['reach'] >= 0 and not any(c[1] for c in P['checks']))
         check('the descent before the ship sees you at the cruise', P['P']['desc'] and P['P']['tDesc'] < P['P']['tLaunch'])
-        check('the impact at the time of the task steerpoint', abs(P['P']['tLaunch'] + P['P']['tof'] - 14.333 * 3600000) < 1)
+        check('the impact at the time of the task steerpoint', abs(P['P']['tLaunch'] + P['P']['tof'] - 14.05 * 3600000) < 1)
+        check('the checks in one card', pg.locator('#tswn > .wcard').count() <= 1)
         T = pg.inner_text('#wptasmo')
         check('the target card: group, SAM, radar, spotted', 'Kuznetsov CLS + 1' in T and 'low 36 NM' in T and 'spotted' in T)
         check('the Harpoon options (Dash-34): RBL, LARGE, NORM, LOW, POP', all(pg.locator('#tswp [data-tsset=%s][data-v=%s].on' % kv).count() == 1 for kv in [('mode', 'rbl'), ('area', 'LARGE'), ('prio', 'NORM'), ('fly', 'LOW'), ('term', 'POP')]))
@@ -118,13 +119,28 @@ try:
         pg.click('[data-tshpn]'); pg.wait_for_timeout(500)
         t90 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='STPT'&&l.k=='target_89')||{}).v")
         t99 = pg.evaluate("()=>(__app.lines.find(l=>l.s=='STPT'&&l.k=='target_98')||{}).v")
-        check('Write HPN STPT 90: the ship on target_89 (%s) and on target_98, STPT 99' % t90, t90 and 'Kuznetsov' in t90 and not t90.startswith('0.000000') and t99 == t90)
+        check('Write HPN STPT 90: the ship on target_89 (%s), not on STPT 99' % t90, t90 and 'Kuznetsov' in t90 and not t90.startswith('0.000000') and t99 != t90)
         # not spotted: ±40 NM, the radar acquisition
         pg.evaluate(SETUP, {'spot': False}); pg.click('[data-tsset=n][data-v="2"]'); pg.wait_for_timeout(500)
         P = plan()
         check('not spotted: ±40 NM, the radar acquisition, BOL suggested', P['P']['U'] == 40 and P['P']['acq'] and P['P']['mode'] == 'bol' and 'NOT SPOTTED' in pg.inner_text('#tstg'))
         check('not spotted: a check about the fog of war', any('fog of war' in c[0] or 'BOL' in c[0] for c in P['checks']))
+        # the SAM ring of a ship not spotted: yellow when only its area is inside
+        sl2 = lambda k, v: pg.evaluate("([k,v])=>{const e=document.querySelector('[data-tssl='+k+']');e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}", [k, v]) or pg.wait_for_timeout(300)
+        sl2('dist', 60)
+        P = plan()
+        check('not spotted, launched outside the ring of the centre: the SAM check yellow, not red', P['P']['margin'] < 0 and not P['P']['samRed'] and pg.locator('#tswn .sdw', has_text='SAM ring').count() == 1 and pg.locator('#tswn .wbad', has_text='SAM ring').count() == 0)
         if OUT: pg.screenshot(path=os.path.join(OUT, 'tasmo-page.png'))
+        # each missile keeps its choices
+        pg.evaluate(SETUP, {'two': True}); pg.click('[data-tsset=n][data-v="2"]'); pg.wait_for_timeout(400)
+        pg.select_option('[data-tswpn]', '152'); pg.wait_for_timeout(300)
+        pg.click('[data-tsset=mode][data-v=bol]'); pg.wait_for_timeout(300)
+        pg.select_option('[data-tswpn]', '153'); pg.wait_for_timeout(300)
+        pg.click('[data-tsset=mode][data-v=los]'); pg.wait_for_timeout(300)
+        pg.select_option('[data-tswpn]', '152'); pg.wait_for_timeout(400)
+        m1 = plan()['S']['mode']
+        pg.select_option('[data-tswpn]', '153'); pg.wait_for_timeout(400)
+        check('each missile keeps its choices (AGM-84A BOL, AGM-84D LOS: %s, %s)' % (m1, plan()['S']['mode']), m1 == 'bol' and plan()['S']['mode'] == 'los')
         # the cards
         for k in ('smart', 'map'):
             u = pg.evaluate("async k=>{const c=await __app.tasmoPage.cardCanvas(k);return c?c.width+'x'+c.height+'|'+c.toDataURL():''}", k)
