@@ -59,6 +59,8 @@ import { wxAtTarget } from '../core/smartwx.js';
 import { capKind } from '../core/faor.js';
 import { nearAb, nearObj, csOf, acOf, tcnStr, rmf, opWin } from '../core/flight.js';
 import { createAarPage } from '../core/aarpage.js';
+import { createTasmoPage } from '../core/tasmopage.js';
+import { patrolBoat } from '../core/tasmo.js';
 import { pickTankers } from '../rules/support.js';
 import { sopPhase } from '../core/roesop.js';
 // name of the campaign object closest to a point (campaign km), '' when there is none: precision targets have no name of their own
@@ -131,6 +133,7 @@ export let harmTab; // the HARM tab of the A-G page: SEAD or Single shot
 export let sqPage;
 export let pfPage;
 export let aarPage; // Performance > AAR
+export let tasmoPage; // A-G > TASMO
 export let faorPage; // A-A > DCA (the FAOR)
 export let ocaPage; // A-A > OCA
 export let qraPage; // A-A > DCA for a QRA flight
@@ -163,6 +166,8 @@ export async function init6() {
     oca: o => (ocaPage ? ocaPage.overlay(o) : false),
     // Display > AAR: the tanker track and the rendezvous of the flight (Performance > AAR)
     aar: o => (aarPage ? aarPage.overlay(o) : false),
+    // Display > TASMO: the ship, its rings, the attack of the flight (A-G > TASMO)
+    tasmo: o => (tasmoPage ? tasmoPage.overlay(o) : false),
     // AUTO > FEZ of the DTC editing: the lines of the A-A page of the flight (DCA, QRA or OCA)
     aaCan: () => [dcaPage(), ocaPage].some(p => p && p.usable()),
     attackLines: () => (ST.wpPage ? ST.wpPage.attackLines() : null),
@@ -867,6 +872,84 @@ function deadCtx() {
     harms,
   };
 }
+// ---- A-G > TASMO: the flight chosen, the enemy ships near its task (the patrol boats with their MANPADS), its weapons for a ship, its radar
+function tasmoCtx() {
+  if (!ST.C) return { ok: false, why: 'Open a campaign: TASMO plans the attack of a ship by a flight of its ATO.' };
+  const x = ST.CL && ST.CL[+(document.getElementById('fsel') || {}).value || 0],
+    e = x && ATOL.find(z => z.f === x.f);
+  if (!e) return { ok: false, why: 'Choose a flight in the ATO.' };
+  const tk = taskOf(e.f.wps);
+  if (!tk) return { ok: false, why: e.callsign + ' has no task steerpoint.' };
+  const D = ST.C.D,
+    KM = 1.852,
+    tw = e.f.wps[tk.n - 1],
+    tid = tw && tw.tid;
+  let ships = [];
+  try {
+    ships = mapUnits(ST.C, e.team)
+      .filter(m => m.u.kind == 'sea' && m.hostile)
+      .map(m => ({
+        id: m.u.id.n + ':' + m.u.id.c,
+        x: m.u.x,
+        y: m.u.y,
+        name: m.name,
+        cat: m.cat,
+        rng: m.rng,
+        low: m.low,
+        det: m.det,
+        detAir: m.detAir,
+        spotted: !!m.spotted,
+        boat: patrolBoat(m),
+        tgt: !!(tid && m.u.id && m.u.id.n == tid.n && m.u.id.c == tid.c),
+        d: Math.hypot(m.u.x - tk.x, m.u.y - tk.y) / KM,
+      }))
+      .filter(m => m.tgt || m.d < 150)
+      .sort((a, b) => b.tgt - a.tgt || a.d - b.d);
+  } catch (er) {
+    /* no unit table */
+  }
+  if (!ships.length) return { ok: false, why: 'No enemy ship within 150 NM of the task of ' + e.callsign + '.' };
+  // the weapons of the lead for a ship: the anti-ship missiles (the weapon table), the Mavericks, the bombs
+  const g = CAM.loadGroups(e.f).find(z => z.ac.includes(1)),
+    weapons = g
+      ? g.ids
+          .map((id, k) => {
+            const name = D.wn[id] || '',
+              rk = (D.as || {})[id];
+            return {
+              id: String(id),
+              name,
+              n: g.cn[k] || 0,
+              rngKm: rk || 0,
+              kind: rk
+                ? 'asm'
+                : /AGM-65|Maverick/i.test(name)
+                  ? 'mav'
+                  : /^(Mk-|GBU|CBU|JDAM|BLU|KAB|FAB|OFAB|SAB)/i.test(name)
+                    ? 'bomb'
+                    : '',
+            };
+          })
+          .filter(w => w.kind && w.n > 0)
+      : [];
+  return {
+    ok: true,
+    me: {
+      key: String(e.f.id.n),
+      name: e.callsign,
+      ac: e.ac,
+      n: Math.max(1, Math.min(4, CAM.nAcf(e.f))),
+      pkgNo: e.pkgNo,
+      tag: flightTag() || e.callsign.toUpperCase() + ' · PKG ' + e.pkgNo,
+    },
+    wps: e.f.wps,
+    task: { n: tk.n, x: tk.x, y: tk.y, t0: tk.t0 },
+    ships: ships.slice(0, 30),
+    weapons,
+    radar: (D.rr || {})[e.ac] || 0,
+    target: (ships.find(s => s.tgt) || ships.find(s => !s.boat) || ships[0]).id,
+  };
+}
 function deadDeps() {
   const d = seadDeps();
   return {
@@ -1437,6 +1520,31 @@ export async function init9() {
   seadPage = createSeadPage(seadDeps());
   deadPage = createDeadPage(deadDeps());
   harmTab = makeHarmTab();
+  {
+    const d = deadDeps();
+    tasmoPage = createTasmoPage({
+      esc,
+      toast: appToast,
+      confirm: m => confirm(m),
+      ctx: tasmoCtx,
+      mis: misLoad,
+      toLL: (x, y) => mapV.toLL(x, y),
+      attach: el => mapV.attach(el),
+      detach: () => mapV.detach(),
+      snap: scale => mapV.snap(scale),
+      kbAdd: (blob, name, alt, dark) => kbAddPic(blob, name, alt, dark),
+      openMode: d.openMode,
+      dtc: {
+        open: () => lines.length > 0,
+        has: d.dtc.has,
+        setOA: d.dtc.setOA,
+        setTarget: (key, t) => {
+          S('STPT', key, targetLine(t, G('STPT', key, '')));
+          dtcChanged('STPT', key);
+        },
+      },
+    });
+  }
   ST.tgPage = createTargetPage(tgtDeps());
   // Add all cards (Kneeboard): the cards of these pages, in the order of the window. The pages with a map make their cards on screen (the picture of
   // the map is taken from the map shown in them), under the cover of the Kneeboard: Weapons is opened on their tab, then put back as it was.
@@ -1521,6 +1629,11 @@ export async function init9() {
     await wpGo(m);
     return ST.wpPage.allCards();
   };
+  KBX.src.tasmo = async () => {
+    if (!tasmoPage.usable()) return [];
+    await wpGo('tasmo');
+    return tasmoPage.allCards();
+  };
   KBX.src.tgt = async () => {
     await wpGo('tgt');
     return ST.tgPage.allCards();
@@ -1532,6 +1645,7 @@ export async function init9() {
     ...agDeps(),
     offs: OFFS,
     harm: harmTab,
+    tasmo: tasmoPage,
     tgt: ST.tgPage,
     cyclePlan: () => mapV.cyclePlan(),
     planMode: () => mapV.planMode(),

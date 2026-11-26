@@ -33,9 +33,10 @@ const MODES = [
   ['hadb', 'HADB'],
   ['toss', 'TOSS'],
   ['harm', 'HARM'],
+  ['tasmo', 'TASMO'],
   ['tgt', 'Target'],
 ];
-const ATK = ['popup', 'hadb', 'toss']; // the modes that plan an attack (HARM and Target are pages of their own under the same tabs)
+const ATK = ['popup', 'hadb', 'toss']; // the modes that plan an attack (HARM, TASMO and Target are pages of their own under the same tabs)
 const SL = [
   // sliders: [field, label, unit, decimals]
   ['diveAngle', 'Dive angle', '°', 0],
@@ -2865,10 +2866,13 @@ export function createWeaponsPage(deps) {
 
   // Add card at the right of the tabs: the cards of the page shown (an attack, the SEAD or DEAD page of the HARM tab, the pages of the target)
   // dimmed when the page shown has nothing to put on a card (HARM: no SEAD or DEAD flight; Target: no target)
+  // the page of its own of a tab (HARM, TASMO, Target), or null for an attack tab
+  const subOf = m => (m == 'tgt' ? deps.tgt : m == 'harm' ? deps.harm : m == 'tasmo' ? deps.tasmo : null) || null;
+  const subLeave = keep => ['harm', 'tasmo', 'tgt'].forEach(m => m != keep && subOf(m) && subOf(m).leave());
   function cardSync() {
     const b = /** @type {HTMLButtonElement|null} */ (deps.root && deps.root.querySelector('[data-tabcard]'));
     if (!b) return;
-    const p = st.mode == 'tgt' ? deps.tgt : st.mode == 'harm' ? deps.harm : null;
+    const p = subOf(st.mode);
     b.disabled = ATK.includes(st.mode) ? !(res && !res.error && ctx && ctx.t) : !(p && (!p.canCard || p.canCard()));
   }
   function wireTabCard(root) {
@@ -2877,7 +2881,7 @@ export function createWeaponsPage(deps) {
     cardSync();
     b.onclick = () => {
       if (ATK.includes(st.mode)) return addAtkCards(b);
-      const p = st.mode == 'tgt' ? deps.tgt : deps.harm;
+      const p = subOf(st.mode);
       if (p && p.addCard) return p.addCard(b);
     };
   }
@@ -2895,11 +2899,10 @@ export function createWeaponsPage(deps) {
   }
   function draw(keepLeft) {
     wxAsk();
-    const sub = st.mode == 'harm' ? deps.harm : st.mode == 'tgt' ? deps.tgt : null;
+    const sub = subOf(st.mode);
     if (sub) {
-      // the HARM shot and the target picture live on their own page objects, shown under the same mode tabs
-      if (st.mode != 'harm' && deps.harm) deps.harm.leave();
-      if (st.mode != 'tgt' && deps.tgt) deps.tgt.leave();
+      // the HARM shot, the TASMO attack and the target picture live on their own page objects, shown under the same mode tabs
+      subLeave(st.mode);
       detachMap();
       failed = false;
       pend = null;
@@ -2907,7 +2910,7 @@ export function createWeaponsPage(deps) {
       if (deps.applyBtn) deps.applyBtn.classList.add('nil');
       const root = deps.root;
       if (!keepLeft || !root.contains(sub.root)) {
-        root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD or DEAD card, or the pages of the target">Add card</button></div>`;
+        root.innerHTML = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${st.mode == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD, DEAD or TASMO cards, or the pages of the target">Add card</button></div>`;
         root.appendChild(sub.root);
         root.querySelectorAll('[data-mode]').forEach(
           b =>
@@ -2928,8 +2931,7 @@ export function createWeaponsPage(deps) {
       return;
     }
     document.body.classList.remove('onharm');
-    if (deps.harm) deps.harm.leave();
-    if (deps.tgt) deps.tgt.leave();
+    subLeave(null);
     compute();
     GHO = ghost();
     DC = deconfNow();
@@ -2969,7 +2971,7 @@ export function createWeaponsPage(deps) {
         )
         .join('');
       const md = st.mode,
-        tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD or DEAD card, or the pages of the target">Add card</button></div>`;
+        tabs = `<div class="wtabs" role="tablist">${MODES.map(([k, l]) => `<button type="button" role="tab" class="${md == k ? 'on' : ''}" data-mode="${k}">${l}</button>`).join('')}<button type="button" class="btn wtcard" data-tabcard title="Kneeboard cards of the page shown: the attack (Pop-up, HADB, TOSS), the SEAD, DEAD or TASMO cards, or the pages of the target">Add card</button></div>`;
       const gq = grpOf(st.inMode),
         one = seatInfo().size <= 1,
         // the rows and buttons of the split fade in when they appear, not each time the panel is drawn again (a click on them would be lost)
@@ -3637,8 +3639,9 @@ export function createWeaponsPage(deps) {
     return m ? m.v : key;
   };
   function refresh() {
-    if (st.mode == 'harm') {
-      if (deps.harm && deps.harm.refresh) deps.harm.refresh();
+    if (st.mode == 'harm' || st.mode == 'tasmo') {
+      const p = subOf(st.mode);
+      if (p && p.refresh) p.refresh();
       return;
     }
     if (!ctx) return;
@@ -3779,8 +3782,7 @@ export function createWeaponsPage(deps) {
     },
     leave: () => {
       detachMap();
-      if (deps.harm) deps.harm.leave();
-      if (deps.tgt) deps.tgt.leave();
+      subLeave(null);
       document.body.classList.remove('onharm');
     },
     setElev: f => {

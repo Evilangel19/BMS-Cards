@@ -87,6 +87,7 @@ import {
   tgtName,
 } from './mapconst.js';
 import { magAt } from './magvar.js';
+import { patrolBoat } from './tasmo.js';
 export function createMap(host, deps) {
   let map = null,
     G = {},
@@ -470,7 +471,7 @@ export function createMap(host, deps) {
     map.on('zoomend', zc);
     map.on('zoomend', msaSyms);
     map.on('zoomend', () => st.on.hm && !away && harmDraw()); // the texts of the HARM drawing placed again for the scale
-    map.on('zoomend', () => (st.on.fa || st.on.oc || st.on.ar) && !away && faorDraw());
+    map.on('zoomend', () => (st.on.fa || st.on.oc || st.on.ar || st.on.ts) && !away && faorDraw());
     zc();
     host.addEventListener(
       'click',
@@ -544,6 +545,7 @@ export function createMap(host, deps) {
     hm: 'SEAD/DEAD',
     fa: 'DCA',
     oc: 'OCA',
+    ts: 'TASMO',
     ar: 'Tanker and rendezvous',
   };
   // the details of the filters, in the tooltips (the rows stay on one line)
@@ -564,6 +566,7 @@ export function createMap(host, deps) {
     hm: 'The drawing of A-G > HARM for the flight: its SEAD plan, its DEAD tactic, or else the Single shot',
     fa: 'The FAOR of the selected CAP flight (A-A > DCA): the FEZ, COMMIT, STOP and the HARDWALL',
     oc: 'The SWEEP or ESCORT of the selected flight (A-A > OCA): the package, your track, the sweep area, COMMIT, STOP and the target area',
+    ts: 'The ship attacked by the selected flight (A-G > TASMO): its SAM rings, its area, the radar horizon, the launch and the descent',
     ar: 'The tanker of the selected flight (Performance > AAR): its racetrack, the anchor, the ARIP, the join and your path to it',
     msa: 'Minimum safe altitude: 5 NM each side of the route and around the airbases (MSA), 22 NM (ERAA)',
   };
@@ -859,7 +862,7 @@ export function createMap(host, deps) {
     const f = fly(
       el,
       'mpdsp',
-      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label><div class="mpsh">A-A</div>${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}<div class="mpsh">A-G</div>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}<div class="mpsh">AAR</div>${layerRow(['ar', DSPTXT.ar])}`
+      `<div class="mph"><b>Display</b></div>${layerRow(['rc', DSPTXT.rc])}<label class="mpr sub" title="Altitude (MSL) of the target the radars are asked to see"><span class="lt" id="mprcv"></span><input type="range" id="mprca" min="0" max="${RC_LEVELS.length - 1}" step="1" value="${RC_LEVELS.indexOf(rcAlt())}" style="flex:1;min-width:0"></label>${layerRow(['msa', DSPTXT.msa])}<label class="mpr sub" title="Opacity of the bands: red = 5 NM each side of the route (MSA), blue = 22 NM (ERAA). 0 = no bands, the labels stay"><span class="lt">Band opacity</span><input type="range" id="mpmsao" min="0" max="40" value="${st.on.msaop == null ? 14 : st.on.msaop}" style="flex:1;min-width:0"></label><div class="mpsh">A-A</div>${layerRow(['fa', DSPTXT.fa])}${layerRow(['oc', DSPTXT.oc])}<div class="mpsh">A-G</div>${layerRow(['da', DSPTXT.da])}${layerRow(['hm', DSPTXT.hm])}${layerRow(['ts', DSPTXT.ts])}<div class="mpsh">AAR</div>${layerRow(['ar', DSPTXT.ar])}`
     );
     if (!f) return;
     const lab2 = () => {
@@ -3103,7 +3106,7 @@ export function createMap(host, deps) {
       HMON = !!st.on.hm;
       harmDraw();
     }
-    ['fa', 'oc', 'ar'].forEach(k => {
+    ['fa', 'oc', 'ar', 'ts'].forEach(k => {
       if (!!st.on[k] !== AAON[k]) {
         AAON[k] = !!st.on[k];
         aaDraw(k);
@@ -3144,6 +3147,7 @@ export function createMap(host, deps) {
         ' · ' +
         deps.esc(teamName(C.D, m.owner)) +
         (m.sam ? '<br>Range ' + m.rng + ' km (low ' + m.low + ' km)' : '') +
+        (m.u.kind == 'sea' && patrolBoat(m) ? '<br>MANPADS ' + m.low + ' km, under 15,000 ft' : '') +
         (m.telar >= 0
           ? m.telar
             ? '<br>TELARs ' + m.telar
@@ -3212,6 +3216,18 @@ export function createMap(host, deps) {
         interactive: false,
       }).addTo(G[m.ally ? 'sf' : 'se']);
       if (!m.ally) SAMR.push(m);
+    });
+    // the enemy patrol boats (no SAM of their class, a ring against low targets: their MANPADS, under 15,000 ft): a thin dashed ring
+    UL.filter(m => m.u.kind == 'sea' && m.hostile && patrolBoat(m)).forEach(m => {
+      if (only && !crossesRoute(r, m.u.x, m.u.y, m.low)) return;
+      L.circle(m.ll, {
+        radius: m.low * 1000,
+        color: pal.sam.foe.c,
+        weight: 1.2,
+        dashArray: '3 4',
+        fill: false,
+        interactive: false,
+      }).addTo(G.se);
     });
     // WEZ exposure time of the selected flight: on every enemy ring it crosses, the minutes spent inside (the total is in the label of the flight)
     if (st.on.wz && f && f.wps) {
@@ -4425,9 +4441,9 @@ export function createMap(host, deps) {
     HMON = false;
   // Display > DCA, OCA and AAR: the pages of A-A and Performance > AAR draw the plan of the flight in a group given to them (deps.faor, deps.oca, deps.aar),
   // as the HARM page does
-  const AAN = { fa: 0, oc: 0, ar: 0 },
-    AAON = { fa: false, oc: false, ar: false },
-    AADEP = { fa: 'faor', oc: 'oca', ar: 'aar' };
+  const AAN = { fa: 0, oc: 0, ar: 0, ts: 0 },
+    AAON = { fa: false, oc: false, ar: false, ts: false },
+    AADEP = { fa: 'faor', oc: 'oca', ar: 'aar', ts: 'tasmo' };
   function aaDraw(k) {
     const n = ++AAN[k],
       dep = deps[AADEP[k]];
@@ -4451,6 +4467,7 @@ export function createMap(host, deps) {
     aaDraw('fa');
     aaDraw('oc');
     aaDraw('ar');
+    aaDraw('ts');
   };
   function harmDraw() {
     const n = ++HMN;

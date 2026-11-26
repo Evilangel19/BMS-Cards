@@ -40,7 +40,7 @@ try:
         pg.evaluate(TD, [list(f) for f in FEATS])
         pg.evaluate("t=>__app.parse(t)", INI); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(400)
-        check('the Weapons page has a Target tab after HARM', pg.locator('#wp .wtabs button').all_inner_texts()[-3:] == ['HARM', 'Target', 'Add card'])
+        check('the Weapons page has a Target tab after HARM and TASMO', pg.locator('#wp .wtabs button').all_inner_texts()[-4:] == ['HARM', 'TASMO', 'Target', 'Add card'])
         pg.click('#wp .wtabs [data-mode=tgt]'); pg.wait_for_timeout(900)
         rows = pg.locator('.tgp .tgrowt').all_inner_texts()
         check('one target for the three DTC points on the depot (the town next to it is not a target): %s' % rows, len(rows) == 1 and 'Depot #6' in rows[0] and '3 DMPI' in rows[0])

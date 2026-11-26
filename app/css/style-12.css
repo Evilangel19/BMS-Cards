@@ -1524,3 +1524,26 @@
 #kballk.kbapp {
   animation: tgapp 0.22s ease-out;
 }
+/* A-G > TASMO (core/tasmopage.js): as DEAD; the rows of buttons, the profile */
+.wpg.sdg.ts .tsrow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 6px 0;
+}
+.wpg.sdg.ts .tsseg {
+  display: flex;
+}
+.wpg.sdg.ts .tsseg button {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.wpg.sdg.ts .wh select {
+  max-width: 260px;
+}
+.tsprof {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 8px;
+}

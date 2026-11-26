@@ -68,8 +68,8 @@ This file says what the program does today, how far each part has been checked, 
 - **For 1.4, the Smart AAR card** (done in 1.4.0-beta.23 to beta.25, Performance > AAR): the track, the altitude, the time and the frequency of the
   tanker, the fuel before and after, ARIP / ARCP, with the rendezvous RV GOLF, RV ECHO and RV HEAD-ON.
 - **For 1.4, the mission pages still missing** (made with the method of ARCHITECTURE.md, "How a mission page is made"):
-  - **TASMO**: the ships of the campaign, the ranges of the anti-ship missiles and of the ship SAMs, the approach under the radar horizon of the
-    ship, the launch point.
+  - **TASMO** (done in 1.4.0-beta.26, A-G > TASMO): the ships of the campaign with the fog of war, the ranges of the anti-ship missiles and of the
+    ship SAMs, the approach under the radar horizon of the ship, the launch point, the radar acquisition.
   - **AI / BAI / SCAR** (after a check of what the campaign gives): a kill box on the area of the battalion, where a column on the move will be at
     the time on target (its route in the campaign file, an area that grows with time), the search pattern of a SCAR; the attack itself with the
     A-G pages.

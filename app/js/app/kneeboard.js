@@ -495,6 +495,7 @@ export async function kbAddPic(blob, name, alt, dark) {
 const ALL_SRC = [
   ['sead', 'SEAD'],
   ['dead', 'DEAD'],
+  ['tasmo', 'TASMO'],
   ['atk', 'Attack'],
   ['faor', 'DCA'],
   ['oca', 'OCA'],

@@ -12,8 +12,9 @@ export const FILES = {
   ils: 'Stations+Ils.dat', // airbase TACAN, tower/ILS/ATC frequencies (campaign folder)
   ppt: 'Ppt.ini', // pre-planned threats: name written in the DTC, ring range (feet), label (campaign folder)
   rack: 'BmsRack.dat', // pylons and racks of every station (their weight and drag count in the loadout)
+  rcd: 'Falcon4_RCD.xml', // radars (the detection range of the radar of an aircraft: A-G > TASMO)
 };
-export const OPTIONAL = new Set();
+export const OPTIONAL = new Set(['rcd']);
 // Fields the readers depend on, per XML table: if one is missing the file does not have the layout of Falcon BMS 4.38.1 and 4.38.2 (a newer BMS may have changed it)
 export const EXPECT = {
   ct: ['EntityIdx', 'EntityType', 'Domain', 'Class', 'Type'],
@@ -43,6 +44,7 @@ export const ENCODING = {
   str: 'latin1',
   ils: 'latin1',
   ppt: 'latin1',
+  rcd: 'utf-8',
 };
 
 const tag = (b, k) => {
@@ -142,6 +144,30 @@ export function parsePilotNames(text) {
     a = [];
   for (let i = 2301; i <= 3100; i++) a.push(S[i] || '');
   return a;
+}
+
+// The anti-ship missiles (A-G > TASMO, core/tasmo.js isAntiShip): weapon number -> range of the campaign (km), for the weapons guided by radar or
+// IR (Guidance 4, 16, 68), made against ships (Hit_Naval 35 or more), with a range of 15 km or more
+export function parseAntiShip(wcdXml) {
+  const as = {};
+  for (const m of blocks(wcdXml, 'WCD')) {
+    const g = +tag(m[2], 'Guidance'),
+      nv = +tag(m[2], 'Hit_Naval'),
+      r = +tag(m[2], 'Range');
+    if ([4, 16, 68].includes(g) && nv >= 35 && r >= 15) as[m[1]] = r;
+  }
+  return as;
+}
+// The radar of each aircraft (A-G > TASMO): vehicle name -> the detection range of its radar (RCD DetectionRange, NM against a fighter)
+export function parseRadarRanges(vcdXml, rcdXml) {
+  const R = {},
+    o = {};
+  for (const m of blocks(rcdXml, 'RCD')) R[m[1]] = +tag(m[2], 'DetectionRange') || 0;
+  for (const m of blocks(vcdXml, 'VCD')) {
+    const r = R[tag(m[2], 'RadarIdx')];
+    if (r > 0) o[tag(m[2], 'Name')] = r;
+  }
+  return o;
 }
 
 // Weapon number -> [weight, drag]
@@ -402,6 +428,8 @@ export async function buildTables(readText) {
   if (x.str) run('S', () => parseStrings(x.str));
   if (x.str) run('pn', () => parsePilotNames(x.str));
   if (x.wcd) run('wt', () => parseWeaponData(x.wcd));
+  if (x.wcd) run('as', () => parseAntiShip(x.wcd));
+  if (x.vcd && x.rcd) run('rr', () => parseRadarRanges(x.vcd, x.rcd));
   if (x.ucd) run('gu', () => parseGroundUnits(x.ucd));
   if (x.ucd) run('un', () => parseUnitInfo(x.ucd));
   if (x.wcd) run('tf', () => parseTankFuel(x.wcd));

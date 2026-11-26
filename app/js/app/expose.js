@@ -12,6 +12,7 @@ import {
   mapV,
   pfPage,
   aarPage,
+  tasmoPage,
   sqPage,
   faorPage,
   ocaPage,
@@ -175,6 +176,9 @@ export async function init19() {
     },
     get aarPage() {
       return aarPage;
+    },
+    get tasmoPage() {
+      return tasmoPage;
     },
     get mapV() {
       return mapV;
