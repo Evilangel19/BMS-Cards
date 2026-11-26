@@ -132,38 +132,103 @@ export function closeSec(gapNm) {
     c = (Math.min(g, 1000) - 50) / (10 * KT_FTS);
   return a + b + Math.max(0, c);
 }
+/** the gap (NM) the tanker is ahead when the receiver crosses the ARIP, the ARIP d NM (along the track) before the ARCP: the receiver flies the d NM
+ * while the tanker flies on and the gap closes, so d = gap + the way of the tanker during the closure */
+export function gapFor(d, tas) {
+  let a = 0,
+    b = Math.max(0, d);
+  for (let i = 0; i < 50; i++) {
+    const m = (a + b) / 2;
+    if (m + (tas * closeSec(m)) / 3600 < d) a = m;
+    else b = m;
+  }
+  return (a + b) / 2;
+}
+export const HEAD_KT = 400, // RV Head-on (BMS Training Manual 4.38): the receiver turns at 30° of bank at 350-420 kt
+  HEAD_TRAIL = 2.5; // NM behind the tanker at the roll-out
 /**
- * The rendezvous. o: {T (trackOf), mode: 'enr' | 'anchor', gap (NM: the tanker ahead at the ARIP), plan (the planned time at the Refuel steerpoint),
- * from {x, y, t}: the steerpoint before it (its departure)}.
- * EN ROUTE: the join (ARCT) at the planned time, where the tanker is then (ARCP); the ARIP on the path of the tanker, the gap behind it.
- * ANCHOR: the ARIP the gap behind the anchor on the line of the track; the receiver there when the tanker passes the anchor (the pass nearest to the
- * plan), the join on the first leg.
- * @returns {{mode: string, arct: number, tip: number, arcp: {x: number, y: number, hdg: number}, arip: {x: number, y: number}, anchor: {x: number, y: number},
- *   close: number, shift: number, gs: number | null, warn: [string, boolean][]} | null}
+ * The rendezvous (ATP-56 names). o: {T (trackOf), mode: 'golf' | 'echo' | 'head', dist (NM: from the ARIP to the ARCP; head-on: to the turn), turn (head-on:
+ * 'L' | 'R'), plan (the planned time at the Refuel steerpoint), from {x, y, t}: the steerpoint before it (its departure)}.
+ * The ARIP is where the rendezvous starts, the ARCP where the receiver reaches the tanker (observation / astern) at the ARCT.
+ * RV GOLF (en route): the ARCT at the planned time, the ARCP where the tanker is then; the common track is the path of the tanker, the ARIP dist NM
+ *   back along it.
+ * RV ECHO (anchor): the ARCP is the anchor, the ARCT a pass of the tanker over it (the one nearest to the plan); the ARIP dist NM back on the line of
+ *   the track.
+ * RV HEAD-ON: on the first leg of the track. The receiver flies the reciprocal of the leg, offset by two turn radii; it turns 180° behind the tanker
+ *   and rolls out 2.5 NM in trail, then closes. The ARIP dist NM before the turn.
+ * @returns {{mode: string, arct: number, tip: number, arcp: {x: number, y: number}, arip: {x: number, y: number}, anchor: {x: number, y: number},
+ *   gap: number, close: number, shift: number, gs: number | null, turn: any, warn: [string, boolean][]} | null}
  */
 export function rendezvous(o) {
   const T = o.T,
-    close = closeSec(o.gap) * 1000,
-    warn = [];
-  let arct, tip, arcp, arip;
-  if (o.mode == 'anchor') {
-    const n = Math.max(0, Math.round((o.plan - close - T.t0) / T.per));
-    let tp = T.t0 + n * T.per;
-    if (tp > T.t1 && n > 0) tp -= T.per;
-    tip = tp;
-    arct = tp + close;
-    const ux = (T.b.x - T.a.x) / (T.leg * KM_NM),
-      uy = (T.b.y - T.a.y) / (T.leg * KM_NM);
-    arip = { x: T.a.x - ux * o.gap * KM_NM, y: T.a.y - uy * o.gap * KM_NM };
+    warn = [],
+    ux = (T.b.x - T.a.x) / (T.leg * KM_NM),
+    uy = (T.b.y - T.a.y) / (T.leg * KM_NM),
+    at = (p, a, b) => ({ x: p.x + (ux * a + -uy * b) * KM_NM, y: p.y + (uy * a + ux * b) * KM_NM }), // a NM along the leg, b NM to its left
+    pass = () => {
+      // the pass of the tanker over the anchor nearest to the plan
+      const n = Math.max(0, Math.round((o.plan - T.t0) / T.per));
+      let tp = T.t0 + n * T.per;
+      if (tp > T.t1 && n > 0) tp -= T.per;
+      return tp;
+    };
+  let arct,
+    tip,
+    arcp,
+    arip,
+    gap = 0,
+    close = 0,
+    turn = null;
+  if (o.mode == 'head') {
+    const R = turnNm(HEAD_KT),
+      sd = o.turn == 'R' ? -1 : 1, // a left turn: the receiver offset to the left of the leg (seen from the tanker)
+      tau = ((Math.PI * R) / HEAD_KT) * 3600000, // the 180° turn
+      cl = closeSec(HEAD_TRAIL) * 1000,
+      s0 = (tau / 3600000) * T.tas - HEAD_TRAIL, // the tanker this far before the roll-out point when the turn starts
+      tp = pass();
+    // the turn starts as the tanker passes the anchor plus a margin of 2 NM (the whole head-on on the first leg)
+    const sStart = 2,
+      tStart = tp + (sStart / T.tas) * 3600000,
+      xr = sStart + s0, // along the leg: where the turn starts and ends
+      roll = at(T.a, xr, 0),
+      start = at(T.a, xr, 2 * R * sd);
+    gap = HEAD_TRAIL;
+    close = cl;
+    arct = tStart + tau + cl;
     arcp = tankerAt(T, arct);
-    if ((close / 3600000) * T.tas > T.leg)
-      warn.push(['The join falls in the turn at the end of the leg: make the gap at the ARIP smaller.', true]);
+    arip = at(T.a, xr + o.dist, 2 * R * sd);
+    tip = tStart - (o.dist / HEAD_KT) * 3600000;
+    const rng = Math.hypot(s0, 2 * R),
+      clock = Math.round((Math.atan2(2 * R, s0) * 180) / Math.PI / 30) || 12;
+    turn = {
+      p: start,
+      roll,
+      t: tStart,
+      r: R,
+      sd,
+      range: rng,
+      clock: sd > 0 ? 12 - clock : clock, // the tanker on the side of the offset, ahead
+      arc: Array.from({ length: 25 }, (_, i) => {
+        const f = (i / 24) * Math.PI;
+        return at(T.a, xr - R * Math.sin(f), R * sd + R * sd * Math.cos(f));
+      }),
+    };
+    if (((arct - tp) / 3600000) * T.tas > T.leg)
+      warn.push(['The head-on does not fit in the first leg of the track.', true]);
   } else {
-    arct = o.plan;
+    gap = gapFor(o.dist, T.tas);
+    close = closeSec(gap) * 1000;
+    if (o.mode == 'echo') {
+      arct = pass();
+      arcp = { ...T.a };
+      arip = at(T.a, -o.dist, 0);
+    } else {
+      arct = o.plan;
+      arcp = tankerAt(T, arct);
+      const p = tankerAt(T, arct - (o.dist / T.tas) * 3600000);
+      arip = p ? { x: p.x, y: p.y } : null;
+    }
     tip = arct - close;
-    arcp = tankerAt(T, arct);
-    const p = tankerAt(T, tip - (o.gap / T.tas) * 3600000);
-    arip = p ? { x: p.x, y: p.y } : null;
   }
   if (!arcp || !arip) return null;
   if (arct < T.t0)
@@ -172,6 +237,17 @@ export function rendezvous(o) {
       false,
     ]);
   if (arct > T.t1) warn.push(['The tanker leaves its track at ' + hm(T.t1) + ', before the ARCT.', true]);
+  // ATP-56: the receivers up to 1 minute early, the tanker up to 1 minute late
+  const shift = arct - o.plan;
+  if (Math.abs(shift) > 60000)
+    warn.push([
+      'The ARCT is ' +
+        Math.round(Math.abs(shift) / 60000) +
+        ' min ' +
+        (shift > 0 ? 'after' : 'before') +
+        ' your Refuel steerpoint (ATP-56: ±1 min): change your times.',
+      false,
+    ]);
   let gs = null;
   if (o.from) {
     const nm = Math.hypot(arip.x - o.from.x, arip.y - o.from.y) / KM_NM,
@@ -185,18 +261,7 @@ export function rendezvous(o) {
         false,
       ]);
   }
-  return {
-    mode: o.mode,
-    arct,
-    tip,
-    arcp,
-    arip,
-    anchor: { ...T.a },
-    close,
-    shift: arct - o.plan,
-    gs,
-    warn,
-  };
+  return { mode: o.mode, arct, tip, arcp, arip, anchor: { ...T.a }, gap, close, shift, gs, turn, warn };
 }
 
 // ---- the fuel
@@ -223,9 +288,28 @@ export const CALLS = {
   awacs: ['Vector to Tanker', 'Vector to Nearest Tanker'],
 };
 /** the steps of the refuelling: [[when, what]] for the boom or the probe; obs: the observation position of the SOP ('left' | 'right') */
-export function procedure(method, obs = 'left') {
+export function procedure(method, obs = 'left', head = null) {
   const boom = method != 'probe';
   return [
+    ['ARCT − 15 min', 'Confirm the levels, the A-A TACAN, Mode 3, the armament and the timing'],
+    ...(head
+      ? [
+          [
+            'Head-on',
+            'Turn ' +
+              (head.sd > 0 ? 'left' : 'right') +
+              ' at ' +
+              head.range.toFixed(0) +
+              ' NM, the tanker at ' +
+              head.clock +
+              " o'clock: 30° of bank, " +
+              HEAD_KT +
+              ' kt · roll out ' +
+              HEAD_TRAIL +
+              ' NM in trail',
+          ],
+        ]
+      : []),
     ['Before 10 NM', 'Emitters safe or off · Master Arm SAFE · lights as the SOP'],
     ['Call', 'Request Air Flight Refueling (or Element / Individual)'],
     [

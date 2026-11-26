@@ -377,9 +377,18 @@ export const SOP = [
         'Rendezvous',
         'AAR',
         [
-          ['pp', 'Point parallel (RV Delta): the tanker turns in front of the flight', 'POINT PARALLEL'],
-          ['enr', 'En route (RV Golf): the flight joins the tanker on its route', 'EN ROUTE'],
-          ['anchor', 'Anchor (RV Alpha): the tanker orbits on its track', 'ANCHOR'],
+          [
+            'enr',
+            'RV Golf (en route): the flight joins the tanker from behind, on its path, at a planned time',
+            'RV GOLF',
+          ],
+          ['anchor', 'RV Echo (anchor): the flight reaches the anchor behind the tanker as it passes it', 'RV ECHO'],
+          // the id 'pp' is kept for the choices saved before (it was the point parallel, which BMS does not fly: its tanker does not turn to meet the flight)
+          [
+            'pp',
+            'RV Head-on: the flight flies the reciprocal of the track, offset, and turns behind the tanker',
+            'RV HEAD-ON',
+          ],
         ],
       ],
       [

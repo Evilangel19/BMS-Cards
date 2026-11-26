@@ -1,7 +1,7 @@
 // @ts-check
-// Performance > AAR: the refuelling of the flight chosen at its tanker (core/aar.js). The tankers of the datacard (TANKER 1 / 2), the rendezvous (EN ROUTE:
-// the tanker where it is at the time of the Refuel steerpoint; ANCHOR: as it passes the first point of its track; HEAD-ON: planned, not made yet), the gap
-// at the ARIP, the fuel (FULL, to the JOKER, an AMOUNT) from the fuel plan of the Performance page (deps.fuel), the procedure for the boom or the probe
+// Performance > AAR: the refuelling of the flight chosen at its tanker (core/aar.js). The tankers of the datacard (TANKER 1 / 2), the rendezvous with its
+// ATP-56 name (RV GOLF: en route, the tanker where it is at the time of the Refuel steerpoint; RV ECHO: at the anchor as the tanker passes it; RV HEAD-ON:
+// on the first leg, the receiver turns behind the tanker), the distance from the ARIP, the fuel (FULL, to the JOKER, an AMOUNT) from the fuel plan of the Performance page (deps.fuel), the procedure for the boom or the probe
 // with the calls by their names, the map (the lent Leaflet map), the cards (Smart AAR, classic with the map), Display > AAR on the Map page, OA1 / OA2 of the
 // Refuel steerpoint in the DTC. One list of shapes for the map and the cards (core/aakit.js).
 // The page draws inside the Performance page (core/perfpage.js): left() is its card in the left column, mount() the middle and the right columns.
@@ -23,6 +23,8 @@ import {
   KM_NM,
   OVERTAKE,
   JOIN_BELOW,
+  HEAD_KT,
+  HEAD_TRAIL,
   RATE,
 } from './aar.js';
 import { tankerJB } from './fuelplan.js';
@@ -40,7 +42,8 @@ const KINDS = [
   ['smart', 'Smart AAR'],
   ['map', 'With the map'],
 ];
-const GAP = [2, 20, 1];
+const DIST = [10, 80, 5];
+const MODE = { golf: 'RV GOLF', echo: 'RV ECHO', head: 'RV HEAD-ON' };
 const fmt = v => (v == null || !isFinite(v) ? '--' : Math.round(v).toLocaleString('en-US'));
 const flOf = a => (a >= 18000 ? 'FL' + String(Math.round(a / 100)).padStart(3, '0') : fmt(a) + ' ft');
 const kLb = v => (v == null || !isFinite(v) ? '--' : (Math.round(v / 100) / 10).toFixed(1));
@@ -73,17 +76,18 @@ export function createAarPage(deps) {
       /* none */
     }
   };
-  // the defaults of a flight: the rendezvous and the offload of its SOP (Tanker), a gap of 6 NM
+  // the defaults of a flight: the rendezvous and the offload of its SOP (Tanker), the ARIP 40 NM before the ARCP, a left turn
   const sopOf = id => ((X && X.sop) || []).find(t => t.id == id);
   function defaults() {
     const rv = sopOf('rv'),
       off = sopOf('offload');
     return {
       tk: 0,
-      mode: rv && rv.o == 'anchor' ? 'anchor' : 'enr',
+      mode: rv && rv.o == 'anchor' ? 'echo' : rv && rv.o == 'pp' ? 'head' : 'golf',
       fill: off && (off.o == 'topoff' || off.o == 'plan') ? 'joker' : 'full',
       amount: 4000,
-      gap: 6,
+      dist: 40,
+      turn: 'L',
     };
   }
 
@@ -97,10 +101,11 @@ export function createAarPage(deps) {
       raw = st.f[X.me.key] || {};
     S = {
       tk: raw.tk == 1 && X.tankers.length > 1 ? 1 : 0,
-      mode: ['enr', 'anchor'].includes(raw.mode) ? raw.mode : d.mode,
+      mode: ['golf', 'echo', 'head'].includes(raw.mode) ? raw.mode : d.mode,
       fill: ['full', 'joker', 'amount'].includes(raw.fill) ? raw.fill : d.fill,
       amount: Math.max(0, Math.min(20000, +raw.amount || d.amount)),
-      gap: Math.max(GAP[0], Math.min(GAP[1], +raw.gap || d.gap)),
+      dist: Math.max(DIST[0], Math.min(DIST[1], +raw.dist || d.dist)),
+      turn: raw.turn == 'R' ? 'R' : 'L',
     };
     const tk = X.tankers[S.tk];
     if (!tk) return void (why = 'No tanker on the datacard of ' + X.me.name + ' (TANKER 1 / 2).');
@@ -111,7 +116,7 @@ export function createAarPage(deps) {
       prev = w.find(p => p.n == X.k);
     if (!at) return void (why = 'The Refuel steerpoint ' + (X.k + 1) + ' of ' + X.me.name + ' has no time.');
     const from = prev ? { x: prev.x, y: prev.y, t: prev.dep > prev.arr ? prev.dep : prev.arr } : null;
-    R = rendezvous({ T, mode: S.mode, gap: S.gap, plan: at.arr, from });
+    R = rendezvous({ T, mode: S.mode, dist: S.dist, turn: S.turn, plan: at.arr, from });
     if (!R) return void (why = 'The tanker does not fly at the time of the Refuel steerpoint.');
     R.from = from;
     R.at = at;
@@ -127,7 +132,8 @@ export function createAarPage(deps) {
       fk1 = F.loaded - used(k - 1),
       pn = rows[k].nm > 0 ? rows[k].burn / rows[k].nm : 15,
       d1 = R.from ? Math.hypot(R.arip.x - R.from.x, R.arip.y - R.from.y) / KM_NM : 0,
-      d2 = Math.hypot(R.arcp.x - R.arip.x, R.arcp.y - R.arip.y) / KM_NM,
+      nm = (p, q) => Math.hypot(q.x - p.x, q.y - p.y) / KM_NM,
+      d2 = R.turn ? nm(R.arip, R.turn.p) + Math.PI * R.turn.r + nm(R.turn.roll, R.arcp) : nm(R.arip, R.arcp),
       fArip = fk1 - pn * d1,
       fArct = fArip - pn * d2,
       need = F.need(k),
@@ -176,15 +182,21 @@ export function createAarPage(deps) {
       { t: 'poly', pts: [T.a, T.b], col: COL.trk, w: 3, ink: { w: 2 } },
       // the join leg fits the view; the way in from the steerpoint before does not (the cards stay on the track)
       ...(R.from ? [{ t: 'poly', pts: [R.from, R.arip], col: COL.me, w: 2.5, fit: false, ink: { w: 2 } }] : []),
-      { t: 'poly', pts: [R.arip, R.arcp], col: COL.me, w: 2.5, ink: { w: 2 } },
+      ...(R.turn
+        ? [
+            { t: 'poly', pts: [R.arip, R.turn.p, ...R.turn.arc, R.arcp], col: COL.me, w: 2.5, ink: { w: 2 } },
+            { t: 'dot', p: R.turn.p, col: COL.me, k: 'dot', ink: { label: 'TURN ' + hm(R.turn.t), bold: true } },
+            lab(R.turn.p, 'TURN · ' + hm(R.turn.t) + ' · ' + R.turn.range.toFixed(0) + ' NM', COL.me),
+          ]
+        : [{ t: 'poly', pts: [R.arip, R.arcp], col: COL.me, w: 2.5, ink: { w: 2 } }]),
       { t: 'dot', p: R.at, col: COL.stpt, k: 'sq', ink: { label: 'STPT ' + n } },
       lab(R.at, 'STPT ' + n, COL.stpt),
       { t: 'dot', p: T.a, col: COL.anc, k: 'dot', ink: { label: 'ANCHOR', bold: true } },
-      lab(T.a, 'ANCHOR' + (S.mode == 'anchor' ? ' · OA1' : ''), COL.anc),
+      lab(T.a, 'ANCHOR', COL.anc),
       { t: 'dot', p: R.arip, col: COL.ip, k: 'dot', ink: { label: 'ARIP ' + hm(R.tip), bold: true } },
       lab(R.arip, 'ARIP · OA2 · ' + hm(R.tip), COL.ip),
-      { t: 'dot', p: R.arcp, col: COL.tk, k: 'tri', ink: { label: 'JOIN ' + hm(R.arct), bold: true } },
-      lab(R.arcp, tk().name + ' at ' + hm(R.arct) + ' (ARCT)' + (S.mode == 'enr' ? ' · OA1' : ''), COL.tk),
+      { t: 'dot', p: R.arcp, col: COL.tk, k: 'tri', ink: { label: 'ARCP ' + hm(R.arct), bold: true } },
+      lab(R.arcp, 'ARCP · OA1 · ' + tk().name + ' at ' + hm(R.arct) + ' (ARCT)', COL.tk),
       lab(T.b, flOf(T.alt) + ' · ' + T.kcas + ' KCAS', COL.trk, { text: flOf(T.alt) }),
     ];
   }
@@ -223,20 +235,19 @@ export function createAarPage(deps) {
       'mode',
       [
         [
-          'enr',
-          'EN ROUTE',
-          'Join the tanker where it is at the time of your Refuel steerpoint, from behind on its path',
+          'golf',
+          'RV GOLF',
+          'En route (ATP-56 RV Golf): join the tanker where it is at the time of your Refuel steerpoint, from behind on its path',
         ],
         [
-          'anchor',
-          'ANCHOR',
-          'Wait for the tanker at the anchor (the first point of its track): from the ARIP behind it as it passes the anchor',
+          'echo',
+          'RV ECHO',
+          'Anchor (ATP-56 RV Echo): reach the anchor (the first point of the track) behind the tanker as it passes it',
         ],
         [
           'head',
-          'HEAD-ON',
-          'Head-on: offset 8-9 NM, turn behind the tanker at 15 NM. In the next version of the program',
-          true,
+          'RV HEAD-ON',
+          'Head-on (BMS Training Manual): fly the reciprocal of the first leg, offset 8 NM, turn 180° behind the tanker, roll out 2.5 NM in trail',
         ],
       ],
       S.mode
@@ -248,7 +259,18 @@ export function createAarPage(deps) {
         ['amount', 'AMOUNT', 'A fixed onload'],
       ],
       S.fill
-    )}</div>${S.fill == 'amount' ? slr('amount', amLab(S.amount), [500, 20000, 500], S.amount, fmt(S.amount) + ' lb', FU && S.amount > maxOn()) : ''}${slr('gap', 'Tanker ahead at the ARIP', GAP, S.gap, S.gap + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On the Refuel steerpoint ${X.k + 1}: OA1 = the ${S.mode == 'anchor' ? 'anchor' : 'join point (ARCP)'}, OA2 = the ARIP, at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
+    )}</div>${S.fill == 'amount' ? slr('amount', amLab(S.amount), [500, 20000, 500], S.amount, fmt(S.amount) + ' lb', FU && S.amount > maxOn()) : ''}${
+      S.mode == 'head'
+        ? `<div class="wrow"><label>Turn</label>${seg(
+            'turn',
+            [
+              ['L', 'LEFT'],
+              ['R', 'RIGHT'],
+            ],
+            S.turn
+          )}</div>`
+        : ''
+    }${slr('dist', S.mode == 'head' ? 'ARIP to the turn' : 'ARIP to the ARCP', DIST, S.dist, S.dist + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On the Refuel steerpoint ${X.k + 1}: OA1 = the ARCP (where you reach the tanker${S.mode == 'echo' ? ': the anchor' : ''}), OA2 = the ARIP (where the rendezvous starts), at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
   }
   // the most the tanks take at the join; the Onload slider is red above it
   const maxOn = () => (FU ? Math.max(0, Math.round(FU.full - FU.fArct)) : Infinity);
@@ -258,7 +280,7 @@ export function createAarPage(deps) {
   function tiles() {
     const ab = R.from ? Math.round(R.gs || 0) : 0,
       on = FU ? fmt(FU.onload) + ' lb' : '--';
-    return `<div class="wpt">${tile('ARCT', hm(R.arct), (S.mode == 'anchor' ? (R.shift ? (R.shift > 0 ? '+' : '−') + Math.round(Math.abs(R.shift) / 60000) + ' min to the plan · ' : 'on the plan · ') : '') + 'ARIP ' + hm(R.tip) + (ab ? ' · ' + ab + ' kt from STPT ' + X.k : ''))}${tile('Onload', on, FU ? (S.fill == 'full' ? 'to full' : S.fill == 'joker' ? 'to the Joker' : 'a fixed amount') + ' · ≈ ' + Math.ceil(FU.min) + ' min at the ' + (method() == 'probe' ? 'basket' : 'boom') : 'no aircraft data')}${tile('Join', flOf(joinAlt()), fmt(JOIN_BELOW) + ' ft below · ' + OVERTAKE + ' kt overtake, ' + S.gap + ' NM gap')}${tile('Fuel at the join', FU ? fmt(FU.fArct) + ' lb' : '--', FU ? 'after: ' + fmt(FU.after) + ' · need ' + fmt(FU.need) : '')}</div>`;
+    return `<div class="wpt">${tile('ARCT', hm(R.arct), (S.mode != 'golf' ? (R.shift ? (R.shift > 0 ? '+' : '−') + Math.round(Math.abs(R.shift) / 60000) + ' min to the plan · ' : 'on the plan · ') : '') + 'ARIP ' + hm(R.tip) + (ab ? ' · ' + ab + ' kt from STPT ' + X.k : ''))}${tile('Onload', on, FU ? (S.fill == 'full' ? 'to full' : S.fill == 'joker' ? 'to the Joker' : 'a fixed amount') + ' · ≈ ' + Math.ceil(FU.min) + ' min at the ' + (method() == 'probe' ? 'basket' : 'boom') : 'no aircraft data')}${tile('Join', flOf(joinAlt()), R.turn ? 'turn ' + (R.turn.sd > 0 ? 'left' : 'right') + ' at ' + R.turn.range.toFixed(0) + ' NM, the tanker at ' + R.turn.clock + " o'clock" : fmt(JOIN_BELOW) + ' ft below · tanker ' + R.gap.toFixed(1) + ' NM ahead at the ARIP')}${tile('Fuel at the join', FU ? fmt(FU.fArct) + ' lb' : '--', FU ? 'after: ' + fmt(FU.after) + ' · need ' + fmt(FU.need) : '')}</div>`;
   }
   function tables() {
     const n = X.k + 1,
@@ -285,13 +307,25 @@ export function createAarPage(deps) {
           hm(R.tip),
           FU ? Math.round(FU.d1) : '--',
           fmt(ja),
-          Math.round(kcasOf(tas, ja)) + ' KCAS',
+          Math.round(kcasOf(R.turn ? HEAD_KT : tas, ja)) + ' KCAS',
           f(FU && FU.fArip),
         ],
+        ...(R.turn
+          ? [
+              [
+                'Turn ' + (R.turn.sd > 0 ? 'left' : 'right'),
+                hm(R.turn.t),
+                S.dist,
+                fmt(ja),
+                Math.round(kcasOf(HEAD_KT, ja)) + ' KCAS',
+                '',
+              ],
+            ]
+          : []),
         [
-          'Join · ARCP' + (S.mode == 'enr' ? ' · OA1' : ''),
+          'ARCP · OA1',
           hm(R.arct),
-          FU ? Math.round(FU.d2) : '--',
+          FU ? Math.round(FU.d2 - (R.turn ? S.dist : 0)) : '--',
           fmt(ja),
           T.kcas + ' KCAS',
           f(FU && FU.fArct),
@@ -311,7 +345,7 @@ export function createAarPage(deps) {
             ]
           : []),
       ],
-      proc = procedure(method(), (sopOf('obs') || {}).o).map(r => [r[0], esc(r[1])]),
+      proc = procedure(method(), (sopOf('obs') || {}).o, R.turn).map(r => [r[0], esc(r[1])]),
       W = warns();
     return {
       mid: `${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
@@ -417,7 +451,7 @@ export function createAarPage(deps) {
       const k = i.dataset.arsl;
       set(k, +i.value);
       const em = l() && l().querySelector(`[data-are="${k}"]`);
-      if (em) em.textContent = k == 'gap' ? i.value + ' NM' : fmt(+i.value) + ' lb';
+      if (em) em.textContent = k == 'dist' ? i.value + ' NM' : fmt(+i.value) + ' lb';
       if (k == 'amount') {
         const sl = i.closest('.slr');
         sl.classList.toggle('bad', !!FU && +i.value > maxOn());
@@ -491,14 +525,14 @@ export function createAarPage(deps) {
     if (n > 24) return deps.toast('OA1 / OA2: the Refuel steerpoint ' + n + ' is beyond the 24 of the DTC.', true);
     if (deps.dtc.open && !deps.dtc.open()) return deps.toast('No DTC: open one first.', true);
     if (!deps.dtc.has('NAV OFFSETS')) return deps.toast('This DTC has no NAV OFFSETS section.', true);
-    const p1 = S.mode == 'anchor' ? T.a : R.arcp,
+    const p1 = R.arcp,
       o1 = offset(at, p1),
       o2 = offset(at, R.arip),
       el = joinAlt(),
       txt = o => o.brg + '°, ' + o.nm.toFixed(1) + ' nm, ' + el + ' ft';
     if (
       !(await deps.confirm(
-        `Write on STPT ${n} (Refuel):\n\nOA1-${n} = ${S.mode == 'anchor' ? 'the anchor' : 'the join (ARCP)'}: ${txt(o1)}\nOA2-${n} = the ARIP: ${txt(o2)}`
+        `Write on STPT ${n} (Refuel):\n\nOA1-${n} = the ARCP${S.mode == 'echo' ? ' (the anchor)' : ''}: ${txt(o1)}\nOA2-${n} = the ARIP: ${txt(o2)}`
       ))
     )
       return;
@@ -514,9 +548,9 @@ export function createAarPage(deps) {
       ja = joinAlt(),
       W = warns(),
       jb = FU && FU.jb,
-      sop = (X.sop || []).map(s => (s.id == 'rv' ? 'RV ' + s.txt : s.txt));
+      sop = (X.sop || []).map(s => s.txt);
     return {
-      title: 'AAR · ' + (m == 'probe' ? 'PROBE' : 'BOOM'),
+      title: 'AAR · ' + (m == 'probe' ? 'PROBE' : 'BOOM') + ' · ' + MODE[S.mode],
       right: X.me.tag,
       key: [
         ['TANKER', t.name.toUpperCase()],
@@ -530,21 +564,14 @@ export function createAarPage(deps) {
       ],
       plan: toInk(spec()),
       legend:
-        'LEGS ' +
-        Math.round(T.leg) +
-        'NM · ' +
-        T.kcas +
-        'KCAS · ' +
-        flOf(T.alt) +
-        ' · TURNS L/R · ' +
-        (S.mode == 'anchor' ? 'ANCHOR' : 'EN ROUTE'),
+        'LEGS ' + Math.round(T.leg) + 'NM · ' + T.kcas + 'KCAS · ' + flOf(T.alt) + ' · TURNS L/R · ' + MODE[S.mode],
       blocks: [
         ...(W.some(w => w[1]) ? [['CHECK', W.filter(w => w[1]).map(w => [w[0].toUpperCase(), true])]] : []),
         [
           'TIMES',
           [
             ...(R.from ? ['PUSH STPT ' + X.k + ' ' + hm(R.from.t)] : []),
-            'ARIP ' + hm(R.tip) + ' · ARCT ' + hm(R.arct),
+            'ARIP ' + hm(R.tip) + (R.turn ? ' · TURN ' + hm(R.turn.t) : '') + ' · ARCT ' + hm(R.arct),
             'DONE ' + hm(done()) + ' · OFF STATION ' + hm(T.t1),
           ],
         ],
@@ -562,8 +589,18 @@ export function createAarPage(deps) {
           'JOIN',
           [
             flOf(ja) + ' · ' + JOIN_BELOW + 'FT BELOW',
-            'GAP ' + S.gap + 'NM · OVERTAKE ' + OVERTAKE + 'KT',
-            '10KT/1000FT · 10KT INSIDE 1000FT',
+            ...(R.turn
+              ? [
+                  'TURN ' +
+                    (R.turn.sd > 0 ? 'L' : 'R') +
+                    ' AT ' +
+                    R.turn.range.toFixed(0) +
+                    'NM, TANKER ' +
+                    R.turn.clock +
+                    " O'CLOCK",
+                  '30° BANK ' + HEAD_KT + 'KT · ROLL OUT ' + HEAD_TRAIL + 'NM',
+                ]
+              : ['TANKER ' + R.gap.toFixed(1) + 'NM AHEAD AT ARIP', 'OVERTAKE ' + OVERTAKE + 'KT · 10KT/1000FT']),
           ],
         ],
         [
@@ -583,7 +620,7 @@ export function createAarPage(deps) {
       jb = FU && FU.jb,
       n = X.k + 1;
     return {
-      head: 'AAR · ' + (m == 'probe' ? 'PROBE' : 'BOOM') + ' · ' + (S.mode == 'anchor' ? 'ANCHOR' : 'EN ROUTE'),
+      head: 'AAR · ' + (m == 'probe' ? 'PROBE' : 'BOOM') + ' · ' + MODE[S.mode],
       rowsHead: 'TANKER · TIMES · FUEL',
       title: X.me.name + ' · ' + X.me.n + '× ' + X.me.ac,
       sub: 'TANKER ' + t.name + ' · ' + t.type + ' · STPT ' + n + ' REFUEL',
@@ -599,7 +636,13 @@ export function createAarPage(deps) {
               ' min'
             : '',
         ],
-        ['JOIN', flOf(joinAlt()), fmt(JOIN_BELOW) + ' ft below · gap ' + S.gap + ' NM'],
+        [
+          'JOIN',
+          flOf(joinAlt()),
+          R.turn
+            ? 'turn ' + (R.turn.sd > 0 ? 'left' : 'right') + ' at ' + R.turn.range.toFixed(0) + ' NM'
+            : fmt(JOIN_BELOW) + ' ft below · ARIP ' + S.dist + ' NM before',
+        ],
         ['TANK BINGO', jb ? fmt(jb.bingo) : '--', jb ? 'joker ' + fmt(jb.joker) : '', true],
       ],
       warn: warns()
@@ -612,15 +655,17 @@ export function createAarPage(deps) {
         ['TRACK', flOf(T.alt) + ' · ' + T.kcas + ' KCAS · ' + Math.round(T.leg) + ' NM'],
         ['ON STATION', t.win || '--'],
         ['ARIP · OA2', hm(R.tip)],
-        ['JOIN · ARCP', hm(R.arct) + (S.mode == 'enr' ? ' · OA1' : '')],
-        ['ANCHOR', S.mode == 'anchor' ? 'OA1' : 'track point 1'],
+        ['ARCP · OA1', hm(R.arct) + (S.mode == 'echo' ? ' · the anchor' : '')],
+        ...(R.turn
+          ? [['TURN', hm(R.turn.t) + ' · ' + R.turn.range.toFixed(0) + ' NM · ' + R.turn.clock + " o'clock"]]
+          : []),
         ['FUEL AT JOIN', FU ? fmt(FU.fArct) + ' lb' : '--', !!(FU && FU.fArct < 1000)],
         ['AFTER / NEED', FU ? fmt(FU.after) + ' / ' + fmt(FU.need) + ' lb' : '--', !!(FU && FU.short)],
         ['SOP', (X.sop || []).map(s => s.txt).join(' · ') || 'none chosen'],
       ],
       calls: [
-        ...procedure(m, (sopOf('obs') || {}).o)
-          .slice(2, 7)
+        ...procedure(m, (sopOf('obs') || {}).o, R.turn)
+          .slice(R.turn ? 1 : 2, 7)
           .map(r => r[0] + ': ' + r[1]),
         'Tanker: ' + CALLS.tanker.join(' · '),
         'AWACS: ' + CALLS.awacs.join(' · '),

@@ -1,5 +1,5 @@
-"""Performance > AAR (1.4.0-beta.23) in the browser on a made-up flight and tanker: the tab and its Add card, the tanker, EN ROUTE / ANCHOR (HEAD-ON not yet),
-the fill, the gap, the checks, the tables, OA1 / OA2 in the DTC, the Smart AAR and classic cards, Display > AAR on the Map page. No BMS file.
+"""Performance > AAR (1.4.0-beta.23) in the browser on a made-up flight and tanker (1.4.0-beta.25: RV GOLF / ECHO / HEAD-ON): the tab and its Add card, the
+tanker, the rendezvous, the fill, the ARIP distance, the checks, the tables, OA1 / OA2 in the DTC, the Smart AAR and classic cards, Display > AAR on the Map page. No BMS file.
 Usage: python3 tools/aar-test.py [folder for the pictures]"""
 import os, subprocess, sys, time, json, base64
 HERE = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(HERE)
@@ -18,7 +18,7 @@ SETUP = r"""o => {
   const me = [mk(480, 300, 0, 8.6*H, 8.6*H, 1), mk(560, 420, 2000, 9.0*H, 0, 0), mk(600, 540, 2200, 9.3*H, 9.5*H, 4), mk(720, 700, 1500, 9.9*H, 0, 15), mk(480, 300, 0, 10.6*H, 0, 7)];
   const X = { ok: true, me: { key: '77', name: 'Goblin 3', n: 2, ac: o.ac || 'F-16CM-50', pkgNo: 1225, tag: 'GOBLIN 3 · PKG 1225' }, wps: me, k: 2,
     tankers: [{ name: 'Canteen1', type: o.tk || 'KC-135', tcn: '28Y', uhf: '348.625', win: '09:00 - 11:00', wps: tw }, { name: 'Camel1', type: 'KC-130H', tcn: '41Y', uhf: '251.300', win: '09:00 - 11:00', wps: tw }],
-    sop: [{ id: 'rv', o: 'enr', txt: 'EN ROUTE' }, { id: 'obs', o: 'right', txt: 'OBS RIGHT' }, { id: 'breakaway', o: 'std', txt: 'BREAKAWAY: DOWN AFT' }] };
+    sop: [{ id: 'rv', o: 'enr', txt: 'RV GOLF' }, { id: 'obs', o: 'right', txt: 'OBS RIGHT' }, { id: 'breakaway', o: 'std', txt: 'BREAKAWAY: DOWN AFT' }] };
   const min = [9800, 7400, 1000, 4600, 1500], burn = [0, 2400, 1400, 3100, 3100];
   const plan = { rows: me.map((p, i) => ({ i, act: p.act, nm: i ? Math.hypot(p.x - me[i-1].x, p.y - me[i-1].y) / K : 0, burn: burn[i], min: min[i], minExact: min[i] })) };
   __app.aarPage._test({ ctx: () => X, fuel: () => ({ plan, need: k => 5300, loaded: 12000, joker: 1000 }) });
@@ -40,9 +40,9 @@ try:
         check('Add card in the bar of the tabs, on the right', pg.locator('#pf .wtabs [data-aarcard]').count() == 1)
         L = pg.inner_text('#aarl')
         check('the left card: BOOM, the two tankers, the type and the A-A TACAN', 'AAR · BOOM' in L and 'TANKER 1 · Canteen1' in L and 'TANKER 2 · Camel1' in L and 'KC-135 · boom' in L and '28Y · distance only' in L)
-        check('HEAD-ON is in the layout, not usable yet', pg.locator('[data-arset=mode][data-v=head]').is_disabled())
+        check('the rendezvous by their ATP-56 names', pg.locator('#aarl [data-arset=mode]').all_inner_texts() == ['RV GOLF', 'RV ECHO', 'RV HEAD-ON'] and not pg.locator('[data-arset=mode][data-v=head]').is_disabled())
         P = plan()
-        check('EN ROUTE from the SOP: the join at 09:18, the ARIP before it, no red check', P['S']['mode'] == 'enr' and abs(P['R']['arct'] - 9.3 * 3600000) < 1 and P['R']['tip'] < P['R']['arct'] and not any(w[1] for w in P['warn']))
+        check('RV GOLF from the SOP: the ARCT at 09:18, the ARIP before it, no red check', P['S']['mode'] == 'golf' and abs(P['R']['arct'] - 9.3 * 3600000) < 1 and P['R']['tip'] < P['R']['arct'] and not any(w[1] for w in P['warn']))
         check('FULL: onload 12,000 - the fuel at the join', P['FU']['onload'] == round(12000 - P['FU']['fArct']))
         check('the four values on one line', len(set(round(b['y']) for b in pg.evaluate("()=>[...document.querySelectorAll('#aartl .tile')].map(t=>t.getBoundingClientRect().toJSON())"))) == 1)
         check('the tiles and the tables: ARCT 09:18, Times, Procedure BOOM with the right wing of the SOP', '09:18' in pg.inner_text('#aartl') and 'Push · STPT 2' in pg.inner_text('#pfr2 #aartt') and 'Procedure · BOOM'.upper() in pg.inner_text('#aartb').upper() and 'Right wing of the tanker' in pg.inner_text('#aartb') and 'AR door OPEN' in pg.inner_text('#aartb'))
@@ -53,14 +53,21 @@ try:
         pg.click('[data-arset=tk][data-v="1"]'); pg.wait_for_timeout(500)
         check('KC-130H for a boom receiver: red check', 'has no boom' in pg.inner_text('#aartb') and any(w[1] and 'no boom' in w[0] for w in plan()['warn']))
         pg.click('[data-arset=tk][data-v="0"]'); pg.wait_for_timeout(300)
-        # ANCHOR, JOKER, the gap
-        pg.click('[data-arset=mode][data-v=anchor]'); pg.click('[data-arset=fill][data-v=joker]'); pg.wait_for_timeout(500)
+        # RV ECHO, JOKER, the distance of the ARIP
+        pg.click('[data-arset=mode][data-v=echo]'); pg.click('[data-arset=fill][data-v=joker]'); pg.wait_for_timeout(500)
         P = plan()
-        check('ANCHOR: the ARIP 6 NM behind the anchor, a pass of the tanker', P['S']['mode'] == 'anchor' and 'ANCHOR · OA1' in pg.inner_text('#aarmap'))
+        check('RV ECHO: the ARCP at the anchor, the ARIP 40 NM behind it', P['S']['mode'] == 'echo' and abs(P['R']['arcp']['y'] - 500) < 0.01 and abs((500 - P['R']['arip']['y']) / 1.852 - 40) < 0.05 and 'ARCP · OA1' in pg.inner_text('#aarmap'))
         check('JOKER: after the onload need + joker or more', P['FU']['after'] >= min(12000, 5300 + 1000) - 1)
-        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=gap]');e.value=18;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
-        check('a gap of 18 NM at the anchor: the join falls in the turn (red)', plan()['S']['gap'] == 18 and any(w[1] and 'turn' in w[0] for w in plan()['warn']))
-        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=gap]');e.value=6;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=dist]');e.value=20;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
+        check('the ARIP 20 NM before the ARCP', plan()['S']['dist'] == 20 and abs((500 - plan()['R']['arip']['y']) / 1.852 - 20) < 0.05)
+        # RV HEAD-ON: the turn side, the turn point on the map and in the tables
+        pg.click('[data-arset=mode][data-v=head]'); pg.wait_for_timeout(500)
+        P = plan()
+        check('RV HEAD-ON: a left turn by default, the turn point (map, Times, Procedure)', P['S']['mode'] == 'head' and P['S']['turn'] == 'L' and P['R']['turn'] and 'TURN · ' in pg.inner_text('#aarmap') and 'Turn left' in pg.inner_text('#aartt') and 'Head-on' in pg.inner_text('#aartb') and 'ARIP to the turn' in pg.inner_text('#aarl'))
+        pg.click('[data-arset=turn][data-v=R]'); pg.wait_for_timeout(400)
+        check('...a right turn: offset to the other side', plan()['S']['turn'] == 'R' and plan()['R']['turn']['p']['x'] > 600)
+        if OUT: pg.screenshot(path=os.path.join(OUT, 'aar-head.png'))
+        pg.click('[data-arset=mode][data-v=echo]'); pg.wait_for_timeout(300)
         pg.click('[data-arset=fill][data-v=amount]'); pg.wait_for_timeout(300)
         check('AMOUNT: its slider', pg.locator('[data-arsl=amount]').count() == 1)
         pg.evaluate("()=>{const e=document.querySelector('[data-arsl=amount]');e.value=16000;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(200)
@@ -79,14 +86,14 @@ try:
         check('Write OA1 / OA2: asked, then both on STPT 3 at 21,000 ft (%s, %s)' % (v1, v2), msgs and 'STPT 3' in msgs[0] and v1 and v1.endswith(',21000') and v2 and v2.endswith(',21000') and v1 != v2)
         # the cards
         sm = pg.evaluate("()=>{const d=__app.aarPage.smart();return d&&{key:d.key.map(k=>k[0]),sop:d.sop}}")
-        check('Smart AAR: the key box and the SOP Tanker lines (RV first)', sm and sm['key'] == ['TANKER', 'TACAN', 'UHF', 'ALT', 'ARCT', 'TYPE', 'ONLOAD', 'BINGO'] and sm['sop'][0] == 'RV EN ROUTE')
+        check('Smart AAR: the key box and the SOP Tanker lines (the RV first)', sm and sm['key'] == ['TANKER', 'TACAN', 'UHF', 'ALT', 'ARCT', 'TYPE', 'ONLOAD', 'BINGO'] and sm['sop'][0] == 'RV GOLF')
         for k in ('smart', 'map'):
             u = pg.evaluate("async k=>{const c=await __app.aarPage.cardCanvas(k);return c?c.width+'x'+c.height+'|'+c.toDataURL():''}", k)
             check('the %s card is drawn (1600 x 2400)' % k, u.startswith('1600x2400|data:image/png'))
             if OUT and u: open(os.path.join(OUT, 'aar-%s.png' % k), 'wb').write(base64.b64decode(u.split(',', 1)[1]))
         if OUT: pg.screenshot(path=os.path.join(OUT, 'aar-page.png'))
         # the probe: drogue
-        pg.evaluate(SETUP, {'ac': 'F/A-18C'}); pg.click('[data-arset=mode][data-v=enr]'); pg.wait_for_timeout(500)
+        pg.evaluate(SETUP, {'ac': 'F/A-18C'}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
         check('a probe receiver: PROBE, the probe out, no AR door', 'AAR · PROBE' in pg.inner_text('#aarl') and 'probe OUT' in pg.inner_text('#aartb') and 'AR door' not in pg.inner_text('#aartb'))
         # another tab gives the map back; Display > AAR on the Map page
         pg.click('#pf [data-mode=plan]'); pg.wait_for_timeout(300)

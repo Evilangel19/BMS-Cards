@@ -8,6 +8,8 @@ import {
   tankerAt,
   closeSec,
   rendezvous,
+  gapFor,
+  HEAD_KT,
   onload,
   procedure,
   offset,
@@ -91,28 +93,59 @@ const c6 = closeSec(6);
 ok('closure from 6 NM about 5.8 min ' + (c6 / 60).toFixed(2), near(c6, 349, 10));
 ok('a larger gap takes longer', closeSec(10) > c6 && closeSec(1) < c6);
 
-// EN ROUTE: the join at the planned time where the tanker is; the ARIP on its path, the gap behind it
-const plan = t0 + 0.115 * H,
-  from = { x: 0, y: -150, t: plan - 0.4 * H },
-  R = rendezvous({ T, mode: 'enr', gap: 6, plan, from });
-ok('en route: the ARCT is the plan', R && R.arct == plan && R.shift == 0);
-ok('en route: the ARIP before the join on the track', R && R.arip.y < R.arcp.y && near(R.arcp.x, 0, 0.01));
-ok('en route: the tanker 6 NM ahead at the ARIP', R && near((tankerAt(T, R.tip).y - R.arip.y) / KM_NM, 6, 0.05));
-ok('en route: a ground speed to the ARIP ' + (R && R.gs), R && R.gs > 200 && R.gs < 600 && !R.warn.some(w => w[1]));
-const early = rendezvous({ T, mode: 'enr', gap: 6, plan, from: { x: 0, y: -60, t: plan - 0.5 * H } });
-ok('early: a note with the push time', early && early.warn.some(w => !w[1] && /^Early/.test(w[0])));
-// ANCHOR: the ARIP 6 NM behind the anchor, the receiver there as the tanker passes the anchor
-const A = rendezvous({ T, mode: 'anchor', gap: 6, plan: t0 + 1.0 * H, from: null });
-ok('anchor: the ARIP 6 NM behind the anchor', A && near(A.arip.y, -6 * KM_NM, 0.01));
+// the gap at the ARIP: the receiver flies the distance while the tanker flies on and the gap closes
+const g30 = gapFor(30, T.tas);
 ok(
-  'anchor: at the ARIP on a pass of the tanker over the anchor',
-  A && near(Math.round((A.tip - t0) / T.per) * T.per, A.tip - t0, 1)
+  'ARIP 30 NM before the ARCP: the tanker about 3 NM ahead ' + g30.toFixed(2),
+  g30 > 2 && g30 < 4 && near(g30 + (T.tas * closeSec(g30)) / 3600, 30, 0.01)
 );
-ok('anchor: the join on the first leg', A && A.arcp.y > 0 && A.arcp.y < L && near(A.arcp.x, 0, 0.01));
-ok('anchor: no warning', A && !A.warn.length);
-const A2 = rendezvous({ T, mode: 'anchor', gap: 20, plan: t0 + 1.0 * H, from: null });
-ok('anchor: a large gap puts the join in the turn', A2 && A2.warn.some(w => w[1]));
-const late = rendezvous({ T, mode: 'enr', gap: 6, plan: 12 * H, from: null });
+
+// RV GOLF: the ARCT at the planned time where the tanker is; the ARIP 30 NM back on its path
+const plan = t0 + 0.11 * H,
+  from = { x: 0, y: -150, t: plan - 0.4 * H },
+  R = rendezvous({ T, mode: 'golf', dist: 30, plan, from });
+ok('golf: the ARCT is the plan', R && R.arct == plan && R.shift == 0);
+ok(
+  'golf: the ARIP 30 NM before the ARCP on the track',
+  R && near((R.arcp.y - R.arip.y) / KM_NM, 30, 0.05) && near(R.arcp.x, 0, 0.01)
+);
+ok('golf: at the ARIP the tanker the gap ahead', R && near((tankerAt(T, R.tip).y - R.arip.y) / KM_NM, R.gap, 0.05));
+ok('golf: a ground speed to the ARIP ' + (R && R.gs), R && R.gs > 200 && R.gs < 600 && !R.warn.some(w => w[1]));
+const early = rendezvous({ T, mode: 'golf', dist: 30, plan, from: { x: 0, y: -40, t: plan - 0.5 * H } });
+ok('early: a note with the push time', early && early.warn.some(w => !w[1] && /^Early/.test(w[0])));
+// RV ECHO: the ARCP is the anchor, the ARCT a pass of the tanker over it, the ARIP 30 NM back on the line of the track
+const A = rendezvous({ T, mode: 'echo', dist: 30, plan: t0 + 1.0 * H, from: null });
+ok(
+  'echo: the ARCP at the anchor, the ARIP 30 NM behind it',
+  A && near(A.arcp.y, 0, 0.01) && near(A.arip.y, -30 * KM_NM, 0.01)
+);
+ok(
+  'echo: the ARCT on a pass of the tanker over the anchor',
+  A && near(Math.round((A.arct - t0) / T.per) * T.per, A.arct - t0, 1)
+);
+ok('echo: 3 min from the plan: a note (ATP-56 ±1 min)', A && A.warn.some(w => !w[1] && /±1 min/.test(w[0])));
+// RV HEAD-ON: a left turn, the receiver offset to the left of the leg, 2.5 NM in trail at the roll-out, the ARCP on the first leg
+const Hd = rendezvous({ T, mode: 'head', dist: 20, turn: 'L', plan: t0 + 1.0 * H, from: null }),
+  rt = Hd && Hd.turn;
+ok('head-on: offset two turn radii to the left (west)', rt && near(rt.p.x, -2 * rt.r * KM_NM, 0.01) && rt.sd == 1);
+ok(
+  'head-on: the roll-out on the track, 2.5 NM behind the tanker',
+  rt &&
+    near(rt.roll.x, 0, 0.01) &&
+    near((tankerAt(T, rt.t + ((Math.PI * rt.r) / HEAD_KT) * H).y - rt.roll.y) / KM_NM, 2.5, 0.05)
+);
+ok(
+  "head-on: the turn at 12-16 NM, the tanker at 11 o'clock " + (rt && rt.range.toFixed(1) + ' ' + rt.clock),
+  rt && rt.range > 12 && rt.range < 16 && rt.clock == 11
+);
+ok('head-on: the ARIP 20 NM before the turn, ahead on the leg', Hd && near((Hd.arip.y - rt.p.y) / KM_NM, 20, 0.01));
+ok(
+  'head-on: the ARCP on the first leg, no red warning',
+  Hd && Hd.arcp.y > 0 && Hd.arcp.y < L && !Hd.warn.some(w => w[1])
+);
+const Hr = rendezvous({ T, mode: 'head', dist: 20, turn: 'R', plan: t0 + 1.0 * H, from: null });
+ok("head-on right: offset to the east, the tanker at 1 o'clock", Hr && Hr.turn.p.x > 0 && Hr.turn.clock == 1);
+const late = rendezvous({ T, mode: 'golf', dist: 30, plan: 12 * H, from: null });
 ok('the tanker gone at the ARCT: null or a red warning', !late || late.warn.some(w => w[1]));
 
 // the fuel: full, to the joker, an amount

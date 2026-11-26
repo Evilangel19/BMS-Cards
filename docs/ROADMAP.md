@@ -68,7 +68,7 @@ This file says what the program does today, how far each part has been checked, 
 - **For 1.4, new Smart cards** (the look of the Smart cards of 1.3, made with the method of ARCHITECTURE.md):
   - **Smart Comms**: the UHF / VHF presets of the DTC, the package table with its frequencies, Link 16, IFF, AWACS and tankers on one page.
   - **Smart Tanker** (done in 1.4.0-beta.23 as the Smart AAR card of Performance > AAR): the track, the altitude, the time and the frequency of the
-    tanker, the fuel before and after, ARIP / ARCP. Next: the HEAD-ON rendezvous (offset 8-9 NM, the turn behind the tanker at 15 NM).
+    tanker, the fuel before and after, ARIP / ARCP, with the rendezvous RV GOLF, RV ECHO and RV HEAD-ON (1.4.0-beta.25).
   - **Smart Threat**: the SAMs along the route in the order of time, the WEZ exposure minute by minute, the PPTs.
   - **Smart Recovery**: the landing and alternate fields, the approaches, the frequencies, the divert fuel, the weather on arrival.
 - **For 1.4, the Smart ROE / SOP card reworked** (done in 1.4.0-beta.8): ROE in the key box, SOP chosen by priority (Smart tick, conditions
