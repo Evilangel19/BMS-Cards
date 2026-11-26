@@ -1533,26 +1533,19 @@
   animation: tgapp 0.22s ease-out;
 }
 /* A-G > TASMO (core/tasmopage.js): as DEAD; the rows of buttons, the profile */
-.wpg.sdg.ts .tsrow {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin: 6px 0;
-}
-.wpg.sdg.ts .tsseg {
-  display: flex;
-}
-.wpg.sdg.ts .tsseg button {
-  flex: 1 1 0;
-  min-width: 0;
-}
 .wpg.sdg.ts {
-  grid-template-columns: 440px minmax(0, 1fr) 360px;
+  grid-template-columns: 380px minmax(0, 1fr) 380px;
 }
 @media (max-width: 1499px) {
   .wpg.sdg.ts {
-    grid-template-columns: 400px minmax(0, 1fr);
+    grid-template-columns: 380px minmax(0, 1fr);
   }
+}
+#wptasmo .wrow > label {
+  width: 86px;
+}
+#wptasmo .wrow .seg button {
+  padding: 3px 8px;
 }
 #wptasmo #tsmap {
   height: 640px;

@@ -35,7 +35,7 @@ try:
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500)
         check('the TASMO tab between HARM and Target', pg.locator('#wp .wtabs [data-mode]').all_inner_texts()[-3:] == ['HARM', 'TASMO', 'Target'])
         pg.click('#wp [data-mode=tasmo]'); pg.wait_for_timeout(1500)
-        check('the page as DEAD: three columns, no Smart card preview', pg.locator('#wptasmo .wpg.sdg.dg .wpl').count() == 1 and pg.locator('#wptasmo .wpr #tssh').count() == 1 and pg.locator('#wptasmo .wpr canvas').count() == 0)
+        check('the page as DEAD: three columns, the steps on the right, no Smart card preview, compact rows', pg.locator('#wptasmo .wpg.sdg.dg .wpl').count() == 1 and pg.locator('#wptasmo .wpr #tssh').count() == 1 and pg.locator('#wptasmo .wpr #tsstp').count() == 1 and pg.locator('#wptasmo .wpr canvas').count() == 0 and pg.locator('#tswp .wrow > label').count() >= 5)
         check('Map filters at the right of Fit view; the dark menus', pg.locator('#wptasmo [data-tsfit] + [data-tspf]').count() == 1 and pg.evaluate("()=>getComputedStyle(document.querySelector('#wptasmo select')).backgroundColor") == 'rgb(11, 15, 20)')
         check('the map larger than the side panels allow on DEAD (640 px high)', pg.evaluate("()=>document.querySelector('#tsmap').getBoundingClientRect().height") == 640)
         check('Add card in the bar of the tabs, usable', pg.locator('#wp .wtabs [data-tabcard]').count() == 1 and pg.locator('#wp .wtabs [data-tabcard]').is_enabled())
@@ -54,7 +54,14 @@ try:
         check('the map: the lent map with the ship, the launch', pg.locator('#tsmap .leaflet-container, #tsmap.leaflet-container').count() >= 1 and 'LAUNCH · OA1' in pg.inner_text('#tsmap') and 'HPN STPT 90' in pg.inner_text('#tsmap'))
         # the profile
         pg.click('[data-tsview=prof]'); pg.wait_for_timeout(300)
-        check('the profile: the SAM, the horizon, the launch', pg.locator('#tsprof svg').count() == 1 and 'LAUNCH' in pg.inner_text('#tsprof') and pg.locator('#tsmapw[hidden]').count() == 1)
+        check('the profile: the SAM, the horizon, the launch, the seeker, the fly-out', pg.locator('#tsprof svg').count() == 1 and 'LAUNCH' in pg.inner_text('#tsprof') and 'SEEKER ON' in pg.inner_text('#tsprof') and 'LOW FLY-OUT · POP' in pg.inner_text('#tsprof .wleg') and pg.locator('#tsmapw[hidden]').count() == 1)
+        m0 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        pg.click('[data-tsset=fly][data-v=HIGH]'); pg.wait_for_timeout(300)
+        m1 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        pg.click('[data-tsset=term][data-v=SKIM]'); pg.wait_for_timeout(300)
+        m2 = pg.evaluate("()=>document.querySelector('#tsprof .tsmsl').getAttribute('points')")
+        check('the fly-out and the terminal change the flight of the missile in the profile', m0 != m1 != m2 and m0 != m2)
+        pg.click('[data-tsset=fly][data-v=LOW]'); pg.click('[data-tsset=term][data-v=POP]'); pg.wait_for_timeout(300)
         if OUT: pg.screenshot(path=os.path.join(OUT, 'tasmo-prof.png'))
         pg.click('[data-tsview=map]'); pg.wait_for_timeout(300)
         # inside the ring
@@ -62,8 +69,9 @@ try:
         check('30 NM: inside the ring, red, the slider red', any(c[1] and 'SAM ring' in c[0] for c in plan()['checks']) and pg.locator('#tsal .slr.bad [data-tssl=dist]').count() == 1)
         pg.evaluate("()=>{const e=document.querySelector('[data-tssl=dist]');e.value=60;e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(300)
         # BOL options
+        check('RBL: the search area on the map', 'SEARCH LARGE' in pg.inner_text('#tsmap'))
         pg.click('[data-tsset=mode][data-v=bol]'); pg.wait_for_timeout(300)
-        check('BOL: no search area, the enable and destruct ranges', pg.locator('[data-tsset=area]').count() == 0 and 'enable' in pg.inner_text('#tssh'))
+        check('BOL: no search area, the enable and destruct ranges, on the map too', pg.locator('[data-tsset=area]').count() == 0 and 'enable' in pg.inner_text('#tssh') and 'DESTRUCT' in pg.inner_text('#tsmap') and 'SEARCH' not in pg.inner_text('#tsmap'))
         pg.click('[data-tsset=mode][data-v=rbl]'); pg.wait_for_timeout(300)
         # OA and STPT 90 in the DTC
         msgs = []

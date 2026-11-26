@@ -130,6 +130,33 @@ export function tasmoPlan(o) {
   };
 }
 
+// ---- the flight of the missile (an estimate: the Dash-34 gives the logic, not the numbers)
+export const SKIM_FT = 100, // the cruise of the missile over the sea
+  POP_FT = 1500, // the top of the terminal pop-up
+  POP_NM = 2, // where the pop-up starts before the ship
+  HIGH_NM = 10; // HIGH fly-out: the missile stays at the launch altitude to 10 NM (or the enable range in BOL), then descends
+/** where the seeker turns on, NM from the ship: RBL at the edge of its search area, BOL at the enable range from the launch, LOS near the ship */
+export function seekerNm(mode, dist, area, enable) {
+  return mode == 'bol' ? Math.max(0, dist - enable) : mode == 'los' ? Math.min(dist, 10) : Math.min(dist, area + 2);
+}
+/** the radius of the search area (NM, an estimate): LARGE grows with the range (and covers the area of the ship), MED and SMALL are fixed */
+export const areaNm = (size, dist, U) =>
+  size == 'SMALL' ? 3 : size == 'MED' ? 6 : Math.max(U, Math.round(dist * 0.15));
+/** the vertical flight of the missile: [[NM from the ship, ft]] from the launch to the impact; o: {dist, alt, fly: 'LOW' | 'HIGH', term: 'POP' | 'SKIM',
+ * mode, enable} */
+export function missilePath(o) {
+  const hi = o.fly == 'HIGH' ? Math.min(HIGH_NM, o.mode == 'bol' ? o.enable : HIGH_NM, o.dist - 3) : 0,
+    // a 30° descent: about 1 NM a 3,500 ft
+    drop = a => Math.max(0.3, (a - SKIM_FT) / 3500),
+    P = [[o.dist, o.alt]];
+  if (hi > 0) P.push([o.dist - hi, o.alt]);
+  const d0 = o.dist - hi;
+  if (o.alt > SKIM_FT) P.push([Math.max(POP_NM + 0.5, d0 - drop(o.alt)), SKIM_FT]);
+  if (o.term == 'POP') P.push([POP_NM, SKIM_FT], [POP_NM / 2, POP_FT], [0, 0]);
+  else P.push([0, 30]);
+  return P;
+}
+
 /** the launch distance to start with: outside the ring (the ship U NM nearer) with a margin, inside the range; null when there is no room */
 export function defaultDist(ship, alt, rmax) {
   const U = ship.spotted ? SPOT_NM : BLIND_NM,

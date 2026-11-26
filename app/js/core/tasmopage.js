@@ -17,6 +17,9 @@ import {
   misKey,
   missileKt,
   isHarpoon,
+  seekerNm,
+  areaNm,
+  missilePath,
   KM_NM,
   MANPADS_FT,
   LOW_FT,
@@ -34,7 +37,7 @@ const COL = {
   sam: '#e5484d',
   hor: '#f0b040',
   me: '#3ddc84',
-  msl: '#ffd166',
+  msl: '#38bdf8',
   acq: '#b07cff',
   unc: '#c9d1d9',
   ship: '#ff6b6b',
@@ -44,6 +47,7 @@ const KINDS = [
   ['map', 'With the map'],
 ];
 const FT_NM = 6076.12,
+  POP_TXT = 3000, // the height of the label of the seeker in the profile
   PFL = ['Map filters', 'No filters', 'Plan', 'Plan + PPT']; // the button of the filters of the map (as DEAD)
 const fmt = v => (v == null || !isFinite(v) ? '--' : Math.round(v).toLocaleString('en-US'));
 const hm = t => {
@@ -97,6 +101,10 @@ export function createTasmoPage(deps) {
   };
 
   // ---- the numbers
+  // the seeker and the search area of the missile (the Harpoon options): RBL its area (LARGE grows with the range), BOL the enable range, LOS none
+  const area = () => (P ? areaNm(S.area, S.dist, P.U) : 0);
+  const mode = () => (hpn() ? S.mode : 'rbl');
+  const seeker = () => seekerNm(mode(), S.dist, mode() == 'rbl' ? area() : 0, P.enable);
   function compute() {
     X = deps.ctx();
     P = G = W = ship = null;
@@ -245,6 +253,27 @@ export function createTasmoPage(deps) {
     O.push({ t: 'poly', pts: path, col: COL.me, w: 2.5, fit: false, ink: { w: 2 } });
     O.push({ t: 'poly', pts: [P.desc || P.launch, P.launch], col: COL.me, w: 2.5, ink: { w: 2 } });
     O.push({ t: 'poly', pts: [P.launch, ship], col: COL.msl, w: 2, dash: [7, 5], ink: { dash: [5, 3] } });
+    const on = { x: ship.x + P.axis.x * seeker() * KM_NM, y: ship.y + P.axis.y * seeker() * KM_NM };
+    if (mode() == 'rbl') {
+      O.push({ t: 'ring', c: ship, r: area() * KM_NM, col: COL.msl, w: 1.5, dash: [2, 4], ink: { dash: [1, 3] } });
+      O.push(
+        lab(
+          { x: ship.x - area() * KM_NM * 0.7, y: ship.y - area() * KM_NM * 0.7 },
+          'SEARCH ' + S.area + ' ≈' + area() + ' NM · ' + S.prio,
+          COL.msl
+        )
+      );
+    } else if (mode() == 'bol') {
+      // the bearing only: the seeker on at the enable range, the missile on until the destruct range
+      const end = { x: P.launch.x - P.axis.x * P.destruct * KM_NM, y: P.launch.y - P.axis.y * P.destruct * KM_NM };
+      O.push({ t: 'poly', pts: [ship, end], col: COL.msl, w: 1.2, dash: [2, 5], fit: false, ink: { dash: [1, 3] } });
+      O.push({ t: 'dot', p: end, col: COL.msl, k: 'sq', ink: { label: 'DESTRUCT' } });
+      O.push(lab(end, 'DESTRUCT · ' + P.destruct + ' NM', COL.msl));
+    }
+    if (mode() != 'los') {
+      O.push({ t: 'dot', p: on, col: COL.msl, k: 'dot', ink: { label: 'SEEKER ON' } });
+      O.push(lab(on, 'SEEKER ON' + (mode() == 'bol' ? ' · enable ' + P.enable + ' NM' : ' ≈'), COL.msl));
+    }
     O.push({
       t: 'dot',
       p: P.launch,
@@ -267,61 +296,84 @@ export function createTasmoPage(deps) {
   }
   const layers = (L, map, WL) => drawLeaflet(L, map._tsR, WL, deps.toLL, spec(), esc);
 
-  // ---- the profile: the altitude against the distance to the ship
+  // ---- the profile: the altitude (a square-root scale: the low altitudes readable) against the distance to the ship; the aircraft before the launch, the
+  // missile after it (its fly-out and its terminal manoeuvre), the seeker, the horizon of the ship and where it sees you, the SAM rings
   function profile() {
     const w = 640,
-      h = 230,
-      Dm = Math.ceil(Math.max(P.desc ? P.desc.nm : 0, P.acq ? P.acq.nm : 0, S.dist, P.ring) / 10) * 10 + 10,
-      Am = Math.max(G.cruise, S.alt, 5000) * 1.15,
-      x = d => 40 + (1 - d / Dm) * (w - 60),
-      y = a => h - 24 - (a / Am) * (h - 40),
-      hor = Array.from({ length: 41 }, (_, i) => (i / 40) * Dm)
-        .map(d => `${x(d).toFixed(1)},${y(Math.min(Am, altForHorizon(d))).toFixed(1)}`)
-        .join(' '),
+      h = 260,
+      Dm =
+        Math.ceil(
+          Math.max(S.dist * 1.35, (P.desc ? P.desc.nm : 0) + 10, (P.acq ? P.acq.nm : 0) + 10, P.ring + 10) / 10
+        ) * 10,
+      Am = Math.max(G.cruise, S.alt, 5000) * 1.1,
+      x = d => 46 + (1 - d / Dm) * (w - 66),
+      y = a => h - 24 - Math.sqrt(Math.max(0, a) / Am) * (h - 44),
+      pts = L => L.map(([d, a]) => `${x(d).toFixed(1)},${y(a).toFixed(1)}`).join(' '),
       det = Math.min(Dm, (ship.detAir || ship.det || 0) / KM_NM),
-      // where the ship sees you: above the horizon, inside its detection range
-      seen = Array.from({ length: 41 }, (_, i) => (i / 40) * det)
-        .map(d => `${x(d).toFixed(1)},${y(Math.min(Am, altForHorizon(d))).toFixed(1)}`)
-        .join(' '),
+      curve = D => Array.from({ length: 61 }, (_, i) => (i / 60) * D).map(d => [d, Math.min(Am, altForHorizon(d))]),
+      // the aircraft: the cruise, the descent (if any), the run to the launch
       me = [
         [Dm, G.cruise],
         ...(P.desc
           ? [
               [P.desc.nm, G.cruise],
-              [Math.max(S.dist, P.desc.nm - 8), S.alt],
+              [Math.max(S.dist, P.desc.nm - Math.max(3, (G.cruise - S.alt) / 2500)), S.alt],
             ]
-          : [[S.dist, S.alt]]),
+          : [[Math.max(S.dist, S.dist + (G.cruise - S.alt) / 2500), S.alt]]),
         [S.dist, S.alt],
-      ]
-        .map(([d, a]) => `${x(d).toFixed(1)},${y(a).toFixed(1)}`)
-        .join(' '),
-      tick = Array.from({ length: Dm / 10 + 1 }, (_, i) => i * 10),
+      ],
+      msl = missilePath({
+        dist: S.dist,
+        alt: S.alt,
+        fly: hpn() ? S.fly : 'LOW',
+        term: hpn() ? S.term : 'SKIM',
+        mode: mode(),
+        enable: P.enable,
+      }),
+      sk = mode() == 'los' ? null : seeker(),
+      ticks = [0, 500, 2000, 5000, 10000, 20000, 30000, 40000].filter(a => a <= Am),
       t = (X0, Y0, s, c, a = 'middle') =>
         `<text x="${X0}" y="${Y0}" fill="${c}" font-size="11" text-anchor="${a}">${esc(s)}</text>`;
     return `<svg viewBox="0 0 ${w} ${h}" class="tsprof" role="img" aria-label="The profile of the attack">
-      <rect x="40" y="16" width="${w - 60}" height="${h - 40}" fill="#0f1720"/>
-      <polygon points="${x(0)},${y(Am)} ${seen} ${x(det)},${y(Am)}" fill="#f0b04022"/>
-      <polyline points="${hor}" fill="none" stroke="${COL.hor}" stroke-width="1.5" stroke-dasharray="6 5"/>
-      <rect x="${x(Math.min(Dm, P.U))}" y="16" width="${x(0) - x(Math.min(Dm, P.U))}" height="${h - 40}" fill="#c9d1d914"/>
-      <line x1="${x(P.ring)}" y1="16" x2="${x(P.ring)}" y2="${h - 24}" stroke="${COL.sam}" stroke-width="2"/>
-      ${t(x(P.ring) + 4, 28, 'SAM ' + P.ring.toFixed(0) + ' NM' + (P.ringLow ? ' (low)' : ''), COL.sam, 'start')}
-      <polyline points="${me}" fill="none" stroke="${COL.me}" stroke-width="2.5"/>
-      <line x1="${x(S.dist)}" y1="${y(S.alt)}" x2="${x(0)}" y2="${y(50)}" stroke="${COL.msl}" stroke-width="2" stroke-dasharray="7 5"/>
+      <rect x="46" y="20" width="${w - 66}" height="${h - 44}" fill="#0f1720"/>
+      ${ticks.map(a => `<line x1="46" y1="${y(a)}" x2="${w - 20}" y2="${y(a)}" stroke="#1d2836"/>${t(42, y(a) + 4, a ? (a >= 1000 ? a / 1000 + 'K' : String(a)) : '0', '#8b98a8', 'end')}`).join('')}
+      <polygon points="${x(0)},${y(Am)} ${pts(curve(det))} ${x(det)},${y(Am)}" fill="#f0b04020"/>
+      <polyline points="${pts(curve(Dm))}" fill="none" stroke="${COL.hor}" stroke-width="1.5" stroke-dasharray="6 5"/>
+      ${mode() == 'rbl' ? `<rect x="${x(area())}" y="20" width="${x(0) - x(area())}" height="${h - 44}" fill="#ffd16614"/>` : ''}
+      <rect x="${x(Math.min(Dm, P.U))}" y="20" width="${x(0) - x(Math.min(Dm, P.U))}" height="${h - 44}" fill="#c9d1d914"/>
+      <line x1="${x(P.ring)}" y1="20" x2="${x(P.ring)}" y2="${h - 24}" stroke="${COL.sam}" stroke-width="2"/>
+      ${t(x(P.ring) - 4, y(Am * 0.55), 'SAM ' + P.ring.toFixed(0) + ' NM' + (P.ringLow ? ' (low)' : ''), COL.sam, 'end')}
+      <polyline points="${pts(me)}" fill="none" stroke="${COL.me}" stroke-width="2.5"/>
+      <polyline points="${pts(msl)}" fill="none" stroke="${COL.msl}" stroke-width="2" class="tsmsl"/>
       <circle cx="${x(S.dist)}" cy="${y(S.alt)}" r="5" fill="${COL.me}" stroke="#fff"/>
-      ${t(x(S.dist), y(S.alt) - 10, 'LAUNCH ' + S.dist + ' NM', COL.me)}
+      ${t(x(S.dist), y(S.alt) - 10, 'LAUNCH ' + S.dist + ' NM · ' + fmt(S.alt) + ' FT', COL.me)}
+      ${sk != null ? `<line x1="${x(sk)}" y1="${y(0)}" x2="${x(sk)}" y2="${y(POP_TXT)}" stroke="${COL.msl}" stroke-dasharray="2 3"/>${t(x(sk), y(POP_TXT) - 4, 'SEEKER ON ≈' + sk.toFixed(0), COL.msl)}` : ''}
       ${P.acq ? `<circle cx="${x(P.acq.nm)}" cy="${y(P.acq.alt)}" r="4" fill="${COL.acq}"/>${t(x(P.acq.nm), y(P.acq.alt) - 9, 'RADAR ≈' + P.acq.nm.toFixed(0), COL.acq)}` : ''}
-      ${t(x(Dm) + 4, 30, 'THE SHIP SEES YOU ABOVE THE HORIZON (' + det.toFixed(0) + ' NM)', COL.hor, 'start')}
-      ${tick.map(d => `<line x1="${x(d)}" y1="${h - 24}" x2="${x(d)}" y2="${h - 20}" stroke="#8b98a8"/>${t(x(d), h - 8, String(d), '#8b98a8')}`).join('')}
+      ${Array.from({ length: Dm / 10 + 1 }, (_, i) => i * 10)
+        .map(
+          d =>
+            `<line x1="${x(d)}" y1="${h - 24}" x2="${x(d)}" y2="${h - 20}" stroke="#8b98a8"/>${t(x(d), h - 8, String(d), '#8b98a8')}`
+        )
+        .join('')}
       ${t(x(0) - 4, h - 30, 'SHIP ±' + P.U, COL.unc, 'end')}
-      ${t(8, y(G.cruise) + 4, fmt(G.cruise / 1000) + 'K', '#8b98a8', 'start')}${t(8, y(S.alt) + 4, fmt(S.alt), '#8b98a8', 'start')}
-    </svg>`;
+    </svg><div class="wleg">${[
+      [COL.me, 'YOU', 0],
+      [COL.msl, 'MISSILE · ' + (hpn() ? S.fly + ' FLY-OUT · ' + S.term : 'SEA SKIM') + ' (≈)', 0],
+      [COL.hor, 'RADAR HORIZON OF THE SHIP · shaded: it sees you (inside ' + det.toFixed(0) + ' NM)', 1],
+      [COL.sam, 'SAM', 0],
+    ]
+      .map(
+        ([c, l, d]) =>
+          `<span><i style="border-top:2px ${d ? 'dashed' : 'solid'} ${c};width:18px;display:inline-block;vertical-align:middle;margin-right:4px"></i>${esc(l)}</span>`
+      )
+      .join(' ')}</div>`;
   }
 
   // ---- the page
   const kv = (a, b, c) => `<span>${a}</span><b${c ? ` class="${c}"` : ''}>${b}</b>`;
   const seg = (k, opts, c) =>
-    `<span class="seg tsseg">${opts.map(([v, l, t]) => `<button type="button" class="${String(c) === String(v) ? 'on' : ''}" data-tsset="${k}" data-v="${v}"${t ? ` title="${esc(t)}"` : ''}>${l}</button>`).join('')}</span>`;
-  const row = (l, c) => `<div class="tsrow"><label>${l}</label>${c}</div>`;
+    `<span class="seg">${opts.map(([v, l, t]) => `<button type="button" class="${String(c) === String(v) ? 'on' : ''}" data-tsset="${k}" data-v="${v}"${t ? ` title="${esc(t)}"` : ''}>${l}</button>`).join('')}</span>`;
+  const row = (l, c) => `<div class="wrow"><label>${l}</label>${c}</div>`;
   const slr = (k, lab, r, v, txt, bad) =>
     `<div class="slr${bad ? ' bad' : ''}"><label>${lab}</label><input type="range" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${v}" data-tssl="${k}"><em data-tse="${k}">${txt}</em></div>`;
   function build() {
@@ -338,8 +390,8 @@ export function createTasmoPage(deps) {
         .join(
           ''
         )}</span><span style="flex:1"></span><button class="btn g" type="button" data-tsfit>Fit view</button><button class="btn g" type="button" style="min-width:104px" data-tspf>Map filters</button></div>
-      <div id="tsmapw"${st.view == 'map' ? '' : ' hidden'}><div id="tsmap" class="wmapbox"></div><div class="wleg" id="tsleg"></div></div><div id="tsprof"${st.view == 'prof' ? '' : ' hidden'}></div></div><div class="wcard" id="tsstp"></div></div>
-      <div class="wpr"><div class="wcard" id="tssh"></div><div class="wcard" id="tsoa"></div><div id="tswn"></div></div></div>`;
+      <div id="tsmapw"${st.view == 'map' ? '' : ' hidden'}><div id="tsmap" class="wmapbox"></div><div class="wleg" id="tsleg"></div></div><div id="tsprof"${st.view == 'prof' ? '' : ' hidden'}></div></div></div>
+      <div class="wpr"><div class="wcard" id="tssh"></div><div class="wcard" id="tsoa"></div><div id="tswn"></div><div class="wcard" id="tsstp"></div></div></div>`;
     wire();
   }
   function update() {

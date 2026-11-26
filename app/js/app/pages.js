@@ -938,6 +938,13 @@ function tasmoCtx() {
             };
           })
           .filter(w => w.kind && w.n > 0)
+          // one entry a weapon: the same missile on two stations is one choice (the count is the Missiles button)
+          .reduce((o, w) => {
+            const q = o.find(z => z.name == w.name);
+            if (q) q.n += w.n;
+            else o.push(w);
+            return o;
+          }, [])
       : [];
   return {
     ok: true,

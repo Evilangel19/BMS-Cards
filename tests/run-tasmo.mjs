@@ -13,6 +13,10 @@ import {
   KM_NM,
   SPOT_NM,
   BLIND_NM,
+  seekerNm,
+  areaNm,
+  missilePath,
+  POP_FT,
 } from '../app/js/core/tasmo.js';
 let bad = 0,
   n = 0;
@@ -112,6 +116,35 @@ const S2 = tasmoSteps('AS-20 (Kh-35)', { mode: 'rbl' }, P, '60 NM');
 ok('another missile: no Harpoon pages', !S2.some(r => /AG84|WPN/.test(r[1])));
 const S3 = tasmoSteps('AGM-84A Harpoon', { mode: 'bol', fly: 'LOW', term: 'SKIM' }, B, '60 NM');
 ok('BOL: the enable and destruct ranges', S3[1][1].includes('enable 18 NM · destruct 105 NM'));
+
+// the flight of the missile
+const lowPop = missilePath({ dist: 60, alt: 500, fly: 'LOW', term: 'POP', mode: 'rbl', enable: 0 });
+ok(
+  'LOW fly-out: down at once, the pop-up at the end',
+  lowPop[0][0] == 60 &&
+    lowPop[1][1] == 100 &&
+    lowPop[1][0] > 59 &&
+    lowPop.some(p => p[1] == POP_FT) &&
+    lowPop[lowPop.length - 1][1] == 0
+);
+const hiSkim = missilePath({ dist: 60, alt: 20000, fly: 'HIGH', term: 'SKIM', mode: 'rbl', enable: 0 });
+ok(
+  'HIGH fly-out: 10 NM at the launch altitude, then down; SKIM to the end',
+  hiSkim[1][0] == 50 && hiSkim[1][1] == 20000 && !hiSkim.some(p => p[1] == POP_FT) && hiSkim[hiSkim.length - 1][1] == 30
+);
+const hiBol = missilePath({ dist: 60, alt: 20000, fly: 'HIGH', term: 'SKIM', mode: 'bol', enable: 5 });
+ok('HIGH in BOL: down at the enable range when nearer than 10 NM', hiBol[1][0] == 55);
+ok(
+  'the seeker: RBL at the area, BOL at the enable range',
+  seekerNm('rbl', 60, 9, 0) == 11 && seekerNm('bol', 60, 0, 18) == 42
+);
+ok(
+  'the search area: SMALL and MED fixed, LARGE grows and covers the area',
+  areaNm('SMALL', 60, 3) == 3 &&
+    areaNm('MED', 60, 3) == 6 &&
+    areaNm('LARGE', 60, 3) == 9 &&
+    areaNm('LARGE', 60, 40) == 40
+);
 
 console.log(bad ? `${bad} of ${n} FAILED` : `tasmo: ${n} checks ok`);
 process.exit(bad ? 1 : 0);
