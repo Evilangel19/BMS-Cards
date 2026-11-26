@@ -65,17 +65,21 @@ This file says what the program does today, how far each part has been checked, 
 
 ## Possible later
 
-- **For 1.4, new Smart cards** (the look of the Smart cards of 1.3, made with the method of ARCHITECTURE.md):
-  - **Smart Comms**: the UHF / VHF presets of the DTC, the package table with its frequencies, Link 16, IFF, AWACS and tankers on one page.
-  - **Smart Tanker** (done in 1.4.0-beta.23 as the Smart AAR card of Performance > AAR): the track, the altitude, the time and the frequency of the
-    tanker, the fuel before and after, ARIP / ARCP, with the rendezvous RV GOLF, RV ECHO and RV HEAD-ON (1.4.0-beta.25).
-  - **Smart Threat**: the SAMs along the route in the order of time, the WEZ exposure minute by minute, the PPTs.
-  - **Smart Recovery**: the landing and alternate fields, the approaches, the frequencies, the divert fuel, the weather on arrival.
+- **For 1.4, the Smart AAR card** (done in 1.4.0-beta.23 to beta.25, Performance > AAR): the track, the altitude, the time and the frequency of the
+  tanker, the fuel before and after, ARIP / ARCP, with the rendezvous RV GOLF, RV ECHO and RV HEAD-ON.
+- **For 1.4, the mission pages still missing** (made with the method of ARCHITECTURE.md, "How a mission page is made"):
+  - **TASMO**: the ships of the campaign, the ranges of the anti-ship missiles and of the ship SAMs, the approach under the radar horizon of the
+    ship, the launch point.
+  - **AI / BAI / SCAR** (after a check of what the campaign gives): a kill box on the area of the battalion, where a column on the move will be at
+    the time on target (its route in the campaign file, an area that grows with time), the search pattern of a SCAR; the attack itself with the
+    A-G pages.
+  - CAS and RECCE are left out on purpose: the JTAC gives the 9-line in flight and the ground units are aggregated in the planning; a
+    reconnaissance is a pass over the target.
 - **For 1.4, the Smart ROE / SOP card reworked** (done in 1.4.0-beta.8): ROE in the key box, SOP chosen by priority (Smart tick, conditions
   of the day, fixed topics, tiers), Emergencies at the bottom. The tiers and the fixed topics can be adjusted after use in the game.
 - **For 1.4, the ROE / SOP page reworked** (done in 1.4.0-beta.11): ROE and SOP sub-pages, the Smart card column (AUTO / MANUAL, Adapt to
   mission, a bigger preview, the tooltip "How it works"), Manual ROE, one Fold all / Unfold all button.
-- **For 1.4, bigger annotations on the target picture** (A-G > Target): a size for the symbols, the text and the labels of the threats and
+- **For 1.4, bigger annotations on the target picture** (done, A-G > Target, Label size): a size for the symbols, the text and the labels of the threats and
   units (on the page and on the cards), so that they stay readable on the kneeboard in the cockpit and in VR.
 - **For 1.4, the labels of a turned map screenshot follow the turn** (done in 1.4.0-beta.6): the screenshot of the Map page taken with a turned frame (for the
   kneeboard, the datacard, the target picture) is straightened into the card, so the names and labels (places, steerpoints, flights, threats)
@@ -90,11 +94,8 @@ Nothing here is promised.
 - Adapting the program to future versions of Falcon BMS (new aircraft, data and theaters).
 - A calibration of the weapon and performance models as more readings from the game come in (the flap lift of the F/A-18, the AoA units of the F-15C).
 - More standard kneeboard cards, when there is a need.
-- Mission pages still to come (made with the method of ARCHITECTURE.md, "How a mission page is made"):
-  - **TASMO**: the ships of the campaign, the ranges of the anti-ship missiles and of the ship SAMs, the launch point.
-  - **AI / BAI / SCAR** (maybe): a kill box on the area of the battalion, where a column on the move will be at the time on target (its route in the
-    campaign file, an area that grows with time), the search pattern of a SCAR; the attack itself with the A-G pages.
-  - CAS is left out on purpose: the JTAC gives the 9-line in flight, and the ground units are aggregated in the planning and not updated in flight.
+- A **Tactical reference** from the data of BMS (in place of a Smart Threat card): the threats of the theater, their ranges and how to defeat them.
+- Smart cards Comms (the presets, the package frequencies, Link 16, IFF) and Recovery (the fields, the approaches, the divert fuel), if a need comes.
 - Approach points from the ATC files (`Terrdata/atc/<airfield>.dat`) for an instrument or visual landing.
 
 ## Security
