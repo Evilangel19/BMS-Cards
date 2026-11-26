@@ -5,7 +5,7 @@
 // time of its middle and at its mean altitude; the headwind along the track turns the ground speed (from the plan times) into an airspeed.
 import * as P from './airperf.js';
 
-const BASIC = [0, 1, 2, 3, 4, 7, 8]; // actions that are not "activity" (nav, take-off, push, split, refuel, land, hold)
+export const BASIC = [0, 1, 2, 3, 4, 7, 8]; // actions that are not "activity" (nav, take-off, push, split, refuel, land, hold)
 const MINGS = 300,
   NM_KM = 0.539957,
   up100 = v => Math.ceil(v / 100 - 1e-9) * 100;

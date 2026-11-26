@@ -19,9 +19,15 @@ SETUP = r"""o => {
   const X = { ok: true, me: { key: '77', name: 'Goblin 3', n: 2, ac: o.ac || 'F-16CM-50', pkgNo: 1225, tag: 'GOBLIN 3 · PKG 1225' }, wps: me, k: 2,
     tankers: [{ name: 'Canteen1', type: o.tk || 'KC-135', tcn: '28Y', uhf: '348.625', win: '09:00 - 11:00', wps: tw }, { name: 'Camel1', type: 'KC-130H', tcn: '41Y', uhf: '251.300', win: '09:00 - 11:00', wps: tw }],
     sop: [{ id: 'rv', o: 'enr', txt: 'RV GOLF' }, { id: 'obs', o: 'right', txt: 'OBS RIGHT' }, { id: 'breakaway', o: 'std', txt: 'BREAKAWAY: DOWN AFT' }] };
-  const min = [9800, 7400, 1000, 4600, 1500], burn = [0, 2400, 1400, 3100, 3100];
-  const plan = { rows: me.map((p, i) => ({ i, act: p.act, nm: i ? Math.hypot(p.x - me[i-1].x, p.y - me[i-1].y) / K : 0, burn: burn[i], min: min[i], minExact: min[i] })) };
-  __app.aarPage._test({ ctx: () => X, fuel: () => ({ plan, need: k => 5300, loaded: 12000, joker: 1000 }) });
+  let min = [9800, 7400, 1000, 4600, 1500], burn = [0, 2400, 1400, 3100, 3100];
+  if (o.late) {
+    // as BMS writes it: the Refuel steerpoint 6 after the landing, with no time, and the alternate landing
+    me.splice(0, me.length, mk(480, 300, 0, 8.6*H, 8.6*H, 1), mk(560, 420, 2000, 9.0*H, 0, 0), mk(720, 700, 1500, 9.6*H, 0, 15), mk(600, 450, 2000, 10.0*H, 0, 0), mk(480, 300, 0, 10.6*H, 0, 7), mk(600, 540, 2200, 0, 0, 4), mk(480, 300, 0, 0, 0, 7));
+    X.k = 5;
+    min = [9000, 7000, 4500, 2500, 1500, null, null]; burn = [0, 2000, 2500, 2000, 1000, 0, 0];
+  }
+  const plan = { rows: me.map((p, i) => ({ i, act: p.act, nm: i && min[i] != null ? Math.hypot(p.x - me[i-1].x, p.y - me[i-1].y) / K : 0, burn: burn[i], min: min[i], minExact: min[i] })), reserve: 1500 };
+  __app.aarPage._test({ ctx: () => X, fuel: () => ({ plan, need: k => 5300, loaded: o.fuel || 12000, joker: 1000 }) });
 }"""
 INI = '\r\n'.join(['[MISSION]', 'title=x', '[STPT]'] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,' % i for i in range(15)] +
                   ['lineSTPT_%d=0.000000, 0.000000, 0.000000' % i for i in range(24)] + ['[NAV OFFSETS]'] + ['OA%d-%d=0,0,0' % (a, n) for n in range(1, 25) for a in (1, 2)] + ['[COMMS]', 'X=1', ''])
@@ -95,6 +101,23 @@ try:
         # the probe: drogue
         pg.evaluate(SETUP, {'ac': 'F/A-18C'}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
         check('a probe receiver: PROBE, the probe out, no AR door', 'AAR · PROBE' in pg.inner_text('#aarl') and 'probe OUT' in pg.inner_text('#aartb') and 'AR door' not in pg.inner_text('#aartb'))
+        # the Refuel steerpoint after the landing with no time (as BMS writes it): the push steerpoint chosen, the fuel to the tanker
+        pg.evaluate(SETUP, {'late': True}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
+        P = plan()
+        check('Refuel STPT 6 with no time: the page plans, Join after STPT 2 / 3 / 4, STPT 4 by default (nearest to the track)', P.get('R') and pg.locator('#aarl [data-arset=push]').all_inner_texts() == ['STPT 2', 'STPT 3', 'STPT 4'] and pg.locator('#aarl [data-arset=push][data-v="4"].on').count() == 1 and 'Push · STPT 4' in pg.inner_text('#aartt'))
+        check('...the join after the push (10:00) at 420 kt or slower (%s), the fuel at the push from the plan (12,000 - 6,500)' % P['R']['gs'], P['R']['tip'] > 10 * 3600000 and 250 < P['R']['gs'] <= 421 and abs(P['FU']['fk1'] - 5500) < 1 and not any(w[1] for w in P['warn']))
+        a0 = P['R']['arct']
+        pg.click('[data-arset=push][data-v="2"]'); pg.wait_for_timeout(400)
+        P = plan()
+        check('...Join after STPT 2: earlier, the fuel of STPT 2', P['R']['arct'] < a0 and abs(P['FU']['fk1'] - 10000) < 1 and 'Push · STPT 2' in pg.inner_text('#aartt'))
+        pg.evaluate(SETUP, {'late': True, 'fuel': 7000}); pg.click('[data-arset=push][data-v="4"]'); pg.wait_for_timeout(500)
+        P = plan()
+        check('7,000 lb at take-off: not enough fuel to reach the tanker, red, with the TANK Bingo', any(w[1] and 'Not enough fuel to reach the tanker' in w[0] and 'TANK Bingo' in w[0] for w in P['warn']) and 'Not enough fuel to reach the tanker' in pg.inner_text('#aartb'))
+        pg.evaluate(SETUP, {'late': True, 'fuel': 9800}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
+        P = plan()
+        check('9,800 lb: the tanker reached, but no way home without it (not red) (%s)' % [w[0][:40] for w in P['warn']], not any(w[1] for w in P['warn']) and any('No tanker, no way home' in w[0] for w in P['warn']) or P['FU']['fArct'] >= P['FU']['need'])
+        if OUT: pg.screenshot(path=os.path.join(OUT, 'aar-late.png'))
+        pg.evaluate(SETUP, {}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(300)
         # another tab gives the map back; Display > AAR on the Map page
         pg.click('#pf [data-mode=plan]'); pg.wait_for_timeout(300)
         check('Fuel plan: no Add card, no AAR map', pg.locator('#pf [data-aarcard]').count() == 0 and pg.locator('#aarmap').count() == 0)
