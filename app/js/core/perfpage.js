@@ -102,10 +102,16 @@ export function createPerfPage(deps) {
     const r = SL[f] || [0, 0, -1e9, 1e9];
     return Math.min(r[3], Math.max(r[2], Math.round(env()[f])));
   };
+  // the most fuel the aircraft takes: its internal fuel (its FM file) and the drop tanks of the load of the datacard (st.tank); the Fuel and Landing fuel
+  // sliders are red above it
+  const fuelMax = () => (ac ? ac.af.fuelLb + (st.tank || 0) : Infinity);
+  const overMax = (f, v) => (f == 'fuel' || f == 'lfuel') && +v > fuelMax();
+  const maxLab = (f, v) =>
+    overMax(f, v) ? ' · max ' + fmt(fuelMax()) + (st.tank ? '' : ' (internal: no tanks known)') : '';
   const slider = f => {
     const [l, u, a, b, s] = SL[f],
       v = f == 'mach' && !st.mach ? '' : V(f);
-    return `<div class="slr"><label>${l}${isAuto(f) ? ' <small class="hint" title="From the flight chosen in the Datacard: move the slider to set your own value">auto</small>' : ''}</label><input type="range" min="${a}" max="${b}" step="${s}" value="${v === '' ? 0.8 : v}" data-sl="${f}"><em data-em="${f}">${fmtV(f, v === '' ? bestMach() : v)}${u}</em></div>`;
+    return `<div class="slr${overMax(f, v) ? ' bad' : ''}"><label>${l}<span data-max="${f}">${maxLab(f, v)}</span>${isAuto(f) ? ' <small class="hint" title="From the flight chosen in the Datacard: move the slider to set your own value">auto</small>' : ''}</label><input type="range" min="${a}" max="${b}" step="${s}" value="${v === '' ? 0.8 : v}" data-sl="${f}"><em data-em="${f}">${fmtV(f, v === '' ? bestMach() : v)}${u}</em></div>`;
   };
   const fmtV = (f, v) =>
     f == 'mach' ? (+v).toFixed(2) : f == 'g' ? (+v).toFixed(1) : f == 'slope' ? (+v).toFixed(1) : fmt(v);
@@ -222,6 +228,7 @@ export function createPerfPage(deps) {
       st.fuel = l.fuel ? Math.round(l.fuel) : ac ? ac.af.fuelLb : st.fuel;
       st.stores = l.gw && e ? Math.max(0, Math.round(l.gw - e - st.fuel)) : 0;
       st.di = Math.max(0, Math.round(l.drag || 0));
+      st.tank = Math.max(0, Math.round(l.tank || 0));
       save();
       draw(false);
     };
@@ -845,6 +852,11 @@ export function createPerfPage(deps) {
           }
           const em = root.querySelector(`[data-em="${f}"]`);
           if (em) em.textContent = fmtV(f, i.value) + SL[f][1];
+          if (f == 'fuel' || f == 'lfuel') {
+            i.closest('.slr').classList.toggle('bad', overMax(f, i.value));
+            const mx = root.querySelector(`[data-max="${f}"]`);
+            if (mx) mx.textContent = maxLab(f, i.value);
+          }
           upd(f);
         };
       });
@@ -852,6 +864,7 @@ export function createPerfPage(deps) {
         s =>
           (s.onchange = () => {
             st.ac = s.value;
+            st.tank = 0; // an aircraft chosen by hand: its tanks are not known
             ac = null;
             save();
             pick(s.value, true);
@@ -940,6 +953,7 @@ export function createPerfPage(deps) {
         need: k => fuelPlan(ac, wps.slice(k), { ...o, loaded: null }).rows[0].minExact,
         loaded: st.fuel,
         joker: st.jok,
+        cap: Number.isFinite(fuelMax()) ? fuelMax() : st.fuel, // the tanks full: internal and drop tanks
       };
     },
   };

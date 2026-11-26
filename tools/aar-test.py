@@ -27,7 +27,7 @@ SETUP = r"""o => {
     min = [9000, 7000, 4500, 2500, 1500, null, null]; burn = [0, 2000, 2500, 2000, 1000, 0, 0];
   }
   const plan = { rows: me.map((p, i) => ({ i, act: p.act, nm: i && min[i] != null ? Math.hypot(p.x - me[i-1].x, p.y - me[i-1].y) / K : 0, burn: burn[i], min: min[i], minExact: min[i] })), reserve: 1500 };
-  __app.aarPage._test({ ctx: () => X, fuel: () => ({ plan, need: k => 5300, loaded: o.fuel || 12000, joker: 1000 }) });
+  __app.aarPage._test({ ctx: () => X, fuel: () => ({ plan, need: k => 5300, loaded: o.fuel || 12000, joker: 1000, cap: o.cap }) });
 }"""
 INI = '\r\n'.join(['[MISSION]', 'title=x', '[STPT]'] + ['ppt_%d=0.000000, 0.000000, 0.000000, 0.000000,' % i for i in range(15)] +
                   ['lineSTPT_%d=0.000000, 0.000000, 0.000000' % i for i in range(24)] + ['[NAV OFFSETS]'] + ['OA%d-%d=0,0,0' % (a, n) for n in range(1, 25) for a in (1, 2)] + ['[COMMS]', 'X=1', ''])
@@ -104,18 +104,21 @@ try:
         # the Refuel steerpoint after the landing with no time (as BMS writes it): the push steerpoint chosen, the fuel to the tanker
         pg.evaluate(SETUP, {'late': True}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
         P = plan()
-        check('Refuel STPT 6 with no time: the page plans, Join after STPT 2 / 3 / 4, STPT 4 by default (nearest to the track)', P.get('R') and pg.locator('#aarl [data-arset=push]').all_inner_texts() == ['STPT 2', 'STPT 3', 'STPT 4'] and pg.locator('#aarl [data-arset=push][data-v="4"].on').count() == 1 and 'Push · STPT 4' in pg.inner_text('#aartt'))
+        check('Refuel STPT 6 with no time: the page plans, Join after STPT 2 / 3 / 4, STPT 4 by default (nearest to the track)', P.get('R') and pg.evaluate("()=>[...document.querySelectorAll('#aarl [data-arpush] option')].map(o=>o.value).join()") == '2,3,4' and pg.evaluate("()=>document.querySelector('#aarl [data-arpush]').value") == '4' and '(default)' in pg.inner_text('#aarl [data-arpush]') and 'Push · STPT 4' in pg.inner_text('#aartt'))
         check('...the join after the push (10:00) at 420 kt or slower (%s), the fuel at the push from the plan (12,000 - 6,500)' % P['R']['gs'], P['R']['tip'] > 10 * 3600000 and 250 < P['R']['gs'] <= 421 and abs(P['FU']['fk1'] - 5500) < 1 and not any(w[1] for w in P['warn']))
         a0 = P['R']['arct']
-        pg.click('[data-arset=push][data-v="2"]'); pg.wait_for_timeout(400)
+        pg.select_option('#aarl [data-arpush]', '2'); pg.wait_for_timeout(400)
         P = plan()
         check('...Join after STPT 2: earlier, the fuel of STPT 2', P['R']['arct'] < a0 and abs(P['FU']['fk1'] - 10000) < 1 and 'Push · STPT 2' in pg.inner_text('#aartt'))
-        pg.evaluate(SETUP, {'late': True, 'fuel': 7000}); pg.click('[data-arset=push][data-v="4"]'); pg.wait_for_timeout(500)
+        pg.evaluate(SETUP, {'late': True, 'fuel': 7000}); pg.select_option('#aarl [data-arpush]', '4'); pg.wait_for_timeout(500)
         P = plan()
         check('7,000 lb at take-off: not enough fuel to reach the tanker, red, with the TANK Bingo', any(w[1] and 'Not enough fuel to reach the tanker' in w[0] and 'TANK Bingo' in w[0] for w in P['warn']) and 'Not enough fuel to reach the tanker' in pg.inner_text('#aartb'))
         pg.evaluate(SETUP, {'late': True, 'fuel': 9800}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
         P = plan()
         check('9,800 lb: the tanker reached, but no way home without it (not red) (%s)' % [w[0][:40] for w in P['warn']], not any(w[1] for w in P['warn']) and any('No tanker, no way home' in w[0] for w in P['warn']) or P['FU']['fArct'] >= P['FU']['need'])
+        pg.evaluate(SETUP, {'late': True, 'fuel': 9800, 'cap': 12000}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(500)
+        P = plan()
+        check('FULL to the tanks full (12,000 lb), not to the take-off fuel (9,800): the onload after the burn', abs(P['FU']['onload'] - round(12000 - P['FU']['fArct'])) <= 1)
         if OUT: pg.screenshot(path=os.path.join(OUT, 'aar-late.png'))
         pg.evaluate(SETUP, {}); pg.click('[data-arset=mode][data-v=golf]'); pg.wait_for_timeout(300)
         # another tab gives the map back; Display > AAR on the Map page

@@ -1550,7 +1550,8 @@
 #wptasmo #tsmap {
   height: 640px;
 }
-#wptasmo select {
+#wptasmo select,
+#aarl select {
   background: #0b0f14;
   color: var(--tx);
   border: 1px solid var(--line);
@@ -1561,7 +1562,9 @@
   cursor: pointer;
 }
 #wptasmo select:hover,
-#wptasmo select:focus {
+#wptasmo select:focus,
+#aarl select:hover,
+#aarl select:focus {
   border-color: var(--ac, #4cc38a);
   outline: none;
 }

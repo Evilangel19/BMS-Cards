@@ -5,7 +5,7 @@
 // with the calls by their names, the map (the lent Leaflet map), the cards (Smart AAR, classic with the map), Display > AAR on the Map page, OA1 / OA2 of the
 // Refuel steerpoint in the DTC. One list of shapes for the map and the cards (core/aakit.js).
 // The page draws inside the Performance page (core/perfpage.js): left() is its card in the left column, mount() the middle and the right columns.
-// deps: {esc, toast, confirm, ctx() -> X, fuel(wps) -> {plan, need(k), loaded, joker} | null, toLL, attach, detach, snap, kbAdd, dtc {open, has, setOA}, sop()}
+// deps: {esc, toast, confirm, ctx() -> X, fuel(wps) -> {plan, need(k), loaded, joker, cap (the tanks full)} | null, toLL, attach, detach, snap, kbAdd, dtc {open, has, setOA}, sop()}
 // X: {ok, why, me {key, name, n, ac, pkgNo, tag}, wps (the waypoints of the flight), k (index of its Refuel steerpoint), tankers [{name, type, tcn, uhf, win,
 //     wps}], sop [{id, o, txt}] (the Tanker topics of its SOP)}
 import {
@@ -135,7 +135,7 @@ export function createAarPage(deps) {
         after = lastAct && list.find(p => p.n > lastAct.n),
         def = inWin.length ? inWin.reduce((a, p) => (nmTo(p) < nmTo(a) ? p : a)) : after || list[list.length - 1];
       pp = list.find(p => p.n == S.push) || def;
-      PU = { i: pp.n - 1, n: pp.n, next: pp.n, fixed: false, list: list.map(p => p.n), def: def.n };
+      PU = { i: pp.n - 1, n: pp.n, next: pp.n, fixed: false, list: list.map(p => ({ n: p.n, t: dep(p) })), def: def.n };
     }
     const from = pp ? { x: pp.x, y: pp.y, t: dep(pp) } : null;
     if (!ref) {
@@ -178,14 +178,15 @@ export function createAarPage(deps) {
         : nx >= 0
           ? rows[nx].minExact + pn * nm(R.arcp, X.wps[nx])
           : F.plan.reserve + pn * nm(R.arcp, X.wps[i]),
-      O = onload({ at: fArct, need, full: F.loaded, joker: F.joker, fill: S.fill, amount: S.amount }),
+      cap = F.cap || F.loaded, // the tanks full (internal and drop tanks): FULL, and the most the tanks take at the join
+      O = onload({ at: fArct, need, full: cap, joker: F.joker, fill: S.fill, amount: S.amount }),
       // TANK J/B: the fuel at the push to reach the join with 1,000 lb (the plan gives it when the Refuel steerpoint is in the route)
       b0 = ARRIVE + pn * (d1 + d2),
       jb = (PU.fixed && tankerJB(F.plan, X.wps, null, F.joker)) || {
         bingo: Math.ceil(b0 / 100) * 100,
         joker: jokerFor(Math.ceil(b0 / 100) * 100, F.joker),
       };
-    FU = { fk1, fArip, fArct, need, d1, d2, ...O, jb, full: F.loaded };
+    FU = { fk1, fArip, fArct, need, d1, d2, ...O, jb, full: cap };
   }
   const tk = () => X.tankers[S.tk];
   const method = () => methodOf(X.me.ac);
@@ -317,17 +318,14 @@ export function createAarPage(deps) {
       S.tk
     )}</div><div class="kv">${kv('TYPE', esc(t.type) + ' · ' + (serves(t.type, m) === false ? 'no ' + (m == 'probe' ? 'drogue' : 'boom') : m == 'probe' ? 'drogue' : 'boom'), serves(t.type, m) === false ? 'wbad' : '')}${kv('A-A TACAN', esc(tcnTxt(t)))}${kv('UHF', esc(t.uhf || '--'))}${T ? kv('TRACK', flOf(T.alt) + ' · ' + T.kcas + ' KCAS · ' + Math.round(T.leg) + ' NM legs') : ''}${kv('ON STATION', esc(t.win || '--'))}</div>${
       PU && !PU.fixed
-        ? `<div class="wrow"><label>Join after</label>${seg(
-            'push',
-            PU.list.map(v => [
-              v,
-              'STPT ' + v,
-              v == PU.def
-                ? 'The default: the steerpoint nearest to the track while the tanker is on station, else the first one after the target'
-                : '',
-            ]),
-            PU.n
-          )}</div><p class="hint wnote">BMS gives the Refuel steerpoint ${X.k + 1} no time: you go to the tanker from the steerpoint you choose, at ${PUSH_KT} kt.</p>`
+        ? `<div class="wrow"><label>Join after</label><select data-arpush aria-label="Join after" title="The default: the steerpoint nearest to the track while the tanker is on station, else the first one after the target">${PU.list
+            .map(
+              p =>
+                `<option value="${p.n}"${p.n == PU.n ? ' selected' : ''}>STPT ${p.n} · ${hm(p.t)}${p.n == PU.def ? ' (default)' : ''}</option>`
+            )
+            .join(
+              ''
+            )}</select></div><p class="hint wnote">BMS gives the Refuel steerpoint ${X.k + 1} no time: you go to the tanker from the steerpoint you choose, at ${PUSH_KT} kt.</p>`
         : ''
     }<div class="wrow"><label>Rendezvous</label>${seg(
       'mode',
@@ -352,7 +350,7 @@ export function createAarPage(deps) {
     )}</div><div class="wrow"><label>Fill to</label>${seg(
       'fill',
       [
-        ['full', 'FULL', 'The fuel loaded at take-off'],
+        ['full', 'FULL', 'The tanks full: the internal fuel and the drop tanks of the load'],
         ['joker', 'JOKER', 'What the rest of the plan needs plus the Joker margin of the Fuel plan'],
         ['amount', 'AMOUNT', 'A fixed onload'],
       ],
@@ -558,7 +556,10 @@ export function createAarPage(deps) {
     };
     root.onchange = e => {
       const i = /** @type {HTMLInputElement} */ (e.target);
-      if (i.dataset && i.dataset.arsl) update();
+      if (i.dataset && i.dataset.arpush != null && X && X.ok) {
+        set('push', +i.value);
+        update();
+      } else if (i.dataset && i.dataset.arsl) update();
     };
   }
 

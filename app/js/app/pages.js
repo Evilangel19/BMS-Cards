@@ -1958,7 +1958,16 @@ export async function init11() {
     loadout: () => {
       const x = ST.CL[+$('fsel').value];
       if (!x || !ST.C) return null;
-      return { ac: ST.C.D.ac[x.f.c.i], gw: +F.gw || 0, fuel: +F.fuel || 0, drag: +F.drag || 0 };
+      // the fuel of the drop tanks of the lead (the weapon table: D.tf, lb a tank)
+      let tank = 0;
+      try {
+        const L = x.f.loads && x.f.loads[0],
+          tf = ST.C.D.tf || {};
+        if (L) L.ids.forEach((id, k) => (tank += (tf[id] || 0) * (L.cn[k] || 0)));
+      } catch (e) {
+        tank = 0;
+      }
+      return { ac: ST.C.D.ac[x.f.c.i], gw: +F.gw || 0, fuel: +F.fuel || 0, drag: +F.drag || 0, tank };
     },
     flightPlan: () => {
       const x = ST.C && ST.CL[+$('fsel').value];
