@@ -143,7 +143,8 @@ export function createTasmoPage(deps) {
         .reduce((a, p) => (!a || nmOf(p, ship) < nmOf(a, ship) ? p : a), null);
     G = { from: prev, at, near, cruise, gs, tot: at.arr };
     S = {
-      alt: Math.max(200, Math.min(40000, +raw.alt || (W && isHarpoon(W.name) ? HPN_MIN_FT : 500))),
+      // the Harpoon: 1,500 ft by default, over the 1,000 ft of AIRCRAFT TOO LOW
+      alt: Math.max(200, Math.min(40000, +raw.alt || (W && isHarpoon(W.name) ? 1500 : 500))),
       dist: +raw.dist || 0,
       n: Math.max(1, Math.min(6, +raw.n || 2)),
       mode: raw.mode || '',
@@ -760,7 +761,7 @@ export function createTasmoPage(deps) {
           : k == 'en' || k == 'ds'
             ? bolWarn(P.enable, P.destruct, S.dist, P.U).some(w => w[1] === true)
             : k == 'alt'
-              ? hpn() && S.alt < HPN_MIN_FT
+              ? hpn() && S.alt <= HPN_MIN_FT
               : false;
   const altKv = () =>
     kv('CRUISE', fmt(G.cruise) + ' ft · ' + Math.round(G.gs) + ' kt') +

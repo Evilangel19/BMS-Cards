@@ -441,6 +441,8 @@ export function shortW(s) {
   let n = m[2].replace(/^AN\//, '');
   const t = n.match(/^Tank\s+(\d+)/i);
   if (t) n = 'TK' + t[1];
+  else if (/camera/i.test(n))
+    n = 'Camera'; // "Low Altitude Camera": "Low" says nothing
   else n = n.split(/\s+/)[0];
   return m[1] + ' ' + n;
 }

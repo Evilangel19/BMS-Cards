@@ -68,7 +68,11 @@ try:
         P = plan()
         check('RV ECHO: the ARCP at the anchor, the ARIP 40 NM behind it', P['S']['mode'] == 'echo' and abs(P['R']['arcp']['y'] - 500) < 0.01 and abs((500 - P['R']['arip']['y']) / 1.852 - 40) < 0.05 and 'ARCP · OA1' in pg.inner_text('#aarmap'))
         check('JOKER: after the onload need + joker or more', P['FU']['after'] >= min(12000, 5300 + 1000) - 1)
-        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=dist]');e.value=20;e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
+        # the sliders in real time (input only, no change): the tiles and the times drawn again, the slider kept
+        t0 = pg.inner_text('#aartl')
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=dist]');window.__a=e;e.value=20;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(300)
+        check('the distance slider in real time: the plan drawn again while it moves, the same slider', pg.inner_text('#aartl') != t0 and pg.evaluate("()=>window.__a===document.querySelector('[data-arsl=dist]')"))
+        pg.evaluate("()=>{const e=document.querySelector('[data-arsl=dist]');e.dispatchEvent(new Event('change',{bubbles:true}))}"); pg.wait_for_timeout(400)
         check('the ARIP 20 NM before the ARCP', plan()['S']['dist'] == 20 and abs((500 - plan()['R']['arip']['y']) / 1.852 - 20) < 0.05)
         # RV HEAD-ON: the turn side, the turn point on the map and in the tables
         pg.click('[data-arset=mode][data-v=head]'); pg.wait_for_timeout(500)

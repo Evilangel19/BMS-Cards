@@ -24,9 +24,9 @@ export const CLASSES = [
   { n: 'Mig-31', g: 20, m: 'AA-9', ms: ['AA-9', 'AA-10C'] },
   { n: 'Su-27', g: 15, m: 'AA-10C', ms: ['AA-10C', 'AA-12', 'AA-10A'] },
   { n: 'Su-30MKK', g: 15, m: 'AA-12', ms: ['AA-12', 'AA-10C', 'AA-10A'] },
+  { n: 'Su-30SM2', g: 20, m: 'AA-13', ms: ['AA-13', 'AA-12B', 'AA-12', 'AA-10C', 'AA-10A'] }, // BMS 4.38.2: the only one with the AA-12B (R-77-1) and the AA-13 (R-37M)
   { n: 'Su-35', g: 15, m: 'AA-12', ms: ['AA-12', 'AA-10C', 'AA-10A'] },
   { n: 'Su-39', g: 15, m: 'AA-12', ms: ['AA-12', 'AA-2B'] },
-  { n: 'Su-30SM2', g: 20, m: 'AA-13', ms: ['AA-13', 'AA-12B', 'AA-12', 'AA-10C', 'AA-10A'] }, // BMS 4.38.2: the only one with the AA-12B (R-77-1) and the AA-13 (R-37M)
   { n: 'J-11', g: 15, m: 'AA-10C', ms: ['AA-10C', 'AA-12', 'AA-10A'] },
   { n: 'J-15', g: 17, m: 'PL-12', ms: ['PL-12'] },
   { n: 'J-16', g: 17, m: 'PL-15', ms: ['PL-15', 'PL-12', 'PL-17'] },

@@ -8,6 +8,7 @@ import { setBase } from '../app/js/rules/ephemerides.js';
 import { CLASSES } from '../app/js/core/bvrtimeline.js';
 import { marShot } from '../app/js/core/airmissile.js';
 import { BMS_TESTED } from '../app/js/core/version.js';
+import { shortW } from '../app/js/app/datacard.js';
 
 let n = 0,
   bad = 0;
@@ -49,6 +50,8 @@ ok(BMS_TESTED === '4.38.2', 'the readers are checked with BMS 4.38.2');
       CLASSES.filter(x => x.ms.includes('AA-12B') || x.ms.includes('AA-13')).length === 1,
     'the AA-13 and the AA-12B: the Su-30SM2 only'
   );
+  const i = CLASSES.findIndex(x => x.n === 'Su-30SM2');
+  ok(i > 0 && /^Su-30/.test(CLASSES[i - 1].n), 'the Su-30SM2 next to the other Su-30 in the list (1.4.0-beta.37)');
   const a = marShot('AA-12', 30 * 6076, 600, 25000),
     b = marShot('AA-12B', 30 * 6076, 600, 25000),
     r = marShot('AA-13', 60 * 6076, 600, 25000);
@@ -141,5 +144,10 @@ ok(/ TSRA /.test(met({ cond: 3, dens: 13, shower: 1, tcu: 1, t: 20 })), 'a thund
   ok(/ TEMPO /.test(old), 'without the hourly maps: as before (TEMPO from its own conditions) ' + old);
 }
 
+// the loadout in short: the low altitude camera is "Camera", not "Low" (1.4.0-beta.37)
+ok(
+  shortW('1x Low Altitude Camera') === '1x Camera' && shortW('2x AIM-9M') === '2x AIM-9M',
+  'the short loadout: Camera'
+);
 console.log(bad ? `run-bms4382.mjs: ${bad} of ${n} FAILED` : `run-bms4382.mjs: OK - ${n} checks`);
 if (bad) process.exit(1);

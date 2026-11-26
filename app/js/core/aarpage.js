@@ -464,12 +464,13 @@ export function createAarPage(deps) {
     update();
   }
   /** the numbers again: the left card, the tiles, the tables, the preview, the map */
-  function update() {
+  // keepLeft: a slider moves (the left column with it is not drawn again)
+  function update(keepLeft) {
     if (!host || !host.isConnected) return;
     compute();
     const q = s => host.querySelector(s),
       l = q('#aarl');
-    if (l) l.innerHTML = leftIn();
+    if (l && !keepLeft) l.innerHTML = leftIn();
     const ok = !!(X && X.ok && R),
       mc = q('#aarmc');
     if (mc) mc.hidden = !ok;
@@ -547,6 +548,7 @@ export function createAarPage(deps) {
         paint();
       }
     };
+    let raf = 0;
     root.oninput = e => {
       const i = /** @type {HTMLInputElement} */ (e.target);
       if (!i.dataset || !i.dataset.arsl || !X || !X.ok) return;
@@ -554,11 +556,17 @@ export function createAarPage(deps) {
       set(k, +i.value);
       const em = l() && l().querySelector(`[data-are="${k}"]`);
       if (em) em.textContent = k == 'dist' ? i.value + ' NM' : fmt(+i.value) + ' lb';
-      if (k == 'amount') {
-        const sl = i.closest('.slr');
-        sl.classList.toggle('bad', !!FU && +i.value > maxOn());
-        sl.querySelector('label').textContent = amLab(+i.value);
-      }
+      // the plan in real time: drawn again at each frame while the slider moves
+      if (!raf)
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          update(true);
+          if (k == 'amount' && i.isConnected) {
+            const sl = i.closest('.slr');
+            sl.classList.toggle('bad', !!FU && +i.value > maxOn());
+            sl.querySelector('label').textContent = amLab(+i.value);
+          }
+        });
     };
     root.onchange = e => {
       const i = /** @type {HTMLInputElement} */ (e.target);

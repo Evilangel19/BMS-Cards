@@ -1399,6 +1399,7 @@ export function createWeaponsPage(deps) {
       .replace(/\s*\(.*\)$/, '')
       .trim();
     if (t.length <= 9) return t.toUpperCase();
+    if (/camera/i.test(t)) return 'CAMERA';
     const code = /^[A-Z]{1,4}-?\d+[A-Z]{0,2}(?:\/[A-Z])?/i.exec(t);
     return (code ? code[0] : t.split(/\s+/)[0]).toUpperCase().slice(0, 9);
   };

@@ -158,22 +158,18 @@ export function seekerNm(mode, dist, area, enable) {
  * range, 8 to 15 NM. A ship not spotted (±40 NM) is a larger area than the seeker searches: a check says so */
 export const areaNm = (size, dist) =>
   size == 'SMALL' ? 3 : size == 'MED' ? 6 : Math.max(8, Math.min(15, Math.round(dist * 0.2)));
-// the launch of the Harpoon in BMS 4.38 (seen in the game: AIRCRAFT TOO LOW at 1,000 ft AGL, not at 1,580 ft; MACH NUMBER OUT OF RANGE at 0.40 and
-// at 0.95, not at 0.47 nor at 0.81). The limits between: estimates
-export const HPN_MIN_FT = 1500,
+// the launch of the Harpoon in BMS 4.38 (tested in the game: AIRCRAFT TOO LOW at 1,000 ft AGL and under, a launch above it; MACH NUMBER OUT OF RANGE
+// at 0.40 and at 0.95, not at 0.47 nor at 0.81: the Mach limits between are estimates; PITCH TOO GREAT over a 22° dive or a 13° climb)
+export const HPN_MIN_FT = 1000,
+  HPN_PITCH = [-22, 13],
   HPN_MACH = [0.45, 0.95];
 const soundKt = altFt => 661.47 * Math.sqrt(Math.max(0.75, 1 - 6.8756e-6 * Math.min(altFt, 36089)));
 /** the checks of the launch of the Harpoon: the altitude (ft AGL) and the speed (kt true) */
 export function hpnLaunch(altFt, kt) {
   const W = [],
     mach = kt / soundKt(altFt);
-  if (altFt < HPN_MIN_FT)
-    W.push([
-      'AIRCRAFT TOO LOW: launch at ' +
-        HPN_MIN_FT.toLocaleString('en-US') +
-        ' ft AGL or higher (BMS: too low at 1,000 ft).',
-      true,
-    ]);
+  if (altFt <= HPN_MIN_FT)
+    W.push(['AIRCRAFT TOO LOW: launch above ' + HPN_MIN_FT.toLocaleString('en-US') + ' ft AGL.', true]);
   if (mach < HPN_MACH[0] || mach >= HPN_MACH[1])
     W.push([
       'MACH NUMBER OUT OF RANGE: Mach ' +
@@ -399,7 +395,13 @@ export function tasmoSteps(name, opt, P, at) {
       'MASTER ARM · ' +
         (m == 'rbl' ? 'in range · ' : 'heading ' + (opt.hdg || '---') + ' to the ship · ') +
         at +
-        (hpn ? ' · level (PITCH TOO GREAT in a climb or a dive), Mach 0.45 to 0.95, 1,500 ft AGL or higher' : ''),
+        (hpn
+          ? ' · pitch between a ' +
+            -HPN_PITCH[0] +
+            '° dive and a ' +
+            HPN_PITCH[1] +
+            '° climb (PITCH TOO GREAT), Mach 0.45 to 0.95, above 1,000 ft AGL'
+          : ''),
     ],
     [
       'Release',

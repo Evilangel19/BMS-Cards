@@ -9,7 +9,7 @@ const shortW = t => {
   if (!m) return t;
   let w = m[2].replace(/^AN\//, '');
   const k = w.match(/^(?:Fuel\s+)?Tank\b.*?(\d{3,4})(?:\s*gal)?\b/i);
-  w = k ? 'TK' + k[1] : w.split(/\s+/)[0].replace(/\(.*$/, '');
+  w = k ? 'TK' + k[1] : /camera/i.test(w) ? 'Camera' : w.split(/\s+/)[0].replace(/\(.*$/, ''); // "Low Altitude Camera": not "Low"
   return m[1] == '1' ? w : m[1] + 'x ' + w;
 };
 // the escorted flights in the short form of the MDC: the two letters of Link 16 (first and last letter of the callsign) and the number:
