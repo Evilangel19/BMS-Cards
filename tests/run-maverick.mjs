@@ -12,6 +12,7 @@ import {
   scaleNm,
   FT_NM,
   MAV_DEF,
+  laseCheck,
 } from '../app/js/core/maverick.js';
 import { computePopup } from '../app/js/core/popup.js';
 import { computeHadb } from '../app/js/core/strike.js';
@@ -115,5 +116,13 @@ ok('AUTO PWR: none when no steerpoint is 3 minutes before', autoPwr(R, 2 * M) ==
 const bp = boresightAt({ n: 0, e: 0 }, 90, 2);
 ok('the boresight point: 2 NM east of the steerpoint', near(bp.e, 2 * FT_NM, 1e-6) && near(bp.n, 0, 1e-6));
 
+// buddy lasing (1.4.0-beta.35): the laser basket, the range of the laser, the hold time
+const Z = laseCheck({ leadHdg: 360, elemHdg: 20, slant: 7, tof: 30, n: 2, gap: 4 });
+ok('buddy lasing: 20° off, 7 NM, hold 30 + 4 + 5 s, no red', near(Z.off, 20, 1e-9) && Z.hold == 39 && !Z.list.length);
+const Z2 = laseCheck({ leadHdg: 10, elemHdg: 280, slant: 12, tof: 30, n: 1, gap: 4 });
+ok(
+  'buddy lasing: 90° off and 12 NM, both red (the heading and the range sliders)',
+  Z2.flags.heading && Z2.flags.mRange && Z2.list.length == 2
+);
 console.log(bad ? `${bad} of ${n} FAILED` : `maverick: ${n} checks ok`);
 process.exit(bad ? 1 : 0);

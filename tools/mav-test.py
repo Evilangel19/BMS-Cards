@@ -1,4 +1,4 @@
-"""A-G > Pop-up and HADB with a Maverick (1.4.0-beta.34): the Weapon list with the Mavericks of the load, the bomb controls dark, the launch altitude
+"""A-G > Pop-up and HADB with a Maverick (1.4.0-beta.34; buddy lasing 1.4.0-beta.35): the Weapon list with the Mavericks of the load, the bomb controls dark, the launch altitude
 and range (the dive angle from them), the red sliders of the Dash-34 limits, two launches, AUTO PWR, the boresight point (OA1 written by Apply), the
 cards. Made-up flight plan and load, no BMS file.
 Usage: python3 tools/mav-test.py [folder for the pictures]"""
@@ -87,6 +87,22 @@ try:
         pg.evaluate(SETUP, {'name': 'AGM-65L Maverick'}); pg.click('#wp [data-mode=popup]'); pg.wait_for_timeout(600)
         pg.evaluate("()=>__app.wpPage.setState({mode:'popup',tgt:'r:4',bomb:'msl:AGM-65L Maverick'})"); pg.wait_for_timeout(600)
         check('AGM-65L: the laser on the target for the whole flight, no handoff', 'Laser' in pg.inner_text('#wpr') and 'HANDOFF' not in pg.inner_text('#wpr'))
+        # buddy lasing: the lead launches the AGM-65L, the element lases (1.4.0-beta.35)
+        pg.click('[data-split]'); pg.wait_for_timeout(600)
+        check('split with an AGM-65L: the role of the element (Attack / LASE)', pg.locator('[data-role=lase]').count() == 1)
+        pg.click('[data-role=lase]'); pg.wait_for_timeout(500)
+        check('...the lead: the element lases, launch on its SPOT', 'lases (buddy)' in pg.inner_text('#wpr'))
+        pg.click('[data-who=elem]'); pg.wait_for_timeout(900)
+        rv = pg.inner_text('#wpr')
+        check('...the element: the LASE card, the hold time, the basket, the code, the calls', 'LASE (BUDDY)' in rv.upper() and 'hold' in rv and 'BASKET' in rv and 'CODE' in rv and 'LASER ON' in rv and 'MISSILE' not in rv)
+        check('...the mirror of the lead: within the laser basket (not red)', pg.locator('.slr.bad input[data-sl=heading]').count() == 0)
+        pg.evaluate("()=>{const e=document.querySelector('[data-sl=mRange]');e.value=12;e.dispatchEvent(new Event('input',{bubbles:true}))}"); pg.wait_for_timeout(600)
+        check('...a laser point 12 NM out: the range slider red', pg.locator('.slr.bad input[data-sl=mRange]').count() == 1)
+        if OUT: pg.screenshot(path=os.path.join(OUT, 'mav-lase.png'))
+        feet = pg.evaluate("()=>JSON.stringify(__app.wpPage.atkCards().map(c=>c.sm&&c.sm.foot))")
+        check('...the cards: the lead MSL, the element LASE', 'LAUNCH' in feet and 'LASE' in feet)
+        pg.click('[data-who=lead]'); pg.wait_for_timeout(500)
+        pg.click('[data-split]'); pg.wait_for_timeout(500)
         pg.evaluate("()=>__app.wpPage.setState({mode:'popup',bomb:'auto'})"); pg.wait_for_timeout(600)
         check('back to a bomb: the fuze controls on again', pg.locator('.woff').count() == 0 and pg.locator('input[data-sl=releaseAltitude]').count() == 1)
         check('no page errors %s' % errs[:3], not errs)

@@ -43,6 +43,9 @@ import {
   PWR_MIN,
   VIDEO_MIN,
   AUTO_PWR_NM,
+  laseCheck,
+  LASE_BASKET,
+  LASE_NM,
 } from './maverick.js';
 import { rmax as misRmax } from '../bmsdata/missiledata.js';
 
@@ -200,6 +203,12 @@ export function createWeaponsPage(deps) {
   const mavOf = m =>
     (m == 'popup' || m == 'hadb') && String(st.bomb || '').startsWith('msl:') ? st.bomb.slice(4) : null;
   const mav = () => mavOf(st.mode);
+  // buddy lasing: the lead launches an AGM-65L, the element (or the wingman) lases its target
+  const laseSplit = () => {
+    const n = mav();
+    return !!n && isLaserMav(n) && ATK.includes(st.inMode) && grpOf(st.inMode).split && grpOf(st.inMode).role == 'lase';
+  };
+  const lasing = () => laseSplit() && grpOf(st.inMode).who == 'elem'; // the element shown: the designator
   // the inputs of an engine: with a Maverick the launch altitude and slant range give the release altitude and the dive angle (core/maverick.js)
   const engIn = (m, b) =>
     mavOf(m)
@@ -229,6 +238,7 @@ export function createWeaponsPage(deps) {
       st.grp[m] = { split: false, who: 'lead', elem: null, mir: false, egr: 'own' };
     const G = st.grp[m];
     if (G.egr != 'shared') G.egr = 'own';
+    if (G.role != 'lase') G.role = 'atk'; // the element: its own attack, or the laser for the AGM-65L of the lead (buddy lasing)
     return G;
   };
   // the sets of 1.3.0-beta.15 / 16 (FLIGHT, LEAD and ELEMENT): the lead's becomes the attack, the element's stays as the split
@@ -1407,12 +1417,15 @@ export function createWeaponsPage(deps) {
     return w ? (w.n > 1 ? w.n + '×' : '') + wpnName(w.name) : b.loadout ? wpnName(b.label) : '--';
   }
   // the line of the Maverick on the cards: the slant range of the launch, the time of flight, the missiles of the pass
-  const mslFoot = v => [
-    'MSL',
-    'LAUNCH ' + (+v.mRange).toFixed(1) + ' NM',
-    'TOF ' + Math.round(v.timeOfFall || 0) + ' s',
-    +v.mN == 2 ? '2 × ' + v.mGap + ' s' : 'single',
-  ];
+  const mslFoot = (v, who) =>
+    who == 'elem' && laseSplit()
+      ? ['LASE', 'FROM ' + (+v.mRange).toFixed(1) + ' NM', 'ON AT THE LEAD LAUNCH', 'CODE = 65L']
+      : [
+          'MSL',
+          'LAUNCH ' + (+v.mRange).toFixed(1) + ' NM',
+          'TOF ' + Math.round(v.timeOfFall || 0) + ' s',
+          +v.mN == 2 ? '2 × ' + v.mGap + ' s' : 'single',
+        ];
   function smartBase(r, PD0, spec, mra, offs, c, who) {
     const v = r.v,
       T = r.target,
@@ -1496,7 +1509,7 @@ export function createWeaponsPage(deps) {
               v.msl ? 'DIVE ' + v.diveAngle + '°' : 'AOD ' + fmt(v.aod),
               (v.msl ? 'LOCK ' : 'TRACK ') + v.timeOnFinal + ' s',
             ],
-            v.msl ? mslFoot(v) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+            v.msl ? mslFoot(v, who) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
           ]
         : kind == 'hadb'
           ? [
@@ -1507,7 +1520,7 @@ export function createWeaponsPage(deps) {
                 v.msl ? 'DIVE ' + v.diveAngle + '°' : 'AOD ' + (v.aod / FT_NM).toFixed(1) + ' NM',
                 (v.msl ? 'LOCK ' : 'TRACK ') + v.timeOnFinal + ' s',
               ],
-              v.msl ? mslFoot(v) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
+              v.msl ? mslFoot(v, who) : ['BOMB', 'TOF ' + (v.timeOfFall || 0).toFixed(1) + ' s', fz, stick],
             ]
           : [
               ['INGRESS', 'HDG ' + c.ph, c.is + ' KCAS', c.ia + ' ft'],
@@ -2946,7 +2959,8 @@ export function createWeaponsPage(deps) {
       k(
         'ACQUISITION',
         L
-          ? 'Laser: the target lased for the whole flight of the missile, the code of the missile the same as the laser (no handoff)'
+          ? 'Laser: the target lased for the whole flight of the missile, the code of the missile the same as the laser (no handoff)' +
+              (laseSplit() ? '<br>the ' + secName() + ' lases (buddy): launch on its SPOT call' : '')
           : 'TGP POINT track: HANDOFF IN PROGRESS, then C above the station · NFOV<br>or PRE / VIS / BORE on the WPN page · a steady pointing cross (keyhole)' +
               (/65G/i.test(MV.name) ? '<br>AGM-65G AREA (force correlate): no handoff' : '')
       ) +
@@ -2960,6 +2974,48 @@ export function createWeaponsPage(deps) {
       notes.map(t => k('NOTE', esc(t))).join('') +
       safetyRows(v).replace(/<span>BOMB<\/span><b[^>]*>.*?<\/b>/, '');
     return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and Maverick</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
+  }
+  // the designator of a buddy lasing: where and how long it lases, the laser basket, the code, the calls
+  function laseCard(v, LZ, turn) {
+    const k = (a, b, bad) => `<span>${a}</span><b class="${bad ? 'wbad' : ''}">${b}</b>`,
+      L = GHO.r;
+    const h =
+      k(
+        'LASER',
+        'from ' +
+          cur().mRange.toFixed(1) +
+          ' NM slant, ' +
+          fmt(cur().mAlt) +
+          ' ft AGL, on the dive line<br>LASER ON before the lead launches, hold ' +
+          LZ.hold +
+          ' s (the flight of the missile' +
+          (+(L.v.mN || 1) > 1 ? 's' : '') +
+          ' + ' +
+          5 +
+          ' s)<br>in place before the lead launches: the spacing above is for the paths, not for the laser',
+        LZ.list.some(x => x[1] && /NM/.test(x[0]))
+      ) +
+      k(
+        'BASKET',
+        Math.round(LZ.off) +
+          '° off the attack heading of the lead (' +
+          hm(L.v.attackHeading) +
+          '°): within ' +
+          LASE_BASKET +
+          '°, behind the shooter',
+        LZ.off > LASE_BASKET
+      ) +
+      k(
+        'CODE',
+        'The laser code of the TGP the same as the code of the AGM-65L of the lead (WPN page: L, TMS UP, the code, U)'
+      ) +
+      k('RANGE', 'Within ' + LASE_NM + ' NM of the target (an estimate)') +
+      k(
+        'CALLS',
+        'TEN SECONDS · LASER ON · SPOT · TERMINATE (common use, not in the Dash-34)<br>the lead: launch on SPOT, the impact at the time of flight'
+      ) +
+      safetyRows(v).replace(/<span>BOMB<\/span><b[^>]*>.*?<\/b>/, '');
+    return `<div class="wcard"><h3>${st.mode == 'popup' ? 'Turn' : 'Heading'} data and LASE (buddy)</h3><div class="kv wkv1">${turn}</div><div class="kv wkv1 wsub">${h}</div></div>`;
   }
   // MAT: what the flight path does against the SAM's WEZ
   function matResult(r) {
@@ -3076,6 +3132,26 @@ export function createWeaponsPage(deps) {
         k('TURN', v.side == 'left' ? 'Left' : 'Right');
     }
     const MV = r.mav;
+    // the designator: its laser against the lead's shot (the other group of the split); its red sliders and lines with the others
+    if (MV && lasing() && GHO && GHO.r && GHO.r.mav) {
+      r.lase = laseCheck({
+        leadHdg: GHO.r.v.attackHeading,
+        elemHdg: v.attackHeading,
+        slant: cur().mRange,
+        tof: GHO.r.mav.tof,
+        n: +(GHO.r.v.mN || 1),
+        gap: +(GHO.r.v.mGap || 0),
+      });
+      r.an.flags = { ...r.an.flags, ...r.lase.flags };
+      // the limits of the launch are not the element's: it does not launch
+      Object.keys(MV.flags).forEach(k => {
+        if (!r.lase.flags[k]) delete r.an.flags[k];
+      });
+      AGC = {
+        ...AGC,
+        list: [...AGC.list.filter(t => !MV.list.some(x => x[0] == t)), ...r.lase.list.map(x => x[0])],
+      };
+    }
     if (MV) {
       tiles =
         pupTile +
@@ -3086,7 +3162,7 @@ export function createWeaponsPage(deps) {
         .replace('<span>RALT</span>', '<span>LAUNCH ALT</span>');
       kv += k('TOF', MV.tof.toFixed(0) + ' s');
     }
-    const fzc = MV ? mavCard(v, MV, turn) : fuzeCard(v, r.fuze, turn);
+    const fzc = r.lase ? laseCard(v, r.lase, turn) : MV ? mavCard(v, MV, turn) : fuzeCard(v, r.fuze, turn);
     return `${AGC.list.length ? `<div class="wcard"><h3>Checks</h3>${AGC.list.map(t => `<div class="wbad">${esc(t)}</div>`).join('')}</div>` : ''}<div class="wpt">${tiles}</div>${matResult(r)}
     <div class="wcard"><div class="wh"><h3>Vertical envelope</h3><span class="hint">altitudes AGL · distances to scale</span></div>${profile(r)}</div>
     <div class="wcard"><h3>NAV OFFSETS</h3><table class="dt"><tr><th></th><th>Bearing</th><th>Range ft</th><th>Elev.</th></tr>${rowsH}</table>
@@ -3234,7 +3310,19 @@ export function createWeaponsPage(deps) {
         nw = k => (APPEAR[k] ? '' : ' wnew'),
         grpRow = `<div class="wrow wgrp"><label>Flight</label><span class="wgrpb"><button type="button" class="btn g wsplit" data-split${one ? ' disabled' : ''} title="${gq.split ? `Rejoin: the ${secName()}'s attack is dropped, the lead's is the attack of the whole flight again.` : `Split: the ${secName()} gets an attack of its own, the mirror of the lead's to start with. Apply writes the attack of the seat chosen on the Datacard.`}">${gq.split ? 'Rejoin' : st.inMode == 'toss' && tossForm() ? 'Split egress' : 'Split'}</button>${gq.split && gq.who == 'elem' ? `<button type="button" class="btn g wmir${gq.mir ? ' on' : ''}${nw('mir')}" data-mir title="The attack of the lead, mirrored: the same target and reference, the turn on the other side, the attack and the egress mirrored about the heading flown together. Moving a control makes the attack the ${secName()}'s own.">Mirror</button>` : ''}</span></div>${
           gq.split
-            ? `<div class="wrow wgrp wshow${nw('show')}"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
+            ? `${
+                mav() && isLaserMav(mav())
+                  ? `<div class="wrow wgrp"><label>${secName() == 'wingman' ? 'Wingman' : 'Element'}</label><span class="seg">${[
+                      ['atk', 'Attack'],
+                      ['lase', 'LASE (buddy)'],
+                    ]
+                      .map(
+                        ([v, l]) =>
+                          `<button type="button" class="${gq.role == v ? 'on' : ''}" data-role="${v}" title="${v == 'lase' ? `The ${secName()} lases the target of the lead's AGM-65L with its TGP` : `The ${secName()} attacks with its own weapons`}">${l}</button>`
+                      )
+                      .join('')}</span></div>`
+                  : ''
+              }<div class="wrow wgrp wshow${nw('show')}"><label>Show</label><span class="seg">${WHO.map(w => `<button type="button" class="w-${w}${gq.who == w ? ' on' : ''}" data-who="${w}" title="${w == 'lead' ? 'The attack of the lead' : `The attack of the ${secName()}`}">${whoName(w)}</button>`).join('')}</span></div>`
             : ''
         }`;
       const refCard = `<div class="wcard"><h3>Reference</h3>${grpRow}
@@ -3657,6 +3745,15 @@ export function createWeaponsPage(deps) {
           e.title = "Toss in formation (angle off 0): the lead's attack, the split is the egress only";
         });
     }
+    root.querySelectorAll('[data-role]').forEach(
+      b =>
+        (b.onclick = () => {
+          grpOf(st.inMode).role = b.dataset.role == 'lase' ? 'lase' : 'atk';
+          st.applied = st.cleared = null;
+          save();
+          draw(false);
+        })
+    );
     root.querySelectorAll('[data-who]').forEach(
       b =>
         (b.onclick = () => {

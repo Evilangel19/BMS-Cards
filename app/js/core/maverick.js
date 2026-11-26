@@ -147,3 +147,42 @@ export const boresightAt = (p, brg, nm) => ({
   n: p.n + Math.cos((brg * Math.PI) / 180) * nm * FT_NM,
   e: p.e + Math.sin((brg * Math.PI) / 180) * nm * FT_NM,
 });
+
+// ---- buddy lasing (the AGM-65L of the lead, the laser of the element: Dash-34 4.2.4.1.10; the limits are estimates of common practice)
+export const LASE_BASKET = 60, // the designator within 60° of the attack heading of the shooter (behind it, not across or ahead)
+  LASE_NM = 10, // the slant range of the laser of the TGP
+  LASE_PAD = 5; // s of laser after the impact
+/**
+ * The designator: o: {leadHdg, elemHdg (° the attack headings), slant (NM: the element at its laser point), tof (s: the flight of the lead's missile),
+ * n (missiles of the lead), gap (s)}
+ * @returns {{off: number, hold: number, flags: Record<string, string>, list: [string, boolean][]}}
+ */
+export function laseCheck(o) {
+  const d = Math.abs(((((o.elemHdg - o.leadHdg) % 360) + 540) % 360) - 180),
+    hold = Math.ceil((o.tof || 0) + (o.n > 1 ? o.gap : 0) + LASE_PAD),
+    /** @type {Record<string, string>} */
+    flags = {},
+    /** @type {[string, boolean][]} */
+    list = [];
+  if (d > LASE_BASKET) {
+    const t =
+      'The laser comes ' +
+      Math.round(d) +
+      '° off the attack heading of the lead: keep within ' +
+      LASE_BASKET +
+      '° (an estimate).';
+    flags.heading = t;
+    list.push([t, true]);
+  }
+  if (o.slant > LASE_NM) {
+    const t =
+      'The laser point is ' +
+      o.slant.toFixed(1) +
+      ' NM from the target: within ' +
+      LASE_NM +
+      ' NM for the TGP laser (an estimate).';
+    flags.mRange = t;
+    list.push([t, true]);
+  }
+  return { off: d, hold, flags, list };
+}
