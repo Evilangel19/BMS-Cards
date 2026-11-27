@@ -31,6 +31,7 @@ const cell = (F, r) =>
 for (const R0 of [0, 60])
   for (const s of [
     { name: 'beartrap', cam: 'PSI_BEAR_TRAP_26.cam' },
+    { name: 'psikorea', cam: 'PSIKorea.cam' },
     { name: 'evilkorea', cam: 'EvilKorea.cam' },
   ].filter(s => has(s.name + '/' + s.cam) || skip(s.name + '/' + s.cam, 'the ' + s.name + ' missions'))) {
     const dir = path.join(root, 'tests', 'fixtures', s.name);

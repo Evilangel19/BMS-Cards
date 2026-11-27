@@ -85,6 +85,8 @@ try:
         pg.click('[data-fit]'); pg.wait_for_timeout(300)
         # any steerpoint of the route can carry VIP / VRP and the offsets: rows are created, the 4th value is the steerpoint number
         setl('target_5', '110000.000000, 130000.000000, -500.000000, 1, ')
+        # the rows of STPT 6 taken out of the NAV OFFSETS (a DTC may lack them): the page must write them, not stop
+        pg.evaluate("()=>{const L=__app.lines;for(let i=L.length-1;i>=0;i--)if(L[i].s=='NAV OFFSETS'&&/-6$/.test(L[i].k))L.splice(i,1)}")
         pg.click('[data-t=dtc]'); pg.click('[data-t=wp]'); pg.wait_for_timeout(300)
         check('every route steerpoint can be the target', pg.locator('select[data-pick=tgt] option').count() >= 3)
         pg.select_option('select[data-pick=tgt]', 'r:6'); pg.wait_for_timeout(200)
@@ -190,7 +192,7 @@ try:
         pg.click('[data-set=oa2Mode][data-v="egress"]'); pg.click('#wpapply'); pg.wait_for_timeout(500)
         check('Apply writes the terrain elevation as 3rd value of OA1 and as last value of the PUP row', int(ln('OA1-6').split(',')[2]) > 1000 and int(ln('VRPPUP').split(',')[3]) > 1000)
         # sub-menus: HADB and TOSS (LAT)
-        check('four sub-menus: Pop-up, HADB, TOSS, HARM', pg.locator('#wp .wtabs button').count() == 4 and pg.locator('#wp .wtabs button.on').inner_text() == 'Pop-up')
+        check('the sub-menus: Pop-up, HADB, TOSS, HARM, TASMO, Target (and Add card)', pg.locator('#wp .wtabs button[data-mode]').all_inner_texts() == ['Pop-up', 'HADB', 'TOSS', 'HARM', 'TASMO', 'Target'] and pg.locator('#wp .wtabs button.on').inner_text() == 'Pop-up')
         check('Weapons: the DTC points of the map are locked until Edit points is switched on', pg.inner_text('#wp [data-edit]') == 'Edit points: Off' and pg.locator('#wph .leaflet-marker-draggable').count() == 0)
         pg.click('#wp [data-edit]'); pg.wait_for_timeout(250)
         check('Weapons: Edit points On lets the points be dragged', pg.inner_text('#wp [data-edit]') == 'Edit points: On' and pg.locator('#wph .leaflet-marker-draggable').count() > 0)

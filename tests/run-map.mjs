@@ -100,7 +100,7 @@ ck(
   'base map covers the Korean peninsula',
   basemap.land.some(r => r.some(p => near(p[0], 127, 1) && near(p[1], 37, 1)))
 );
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'psikorea/PSIKorea.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   const fl = C.units.filter(u => u.kind == 'flight' && u.wps.length);
   const routes = fl.map(x => flightRoute(C, x));
@@ -252,7 +252,7 @@ if (EK) {
     })()
   );
 }
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'psikorea/PSIKorea.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   ck(
     f + ' every unit category has a NATO sign',
@@ -334,12 +334,44 @@ ck(
     !crossesRoute(rt, 300, 300, 50)
 );
 // ---- DTC steerpoints
-if (has('beartrap/Evil19_2_.ini') || skip('beartrap/Evil19_2_.ini', 'the DTC steerpoint checks')) {
+{
   const rt = tmFwd(...tmInv(123456, -234567));
   ck('forward projection inverts tmInv (< 1 mm)', near(rt[0], 123456, 1e-3) && near(rt[1], -234567, 1e-3));
   const g = fromLL(...toLL(469.6, 354.6));
   ck('fromLL inverts toLL', near(g[0], 469.6, 1e-6) && near(g[1], 354.6, 1e-6));
-  const ini = fs.readFileSync(new URL('./fixtures/beartrap/Evil19_2_.ini', import.meta.url), 'latin1'),
+  // a DTC made here (no BMS file): STPT 96-98 precision targets (96 on Yangyang, 190 ft), PPT 0-12 (0 a waypoint, 8 an SA-10 ring of 50 nm),
+  // LINE1 slots 0-4, LINE2 6-10, LINE3 12-17 (full), LINE4 18-20
+  const row = (x, y, a) => (y * FT_KM).toFixed(6) + ', ' + (x * FT_KM).toFixed(6) + ', ' + (-a).toFixed(6),
+    yy = fromLL(38.06, 128.66),
+    rows = ['[STPT]'];
+  for (let i = 0; i < 19; i++)
+    rows.push(
+      'target_' +
+        (80 + i) +
+        '=' +
+        (i < 15 || i > 17
+          ? '0.000000, 0.000000, 0.000000, -1, Not set'
+          : row(i == 15 ? yy[0] : 500 + i, i == 15 ? yy[1] : 400, i == 15 ? 190 : 100) +
+            ', -1, ' +
+            (i == 15 ? 'Yangyang AB' : 'Target ' + i))
+    );
+  for (let i = 0; i < 15; i++)
+    rows.push(
+      'ppt_' +
+        i +
+        '=' +
+        (i > 12
+          ? '0.000000, 0.000000, 0.000000, 0.000000,'
+          : row(450 + i, 450, 0) +
+            ', ' +
+            (i == 0 ? '0.100000' : (i == 8 ? 50 : 10) * 6076.12) +
+            ', ' +
+            (i == 0 ? 'WPT' : i == 8 ? '10' : '6'))
+    );
+  const LINE_USED = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+  for (let i = 0; i < 24; i++)
+    rows.push('lineSTPT_' + i + '=' + (LINE_USED.includes(i) ? row(420 + i, 380, 0) : '0.000000, 0.000000, 0.000000'));
+  const ini = rows.join('\r\n') + '\r\n',
     lines = parseDtc(ini),
     P = dtcPoints(lines);
   ck(

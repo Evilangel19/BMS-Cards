@@ -7,7 +7,7 @@ import { parseTwx } from '../app/js/parsers/twx.js';
 import { parseIff } from '../app/js/parsers/iff.js';
 import { parseLink16 } from '../app/js/parsers/link16.js';
 const dir = new URL('./fixtures/te/', import.meta.url);
-if (!fs.existsSync(new URL('TE_BMS_03_F-16_DEAD.tac', dir))) {
+if (!fs.existsSync(new URL('TE_BMS_06_F-18C_QRA.tac', dir))) {
   console.log('SKIP - no Tactical Engagement fixture');
   process.exit(0);
 }
@@ -21,15 +21,15 @@ const ck = (m, c) => {
   }
 };
 const C = CAM.openCam(
-  new Uint8Array(fs.readFileSync(new URL('TE_BMS_03_F-16_DEAD.tac', dir))),
+  new Uint8Array(fs.readFileSync(new URL('TE_BMS_06_F-18C_QRA.tac', dir))),
   CAM.D,
-  'TE_BMS_03_F-16_DEAD.tac'
+  'TE_BMS_06_F-18C_QRA.tac'
 );
 ck('reads to the last byte', C.parse.end === C.parse.len);
-ck('is a TE, the name has no extension', C.isTe === true && C.name === 'TE_BMS_03_F-16_DEAD');
+ck('is a TE, the name has no extension', C.isTe === true && C.name === 'TE_BMS_06_F-18C_QRA');
 ck('version known', C.ver <= CAM.CAM_VER_MAX);
 const fl = CAM.listFlights(C, null);
-ck('5 flights', fl.length === 5);
+ck('4 flights', fl.length === 4);
 ck('the player side comes from the TE teams (team 1)', C.playerTeam === 1);
 ck(
   'teTeams: only the named teams',
@@ -42,10 +42,10 @@ ck(
   ) === '[{"n":1,"name":"PILOTS"}]'
 );
 const A = buildAto(C, null);
-ck('ATO lists every flight', A.length === 5);
+ck('ATO lists every flight', A.length === fl.length);
 ck(
-  'the F-16 DEAD flight is there',
-  fl.some(x => /F-16/.test(x.label) && /DEAD/.test(x.label))
+  'the F/A-18C flight is there (INTERCEPTION: the QRA of the TE)',
+  fl.some(x => /F\/A-18C/.test(x.label) && /INTERCEPTION/.test(x.label))
 );
 ck(
   'a campaign file is not a TE',
@@ -55,15 +55,15 @@ ck(
     'x.cam'
   ).isTe
 );
-const t = fs.readFileSync(new URL('TE_BMS_03_F-16_DEAD.twx', dir));
+const t = fs.readFileSync(new URL('TE_BMS_06_F-18C_QRA.twx', dir));
 ck('date file read', /^\d{4}-\d\d-\d\d$/.test(parseTwx(new Uint8Array(t).buffer).iso));
 ck(
   'IFF file read',
-  Object.keys(parseIff(fs.readFileSync(new URL('TE_BMS_03_F-16_DEAD.iff', dir), 'latin1'))).length > 0
+  Object.keys(parseIff(fs.readFileSync(new URL('TE_BMS_06_F-18C_QRA.iff', dir), 'latin1'))).length > 0
 );
 ck(
   'Link16 file read',
-  Object.keys(parseLink16(fs.readFileSync(new URL('TE_BMS_03_F-16_DEAD.l16.txtpb', dir), 'latin1'))).length > 0
+  Object.keys(parseLink16(fs.readFileSync(new URL('TE_BMS_06_F-18C_QRA.l16.txtpb', dir), 'latin1'))).length > 0
 );
 console.log(bad ? `${bad} of ${n} TE checks failed` : `OK - ${n} TE checks`);
 process.exit(bad ? 1 : 0);

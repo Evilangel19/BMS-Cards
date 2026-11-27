@@ -4,7 +4,7 @@ from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fixtures import need
 
-need('tests/fixtures/beartrap/Evil19_2_.ini', 'tests/fixtures/beartrap/Evil19_5.ini', 'tests/fixtures/beartrap/Evil19_6.ini')
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 shots = sys.argv[1] if len(sys.argv) > 1 else None
@@ -61,7 +61,7 @@ try:
         # systems: numbers shown without the 6 decimals, written the way the file has them
         go('sys'); check('Laser comes before Manual wingspan', pg.evaluate("()=>{const a=[...document.querySelectorAll('[data-card]')].map(e=>e.dataset.card);return a.indexOf('laser')>=0 && a.indexOf('laser')<a.indexOf('wspan')}"))
         check('Manual wingspan is its own card, not in the ICP card', pg.locator('[data-card=wspan] input[data-k="Manual Wingspan"]').count() == 1 and pg.locator('[data-card=icp] input[data-k="Manual Wingspan"]').count() == 0); unlock('icp')
-        b = pg.locator('[data-card=icp] input[data-k=Bingo_Fuel]'); check('bingo is shown as a plain number', b.input_value() == '3300')
+        b = pg.locator('[data-card=icp] input[data-k=Bingo_Fuel]'); bg = re.search(r'^Bingo_Fuel=([\d.]+)', ini, re.M); check('bingo is shown as a plain number (%s)' % b.input_value(), bg and b.input_value() == str(int(float(bg.group(1)))))
         b.fill('3500'); b.press('Tab'); pg.wait_for_timeout(200)
         check('and written with the format of the file (6 decimals)', ln('Bingo_Fuel') == '3500.000000')
         # weapons
@@ -180,7 +180,7 @@ try:
         else: check('(no package frequency in this campaign: owner check skipped)', True)
         if shots: pg.screenshot(path=shots + '/dtcpage.png', full_page=True)
         # MFD page: file saved by WDP with a known screen (MFD1 A-G FCR/FLCS/FLIR, MFD2 MSL WPN/DTE/FCR ...)
-        pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_5.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
+        pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_2_.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
         go('mfd'); txt = lambda sel: pg.locator(sel).all_inner_texts()
         rows = pg.locator('table.mfd tr').all()[1:]
         scr = [[c for c in r.locator('.mfp').all_inner_texts()] for r in rows]
@@ -273,7 +273,7 @@ try:
         check('the other offsets are in Nav offsets', pg.locator('[data-card=navo] input').count() == 12)
         i = pg.locator('[data-card=navo] input').first; unlock('navo'); i.fill('5'); i.press('Tab'); pg.wait_for_timeout(150)
         check('an offset aimpoint keeps its 3 values', ln('OA1-3') == '5,0,0')
-        go('mfd'); pg.evaluate("__app.parse(%r)" % open(FX + 'Evil19_5.ini', encoding='latin1').read()); pg.wait_for_timeout(300); go('stpt'); go('mfd')
+        go('mfd'); pg.evaluate("__app.parse(%r)" % open(FX + 'Evil19_2_.ini', encoding='latin1').read()); pg.wait_for_timeout(300); go('stpt'); go('mfd')
         check('MFD default buttons: Save is active, Load is not until a default exists', 'nil' not in pg.get_attribute('[data-def="mfd:save"]', 'class') and 'nil' in pg.get_attribute('[data-def="mfd:load"]', 'class'))
         pg.once('dialog', lambda d: d.accept()) if False else None
         pg.click('[data-def="mfd:save"]'); pg.wait_for_timeout(300)
@@ -283,7 +283,7 @@ try:
         pg.once('dialog', lambda d: d.accept()); pg.click('[data-def="mfd:load"]'); pg.wait_for_timeout(400)
         check('Load puts the default back', ln('Display0-0-1') == '6')
         # v47: flight plan never editable (file route without a campaign), defaults for EWS / Systems, MFD 3-4, missile values, HARM colours
-        pg.reload(); pg.wait_for_timeout(800); pg.click('[data-t=dtc]'); pg.wait_for_timeout(300); pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_6.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
+        pg.reload(); pg.wait_for_timeout(800); pg.click('[data-t=dtc]'); pg.wait_for_timeout(300); pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_2_.ini', encoding='latin1').read()); pg.wait_for_timeout(400)
         go('stpt'); vt = pg.inner_text('[data-card=fplan]')
         check('without a campaign the flight plan shows the route points of the file, read-only, no North/East ft columns', 'FLIGHT PLAN IN THE FILE' in vt.upper() and pg.locator('[data-card=fplan] input').count() == 0 and 'North (ft)' not in pg.inner_text('#view') and pg.locator('[data-card=route]').count() == 0)
         hd = pg.evaluate("[...document.querySelectorAll('[data-card=fplan] th')].map(x=>x.textContent)")

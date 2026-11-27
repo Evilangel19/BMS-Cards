@@ -22,7 +22,11 @@ try:
         pg.on('pageerror', lambda e: errs.append(str(e))); pg.on('dialog', lambda d: d.accept())
         pg.goto('http://localhost:8784/app/index.html'); pg.wait_for_timeout(800)
         pg.click('[data-t=wp]'); pg.evaluate("t=>__app.parse(t)", ini); pg.wait_for_timeout(1500)
+        # a precision target on the first pre-planned threat (STPT 96): the attack has a target of its own whatever the DTC holds
+        pg.evaluate("()=>{const L=__app.lines,r=L.find(l=>l.s=='STPT'&&l.k=='ppt_0'),t=L.find(l=>l.s=='STPT'&&l.k=='target_95');const v=r.v.split(',').map(x=>x.trim());t.v=v[0]+', '+v[1]+', -300.000000, -1, Test target';t.dirty=1}")
         pg.click('[data-t=dtc]'); pg.click('[data-t=wp]'); pg.wait_for_timeout(800)
+        o = pg.evaluate("()=>{const s=document.querySelector('select[data-pick=tgt]');const o=s&&[...s.options].find(o=>/Test target/.test(o.textContent));return o&&o.value}")
+        if o: pg.select_option('select[data-pick=tgt]', o); pg.wait_for_timeout(600)
         sb = lambda: pg.locator('[data-split]').inner_text()
         who = lambda: pg.locator('.wshow [data-who].on').get_attribute('data-who') if pg.locator('.wshow').count() else None
         dive = lambda: pg.locator('input[data-sl=diveAngle]').input_value()

@@ -13,7 +13,7 @@ const ck = (name, ok) => {
     console.log('FAIL', name);
   }
 };
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'psikorea/PSIKorea.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   const flights = C.units.filter(u => u.kind == 'flight' && u.wps.length);
   ck(f + ' file version known to the reader (' + C.ver + ')', C.ver >= 1 && C.ver <= CAM.CAM_VER_MAX);

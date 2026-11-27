@@ -216,13 +216,15 @@ ck(
 // classes from the Threat Guide: J-15 and Su-39 are there, the Mig-29S has no AA-10C and nobody has the AA-13
 const cl = n => CLASSES.find(c => c.n === n);
 ck(
-  'classes: J-15 (PL-12) and Su-39 (AA-12) added; Mig-29S without AA-10C; no class carries the AA-13',
+  'classes: J-15 (PL-12) and Su-39 (AA-12) added; Mig-29S without AA-10C; only the Su-30SM2 carries the AA-13 (BMS 4.38.2, 1.3.0-beta.12)',
   cl('J-15') &&
     cl('J-15').m === 'PL-12' &&
     cl('Su-39') &&
     cl('Su-39').m === 'AA-12' &&
     !cl('Mig-29S').ms.includes('AA-10C') &&
-    CLASSES.every(c => !c.ms.includes('AA-13'))
+    CLASSES.filter(c => c.ms.includes('AA-13'))
+      .map(c => c.n)
+      .join() === 'Su-30SM2'
 );
 // knots and Mach: the same speed both ways, at any altitude
 ck(

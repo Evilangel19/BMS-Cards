@@ -79,10 +79,26 @@ if (fs.existsSync(q)) {
     campaignIni('ROLLING FIRE HARD', parseDtc(ct)) === ct
   );
 }
-const r2 = new URL('./fixtures/te/TE_BMS_03_F-16_DEAD.ini', import.meta.url);
+// the campaign ini files that came with the campaigns of the fixtures (written by BMS): each one comes back byte for byte
+for (const f of ['koreau2/KoreaU2.ini', 'psikorea/PSIKorea.ini', 'beartrap/PSI_BEAR_TRAP_26.ini']) {
+  const u = new URL('./fixtures/' + f, import.meta.url);
+  if (!fs.existsSync(u)) continue;
+  const ct = fs.readFileSync(u, 'latin1'),
+    title = (ct.match(/^title=(.*)$/m) || [])[1].replace(/\r$/, '');
+  // some files have the names padded with spaces (PSIKorea.ini: 'Not set' and 140 spaces); BMS reads them the same, the program writes them trimmed
+  const rt = t => t.replace(/ +\r\n/g, '\r\n'),
+    out = campaignIni(title, parseDtc(ct));
+  ok(
+    f +
+      ': the campaign ini comes back byte for byte' +
+      (out === ct ? '' : ' (the spaces at the end of the names aside)'),
+    out === ct || out === rt(ct)
+  );
+}
+const r2 = new URL('./fixtures/te/TE_BMS_04_F-16_DCA.ini', import.meta.url);
 if (fs.existsSync(r2)) {
   const tt = fs.readFileSync(r2, 'latin1');
-  ok('the second TE ini comes back byte for byte too', campaignIni('TE_BMS_03_F-16_DEAD', parseDtc(tt)) === tt);
+  ok('the second TE ini comes back byte for byte too', campaignIni('TE_BMS_04_F-16_DCA', parseDtc(tt)) === tt);
 }
 // the automatic functions (AUTO PPT, free slots) work on GROUPS: 15 PPT at most, ppt_15 and up are not read
 const full = parseDtc(

@@ -714,8 +714,10 @@ export function roeAgSet(b) {
 }
 function blockSet(field, fa) {
   if (!flightOn()) return false;
+  // the card is the reference (every change of this page goes on it at once): a flight chosen again, or a card rebuilt by a weather map or a date, has
+  // its ROE / SOP filled again without the block, while the page may still hold the choices of before
   const seen = R.box && ST.CURK === R.flightKey,
-    s = seen ? R.sel : flightSel(),
+    s = flightSel(),
     nx = capSel({ ...s, [field]: fa }); // the block lines are never cut: the last choices of the lists make room for them
   if (JSON.stringify(nx[field]) === JSON.stringify(cleanSel(s)[field])) return false;
   // the block comes from the page of the mission, not from the hand of the pilot: when the ROE / SOP of the card were not changed by hand, the new text

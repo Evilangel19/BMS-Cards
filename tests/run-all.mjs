@@ -24,7 +24,7 @@ const NEEDS = {
   'run-map.mjs': [BEAR, TABLES],
   'run-mission.mjs': [BEAR, TABLES],
   'run-squadron.mjs': [BEAR, TABLES],
-  'run-carriers.mjs': ['tests/fixtures/evilkorea/EvilKorea.cam', TABLES],
+  'run-carriers.mjs': ['tests/fixtures/psikorea/PSIKorea.cam', 'tests/fixtures/koreau2/KoreaU2.cam', TABLES],
   'run-parsers.mjs': ['tests/golden/parsers.json'],
 };
 const only = process.argv.slice(2);

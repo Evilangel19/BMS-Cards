@@ -39,6 +39,7 @@ CAM.setBase('2026-09-30'); // fixed date: ephemerides must be deterministic
 
 const sets = [
   { name: 'beartrap', cam: 'PSI_BEAR_TRAP_26.cam', fmap: 'PSI_BEAR_TRAP_26.fmap' },
+  { name: 'psikorea', cam: 'PSIKorea.cam', fmap: 'PSIKorea.fmap' },
   { name: 'evilkorea', cam: 'EvilKorea.cam', fmap: 'EvilKorea.fmap' },
 ].filter(s => has(s.name + '/' + s.cam) || skip(s.name + '/' + s.cam, 'the ' + s.name + ' cards'));
 
@@ -68,6 +69,7 @@ for (const s of sets) {
 const gp = path.join(root, 'tests', 'golden', 'golden.json');
 const cur = JSON.stringify(out, null, 1);
 if (update || !fs.existsSync(gp)) {
+  fs.mkdirSync(path.dirname(gp), { recursive: true });
   fs.writeFileSync(gp, cur + '\n');
   console.log(
     'golden written:',

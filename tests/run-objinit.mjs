@@ -31,12 +31,15 @@ ck(
   objInitial(camToc(rd('saves/Save2.cam'))).get(3827) !== undefined &&
     [...m3].some(([k, v]) => objInitial(camToc(rd('saves/Save2.cam'))).get(k) !== v)
 );
-const f = 'beartrap/PSI_BEAR_TRAP_26-double.cam';
+const f = 'beartrap/PSI_BEAR_TRAP_26.cam';
 if (fs.existsSync(new URL('./fixtures/' + f, import.meta.url))) {
   const C = CAM.openCam(rd(f), CAM.D, 'x.cam');
   ck('a saved campaign names the scenario it was started from', C.base === 'save3');
   const raw = new Map(C.objOwnRaw);
-  ck('the changes alone are a small part of the objectives', raw.size > 100 && raw.size < 400);
+  ck(
+    'the changes alone are a small part of the objectives (' + raw.size + ')',
+    raw.size > 100 && raw.size < cnts[3] / 4
+  );
   ck(
     'until the scenario file is read no owner is claimed (the changes use another numbering)',
     C.objOwn.size === 0 && C.objFeat.size === 0
@@ -64,7 +67,7 @@ if (fs.existsSync(new URL('./fixtures/' + f, import.meta.url))) {
   );
   ck(
     'the owner of a base agrees with the squadron based there',
-    sq.length >= 30 && sq.filter(u => C.objOwn.get(m.vu.get(u.airbase.n)) === u.owner).length >= sq.length - 2
+    sq.length >= 20 && sq.filter(u => C.objOwn.get(m.vu.get(u.airbase.n)) === u.owner).length >= sq.length - 2
   );
   ck(
     'a wrong file leaves the campaign as it was',

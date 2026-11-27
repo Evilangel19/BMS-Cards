@@ -12,37 +12,43 @@ const ok = (c, m) => {
   if (!c) bad++;
 };
 CAM.setBase('2026-09-30');
-const f = 'evilkorea/EvilKorea.cam',
-  C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
+// PSIKorea: the Vinson with its flights; KoreaU2: four ships, two of them called Wasp (the hull number picks one). The places are the ones of the file.
+const open = f => CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
+const C = open('psikorea/PSIKorea.cam'),
+  C2 = open('koreau2/KoreaU2.cam');
 const cv = carriers(C),
+  cv2 = carriers(C2),
   by = n => cv.find(r => r[1] == n);
 ok(
-  cv.length >= 3 && by('USS Carl Vinson') && by('TAKR Kuznetsov') && by('LHD-1 Wasp'),
-  'the ships that carry squadrons are found: ' + cv.map(r => r[1]).join(', ')
+  cv.length >= 2 && by('USS Carl Vinson') && by('TAKR Kuznetsov') && cv2.some(r => r[1] == 'LHD-1 Wasp'),
+  'the ships that carry squadrons are found: ' + cv.map(r => r[1]).join(', ') + ' / ' + cv2.map(r => r[1]).join(', ')
 );
+const V = by('USS Carl Vinson'),
+  vx = V.unit.x,
+  vy = V.unit.y;
+ok(V[2] == vx && V[3] == vy && vx > 0, 'the row takes the position of the ship, not 0,0');
+ok(carrierRadio(C, V).tcn == '10X' && carrierRadio(C, V).uhf == '270.200', 'TACAN 10X and UHF 270.200 of the Vinson');
 ok(
-  by('USS Carl Vinson')[2] == by('USS Carl Vinson').unit.x && by('USS Carl Vinson')[2] > 0,
-  'the row takes the position of the ship, not 0,0'
+  cv2.some(r => r[1] == 'LHD-1 Wasp') && !cv2.some(r => r[1] == 'LHD-2 Wasp'),
+  'two ships called Wasp: the hull number picks LHD-1'
 );
-ok(
-  carrierRadio(C, by('USS Carl Vinson')).tcn == '10X' && carrierRadio(C, by('USS Carl Vinson')).uhf == '270.200',
-  'TACAN 10X and UHF 270.200 of the Vinson'
-);
-ok(by('LHD-1 Wasp') && !cv.some(r => r[1] == 'LHD-2 Wasp'), 'two ships called Wasp: the hull number picks LHD-1');
 const A = buildAto(C, null),
   fromV = A.filter(e => e.base == 'USS Carl Vinson');
 ok(fromV.length >= 10, 'ATO: flights that leave the Vinson name it as their base (' + fromV.length + ')');
 ok(
-  carrierNear(C, 773, 107).row === by('USS Carl Vinson') && carrierNear(C, 700, 300) === null,
+  carrierNear(C, vx + 10, vy + 5).row === V && carrierNear(C, vx + 60, vy + 60) === null,
   'a ship counts as a base within 25 km only'
 );
-const a = nearAb(C, 773, 107);
+const a = nearAb(C, vx + 10, vy + 5);
 ok(
-  a === by('USS Carl Vinson') && tcnFor(C, a, C.D.ab[a[0]]) == '10 X',
+  a === V && tcnFor(C, a, C.D.ab[a[0]]) == '10 X',
   'the datacard side: same row every time, TACAN from the airbase row'
 );
 ok(
-  isShipBase(a) && isShipBase(by('LHD-1 Wasp')) && !isShipBase(['1', 'Osan AB']) && !isShipBase(null),
+  isShipBase(a) &&
+    isShipBase(cv2.find(r => r[1] == 'LHD-1 Wasp')) &&
+    !isShipBase(['1', 'Osan AB']) &&
+    !isShipBase(null),
   'a ship base is told from an airfield (no refusal speed from a ship)'
 );
 const F = CAM.fillCard(C, fromV[0].f);

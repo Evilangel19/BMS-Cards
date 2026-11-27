@@ -42,7 +42,7 @@ try:
         pg.click('[data-t=mp]'); pg.wait_for_timeout(500); pg.click('text=Datacard >> nth=0'); pg.wait_for_timeout(500)
         check('after another page the marks are still inside the card', pg.locator('#cvhl i').count() >= 5 and inside())
         check('the button is called MDC format', pg.inner_text('#mdctog') == 'MDC format')
-        check('the Datacard keeps its own cells (430 fields)', pg.evaluate("__app.FD.length") == 430)
+        nfd = pg.evaluate("__app.FD.length"); check("the Datacard keeps its own cells (%d fields; 432 since the VHF preset of 1.3.0-beta.85)" % nfd, nfd == 432)
         mk = pg.evaluate("[...new Set(__app.MFD.map(d=>d.k))]")
         need = ['cs', 'pkg', 'su0_2', 'matis', 'm1', 'm4', 'step', 'to_time', 'ld_time', 'airsp', 'ps0', 'ps9', 'nav0_2', 'fl0_0', 'fl0_c', 'fl5_s', 'fl3_5', 'fp0_st', 'fp14_11',
                 't0_4', 't2_4', 'dl0_fc', 'dl1_dn2', 'roe', 'gw', 'ref', 'srv', 'bingo', 'joker', 'rc0_0', 'rc7_7', 'xAD25', 'xAL57']

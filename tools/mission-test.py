@@ -61,7 +61,8 @@ try:
         pg.evaluate("async(t)=>__app.msfLoad(t)", msf); pg.wait_for_timeout(900)
         check('weapons data and map image restored', pg.evaluate("()=>__app.wpPage.state().mode=='toss'&&__app.msPage.state().mode=='bvr'&&!!__app.MAPSHOT&&__app.MAPSHOT.width==564"))
         after = pg.evaluate("()=>({f:{...__app.F}, fl:document.querySelector('#fsel').selectedOptions[0].textContent, man:[...__app.MANK]})")
-        keys = [k for k in before['f'] if isinstance(before['f'][k], str) and not k.startswith('__')]
+        # the ROE / SOP fields carry the A-G block of the page of the mission: the test sets TOSS after taking 'before', the mission opens with the TOSS block
+        keys = [k for k in before['f'] if isinstance(before['f'][k], str) and not k.startswith('__') and k not in ('roe', 'roesel', 'sop')]
         diff = [k for k in keys if before['f'][k] != after['f'].get(k)]
         check('the mission opens without the campaign: same flight, same datacard values', before['fl'] == after['fl'] and not diff)
         if diff: print('   differ:', diff[:8])

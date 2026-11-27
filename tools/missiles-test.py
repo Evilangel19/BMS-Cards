@@ -24,7 +24,7 @@ try:
         check('DTC Reset / Save / Copy are hidden on this tab', not pg.is_visible('#save') and not pg.is_visible('#saveow'))
         check('A-A > Timeline is the BVR page only (the HARM moved to A-G)', pg.is_visible('#ms') and pg.locator('#bvrtl .wtabs').count() == 0 and pg.locator('#ms select[data-pick=msl]').count() == 1)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(500); pg.click('#wp [data-mode=harm]'); pg.wait_for_timeout(700)
-        check('Weapons tab has Pop-up, HADB, TOSS and HARM; the Apply button is hidden on HARM', pg.locator('#wp .wtabs button').all_inner_texts() == ['Pop-up', 'HADB', 'TOSS', 'HARM'] and not pg.is_visible('#wpapply'))
+        check('the A-G tab has Pop-up, HADB, TOSS, HARM, TASMO and Target; the Apply button is hidden on HARM', pg.locator('#wp .wtabs button[data-mode]').all_inner_texts() == ['Pop-up', 'HADB', 'TOSS', 'HARM', 'TASMO', 'Target'] and not pg.is_visible('#wpapply'))
         has_ppt = pg.locator('select[data-pick=em] option').count() > 0 and 'no PPT' not in pg.locator('select[data-pick=em] option').first.inner_text()
         if not has_ppt:
             pg.evaluate("()=>{const l=__app.lines;}")
@@ -121,7 +121,7 @@ try:
         rowv = pg.evaluate("()=>{const g=t=>{const l=[...document.querySelectorAll('#form label')].find(x=>x.textContent===t);return l?l.parentElement.querySelector('input,select').value:null};return [g('BVR 2 Class'),g('BVR 2 MTR'),g('BVR 2 MAR'),g('BVR 2 DR'),g('BVR 2 DOR')]}")
         check('Datacard: choosing the aircraft fills MTR, MAR, DR and DOR of that row', rowv[0] == 'F-15C' and all(x and x.isdigit() for x in rowv[1:]) and not pg.is_visible('#chm'))
         pg.click('[data-t=ms]'); pg.click('#bvrtabs [data-bsub=tl]'); pg.wait_for_timeout(300)
-        check('The tab is called BVR (FAOR and Timeline under it)', pg.locator('button.tab[data-t=ms]').first.inner_text() == 'BVR')
+        check('The tab is called A-A (DCA, OCA and Timeline under it, 1.3)', pg.locator('button.tab[data-t=ms]').first.inner_text() == 'A-A')
         bv = pg.evaluate("()=>{const g=t=>{const l=[...document.querySelectorAll('#form label')].find(x=>x.textContent===t);return l?l.parentElement.querySelector('input,select').value:null};return [g('BVR 1 Class'),g('BVR 1 MAR'),g('BVR 1 DR'),g('BVR 1 DOR')]}")
         check('BVR timeline: the datacard BVR box is filled (class, MAR, DR, DOR)', bv[0] == 'Su-27' and all(x and x.isdigit() for x in bv[1:]) and int(bv[1]) < int(bv[2]) < int(bv[3]))
         if shots: pg.screenshot(path=shots + '/bvr.png')

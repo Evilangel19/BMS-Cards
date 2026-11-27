@@ -1,10 +1,10 @@
-"""Checks the loadout selector of the datacard: a flight whose aircraft carry different loadouts. Needs tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam (not in the repository). Usage: python3 tools/loadout-test.py"""
+"""Checks the loadout selector of the datacard: a flight whose aircraft carry different loadouts. Needs tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam (not in the repository). Usage: python3 tools/loadout-test.py"""
 import base64, subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fixtures import need
 
-need('tests/fixtures/beartrap/Evil19_2_.ini', 'tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam')
+need('tests/fixtures/beartrap/Evil19_2_.ini', 'tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8798', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
@@ -17,7 +17,7 @@ try:
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8798/app/index.html'); pg.wait_for_timeout(1000)
         pg.evaluate("t=>__app.parse(t)", open(FX + 'Evil19_2_.ini', encoding='latin1').read())
-        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26-double.cam', 'rb').read()).decode()); pg.wait_for_timeout(1200)
+        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()); pg.wait_for_timeout(1200)
         i = pg.evaluate("()=>[...document.querySelector('#fsel').options].findIndex(o=>/x4/.test(o.text))")
         pg.evaluate("i=>{const s=document.querySelector('#fsel');s.value=String(i);s.dispatchEvent(new Event('change'))}", i); pg.wait_for_timeout(2500)
         g = lambda ks: pg.evaluate("ks=>ks.map(k=>__app.F[k])", ks)

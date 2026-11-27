@@ -1,10 +1,10 @@
-"""Checks the Objects filters of the map (allied / enemy) and the radar of the fixed stations with the owners of the scenario file. Needs tests/fixtures/saves/Save3.cam and beartrap/PSI_BEAR_TRAP_26-double.cam. Usage: python3 tools/objects-test.py"""
+"""Checks the Objects filters of the map (allied / enemy) and the radar of the fixed stations with the owners of the scenario file. Needs tests/fixtures/saves/Save3.cam and beartrap/PSI_BEAR_TRAP_26.cam. Usage: python3 tools/objects-test.py"""
 import base64, subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fixtures import need
 
-need('tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam', 'tests/fixtures/saves/Save3.cam')
+need('tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam', 'tests/fixtures/saves/Save3.cam')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/'
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8796', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
@@ -17,7 +17,7 @@ try:
         br = p.chromium.launch(); pg = br.new_page(viewport={'width': 1500, 'height': 1000}, reduced_motion='reduce'); errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.goto('http://localhost:8796/app/index.html'); pg.wait_for_timeout(1000)
-        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", b64(FX + 'beartrap/PSI_BEAR_TRAP_26-double.cam')); pg.wait_for_timeout(1200)
+        pg.evaluate("async(b)=>{await __app.loadCam(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.cam'))}", b64(FX + 'beartrap/PSI_BEAR_TRAP_26.cam')); pg.wait_for_timeout(1200)
         n = pg.evaluate("b=>__app.initialOwners(Uint8Array.from(atob(b),c=>c.charCodeAt(0)))", b64(FX + 'saves/Save3.cam'))
         check('the scenario file gives the owner of every objective', n == 5999)
         # one objective of each kind: ours, an ally's, an enemy's, one nobody knows

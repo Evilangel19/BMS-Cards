@@ -1895,7 +1895,9 @@ export function createWeaponsPage(deps) {
     if (!ATK.includes(st.mode)) st.mode = ATK.includes(st.amode) ? st.amode : 'popup';
     try {
       compute();
-      if (!ctx || !ctx.t || !ctx.T.some(x => x.v === st.tgt)) return []; // no target chosen: the planner would take the first steerpoint
+      // a target chosen, or the first action steerpoint the page starts on (1.4.0-beta.41); not the first steerpoint of the route
+      if (!ctx || !ctx.t || !(ctx.T.some(x => x.v === st.tgt) || (ctx.t.act != null && !BASIC.includes(ctx.t.act))))
+        return [];
       const out = [];
       for (const D of atkCards()) {
         D.px = await snapPlan(D);
@@ -4311,7 +4313,11 @@ export function createWeaponsPage(deps) {
       try {
         st.mode = m;
         compute(true);
-        if (!res || res.error) deps.roeAg(agAttack(m, null, deps.night ? !!deps.night() : false));
+        // written now, not by the timer of compute: a compute with nothing new to draw does not start it, and the card of a flight chosen again
+        // (or rebuilt by a weather map or a date) is filled again without the block, which is no hand change (1.4.0-beta.42)
+        clearTimeout(roeT);
+        const ok = res && !res.error && res.an;
+        deps.roeAg(agAttack(m, ok && res.an.mra ? res.an.mra.value : null, deps.night ? !!deps.night() : false));
       } catch (e) {
         /* nothing to plan */
       } finally {

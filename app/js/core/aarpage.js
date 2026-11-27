@@ -35,6 +35,7 @@ import { SC_W, SC_H } from './smartcard.js';
 import { drawSmartAar } from './smartaar.js';
 import { drawAACard, aaBox, AAC_W, AAC_H } from './aacard.js';
 import { busyRun } from './busy.js';
+import { fmtLL } from './mapdata.js';
 import { drawLeaflet, toPx, toInk, snapMap, addCards, allOf } from './aakit.js';
 
 const COL = { trk: '#4aa3ff', me: '#3ddc84', anc: '#f0b040', ip: '#b07cff', stpt: '#8b98a8', tk: '#e6edf3' };
@@ -154,7 +155,10 @@ export function createAarPage(deps) {
     // with no time on the Refuel steerpoint the ±1 min of ATP-56 is to the push: the speed to the ARIP says it
     if (!ref) R.warn = R.warn.filter(x => !/^The ARCT is/.test(x[0]));
     R.from = from;
-    R.at = ref || X.wps[X.k];
+    // OA1 / OA2 go on the steerpoint the pilot goes to the tanker from: the Refuel steerpoint when it has a time, else the steerpoint chosen in Join after
+    // (BMS puts the Refuel steerpoint with no time after the landing: offsets on it pointed at the wrong place, and stayed there when Join after changed)
+    R.oaN = ref ? X.k + 1 : PU.n;
+    R.at = ref || pp;
     fuel();
   }
   // the fuel along the plan to the tanker, and after it; null without the aircraft data
@@ -367,7 +371,7 @@ export function createAarPage(deps) {
             S.turn
           )}</div>`
         : ''
-    }${slr('dist', S.mode == 'head' ? 'ARIP to the turn' : 'ARIP to the ARCP', DIST, S.dist, S.dist + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On the Refuel steerpoint ${X.k + 1}: OA1 = the ARCP (where you reach the tanker${S.mode == 'echo' ? ': the anchor' : ''}), OA2 = the ARIP (where the rendezvous starts), at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
+    }${slr('dist', S.mode == 'head' ? 'ARIP to the turn' : 'ARIP to the ARCP', DIST, S.dist, S.dist + ' NM')}<div class="wbtns"><button class="btn g" type="button" data-aroa${R ? '' : ' disabled'} title="On ${PU && !PU.fixed ? 'the Join after steerpoint ' + PU.n : 'the Refuel steerpoint ' + (X.k + 1)}: OA1 = the ARCP (where you reach the tanker${S.mode == 'echo' ? ': the anchor' : ''}), OA2 = the ARIP (where the rendezvous starts), at the join altitude">Write OA1 / OA2 in the DTC</button></div>${why ? `<p class="wbad">${esc(why)}</p>` : ''}`;
   }
   // the most the tanks take at the join; the Onload slider is red above it
   const maxOn = () => (FU ? Math.max(0, Math.round(FU.full - FU.fArct)) : Infinity);
@@ -633,9 +637,9 @@ export function createAarPage(deps) {
   // ---- OA1 / OA2 of the Refuel steerpoint
   async function writeOA() {
     if (!X || !X.ok || !R) return;
-    const n = X.k + 1,
+    const n = R.oaN,
       at = R.at;
-    if (n > 24) return deps.toast('OA1 / OA2: the Refuel steerpoint ' + n + ' is beyond the 24 of the DTC.', true);
+    if (n > 24) return deps.toast('OA1 / OA2: the steerpoint ' + n + ' is beyond the 24 of the DTC.', true);
     if (deps.dtc.open && !deps.dtc.open()) return deps.toast('No DTC: open one first.', true);
     if (!deps.dtc.has('NAV OFFSETS')) return deps.toast('This DTC has no NAV OFFSETS section.', true);
     const p1 = R.arcp,
@@ -645,7 +649,7 @@ export function createAarPage(deps) {
       txt = o => o.brg + '°, ' + o.nm.toFixed(1) + ' nm, ' + el + ' ft';
     if (
       !(await deps.confirm(
-        `Write on STPT ${n} (Refuel):\n\nOA1-${n} = the ARCP${S.mode == 'echo' ? ' (the anchor)' : ''}: ${txt(o1)}\nOA2-${n} = the ARIP: ${txt(o2)}`
+        `Write on STPT ${n} (${PU.fixed ? 'Refuel' : 'Join after'}):\n\nOA1-${n} = the ARCP${S.mode == 'echo' ? ' (the anchor)' : ''}: ${txt(o1)}\nOA2-${n} = the ARIP: ${txt(o2)}`
       ))
     )
       return;
@@ -653,6 +657,40 @@ export function createAarPage(deps) {
     deps.dtc.setOA('OA2-' + n, [o2.brg, o2.rngFt, el].join(','));
     deps.toast('OA1 and OA2 of STPT ' + n + ' written to the DTC.');
   }
+
+  // the points of the rendezvous for the cards: ARIP, ARCP and the anchor of the track (lat / long), and OA1 / OA2 from the steerpoint they go on
+  // (the values Write OA1 / OA2 puts in the DTC)
+  function pointsOf() {
+    const ll = p => deps.toLL(p.x, p.y),
+      el = joinAlt(),
+      o1 = offset(R.at, R.arcp),
+      o2 = offset(R.at, R.arip),
+      oa = o => String(o.brg).padStart(3, '0') + '° ' + o.nm.toFixed(1) + ' NM ' + fmt(el) + ' FT';
+    return {
+      arip: ll(R.arip),
+      arcp: ll(R.arcp),
+      anchor: ll(R.anchor),
+      same: Math.hypot(R.arcp.x - R.anchor.x, R.arcp.y - R.anchor.y) < 0.1, // RV ECHO: the ARCP is the anchor
+      n: R.oaN,
+      oa1: oa(o1),
+      oa2: oa(o2),
+      o1: String(o1.brg).padStart(3, '0') + '°/' + o1.nm.toFixed(1),
+      o2: String(o2.brg).padStart(3, '0') + '°/' + o2.nm.toFixed(1),
+    };
+  }
+  // N37°05.00 E127°01.00: degrees and minutes to the hundredth (the Smart card, monospaced and narrow)
+  const dm = (v, pz, ng, w) => {
+    const sg = v >= 0 ? pz : ng;
+    v = Math.abs(v);
+    let d = Math.floor(v),
+      m = Math.round((v - d) * 6000) / 100;
+    if (m >= 60) {
+      d++;
+      m = 0;
+    }
+    return sg + String(d).padStart(w, '0') + '°' + m.toFixed(2).padStart(5, '0');
+  };
+  const llShort = c => dm(c[0], 'N', 'S', 2) + ' ' + dm(c[1], 'E', 'W', 3);
 
   // ---- the cards
   function smartData() {
@@ -716,6 +754,14 @@ export function createAarPage(deps) {
               : ['TANKER ' + R.gap.toFixed(1) + 'NM AHEAD AT ARIP', 'OVERTAKE ' + OVERTAKE + 'KT · 10KT/1000FT']),
           ],
         ],
+        (P => [
+          'POINTS · OA ON STPT ' + P.n + ' · ' + flOf(joinAlt()),
+          [
+            'ARIP ' + llShort(P.arip),
+            ...(P.same ? ['ARCP/ANCH ' + llShort(P.arcp)] : ['ARCP ' + llShort(P.arcp), 'ANCH ' + llShort(P.anchor)]),
+            'OA1 ' + P.o1 + ' OA2 ' + P.o2,
+          ],
+        ])(pointsOf()),
         [
           m == 'probe' ? 'PROBE' : 'BOOM',
           m == 'probe'
@@ -731,7 +777,8 @@ export function createAarPage(deps) {
     const t = tk(),
       m = method(),
       jb = FU && FU.jb,
-      n = X.k + 1;
+      n = X.k + 1,
+      P = pointsOf();
     return {
       head: 'AAR · ' + (m == 'probe' ? 'PROBE' : 'BOOM') + ' · ' + MODE[S.mode],
       rowsHead: 'TANKER · TIMES · FUEL',
@@ -767,8 +814,11 @@ export function createAarPage(deps) {
         ['UHF', t.uhf || '--'],
         ['TRACK', flOf(T.alt) + ' · ' + T.kcas + ' KCAS · ' + Math.round(T.leg) + ' NM'],
         ['ON STATION', t.win || '--'],
-        ['ARIP · OA2', hm(R.tip)],
-        ['ARCP · OA1', hm(R.arct) + (S.mode == 'echo' ? ' · the anchor' : '')],
+        ['ARIP · OA2', hm(R.tip) + ' · ' + fmtLL(...P.arip)],
+        ['ARCP · OA1', hm(R.arct) + ' · ' + fmtLL(...P.arcp)],
+        ['ANCHOR', fmtLL(...P.anchor)],
+        ['OA1 · STPT ' + P.n, P.oa1],
+        ['OA2 · STPT ' + P.n, P.oa2],
         ...(R.turn
           ? [['TURN', hm(R.turn.t) + ' · ' + R.turn.range.toFixed(0) + ' NM · ' + R.turn.clock + " o'clock"]]
           : []),
