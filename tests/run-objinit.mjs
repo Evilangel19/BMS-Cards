@@ -12,17 +12,15 @@ if (!fs.existsSync(new URL('./fixtures/saves/Save3.cam', import.meta.url))) {
   console.log('skipped (fixtures/saves missing)');
   process.exit(0);
 }
-for (const [n, cnt] of [
-  [0, 5999],
-  [1, 5999],
-  [2, 5999],
-  [3, 5999],
-  [4, 5999],
-  [5, 2730],
-]) {
+// Save0-4 are the same theater (Korea, all the objectives), Save5 a smaller scenario: the count is the one of the file (objInitial gives null unless the
+// section ends exactly after the number of objectives its header gives). The number depends on the files: 5999 or 5998 (the scenario files of one
+// install hold one less than its CampObjData.XML).
+const cnts = [0, 1, 2, 3, 4, 5].map(n => {
   const m = objInitial(camToc(rd('saves/Save' + n + '.cam')));
-  ck('Save' + n + ': ' + cnt + ' objectives read, the section ends exactly', m && m.size === cnt);
-}
+  ck('Save' + n + ': ' + (m ? m.size : 'no') + ' objectives read, the section ends exactly', m && m.size > 1000);
+  return m ? m.size : 0;
+});
+ck('Save0-4 hold the same objectives, Save5 fewer', cnts.slice(0, 5).every(c => c === cnts[0]) && cnts[5] < cnts[0]);
 const m3 = objInitial(camToc(rd('saves/Save3.cam')));
 ck(
   'every owner is a team number (0-7)',
@@ -49,7 +47,10 @@ if (fs.existsSync(new URL('./fixtures/' + f, import.meta.url))) {
     [...raw.keys()].every(k => m.vu.has(k))
   );
   const n = CAM.initialOwners(C, rd('saves/Save3.cam'));
-  ck('the initial owners are merged: every objective has one, by campaign id', n === 5999 && C.objOwn.size === 5999);
+  ck(
+    'the initial owners are merged: every objective has one, by campaign id',
+    n === cnts[3] && C.objOwn.size === cnts[3]
+  );
   ck(
     'the changes of the campaign win over the initial owners (turned into campaign ids)',
     [...raw].every(([k, v]) => C.objOwn.get(m.vu.get(k)) === v)
@@ -67,7 +68,7 @@ if (fs.existsSync(new URL('./fixtures/' + f, import.meta.url))) {
   );
   ck(
     'a wrong file leaves the campaign as it was',
-    CAM.initialOwners(C, new Uint8Array(100)) === 0 && C.objOwn.size === 5999
+    CAM.initialOwners(C, new Uint8Array(100)) === 0 && C.objOwn.size === cnts[3]
   );
 }
 // EvilKorea (started from Save1): objectives named by the theater files (campaign id) get the owner of the place where they are

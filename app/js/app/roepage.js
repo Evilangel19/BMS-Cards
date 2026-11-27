@@ -718,12 +718,23 @@ function blockSet(field, fa) {
     s = seen ? R.sel : flightSel(),
     nx = capSel({ ...s, [field]: fa }); // the block lines are never cut: the last choices of the lists make room for them
   if (JSON.stringify(nx[field]) === JSON.stringify(cleanSel(s)[field])) return false;
+  // the block comes from the page of the mission, not from the hand of the pilot: when the ROE / SOP of the card were not changed by hand, the new text
+  // is the automatic one (ST.AUTO), so it is no hand change (a weather map or a date loaded after a flight was chosen asked to discard changes nobody made)
+  const ROEK = ['roesel', 'roe', 'sop'],
+    wasMan = !ST.AUTO || ROEK.some(k => ST.MANK.has(k) && (F[k] || '') !== (ST.AUTO[k] || ''));
   if (seen) {
     R.sel = nx;
     writeCard();
     if (R.box.isConnected && !R.box.closest('.hide')) render();
     else R.stale = true; // drawn when the page is shown (roeDraw)
   } else writeCard(nx);
+  if (!wasMan) {
+    ROEK.forEach(k => {
+      ST.AUTO[k] = F[k];
+      ST.MANK.delete(k);
+    });
+    markMan();
+  }
   return true;
 }
 // the data of the Smart ROE / SOP card for the flight now (the combined Smart cards take their ROE / SOP part from it): null when nothing is chosen

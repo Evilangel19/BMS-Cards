@@ -1,6 +1,10 @@
 """Tactical Engagement (.tac) and training mission (.trn, the same format, with its own DTC): separate menu next to the campaign menu, handled like a campaign. Uses a fake BMS folder with Data/Campaign. Usage: python3 tools/te-test.py"""
 import sys, os, subprocess, time, json, shutil, tempfile
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/te/TE_BMS_03_F-16_DEAD.tac', 'tests/fixtures/evilkorea')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/'
 BMS = tempfile.mkdtemp(); camp = BMS + '/Data/Campaign'; os.makedirs(camp); os.makedirs(BMS + '/User/Config')

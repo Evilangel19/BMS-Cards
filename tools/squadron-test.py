@@ -1,6 +1,10 @@
 """Checks the Squadron tab: the logbook, and a session between two browsers (leader and pilot) with the code swap and the mission sent. Usage: python3 tools/squadron-test.py"""
 import subprocess, sys, time, os, tempfile, asyncio, threading, json, zlib, struct
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need_module
+
+need_module('websockets')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8731', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)
 ok = True

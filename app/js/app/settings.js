@@ -79,6 +79,10 @@ const SW_OF = {
 };
 let LAST = 'folders'; // the section shown the last time
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// Mission radius: the default of config.js (60 NM) is the value tested with whole packages (tests/run-mission.mjs: every datacard the same after the trip
+// through the file). Under it the mission still opens, but the targets of the other flights of the package can be left out (their names lost on the card).
+const RAD_OK = 60;
+const radLow = r => r !== '' && r != null && +r < RAD_OK;
 
 // What the pilot has typed or switched, as plain values (the same shape for the values at the start, to see what changed)
 function readForm(dlg) {
@@ -339,7 +343,14 @@ export async function openSettings() {
     ic('up') +
     '</button><button type="button" aria-label="Decrease" data-a="step" data-d="-1">' +
     ic('down') +
-    '</button></span><span style="color:var(--mu)">NM</span></div></div></div>' +
+    '</button></span><span style="color:var(--mu)">NM</span></div></div>' +
+    '<div class="s-xp' +
+    (radLow(C.mission && C.mission.radiusNm != null ? C.mission.radiusNm : 60) ? ' open' : '') +
+    '" id="radbox"><div><p class="s-radw">' +
+    ic('warn', 's') +
+    'Less than ' +
+    RAD_OK +
+    ' NM: the mission works. A very low value can remove the targets of the other flights of the package from the mission.</p></div></div></div>' +
     '<h3 class="s-gt">Squadron</h3><div class="s-gp">' +
     sw(
       'rulesEdit',
@@ -443,6 +454,7 @@ export async function openSettings() {
       note.classList.add('wn');
       note.textContent = 'Restart BMS Cards to use the imported data.';
     } else note.textContent = '';
+    q('radbox').classList.toggle('open', radLow(v.radius));
     q('cfgsave').disabled = !any || loading || busy || !!(rs && rs.cfg);
     q('cfgsave').title = rs && rs.cfg ? 'The settings were imported: restart BMS Cards first.' : '';
     q('cfgcancel').textContent = any ? 'Cancel' : 'Close';

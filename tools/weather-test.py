@@ -19,6 +19,8 @@ try:
         pg.click('[data-t=wx]'); pg.wait_for_timeout(300)
         check('without a map the page says so', 'No weather map yet' in pg.inner_text('#wx'))
         pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b64('PSI_BEAR_TRAP_26.cam')); pg.wait_for_timeout(800)
+        pg.wait_for_timeout(700)  # the A-G or A-A block of the ROE comes from the page of the mission a moment after the flight is chosen
+        check('the automatic ROE block is no hand change (loading the weather asks nothing)', not pg.evaluate("async()=>(await import('/app/js/app/selection.js')).hasMan()"))
         pg.evaluate("async(b)=>{await __app.loadFmap(new File([Uint8Array.from(atob(b),c=>c.charCodeAt(0))],'x.fmap'))}", b64('PSI_BEAR_TRAP_26.fmap')); pg.wait_for_timeout(700)
         pg.click('[data-t=kb]'); pg.wait_for_timeout(500)
         # the hourly maps of the flight: the campaign map stands for each hour

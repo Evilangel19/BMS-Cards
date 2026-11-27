@@ -1,6 +1,10 @@
 """Checks the loadout selector of the datacard: a flight whose aircraft carry different loadouts. Needs tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam (not in the repository). Usage: python3 tools/loadout-test.py"""
 import base64, subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini', 'tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8798', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)

@@ -41,12 +41,12 @@ try:
         click_tpl(d2['x'] + d2['w'] / 2, d2['y'])
         check('clicking another cell commits and opens it', pg.evaluate("()=>__app.F.fp3_5") == '30000' and 'Alt' in pg.inner_text('#ed .l'))
         pg.keyboard.press('Escape')
-        # multi-line field
-        r = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='roe');return {x:d.x,w:d.w}}")
-        click_tpl(r['x'] + r['w'] / 2, 940)
+        # multi-line field: the notes (the ROE / SOP boxes open the page Squadron > ROE / SOP since 1.2.0-beta.19)
+        r = pg.evaluate("()=>{const d=__app.FD.find(z=>z.k=='free');return {x:d.x,w:d.w,y:d.y}}")
+        click_tpl(r['x'] + r['w'] / 2, r['y'] + 20)
         check('multi-line editor is a textarea', pg.evaluate("()=>!!document.querySelector('#ed textarea')"))
         pg.keyboard.type('line one'); pg.keyboard.press('Shift+Enter'); pg.keyboard.type('line two'); pg.keyboard.press('Enter')
-        check('Shift+Enter makes a new line, Enter commits', pg.evaluate("()=>__app.F.roe") == 'line one\nline two')
+        check('Shift+Enter makes a new line, Enter commits', pg.evaluate("()=>__app.F.free").endswith('line one\nline two'))
         # form toggle
         pg.evaluate('()=>__app.toggleForm()'); check('toggle shows the form', pg.is_visible('#form'))
         check('form shows the edited value', pg.evaluate("()=>__app.FD.find(z=>z.k=='fp3_5').el.value") == '30000')

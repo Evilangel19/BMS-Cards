@@ -4,6 +4,9 @@ src-tauri/capabilities: a write the program is not allowed to do fails as in the
 imported again into a third folder, a second import does not harm, and the wrong choices (this folder itself, an empty folder, a file that is not a zip) are said.
 Usage: python3 tools/import-test.py"""
 import hashlib, io, json, os, subprocess, sys, time, zipfile
+from fixtures import need_tag
+
+need_tag('v1.0.0')
 HERE = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 from playwright.sync_api import sync_playwright

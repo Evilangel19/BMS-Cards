@@ -1,7 +1,9 @@
 // ATO checks: every flight of the campaign is listed, missions are named, team relations are read from the .tea block.
 import fs from 'node:fs';
 import { CAM } from '../app/js/core/cam-core.js';
-import { buildAto, groupPackages } from '../app/js/core/ato.js';
+import { buildAto, groupPackages, playerPick } from '../app/js/core/ato.js';
+import { has, skip } from './fixture.mjs';
+const EK = has('evilkorea/EvilKorea.cam') || skip('evilkorea/EvilKorea.cam', 'the EvilKorea checks');
 let n = 0,
   bad = 0;
 const ck = (name, ok) => {
@@ -11,7 +13,7 @@ const ck = (name, ok) => {
     console.log('FAIL', name);
   }
 };
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   const flights = C.units.filter(u => u.kind == 'flight' && u.wps.length);
   ck(f + ' file version known to the reader (' + C.ver + ')', C.ver >= 1 && C.ver <= CAM.CAM_VER_MAX);
@@ -30,9 +32,20 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
     flights.every(u => u.pslots && u.pslots.length == 4)
   );
   ck(
-    f + ' the flight of the player is one at most, of the player squadron',
-    pl.length <= 1 && pl.every(u => u.sqd.n == C.playerSq)
+    f + ' the flights marked with a player are of the player squadron',
+    pl.every(u => u.sqd.n == C.playerSq)
   );
+  if (pl.length > 1) {
+    const p = playerPick(
+        flights.map(f => ({ f })),
+        C.now
+      ),
+      end = u => Math.max(...u.wps.map(w => w.arr));
+    ck(
+      f + ' of several flights marked with a player, one still to fly is chosen, not one already landed',
+      p && (end(p.f) >= C.now || pl.every(u => end(u) < C.now))
+    );
+  }
   ck(
     f + ' OCA STRIKE is Offensive Counter Air',
     A.filter(e => e.mission === 'OCA STRIKE').every(e => e.cat === 'Offensive Counter Air')
@@ -68,7 +81,7 @@ for (const [nm, he] of [
   ['MiG-31', 0],
 ])
   ck('helicopter ' + nm, CAM.isHeli(nm) === !!he);
-{
+if (EK) {
   const C = CAM.openCam(
     new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
     CAM.D,
@@ -91,7 +104,7 @@ for (const [nm, he] of [
   );
 }
 // package mission = its first element; categories as in BMS
-{
+if (EK) {
   const C = CAM.openCam(
     new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
     CAM.D,
@@ -118,7 +131,7 @@ for (const [nm, he] of [
   ])
     ck('category of ' + m, categoryOf(m) === c);
 }
-{
+if (EK) {
   const C = CAM.openCam(
     new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
     CAM.D,

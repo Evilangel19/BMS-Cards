@@ -45,7 +45,9 @@ try:
         pg.click('[data-t=kb]'); pg.wait_for_timeout(200)
         n0 = len(reqs); settings(False, 'http://localhost:%d/faketiles/{z}/{y}/{x}.png?k={key}' % PORT, 'ABC', 'Test Credit', '16')
         pg.click('[data-t=mp]'); pg.wait_for_timeout(1500)
-        check('off again: back to EOX', any('eox.at' in u for u in reqs[n0:]) and 'Satellite (online)' in (pg.click('#mpbaseb'), pg.wait_for_timeout(250), pg.inner_text('#mpbase'))[2])
+        # the tiles of EOX may come from the cache of the browser (no new request): the tiles shown on the map are checked
+        tiles = pg.evaluate("()=>[...document.querySelectorAll('#mpmap img.leaflet-tile')].map(i=>i.src)")
+        check('off again: back to EOX', tiles and all('eox.at' in u for u in tiles) and 'Satellite (online)' in (pg.click('#mpbaseb'), pg.wait_for_timeout(250), pg.inner_text('#mpbase'))[2])
         open_map()
         check('the tile address, key, credit and zoom rows are hidden until the switch is on', not pg.locator('#c-url').is_visible())
         pg.click('[data-a=sw][data-k=sat]'); pg.wait_for_timeout(350); check('on: they appear', pg.locator('#c-url').is_visible() and pg.locator('#c-zoom').is_visible())

@@ -3,6 +3,10 @@ Measures: time until every pilot is linked with every other, until every roster 
 Usage: python3 tools/squadron-scale-test.py [pilots=24] [pages=2] [avatar_chars=9000] [mission_chars=1000000] [root=<dir of the program>]"""
 import asyncio, json, os, random, subprocess, sys, threading, time
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need_module
+
+need_module('websockets')
 N = int(sys.argv[1]) if len(sys.argv) > 1 else 24
 H = int(sys.argv[2]) if len(sys.argv) > 2 else 2
 AV = int(sys.argv[3]) if len(sys.argv) > 3 else 9000

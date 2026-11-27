@@ -1,6 +1,10 @@
 """Checks 0.9.7: primary / secondary menu on the card, received missions keep the sender's card, names near precision targets. Usage: python3 tools/datacardpick-test.py"""
 import base64, subprocess, sys, time, os, json
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 b64 = lambda n: base64.b64encode(open(FX + n, 'rb').read()).decode()

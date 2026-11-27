@@ -6,17 +6,25 @@ import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+// The BMS files a test cannot start without (a test skips by itself the parts whose other files are missing: tests/fixture.mjs). The tables of the game
+// (app/js/data/local/index.js) are made from the BMS files of the developer: without them a campaign is read with no entity types.
+const TABLES = 'app/js/data/local/index.js',
+  BEAR = 'tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam';
 const NEEDS = {
   'run-airmissile.mjs': ['app/js/data/local/missilefallback.js'],
   'run-airperf.mjs': ['app/js/data/local/acfallback.js'],
   'run-bombdata.mjs': ['app/js/data/local/bombfallback.js'],
-  'run-missiledata.mjs': ['tests/fixtures/misdata/AGM-88.dat'],
-  'run-ato.mjs': ['tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'],
-  'run-golden.mjs': ['tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'],
-  'run-map.mjs': ['tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'],
-  'run-mission.mjs': ['tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'],
-  'run-squadron.mjs': ['tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam'],
-  'run-carriers.mjs': ['tests/fixtures/evilkorea/EvilKorea.cam'],
+  'run-missiledata.mjs': [
+    'tests/fixtures/misdata/AGM-88.dat',
+    'tests/fixtures/misdata/MisTypes.lst',
+    'tests/fixtures/misdata/Lofttables/AIM120.txt',
+  ],
+  'run-ato.mjs': [BEAR, TABLES],
+  'run-golden.mjs': [BEAR, TABLES, 'tests/golden/golden.json'],
+  'run-map.mjs': [BEAR, TABLES],
+  'run-mission.mjs': [BEAR, TABLES],
+  'run-squadron.mjs': [BEAR, TABLES],
+  'run-carriers.mjs': ['tests/fixtures/evilkorea/EvilKorea.cam', TABLES],
   'run-parsers.mjs': ['tests/golden/parsers.json'],
 };
 const only = process.argv.slice(2);

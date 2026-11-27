@@ -1,6 +1,10 @@
 """Checks the Weapons page (pop-up calculator). Usage: python3 tools/weapons-test.py [screenshot_dir]"""
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 shots = sys.argv[1] if len(sys.argv) > 1 else None

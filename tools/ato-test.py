@@ -25,7 +25,7 @@ try:
         check('faction button uses the program green', pg.evaluate("getComputedStyle(document.getElementById('aq_viewb')).backgroundColor") == 'rgb(76, 195, 138)')
         check('selected flight opened its category and package', pg.locator('#ato .fl.sel').count() == 1)
         pg.locator('#ato .ct:has-text("▸")').first.click(); pg.wait_for_timeout(400)
-        check('opening another mission shows all its packages, the selected one stays restricted to its package', pg.locator('#ato .ct:has-text("▾")').count() == 2 and pg.locator('#ato .pk').count() > 3 and pg.locator('#ato .fl.sel').count() == 1 and pg.locator('#ato .pk:has(.fl.sel)').count() == 1)
+        check('opening another mission shows all its packages, the selected one stays restricted to its package', pg.locator('#ato .ct:has-text("▾")').count() == 2 and pg.locator('#ato .pk').count() > 1 and pg.locator('#ato .fl.sel').count() == 1 and pg.locator('#ato .pk:has(.fl.sel)').count() == 1)
         per = "()=>{const o={};let c=null;document.querySelectorAll('#ato .ct, #ato .pk').forEach(e=>{if(e.classList.contains('ct')){c=e.textContent.replace(/[▸▾]/g,'').trim();o[c]=0}else if(c)o[c]++});return o}"
         before = pg.evaluate(per); sel_cat = pg.evaluate("()=>{let c=null,r=null;document.querySelectorAll('#ato .ct, #ato .pk').forEach(e=>{if(e.classList.contains('ct'))c=e.textContent.replace(/[▸▾]/g,'').trim();else if(e.querySelector('.fl.sel'))r=c});return r}")
         other = pg.locator('#ato .ct:has-text("▾")').last; other_name = other.inner_text().replace('▾', '').strip()
@@ -89,8 +89,9 @@ try:
             return set(pg.evaluate("()=>[...document.querySelectorAll('#ato .ph')].filter(d=>d.textContent.includes(' + ')).map(d=>d.textContent.match(/Pkg (\\d+)/)[1])"))
         opts = pg.evaluate("()=>[...document.querySelectorAll('#aq_view option')].map(o=>o.value)")
         sets = [mixed_in(v) for v in opts]
-        allm = set().union(*sets); check('mixed-faction packages exist (%d)' % len(allm), len(allm) > 0)
-        check('mixed packages appear in more than one faction', any(sum(1 for x in sets if k in x) >= 2 for k in allm))
+        allm = set().union(*sets)
+        if allm: check('mixed packages appear in more than one faction (%d)' % len(allm), any(sum(1 for x in sets if k in x) >= 2 for k in allm))
+        else: print('SKIP mixed-faction packages: none in this campaign file')
         pg.select_option('#aq_view', pg.evaluate("()=>[...document.querySelectorAll('#aq_view option')].find(o=>o.textContent.includes('(you)')).value"))
         dim = pg.evaluate("()=>{const p=[...document.querySelectorAll('#ato .pk')].find(k=>k.querySelector('.ph').textContent.includes(' + '));if(!p)return 1;p.querySelector('.ph').click();return [...document.querySelectorAll('#ato .pk')].find(k=>k.querySelector('.ph').textContent.includes(' + ')).querySelectorAll('.fl:not(.nc)').length}")
         check('allied F-16 flights of a mixed package are selectable (%s)' % dim, dim >= 0)

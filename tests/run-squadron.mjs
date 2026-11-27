@@ -1,5 +1,6 @@
 // Squadron: the logbook (.lbk) cipher and the codes of the peer-to-peer link
 import { lbkChoices, decodeLbk, encodeLbk, parseLbk, zip, unzip, pack, unpack } from '../app/js/core/squadron.js';
+import { has, skip } from './fixture.mjs';
 let ok = true;
 const ck = (n, c) => {
   ok &&= !!c;
@@ -169,35 +170,32 @@ ck(
   'real logbook Evil19: name, callsign, squadron, motto',
   ev.name == 'Chris' && ev.callsign == 'Evil19' && ev.squadron == 'Diavoli Rossi' && ev.motto == 'Per Aspera ad Astra'
 );
+// The numbers of a logbook and of a squadron change with every flight: they are compared with tests/fixtures/expect.json (gitignored, written for the
+// files of the fixtures and checked against the logbook editor of BMS) when it is there; without it only their shape is checked.
+const EXP = has('expect.json')
+  ? JSON.parse(fs.readFileSync(new URL('./fixtures/expect.json', import.meta.url), 'utf8'))
+  : null;
+const nat = v => Number.isInteger(v) && v >= 0;
 ck(
-  'real logbook: hours 219.3, ace factor 1.893, 127 missions, score 598, last mission 487',
-  Math.abs(t.hours - 219.3) < 0.05 &&
-    Math.abs(t.ace - 1.893) < 0.001 &&
-    t.missions == 127 &&
-    t.score == 598 &&
-    t.lastMission == 487
+  'real logbook: hours, ace factor, missions, score, kills, rank, campaigns, dogfights are read as numbers',
+  t.hours > 0 &&
+    t.ace > 0 &&
+    [t.missions, t.score, t.lastMission, t.aa, t.ag, t.st, t.nav, ...t.campaigns, ...Object.values(t.dog)].every(nat) &&
+    !!SQ.RANKS[t.rank] &&
+    /^\d\d\/\d\d\/\d\d$/.test(t.commissioned)
 );
-ck(
-  'real logbook: kills A-A 41, A-G 553, static 67, naval 1; rank Maj; campaigns 3/0/0; commissioned 07/09/25',
-  t.aa == 41 &&
-    t.ag == 553 &&
-    t.st == 67 &&
-    t.nav == 1 &&
-    SQ.RANKS[t.rank] == 'Maj' &&
-    t.campaigns.join('/') == '3/0/0' &&
-    t.commissioned == '07/09/25'
-);
-ck(
-  'real logbook: dogfight 23/6, online 1/6, kills 206/85, online 8/12',
-  t.dog.won == 23 &&
-    t.dog.lost == 6 &&
-    t.dog.onWon == 1 &&
-    t.dog.onLost == 6 &&
-    t.dog.kills == 206 &&
-    t.dog.deaths == 85 &&
-    t.dog.onKills == 8 &&
-    t.dog.onDeaths == 12
-);
+if (EXP && EXP.lbk) {
+  const e = EXP.lbk;
+  ck(
+    'real logbook: the values of expect.json (hours ' + e.hours + ', ' + e.missions + ' missions, A-G ' + e.ag + ')',
+    Math.abs(t.hours - e.hours) < 0.05 &&
+      Math.abs(t.ace - e.ace) < 0.001 &&
+      ['missions', 'score', 'lastMission', 'aa', 'ag', 'st', 'nav', 'commissioned'].every(k => t[k] === e[k]) &&
+      SQ.RANKS[t.rank] == e.rank &&
+      t.campaigns.join('/') == e.campaigns &&
+      JSON.stringify(t.dog) == JSON.stringify(e.dog)
+  );
+} else skip('expect.json', 'the values of the real logbook');
 const pb = SQ.parsePhoneBook(fs.readFileSync(new URL('./fixtures/squadron/PhoneBkn.ini', import.meta.url), 'utf8'));
 ck(
   'phone book: one server with address, voice host and bandwidth',
@@ -214,10 +212,23 @@ ck(
 );
 const mine = C.units.find(u => u.kind == 'sqd' && u.id.n == C.playerSq);
 ck(
-  'squadron record: missions flown 18, aircraft losses 15, pilot losses 0 (this save)',
-  mine.sqs && mine.sqs.missions == 18 && mine.sqs.acLoss == 15 && mine.sqs.pilotLoss == 0
+  'squadron record: missions flown, aircraft and pilot losses are read',
+  mine.sqs && [mine.sqs.missions, mine.sqs.acLoss, mine.sqs.pilotLoss].every(nat) && mine.sqs.missions > 0
 );
-ck('campaignSquadrons carries the record and the number of pilots', cs[0].sqs.missions == 18 && cs[0].pilotsN == 48);
+ck(
+  'campaignSquadrons carries the record and the number of pilots',
+  cs[0].sqs.missions == mine.sqs.missions && cs[0].pilotsN > 0
+);
+if (EXP && EXP.beartrapSqd) {
+  const e = EXP.beartrapSqd;
+  ck(
+    'squadron record: the values of expect.json (' + e.missions + ' missions, ' + e.acLoss + ' aircraft lost)',
+    mine.sqs.missions == e.missions &&
+      mine.sqs.acLoss == e.acLoss &&
+      mine.sqs.pilotLoss == e.pilotLoss &&
+      cs[0].pilotsN == e.pilotsN
+  );
+}
 ck(
   'okImg accepts small webp/png/jpeg data URLs only',
   SQ.okImg('data:image/png;base64,iVBORw0KGgo=') &&

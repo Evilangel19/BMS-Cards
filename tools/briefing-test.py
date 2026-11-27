@@ -2,6 +2,9 @@
 the cursor, the pen, the view of the briefer, the kneeboard card and the closing of the room reach the other side. No BMS files. Usage: python3 tools/briefing-test.py"""
 import subprocess, sys, time, os, asyncio, threading, json
 from playwright.sync_api import sync_playwright
+from fixtures import need_module
+
+need_module('websockets')
 HERE = os.path.dirname(os.path.abspath(__file__)); R = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 PORT, TPORT = 8951, 8955

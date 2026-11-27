@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { has, skip } from './fixture.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const update = process.argv.includes('--update');
@@ -39,7 +40,7 @@ CAM.setBase('2026-09-30'); // fixed date: ephemerides must be deterministic
 const sets = [
   { name: 'beartrap', cam: 'PSI_BEAR_TRAP_26.cam', fmap: 'PSI_BEAR_TRAP_26.fmap' },
   { name: 'evilkorea', cam: 'EvilKorea.cam', fmap: 'EvilKorea.fmap' },
-];
+].filter(s => has(s.name + '/' + s.cam) || skip(s.name + '/' + s.cam, 'the ' + s.name + ' cards'));
 
 const out = {};
 for (const s of sets) {

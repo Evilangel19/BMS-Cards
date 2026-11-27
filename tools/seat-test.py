@@ -3,6 +3,9 @@ the laser code of the DTC and the B. CODE from the CONF-LSR of the seat, the IFF
 is opened, the buttons of the other flights of the package, the standard menu of the Name cell, the animations. Usage: python3 tools/seat-test.py [screenshot_dir]"""
 import subprocess, sys, time, os, base64, json
 from playwright.sync_api import sync_playwright
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, R + '/tools')
 import dialogs

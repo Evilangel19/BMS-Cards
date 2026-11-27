@@ -1,6 +1,10 @@
 """Checks the Objects filters of the map (allied / enemy) and the radar of the fixed stations with the owners of the scenario file. Needs tests/fixtures/saves/Save3.cam and beartrap/PSI_BEAR_TRAP_26-double.cam. Usage: python3 tools/objects-test.py"""
 import base64, subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/PSI_BEAR_TRAP_26-double.cam', 'tests/fixtures/saves/Save3.cam')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/'
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8796', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)

@@ -2,6 +2,8 @@
 import fs from 'node:fs';
 import { objState } from '../app/js/parsers/cam.js';
 import { CAM } from '../app/js/core/cam-core.js';
+import { has, skip } from './fixture.mjs';
+const EK = has('evilkorea/EvilKorea.cam') || skip('evilkorea/EvilKorea.cam', 'the EvilKorea checks');
 import {
   frontLine,
   toLL,
@@ -98,7 +100,7 @@ ck(
   'base map covers the Korean peninsula',
   basemap.land.some(r => r.some(p => near(p[0], 127, 1) && near(p[1], 37, 1)))
 );
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   const fl = C.units.filter(u => u.kind == 'flight' && u.wps.length);
   const routes = fl.map(x => flightRoute(C, x));
@@ -111,7 +113,7 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
     routes.every(r => r.every(p => p.ll[0] > 25 && p.ll[0] < 50 && p.ll[1] > 115 && p.ll[1] < 140))
   );
 }
-{
+if (EK) {
   const C = CAM.openCam(
     new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
     CAM.D,
@@ -250,7 +252,7 @@ for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
     })()
   );
 }
-for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam']) {
+for (const f of ['beartrap/PSI_BEAR_TRAP_26.cam', 'evilkorea/EvilKorea.cam'].filter(has)) {
   const C = CAM.openCam(new Uint8Array(fs.readFileSync(new URL('./fixtures/' + f, import.meta.url))), CAM.D, f);
   ck(
     f + ' every unit category has a NATO sign',
@@ -332,7 +334,7 @@ ck(
     !crossesRoute(rt, 300, 300, 50)
 );
 // ---- DTC steerpoints
-{
+if (has('beartrap/Evil19_2_.ini') || skip('beartrap/Evil19_2_.ini', 'the DTC steerpoint checks')) {
   const rt = tmFwd(...tmInv(123456, -234567));
   ck('forward projection inverts tmInv (< 1 mm)', near(rt[0], 123456, 1e-3) && near(rt[1], -234567, 1e-3));
   const g = fromLL(...toLL(469.6, 354.6));
@@ -450,36 +452,38 @@ ck(
       placeIcon('nav', 'tacan').html.includes('M1.5 8.6') &&
       placeIcon('ab', '', '#3ddc84').html.includes('--c:#3ddc84')
   );
-  const C0 = CAM.openCam(
-    new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
-    CAM.D,
-    'x.cam'
-  );
-  {
-    const sv = new URL('./fixtures/saves/Save1.cam', import.meta.url);
-    if (fs.existsSync(sv)) CAM.initialOwners(C0, new Uint8Array(fs.readFileSync(sv)));
-  } // EvilKorea starts from Save1: the changes of the campaign are keyed by another id and need that file
-  const sides = new Set(
-    mapAirbases(CAM.D)
-      .filter(a => a.kind == 'ab')
-      .map(a => airbaseSide(C0, a.id, C0.playerTeam))
-  );
-  {
-    const st = [...C0.objFeat.values()].map(f => objState(f));
+  if (EK) {
+    const C0 = CAM.openCam(
+      new Uint8Array(fs.readFileSync(new URL('./fixtures/evilkorea/EvilKorea.cam', import.meta.url))),
+      CAM.D,
+      'x.cam'
+    );
+    {
+      const sv = new URL('./fixtures/saves/Save1.cam', import.meta.url);
+      if (fs.existsSync(sv)) CAM.initialOwners(C0, new Uint8Array(fs.readFileSync(sv)));
+    } // EvilKorea starts from Save1: the changes of the campaign are keyed by another id and need that file
+    const sides = new Set(
+      mapAirbases(CAM.D)
+        .filter(a => a.kind == 'ab')
+        .map(a => airbaseSide(C0, a.id, C0.playerTeam))
+    );
+    {
+      const st = [...C0.objFeat.values()].map(f => objState(f));
+      ck(
+        'objective states from the feature statuses: intact, damaged and destroyed all occur',
+        C0.objFeat.size > 100 &&
+          [0, 1, 2].every(v => st.includes(v)) &&
+          objState(new Uint8Array([0, 3, 3])) == 1 &&
+          objState(new Uint8Array([3, 3])) == 2 &&
+          objState(new Uint8Array([0, 6])) == 0 &&
+          objState(undefined) == 0
+      );
+    }
     ck(
-      'objective states from the feature statuses: intact, damaged and destroyed all occur',
-      C0.objFeat.size > 100 &&
-        [0, 1, 2].every(v => st.includes(v)) &&
-        objState(new Uint8Array([0, 3, 3])) == 1 &&
-        objState(new Uint8Array([3, 3])) == 2 &&
-        objState(new Uint8Array([0, 6])) == 0 &&
-        objState(undefined) == 0
+      'airbase owners from the scenario file under the changes: own, allied and enemy bases occur, all known',
+      C0.objOwn.size === 5999 && !sides.has('unknown') && sides.has('enemy') && sides.size >= 3
     );
   }
-  ck(
-    'airbase owners from the scenario file under the changes: own, allied and enemy bases occur, all known',
-    C0.objOwn.size === 5999 && !sides.has('unknown') && sides.has('enemy') && sides.size >= 3
-  );
 }
 {
   const C = CAM.openCam(

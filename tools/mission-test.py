@@ -1,6 +1,10 @@
 """Checks the mission file: save from a campaign, open it without the campaign. Usage: python3 tools/mission-test.py"""
 import base64, subprocess, sys, time, os, json
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FX = R + '/tests/fixtures/beartrap/'
 b64 = lambda n: base64.b64encode(open(FX + n, 'rb').read()).decode()

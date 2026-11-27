@@ -700,6 +700,20 @@
   overflow: hidden;
   min-height: 0;
 }
+#cfg .s-radw {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 0 16px 12px;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.4;
+}
+#cfg .s-radw svg {
+  flex: none;
+  margin-top: 1px;
+}
 #cfg .s-report {
   margin-top: 10px;
   padding: 12px 14px;

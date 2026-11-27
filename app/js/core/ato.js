@@ -31,6 +31,14 @@ export const categoryOf = m => CATEGORIES.find(c => (CAT[c] || []).includes(m)) 
 const TEAMS = ['None', 'U.S.', 'ROK', 'Japan', 'CIS', 'PRC', 'DPRK', 'NATO'];
 export const teamName = (D, t) => D.S[40 + t] || TEAMS[t] || 'Team ' + t;
 const B = [0, 1, 2, 3, 4, 7, 8];
+// The flight the player chose in BMS: a flight with a seat taken by a player (pslots, saved in the campaign file). BMS keeps that mark on a flight
+// already flown (PSI BEAR TRAP 26: Gamble 1, landed at 22:55, and Jackal 6, the flight of the DTC, at 23:06), so a flight that lands before the campaign
+// time loses against one still to fly. list: [{f}]; returns the item or undefined.
+export function playerPick(list, now) {
+  const ps = list.filter(x => x.f.pslots && x.f.pslots.some(v => v != 255));
+  const land = x => Math.max(0, ...x.f.wps.map(w => w.arr)); // the last time of the route (the alternate steerpoint has none)
+  return ps.find(x => !now || land(x) >= now) || ps[0];
+}
 export function buildAto(C, L16) {
   const D = C.D,
     out = [];

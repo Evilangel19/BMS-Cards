@@ -4,6 +4,9 @@ pilot puts something in), the window of a flight of the package on the map (Sele
 auto) and the mission (the changes are kept). Usage: python3 tools/l16-test.py [screenshot_dir]"""
 import subprocess, sys, time, os, base64, json
 from playwright.sync_api import sync_playwright
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, R + '/tools')
 import dialogs

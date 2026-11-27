@@ -4,6 +4,10 @@ parameter can), the red sliders, Apply by the seat, the state, Edit points stead
 (default: the Bear Trap DTC of tests/fixtures)."""
 import subprocess, sys, time, os
 from playwright.sync_api import sync_playwright
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from fixtures import need
+
+need('tests/fixtures/beartrap/Evil19_2_.ini')
 R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DTC = sys.argv[1] if len(sys.argv) > 1 else R + '/tests/fixtures/beartrap/Evil19_2_.ini'
 srv = subprocess.Popen([sys.executable, R + '/tools/serve.py', '8784', '--directory', R], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL); time.sleep(1)

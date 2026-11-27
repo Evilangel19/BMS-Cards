@@ -2,6 +2,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { has, skip } from './fixture.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { CAM } = await import(new URL('../app/js/core/cam-core.js', import.meta.url));
 const P = await import(new URL('../app/js/core/mission.js', import.meta.url));
@@ -16,11 +17,22 @@ const ck = (name, ok) => {
   } else console.log('ok  ', name);
 };
 
+// At 0 NM (Settings: only the units of the package, a yellow warning under 60 NM) the targets of the other flights of the package and the SAMs of the
+// WEZ can be left out of the file: the roll call targets (rc<i>_6), the secondary target (sec, ll2: the target of another flight, e.g. CAS), the notes and
+// the WEZ after the TOT are not compared there.
+const cell = (F, r) =>
+  r
+    ? F
+    : Object.fromEntries(
+        Object.entries(F)
+          .filter(([k]) => !/^rc\d+_6$|^free$|^sec$|^ll2$/.test(k))
+          .map(([k, v]) => [k, typeof v == 'string' ? v.replace(/ · WEZ .*$/, '') : v])
+      );
 for (const R0 of [0, 60])
   for (const s of [
     { name: 'beartrap', cam: 'PSI_BEAR_TRAP_26.cam' },
     { name: 'evilkorea', cam: 'EvilKorea.cam' },
-  ]) {
+  ].filter(s => has(s.name + '/' + s.cam) || skip(s.name + '/' + s.cam, 'the ' + s.name + ' missions'))) {
     const dir = path.join(root, 'tests', 'fixtures', s.name);
     const C = CAM.openCam(new Uint8Array(fs.readFileSync(path.join(dir, s.cam))), CAM.D, s.cam);
     const flights = CAM.listFlights(C);
@@ -32,7 +44,7 @@ for (const R0 of [0, 60])
       const R = P.restoreCampaign(snap, C.D),
         f2 = P.snapshotFlight(R, snap);
       sizes.push(JSON.stringify(snap).length);
-      if (!f2 || JSON.stringify(CAM.fillCard(C, x.f)) !== JSON.stringify(CAM.fillCard(R, f2))) {
+      if (!f2 || JSON.stringify(cell(CAM.fillCard(C, x.f), R0)) !== JSON.stringify(cell(CAM.fillCard(R, f2), R0))) {
         diff++;
         if (diff < 4) console.log('  differs:', x.label);
       }
@@ -206,7 +218,7 @@ ck(
   ck(
     'CAS (any kind): the TOT is the time on station, from the first to the last attack point',
     cas.length > 0 &&
-      cas.every(c => /^\d\d:\d\d:\d\d( - \d\d:\d\d:\d\d)?$/.test(c.F.d1)) &&
+      cas.every(c => /^\d\d:\d\d:\d\d( - \d\d:\d\d:\d\d)?( · WEZ .*)?$/.test(c.F.d1)) &&
       cas.some(c => / - /.test(c.F.d1))
   );
   const gs = CAM.listFlights(C, null)

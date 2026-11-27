@@ -1,6 +1,6 @@
 import { BMS_TESTED } from '../core/version.js';
 import { CAM } from '../core/cam-core.js';
-import { groupPackages } from '../core/ato.js';
+import { groupPackages, playerPick } from '../core/ato.js';
 import { ST } from './state.js';
 import { F, FD, XD, dEl, CYC, buildForm } from './datacard.js';
 import { $, esc } from './base.js';
@@ -183,7 +183,7 @@ export function apply(i, mode) {
 export function playerFlight() {
   const C = ST.C,
     L = ST.CL.map((x, i) => ({ i, f: x.f, t: (x.f.wps[0] && x.f.wps[0].arr) || 0 }));
-  const p = L.find(x => x.f.pslots && x.f.pslots.some(v => v != 255));
+  const p = playerPick(L, C.now);
   if (p) return { i: p.i, seat: p.f.pslots.findIndex(v => v != 255) };
   const sq = L.filter(x => C.playerSq && x.f.sqd && x.f.sqd.n == C.playerSq).sort((a, b) => a.t - b.t),
     nx = sq.find(x => !C.now || x.t >= C.now) || sq[0];
