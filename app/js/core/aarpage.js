@@ -114,6 +114,7 @@ export function createAarPage(deps) {
       dist: Math.max(DIST[0], Math.min(DIST[1], +raw.dist || d.dist)),
       turn: raw.turn == 'R' ? 'R' : 'L',
       push: +raw.push || 0, // the steerpoint to go to the tanker from (the Refuel steerpoint with no time)
+      at: +raw.at || 0, // the join time chosen with the slider (the Refuel steerpoint with no time); 0: the earliest
     };
     const tk = X.tankers[S.tk];
     if (!tk) return void (why = 'No tanker on the datacard of ' + X.me.name + ' (TANKER 1 / 2).');
@@ -141,18 +142,65 @@ export function createAarPage(deps) {
       pp = list.find(p => p.n == S.push) || def;
       PU = { i: pp.n - 1, n: pp.n, next: pp.n, fixed: false, list: list.map(p => ({ n: p.n, t: dep(p) })), def: def.n };
     }
-    const from = pp ? { x: pp.x, y: pp.y, t: dep(pp) } : null;
+    let from = pp ? { x: pp.x, y: pp.y, t: dep(pp) } : null;
     if (!ref) {
-      // the time of the join: the first one at which the push steerpoint reaches the ARIP at 420 kt or slower (the ARIP moves with the tanker: a scan
+      // the earliest join: the first time at which the push steerpoint reaches the ARIP at 420 kt or slower (the ARIP moves with the tanker: a scan
       // by 20 s, at most to the end of its station)
       const reach = t => {
         const r = rendezvous({ T, mode: 'golf', dist: S.dist, turn: S.turn, plan: t, from });
         return r && (Math.hypot(r.arip.x - from.x, r.arip.y - from.y) / KM_NM / PUSH_KT) * 3600000 <= r.tip - from.t;
       };
-      plan = Math.max(from.t, T.t0);
-      while (plan < Math.max(T.t1, from.t) && !reach(plan)) plan += 20000;
-    }
-    R = rendezvous({ T, mode: S.mode, dist: S.dist, turn: S.turn, plan, from });
+      let lo = Math.max(from.t, T.t0);
+      while (lo < Math.max(T.t1, from.t) && !reach(lo)) lo += 20000;
+      // the latest join: the whole flight done before the tanker goes off station (the time on the boom of the earliest join, the onloads change
+      // little), and the fuel at the join not below 1,000 lb with the hold
+      PU.lo = lo;
+      PU.hi = lo;
+      plan = lo;
+      const at = t => {
+        const r0 = rendezvous({ T, mode: S.mode, dist: S.dist, turn: S.turn, plan: t, from });
+        if (!r0) return null;
+        // you hold at the push steerpoint and push at 420 kt: the push time puts you at the ARIP on time
+        const d = Math.hypot(r0.arip.x - from.x, r0.arip.y - from.y) / KM_NM,
+          late = r0.tip - (d / PUSH_KT) * 3600000,
+          // less than 1 min early: you fly a little slower, no hold
+          push = late - from.t >= 60000 ? late : from.t,
+          f2 = { ...from, t: push };
+        return {
+          R: rendezvous({ T, mode: S.mode, dist: S.dist, turn: S.turn, plan: t, from: f2 }),
+          hold: push - from.t,
+        };
+      };
+      // the plan at a join time t: R and FU (null: the tanker does not fly then)
+      const tryAt = t => {
+        const a = at(t);
+        if (!a || !a.R) return (R = FU = null);
+        R = a.R;
+        R.hold = a.hold;
+        R.from = { ...from, t: from.t + a.hold };
+        fuel();
+        return R;
+      };
+      const fits = t => tryAt(t) && (!FU || (flightEnd() <= T.t1 && FU.fArct >= ARRIVE));
+      if (tryAt(lo)) {
+        // a first guess from the earliest join, then back by 1 min to the first time that fits (the onloads grow with the hold)
+        const busy = FU ? flightEnd() - R.arct : 60000,
+          perMin = FU ? FU.hb : 0;
+        let hi = lo + Math.floor((T.t1 - busy - lo) / 60000) * 60000;
+        if (FU && perMin > 0) hi = Math.min(hi, lo + Math.floor((FU.fArct - ARRIVE) / perMin) * 60000);
+        while (hi > lo && !fits(hi)) hi -= 60000;
+        PU.hi = Math.max(lo, hi);
+      }
+      R = FU = null;
+      plan = S.at ? Math.max(PU.lo, Math.min(PU.hi, S.at)) : lo;
+      PU.at = plan;
+      const a = at(plan);
+      R = a && a.R;
+      if (R) {
+        R.hold = a.hold;
+        from = { ...from, t: from.t + a.hold };
+      }
+    } else R = rendezvous({ T, mode: S.mode, dist: S.dist, turn: S.turn, plan, from });
     if (!R) return void (why = 'The tanker does not fly at the time of the join (' + hm(plan) + ').');
     // with no time on the Refuel steerpoint the ±1 min of ATP-56 is to the push: the speed to the ARIP says it
     if (!ref) R.warn = R.warn.filter(x => !/^The ARCT is/.test(x[0]));
@@ -170,9 +218,12 @@ export function createAarPage(deps) {
     const rows = F.plan.rows,
       i = PU.i,
       used = j => rows[0].minExact - rows[j].minExact,
-      fk1 = F.loaded - used(i),
       lg = rows[PU.fixed ? X.k : Math.min(i + 1, rows.length - 1)], // the leg after the push: its burn per NM
       pn = lg && lg.nm > 0 && lg.burn > 0 ? lg.burn / lg.nm : 15,
+      // the burn a minute in the hold at the push steerpoint and behind the tanker: as the leg after the push at 420 kt (an estimate, more than a
+      // hold at the endurance speed: the safe side)
+      hb = (pn * PUSH_KT) / 60,
+      fk1 = F.loaded - used(i) - ((R.hold || 0) / 60000) * hb,
       d1 = R.from ? Math.hypot(R.arip.x - R.from.x, R.arip.y - R.from.y) / KM_NM : 0,
       nm = (p, q) => Math.hypot(q.x - p.x, q.y - p.y) / KM_NM,
       d2 = R.turn ? nm(R.arip, R.turn.p) + Math.PI * R.turn.r + nm(R.turn.roll, R.arcp) : nm(R.arip, R.arcp),
@@ -192,8 +243,19 @@ export function createAarPage(deps) {
       jb = (PU.fixed && tankerJB(F.plan, X.wps, null, F.joker)) || {
         bingo: Math.ceil(b0 / 100) * 100,
         joker: jokerFor(Math.ceil(b0 / 100) * 100, F.joker),
-      };
-    FU = { fk1, fArip, fArct, need, d1, d2, ...O, jb, full: cap };
+      },
+      // the flight, one after the other (ATP-56: one receiver on the boom or on the basket): the lead, then each wingman from the observation
+      // position, CYCLE_MIN after the one before him disconnects. A wingman burns fuel while he waits: his onload is more than the lead's.
+      seq = [];
+    let t = R.arct + 60000;
+    for (let k = 0; k < nAc(); k++) {
+      const wait = k ? (t - R.arct) / 60000 : 0,
+        o = k ? onload({ at: fArct - wait * hb, need, full: cap, joker: F.joker, fill: S.fill, amount: S.amount }) : O;
+      t += o.min * 60000;
+      seq.push({ n: k + 1, onload: o.onload, end: t });
+      t += CYCLE_MIN * 60000;
+    }
+    FU = { fk1, fArip, fArct, need, d1, d2, ...O, jb, full: cap, hb, seq };
   }
   const tk = () => X.tankers[S.tk];
   const method = () => methodOf(X.me.ac);
@@ -203,9 +265,10 @@ export function createAarPage(deps) {
     return cas(tas / A.a, A);
   };
   const done = () => R.arct + 60000 + (FU ? FU.min * 60000 : 0);
-  // the whole flight: each aircraft takes the onload of the lead (the same settings), CYCLE_MIN between two (an estimate); null without the fuel
+  // the whole flight (one after the other: FU.seq); null without the fuel
   const nAc = () => Math.max(1, +(X && X.me && X.me.n) || 1),
-    doneAll = () => (FU ? done() + (nAc() - 1) * (FU.min + CYCLE_MIN) * 60000 : null);
+    flightEnd = () => (FU ? FU.seq[FU.seq.length - 1].end : null),
+    doneAll = flightEnd;
   // the headings to fly (magnetic, as the HSI): ARIP -> ARCP; head-on: the parallel course to the turn (the reciprocal of the first leg, the track at
   // two turn radii on the side of the turn), then the course of the track after the 180° turn
   const tb = (p, q) => ((Math.atan2(q.x - p.x, q.y - p.y) * 180) / Math.PI + 360) % 360,
@@ -298,6 +361,13 @@ export function createAarPage(deps) {
   }
 
   // ---- the shapes (the map, the classic card, the Smart card)
+  // the heading of each leg at its middle: head-on, the parallel course and the course after the turn; else ARIP -> ARCP
+  function hdgLabels() {
+    const L = legs(),
+      mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }),
+      at = R.turn ? [mid(R.arip, R.turn.p), mid(R.turn.roll, R.arcp)] : [mid(R.arip, R.arcp)];
+    return at.map((p, i) => ({ t: 'label', p, text: L[i].hdg, col: COL.me, ink: { text: L[i].hdg, bold: true } }));
+  }
   function spec() {
     const n = X.k + 1,
       lab = (p, text, col, ink) => ({ t: 'label', p, text, col, ink: ink || false });
@@ -322,6 +392,8 @@ export function createAarPage(deps) {
             lab(R.turn.p, 'TURN · ' + hm(R.turn.t) + ' · ' + R.turn.range.toFixed(0) + ' NM', COL.me),
           ]
         : [{ t: 'poly', pts: [R.arip, R.arcp], col: COL.me, w: 2.5, ink: { w: 2 } }]),
+      // the headings to fly, on their legs (magnetic)
+      ...hdgLabels(),
       { t: 'dot', p: R.at, col: COL.stpt, k: 'sq', ink: { label: 'STPT ' + n } },
       lab(R.at, 'STPT ' + n, COL.stpt),
       { t: 'dot', p: T.a, col: COL.anc, k: 'dot', ink: { label: 'ANCHOR', bold: true } },
@@ -373,7 +445,7 @@ export function createAarPage(deps) {
             )
             .join(
               ''
-            )}</select></div><p class="hint wnote">BMS gives the Refuel steerpoint ${X.k + 1} no time: you go to the tanker from the steerpoint you choose, at ${PUSH_KT} kt.</p>`
+            )}</select></div>${PU.lo != null ? slr('at', 'Join time', [PU.lo, PU.hi, 60000], PU.at, hm(PU.at), false, PU.hi <= PU.lo, 'From the earliest time you can reach the ARIP to the latest time: the flight is done before the tanker goes off station, and you have ' + fmt(ARRIVE) + ' lb at the join') : ''}<p class="hint wnote">BMS gives the Refuel steerpoint ${X.k + 1} no time. Choose the steerpoint and the join time. You fly to the ARIP at ${PUSH_KT} kt. When you are early, you hold at the steerpoint.</p>`
         : ''
     }<div class="wrow"><label>Rendezvous</label>${seg(
       'mode',
@@ -419,12 +491,12 @@ export function createAarPage(deps) {
   // the most the tanks take at the join; the Onload slider is red above it
   const maxOn = () => (FU ? Math.max(0, Math.round(FU.full - FU.fArct)) : Infinity);
   const amLab = v => 'Onload' + (FU && v > maxOn() ? ' · max ' + fmt(maxOn()) + ' lb' : '');
-  const slr = (k, lab, r, v, txt, bad) =>
-    `<div class="slr${bad ? ' bad' : ''}"><label>${lab}</label><input type="range" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${v}" data-arsl="${k}"><em data-are="${k}">${txt}</em></div>`;
+  const slr = (k, lab, r, v, txt, bad, off, tip) =>
+    `<div class="slr${bad ? ' bad' : ''}"${tip ? ` title="${tip}"` : ''}><label>${lab}</label><input type="range" min="${r[0]}" max="${r[1]}" step="${r[2]}" value="${v}" data-arsl="${k}"${off ? ' disabled' : ''}><em data-are="${k}">${txt}</em></div>`;
   function tiles() {
     const ab = R.from ? Math.round(R.gs || 0) : 0,
       on = FU ? fmt(FU.onload) + ' lb' : '--';
-    return `<div class="wpt">${tile('ARCT', hm(R.arct), (S.mode != 'golf' ? (R.shift ? (R.shift > 0 ? '+' : '−') + Math.round(Math.abs(R.shift) / 60000) + ' min to the plan · ' : 'on the plan · ') : '') + 'ARIP ' + hm(R.tip) + (ab ? ' · ' + ab + ' kt from STPT ' + PU.n : ''))}${tile('Onload', on, FU ? (S.fill == 'full' ? 'to full' : S.fill == 'joker' ? 'to the Joker' : 'a fixed amount') + ' · ≈ ' + Math.ceil(FU.min) + ' min at the ' + (method() == 'probe' ? 'basket' : 'boom') : 'no aircraft data')}${tile('Join', flOf(joinAlt()), R.turn ? 'turn ' + (R.turn.sd > 0 ? 'left' : 'right') + ' at ' + R.turn.range.toFixed(0) + ' NM, the tanker at ' + R.turn.clock + " o'clock" : fmt(JOIN_BELOW) + ' ft below · tanker ' + R.gap.toFixed(1) + ' NM ahead at the ARIP')}${tile('Fuel at the join', FU ? fmt(FU.fArct) + ' lb' : '--', FU ? 'after: ' + fmt(FU.after) + ' · need ' + fmt(FU.need) : '')}</div>`;
+    return `<div class="wpt">${tile('ARCT', hm(R.arct), (S.mode != 'golf' ? (R.shift ? (R.shift > 0 ? '+' : '−') + Math.round(Math.abs(R.shift) / 60000) + ' min to the plan · ' : 'on the plan · ') : '') + 'ARIP ' + hm(R.tip) + (ab ? ' · ' + ab + ' kt from STPT ' + PU.n : '') + (R.hold >= 60000 ? ' · hold ' + Math.round(R.hold / 60000) + ' min, push ' + hm(R.from.t) : ''))}${tile('Onload', on, FU ? (S.fill == 'full' ? 'to full' : S.fill == 'joker' ? 'to the Joker' : 'a fixed amount') + ' · ≈ ' + Math.ceil(FU.min) + ' min at the ' + (method() == 'probe' ? 'basket' : 'boom') : 'no aircraft data')}${tile('Join', flOf(joinAlt()), R.turn ? 'turn ' + (R.turn.sd > 0 ? 'left' : 'right') + ' at ' + R.turn.range.toFixed(0) + ' NM, the tanker at ' + R.turn.clock + " o'clock" : fmt(JOIN_BELOW) + ' ft below · tanker ' + R.gap.toFixed(1) + ' NM ahead at the ARIP')}${tile('Fuel at the join', FU ? fmt(FU.fArct) + ' lb' : '--', FU ? 'after: ' + fmt(FU.after) + ' · need ' + fmt(FU.need) : '')}</div>`;
   }
   function tables() {
     const n = X.k + 1,
@@ -475,7 +547,9 @@ export function createAarPage(deps) {
           f(FU && FU.fArct),
         ],
         ['Done · lead', hm(done()), '—', fmt(T.alt), T.kcas + ' KCAS', f(FU && FU.after)],
-        ...(nAc() > 1 ? [['Done · flight of ' + nAc(), FU ? hm(doneAll()) : '--', '—', '', '', '']] : []),
+        ...(FU
+          ? FU.seq.slice(1).map(q => ['Done · #' + q.n, hm(q.end), '—', '', '+' + fmt(q.onload) + ' lb', ''])
+          : []),
         ['Tanker off station', hm(T.t1), '—', '', '', ''],
         ...(nxt
           ? [
@@ -494,7 +568,7 @@ export function createAarPage(deps) {
       W = warns();
     return {
       mid: `<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
-      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate). The flight: each aircraft takes the onload of the lead, ${CYCLE_MIN} min between two (an estimate). Headings magnetic.">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}${tbl(
+      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate). The flight: one aircraft at a time. A wingman waits at the observation position and burns fuel. He gets to contact ${CYCLE_MIN} min after the aircraft before him disconnects (an estimate). Headings magnetic.">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}${tbl(
         ['Leg', 'Heading', ''],
         legs().map(l => [l.leg, l.hdg, esc(l.note)])
       )}</div>${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}`,
@@ -606,7 +680,7 @@ export function createAarPage(deps) {
       const k = i.dataset.arsl;
       set(k, +i.value);
       const em = l() && l().querySelector(`[data-are="${k}"]`);
-      if (em) em.textContent = k == 'dist' ? i.value + ' NM' : fmt(+i.value) + ' lb';
+      if (em) em.textContent = k == 'dist' ? i.value + ' NM' : k == 'at' ? hm(+i.value) : fmt(+i.value) + ' lb';
       // the plan in real time: drawn again at each frame while the slider moves
       if (!raf)
         raf = requestAnimationFrame(() => {
@@ -622,7 +696,8 @@ export function createAarPage(deps) {
     root.onchange = e => {
       const i = /** @type {HTMLInputElement} */ (e.target);
       if (i.dataset && i.dataset.arpush != null && X && X.ok) {
-        set('push', +i.value);
+        st.f[X.me.key] = { ...S, push: +i.value, at: 0 };
+        save();
         update();
       } else if (i.dataset && i.dataset.arsl) update();
     };
@@ -760,7 +835,10 @@ export function createAarPage(deps) {
         ['ONLOAD', FU ? kLb(FU.onload) + 'K' : '--'],
         ['BINGO', jb ? kLb(jb.bingo) : '--', true],
       ],
-      plan: toInk(spec()),
+      // the offsets and the headings in the plan, under TRACK (1.4.0-beta.45: the plan keeps its full height)
+      plan: toInk(spec(), {
+        note: (P => ['OA1 ' + P.o1 + ' · OA2 ' + P.o2 + ' · STPT ' + P.n, ...legs().map(l => l.short)])(pointsOf()),
+      }),
       legend:
         'LEGS ' + Math.round(T.leg) + 'NM · ' + T.kcas + 'KCAS · ' + flOf(T.alt) + ' · TURNS L/R · ' + MODE[S.mode],
       blocks: [
@@ -768,9 +846,10 @@ export function createAarPage(deps) {
         [
           'TIMES',
           [
-            ...(R.from ? ['PUSH STPT ' + PU.n + ' ' + hm(R.from.t)] : []),
-            'ARIP ' + hm(R.tip) + (R.turn ? ' · TURN ' + hm(R.turn.t) : '') + ' · ARCT ' + hm(R.arct),
-            'DONE ' + hm(done()) + (nAc() > 1 && FU ? ' · FLIGHT ' + hm(doneAll()) : ''),
+            // short lines: the TIMES block keeps one column with FUEL under it
+            (R.from ? 'PUSH STPT ' + PU.n + ' ' + hm(R.from.t) + ' · ' : '') + 'ARIP ' + hm(R.tip),
+            (R.turn ? 'TURN ' + hm(R.turn.t) + ' · ' : '') + 'ARCT ' + hm(R.arct),
+            nAc() > 1 && FU ? 'DONE ' + FU.seq.map(q => hm(q.end)).join('/') : 'DONE ' + hm(done()),
             'OFF STATION ' + hm(T.t1),
           ],
         ],
@@ -807,8 +886,6 @@ export function createAarPage(deps) {
           [
             'ARIP ' + llShort(P.arip),
             ...(P.same ? ['ARCP/ANCH ' + llShort(P.arcp)] : ['ARCP ' + llShort(P.arcp), 'ANCH ' + llShort(P.anchor)]),
-            'OA1 ' + P.o1 + ' OA2 ' + P.o2,
-            ...legs().map(l => l.short),
           ],
         ])(pointsOf()),
       ],
@@ -877,14 +954,7 @@ export function createAarPage(deps) {
           'HDG · ' + l.leg.split(' → ')[0].toUpperCase(),
           l.hdg + ' to the ' + l.leg.split(' → ')[1] + ' · ' + l.note,
         ]),
-        ...(nAc() > 1
-          ? [
-              [
-                'FLIGHT DONE',
-                FU ? hm(doneAll()) + ' · ' + nAc() + ' aircraft, ' + CYCLE_MIN + ' min between two' : '--',
-              ],
-            ]
-          : []),
+        ...(nAc() > 1 ? [['FLIGHT DONE', FU ? FU.seq.map(q => '#' + q.n + ' ' + hm(q.end)).join(' · ') : '--']] : []),
         ['OA1 · STPT ' + P.n, P.oa1],
         ['OA2 · STPT ' + P.n, P.oa2],
         ...(R.turn

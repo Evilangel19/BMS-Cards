@@ -18,6 +18,7 @@ import {
   scFoot,
   labeller,
   wrap,
+  scWidth,
 } from './smartcard.js';
 
 const RED = '#cc0000',
@@ -49,10 +50,19 @@ export function aaPlanView(x, P, box) {
   const polys = P.polys || [],
     base = P.view && P.view.length ? P.view : polys.flatMap(q => q.pts),
     near = P.bull && base.some(p => Math.hypot(p.x - P.bull.x, p.y - P.bull.y) < 90 * KM_NM),
-    V = view([...base, ...(near ? [P.bull] : [])], box),
+    pts = [...base, ...(near ? [P.bull] : [])],
+    // P.note: short lines at the top left of the plan (AAR: the offsets and the headings). When the drawing comes under them, the drawing goes to
+    // the right of them.
+    note = P.note || [],
+    nw = note.length ? Math.max(...note.map(t => scWidth(x, 10, t, 700))) + 8 : 0,
+    nh = note.length * 12 + 4,
+    under = V0 => pts.some(p => V0.X(p.x) < box[0] + nw && V0.Y(p.y) < box[1] + nh),
+    V1 = view(pts, box),
+    V = note.length && under(V1) ? view(pts, [box[0] + nw, box[1], box[2] - nw, box[3]]) : V1,
     Q = p => [V.X(p.x), V.Y(p.y)],
     L = labeller(x),
     lb = [box[0] + 2, box[1] + 2, box[0] + box[2] - 2, box[1] + box[3] - 2];
+  if (note.length) L.rect(box[0], box[1], box[0] + nw, box[1] + nh);
   // the scale (10 NM) at the bottom right, kept free of labels
   const s10 = 10 * KM_NM * V.sc,
     sx = box[0] + box[2] - 12 - s10,
@@ -140,6 +150,7 @@ export function aaPlanView(x, P, box) {
     lab(Q(l.p), l.t, { c: l.red ? RED : undefined, w: l.bold ? 700 : 400, s: l.s || 11, at: l.at })
   );
   x.restore();
+  note.forEach((t, i) => scText(x, box[0] + 2, box[1] + 11 + i * 12, 10, t, { w: 700, c: '#333333' }));
   if (!near && P.be) scText(x, box[0] + 4, box[1] + box[3] - 6, 11, P.be, { c: '#444444' });
   scLine(
     x,

@@ -13,9 +13,9 @@ export function drawSmartAar(x, D) {
   scFrame(x, D.title, D.right);
   scKey(x, D.key);
   scSec(x, 146, D.planTitle || 'TRACK');
-  // with box2 (AAR: the checklist of the method and the calls in the box of the SOP, on its right) the plan is a little lower, for the blocks
+  // box2 (AAR): the checklist of the method and the calls in the box of the SOP, on its right
   const two = !!(D.box2 && D.box2.length),
-    ph = two ? 150 : 196;
+    ph = 196;
   aaPlanView(x, D.plan, [12, 160, 436, ph]);
   if (D.legend) scText(x, 14, 174 + ph, 10, D.legend, { c: '#555555' });
   scSec(x, 182 + ph);
