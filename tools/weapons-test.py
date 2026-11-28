@@ -250,6 +250,9 @@ try:
         check('TOSS: the VRP is shown in the horizontal envelope when VRP is the reference (OA1 · VRP), and the pull-up point says PUP', pg.locator('#wph .wplab', has_text='VRP').count() >= 1 and pg.locator('#wph .wplab', has_text='PUP').count() >= 1 and pg.locator('#wph .wplab', has_text='VIP').count() == 0)
         check('loft: OA1 sits on the PUP, so its elevation is 0 ft', lo.split(',')[2].strip() == '0')
         pg.evaluate("()=>__app.wpPage.setElev(async pts=>pts.map(()=>-80))"); pg.wait_for_timeout(500)
+        # the elevation of the points comes from the terrain when the target steerpoint has none (a DTC written by BMS: the ground, here 0)
+        pg.evaluate("n=>{const l=__app.lines.find(l=>l.s=='STPT'&&l.k=='target_'+(n-1));const v=l.v.split(',');v[2]=' 0.000000';l.v=v.join(',');l.dirty=1}", n_); pg.wait_for_timeout(300)
+        pg.click('[data-t=dtc]'); pg.click('[data-t=wp]'); pg.wait_for_timeout(500)
         if 'nil' not in (pg.get_attribute('#wpapply', 'class') or '').split():
             pg.click('#wpapply'); pg.wait_for_timeout(400)
         check('a negative terrain elevation is written as 0 ft (no minus sign in any NAV OFFSETS row)', all('-' not in (ln(k) or '') for k in ['VRP', 'VRPPUP', 'OA1-%d' % n_]) and ln('VRP').split(',')[3].strip() == '0')
@@ -317,20 +320,26 @@ try:
         if shots:
             pg.click('[data-mode=popup]'); pg.wait_for_timeout(700); setv('releaseAltitude', 2000); pg.wait_for_timeout(600); pg.screenshot(path=shots + '/lethal-popup.png', full_page=True)
         pg.click('[data-mode=popup]'); pg.wait_for_timeout(700)
-        # bomb from the loadout of the selected flight
+        # bomb from the loadout of the selected flight (the flights chosen by their loadout: PSIKorea Mustang 5 GBU-31, Viper 2 Mk-82; Bear Trap
+        # Jackal 2 a CBU-105 only, Warhawk 7 air-to-air)
         import base64
-        b64 = base64.b64encode(open(FX + 'PSI_BEAR_TRAP_26.cam', 'rb').read()).decode()
-        pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b64); pg.wait_for_timeout(900)
-        def pick(i):
+        def opencam(f):
+            b = base64.b64encode(open(R + '/tests/fixtures/' + f, 'rb').read()).decode()
+            pg.evaluate("""async(b)=>{const f=(s,n)=>new File([Uint8Array.from(atob(s),c=>c.charCodeAt(0))],n);await __app.loadCam(f(b,'x.cam'))}""", b); pg.wait_for_timeout(900)
+        def pick(rx):
+            i = pg.evaluate("rx=>__app.CL.findIndex(x=>new RegExp(rx).test(x.label))", rx)
             pg.evaluate("i=>{const s=document.querySelector('#fsel');s.value=i;s.dispatchEvent(new Event('change'))}", i); pg.wait_for_timeout(400)
             pg.click('[data-t=dc]'); pg.click('[data-t=wp]'); pg.wait_for_timeout(700)
             pg.select_option('select[data-pick=bomb]', 'auto'); pg.wait_for_timeout(300)
             return pg.evaluate("()=>document.querySelector('select[data-pick=bomb]').options[0].textContent")
-        check('Auto takes the heaviest covered bomb of the flight: GBU-31 is the 2000 lb class', 'GBU-31' in pick(9) and '2000 lb' in pg.inner_text('#wpr'))
-        check('a guided bomb (GBU-31) hides the C1 arming delay sliders and says to set them on the SMS CNTL page', pg.locator('input[data-fz=c1ad1]:visible').count() == 0 and 'SMS CNTL' in pg.inner_text('#wp .wguide') and 'GUIDED' in pg.inner_text('#wpr') and 'ballistic' in pg.inner_text('#wpr'))
-        check('a flight with a GBU-12 and a CBU takes the GBU-12 (500 lb) and says the CBU is not covered', '500 lb' in pick(52) and 'CBU-52' in pg.inner_text('#wpr') and 'not covered' in pg.inner_text('#wpr'))
-        check('a free-fall bomb (GBU-12) keeps the arming delay sliders', pg.locator('input[data-fz=c1ad1]:visible').count() == 1 and 'GUIDED' not in pg.inner_text('#wpr'))
-        check('a flight without a covered bomb says so and draws no lethal zone', 'no covered bomb' in pick(0) and pg.evaluate("()=>__app.wpPage.lethal().circles") == 0)
+        opencam('psikorea/PSIKorea.cam')
+        check('Auto takes the covered bomb of the flight: GBU-31 is the 2000 lb class', 'GBU-31' in pick('Mustang 5') and '2000 lb' in pg.inner_text('#wpr'))
+        check('a guided bomb (GBU-31) hides the C1 arming delay sliders and says to set them on the SMS CNTL page', pg.locator('input[data-fz=c1ad1]:visible').count() == 0 and 'SMS CNTL' in pg.inner_text('#wp .wguide') and 'GUIDED' in pg.inner_text('#wpr'))
+        check('a Mk-82 is the 500 lb class', '500 lb' in pick('Viper 2 ') and 'Mk-82' in pg.inner_text('#wpr'))
+        check('a free-fall bomb (Mk-82) keeps the arming delay sliders', pg.locator('input[data-fz=c1ad1]:visible').count() == 1 and 'GUIDED' not in pg.inner_text('#wpr'))
+        opencam('beartrap/PSI_BEAR_TRAP_26.cam')
+        check('a flight with a CBU only says it is not covered and draws no lethal zone', 'no covered bomb' in pick('Jackal 2') and pg.evaluate("()=>__app.wpPage.lethal().circles") == 0)
+        check('a flight without bombs says so too', 'no covered bomb' in pick('Warhawk 7'))
         # DTC / Manual entry, clearing the other offsets (0.9.9)
         pg.evaluate("t=>__app.parse(t)", ini); pg.wait_for_timeout(300)
         pg.click('[data-t=wp]'); pg.wait_for_timeout(300)

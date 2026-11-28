@@ -26,7 +26,9 @@ import {
   HEAD_KT,
   HEAD_TRAIL,
   RATE,
+  CYCLE_MIN,
 } from './aar.js';
+import { toMag } from './magvar.js';
 import { tankerJB, jokerFor, BASIC } from './fuelplan.js';
 import { timed } from './sead.js';
 import { atmos, cas } from './airperf.js';
@@ -201,6 +203,47 @@ export function createAarPage(deps) {
     return cas(tas / A.a, A);
   };
   const done = () => R.arct + 60000 + (FU ? FU.min * 60000 : 0);
+  // the whole flight: each aircraft takes the onload of the lead (the same settings), CYCLE_MIN between two (an estimate); null without the fuel
+  const nAc = () => Math.max(1, +(X && X.me && X.me.n) || 1),
+    doneAll = () => (FU ? done() + (nAc() - 1) * (FU.min + CYCLE_MIN) * 60000 : null);
+  // the headings to fly (magnetic, as the HSI): ARIP -> ARCP; head-on: the parallel course to the turn (the reciprocal of the first leg, the track at
+  // two turn radii on the side of the turn), then the course of the track after the 180° turn
+  const tb = (p, q) => ((Math.atan2(q.x - p.x, q.y - p.y) * 180) / Math.PI + 360) % 360,
+    m3 = (d, p) => String(Math.round(toMag(d, p.x, p.y)) % 360 || 360).padStart(3, '0') + '°';
+  function legs() {
+    if (R.turn) {
+      const side = R.turn.sd > 0 ? 'left' : 'right';
+      return [
+        {
+          leg: 'ARIP → turn',
+          hdg: m3(tb(T.b, T.a), R.arip),
+          note: 'the track ' + (2 * R.turn.r).toFixed(1) + ' NM on your ' + side,
+          short:
+            'ARIP>TURN ' +
+            m3(tb(T.b, T.a), R.arip) +
+            ' TRACK ' +
+            (2 * R.turn.r).toFixed(1) +
+            'NM ' +
+            side.toUpperCase(),
+        },
+        {
+          leg: 'Turn → ARCP',
+          hdg: m3(tb(T.a, T.b), R.turn.roll),
+          note: side + ' turn 180°, on the track',
+          short: 'TURN ' + side[0].toUpperCase() + '>ARCP ' + m3(tb(T.a, T.b), R.turn.roll),
+        },
+      ];
+    }
+    const h = m3(tb(R.arip, R.arcp), R.arip);
+    return [
+      {
+        leg: 'ARIP → ARCP',
+        hdg: h,
+        note: S.mode == 'echo' ? 'on the line of the track' : 'the tanker ahead',
+        short: 'ARIP>ARCP ' + h,
+      },
+    ];
+  }
   // the checks: the rendezvous, the tanker for the method, the fuel
   function warns() {
     const W = [...R.warn],
@@ -431,7 +474,8 @@ export function createAarPage(deps) {
           T.kcas + ' KCAS',
           f(FU && FU.fArct),
         ],
-        ['Done', hm(done()), '—', fmt(T.alt), T.kcas + ' KCAS', f(FU && FU.after)],
+        ['Done · lead', hm(done()), '—', fmt(T.alt), T.kcas + ' KCAS', f(FU && FU.after)],
+        ...(nAc() > 1 ? [['Done · flight of ' + nAc(), FU ? hm(doneAll()) : '--', '—', '', '', '']] : []),
         ['Tanker off station', hm(T.t1), '—', '', '', ''],
         ...(nxt
           ? [
@@ -450,7 +494,10 @@ export function createAarPage(deps) {
       W = warns();
     return {
       mid: `<div class="wcard"><h3>Procedure · ${method() == 'probe' ? 'PROBE' : 'BOOM'}<span class="wtip" title="BMS Training Manual 4.38 (mission 4D) and the Comms &amp; Nav Book: the calls by their names, as each pilot sends them his own way.">ⓘ</span></h3>${tbl(['When', 'What'], proc, 2)}<p class="hint wnote">Calls to the tanker: ${CALLS.tanker.map(esc).join(' · ')}. To the AWACS: ${CALLS.awacs.map(esc).join(' · ')}.</p></div>`,
-      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate).">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}</div>${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}`,
+      times: `<div class="wcard" id="aartm"><h3>Times<span class="wtip" title="Rear aspect: you join from behind, inside the 2-10 line of the tanker. The gap closes at ${OVERTAKE} kt to 10,000 ft, then 10 kt per 1,000 ft, 10 kt inside 1,000 ft. Fuel: the fuel plan of the Performance page to the steerpoint before, then its burn per NM (≈). Transfer ≈ ${RATE} lb a minute (an estimate). The flight: each aircraft takes the onload of the lead, ${CYCLE_MIN} min between two (an estimate). Headings magnetic.">ⓘ</span></h3>${tbl(['Point', 'Time', 'nm', 'Alt (ft)', 'Speed', 'Fuel (lb)'], times)}${tbl(
+        ['Leg', 'Heading', ''],
+        legs().map(l => [l.leg, l.hdg, esc(l.note)])
+      )}</div>${W.length ? `<div class="wcard"><h3>Checks</h3>${W.map(([t, red]) => `<div class="${red ? 'wbad' : 'hint'}">${esc(t)}</div>`).join('')}</div>` : ''}`,
     };
   }
   /** the middle and right columns, in the Performance page (#pfr, #pfr2) */
@@ -723,7 +770,8 @@ export function createAarPage(deps) {
           [
             ...(R.from ? ['PUSH STPT ' + PU.n + ' ' + hm(R.from.t)] : []),
             'ARIP ' + hm(R.tip) + (R.turn ? ' · TURN ' + hm(R.turn.t) : '') + ' · ARCT ' + hm(R.arct),
-            'DONE ' + hm(done()) + ' · OFF STATION ' + hm(T.t1),
+            'DONE ' + hm(done()) + (nAc() > 1 && FU ? ' · FLIGHT ' + hm(doneAll()) : ''),
+            'OFF STATION ' + hm(T.t1),
           ],
         ],
         [
@@ -760,8 +808,13 @@ export function createAarPage(deps) {
             'ARIP ' + llShort(P.arip),
             ...(P.same ? ['ARCP/ANCH ' + llShort(P.arcp)] : ['ARCP ' + llShort(P.arcp), 'ANCH ' + llShort(P.anchor)]),
             'OA1 ' + P.o1 + ' OA2 ' + P.o2,
+            ...legs().map(l => l.short),
           ],
         ])(pointsOf()),
+      ],
+      sop,
+      // the checklist of the method and the calls: in the box of the SOP, on its right
+      box2: [
         [
           m == 'probe' ? 'PROBE' : 'BOOM',
           m == 'probe'
@@ -770,7 +823,6 @@ export function createAarPage(deps) {
         ],
         ['CALLS', ['REQUEST FLIGHT REFUELING', 'DONE · TERMINATE FLIGHT REFUEL', 'AWACS: VECTOR TO TANKER']],
       ],
-      sop,
     };
   }
   function classicData() {
@@ -785,7 +837,11 @@ export function createAarPage(deps) {
       title: X.me.name + ' · ' + X.me.n + '× ' + X.me.ac,
       sub: 'TANKER ' + t.name + ' · ' + t.type + ' · STPT ' + n + ' REFUEL',
       box: [
-        ['ARCT', hm(R.arct), 'ARIP ' + hm(R.tip) + ' · done ' + hm(done())],
+        [
+          'ARCT',
+          hm(R.arct),
+          'ARIP ' + hm(R.tip) + ' · done ' + hm(done()) + (nAc() > 1 && FU ? ' · flight ' + hm(doneAll()) : ''),
+        ],
         [
           'ONLOAD',
           FU ? fmt(FU.onload) + ' lb' : '--',
@@ -817,6 +873,18 @@ export function createAarPage(deps) {
         ['ARIP · OA2', hm(R.tip) + ' · ' + fmtLL(...P.arip)],
         ['ARCP · OA1', hm(R.arct) + ' · ' + fmtLL(...P.arcp)],
         ['ANCHOR', fmtLL(...P.anchor)],
+        ...legs().map(l => [
+          'HDG · ' + l.leg.split(' → ')[0].toUpperCase(),
+          l.hdg + ' to the ' + l.leg.split(' → ')[1] + ' · ' + l.note,
+        ]),
+        ...(nAc() > 1
+          ? [
+              [
+                'FLIGHT DONE',
+                FU ? hm(doneAll()) + ' · ' + nAc() + ' aircraft, ' + CYCLE_MIN + ' min between two' : '--',
+              ],
+            ]
+          : []),
         ['OA1 · STPT ' + P.n, P.oa1],
         ['OA2 · STPT ' + P.n, P.oa2],
         ...(R.turn

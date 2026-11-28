@@ -76,6 +76,9 @@ try:
         check('the ARIP 20 NM before the ARCP', plan()['S']['dist'] == 20 and abs((500 - plan()['R']['arip']['y']) / 1.852 - 20) < 0.05)
         # RV HEAD-ON: the turn side, the turn point on the map and in the tables
         pg.click('[data-arset=mode][data-v=head]'); pg.wait_for_timeout(500)
+        hd = [h.strip('°') for h in pg.evaluate("()=>{const t=[...document.querySelectorAll('#aartm table')].pop();return [...t.querySelectorAll('tr')].slice(1).map(r=>r.cells[1].textContent)}")]
+        check('RV HEAD-ON headings: the parallel course to the turn, then the track, 180° apart (%s)' % hd, len(hd) == 2 and abs(int(hd[0]) - int(hd[1])) % 360 == 180 and 'ARIP → turn' in pg.inner_text('#aartm'))
+        check('the whole flight done after the lead (2 aircraft, each with the onload of the lead)', 'Done · flight of 2' in pg.inner_text('#aartm'))
         P = plan()
         check('RV HEAD-ON: a left turn by default, the turn point (map, Times, Procedure)', P['S']['mode'] == 'head' and P['S']['turn'] == 'L' and P['R']['turn'] and 'TURN · ' in pg.inner_text('#aarmap') and 'Turn left' in pg.inner_text('#aartt') and 'Head-on' in pg.inner_text('#aartb') and 'ARIP to the turn' in pg.inner_text('#aarl'))
         pg.click('[data-arset=turn][data-v=R]'); pg.wait_for_timeout(400)
@@ -124,7 +127,7 @@ try:
         pg.select_option('#aarl [data-arpush]', '3'); pg.wait_for_timeout(400)
         check('...and follows Join after when it changes (the confirmation names STPT 3)', (pg.click('[data-aroa]'), pg.wait_for_timeout(600), 'STPT 3 (Join after)' in msgs[-1])[2])
         D = pg.evaluate("()=>{const s=__app.aarPage.smart();const b=s.blocks.find(b=>/^POINTS/.test(b[0]));return {h:b&&b[0],r:b&&b[1]}}")
-        check('Smart card: POINTS with the OA steerpoint, ARIP / ARCP / anchor in lat / long and OA1 / OA2 (%s)' % D, D['h'] and 'OA ON STPT 3' in D['h'] and D['r'][0].startswith('ARIP N') and any(r.startswith('ANCH ') or r.startswith('ARCP/ANCH ') for r in D['r']) and D['r'][-1].startswith('OA1 ') and ' OA2 ' in D['r'][-1])
+        check('Smart card: POINTS with the OA steerpoint, ARIP / ARCP / anchor in lat / long and OA1 / OA2 (%s)' % D, D['h'] and 'OA ON STPT 3' in D['h'] and D['r'][0].startswith('ARIP N') and any(r.startswith('ANCH ') or r.startswith('ARCP/ANCH ') for r in D['r']) and any(r.startswith('OA1 ') and ' OA2 ' in r for r in D['r']) and any(r.startswith('ARIP>ARCP ') for r in D['r']))
         for md in ('golf', 'head'):
             pg.click('[data-arset=mode][data-v=%s]' % md); pg.wait_for_timeout(400)
             u = pg.evaluate("async()=>{const c=await __app.aarPage.cardCanvas('smart');return c?c.toDataURL():''}")

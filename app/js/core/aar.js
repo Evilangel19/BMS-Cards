@@ -13,11 +13,13 @@ import { atmos, machFromCas } from './airperf.js';
 export const KM_NM = 1.852;
 const FT_NM = 6076.12,
   KT_FTS = 1.68781;
-export const TANKER_KCAS = 300, // the tanker on its track (Training Manual: about 300-305 kt)
+export const TANKER_KCAS = 310, // the tanker on its track and while it refuels: 310 kt measured in BMS 4.38.2 behind a KC-135 (F-16, the HUD); the Training
+  // Manual says about 300-305 kt. The other tankers are taken to fly the same speed (not measured)
   TURN_BANK = 30,
   OVERTAKE = 100, // kt of overtake beyond 2 NM, then 10 kt per 1,000 ft
   JOIN_BELOW = 1000, // ft below the tanker to join
-  RATE = 1000; // lb a minute: the flow of fuel, an estimate (BMS does not give it)
+  RATE = 1000, // lb a minute: the flow of fuel, an estimate (BMS does not give it)
+  CYCLE_MIN = 1; // minutes between two receivers: disconnect, the next from the observation position to contact (an estimate)
 
 export { PROBE, methodOf, tankerKind, serves } from '../rules/tankers.js';
 

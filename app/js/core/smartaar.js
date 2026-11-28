@@ -13,16 +13,25 @@ export function drawSmartAar(x, D) {
   scFrame(x, D.title, D.right);
   scKey(x, D.key);
   scSec(x, 146, D.planTitle || 'TRACK');
-  aaPlanView(x, D.plan, [12, 160, 436, 196]);
-  if (D.legend) scText(x, 14, 370, 10, D.legend, { c: '#555555' });
-  scSec(x, 378);
+  // with box2 (AAR: the checklist of the method and the calls in the box of the SOP, on its right) the plan is a little lower, for the blocks
+  const two = !!(D.box2 && D.box2.length),
+    ph = two ? 150 : 196;
+  aaPlanView(x, D.plan, [12, 160, 436, ph]);
+  if (D.legend) scText(x, 14, 174 + ph, 10, D.legend, { c: '#555555' });
+  scSec(x, 182 + ph);
   // the SOP box: its lines from the bottom up
-  const L = (D.sop.length ? D.sop : [D.empty || 'NONE CHOSEN: SQUADRON > ROE / SOP > SOP > TANKER']).flatMap(t =>
-      wrap(x, '• ' + t, 12, 424)
+  const W = two ? 206 : 424,
+    L = (D.sop.length ? D.sop : [D.empty || 'NONE CHOSEN: SQUADRON > ROE / SOP > SOP > TANKER']).flatMap(t =>
+      wrap(x, '• ' + t, 12, W)
     ),
-    rows = L.slice(0, 6),
-    y0 = 684 - 10 - rows.length * 15 - 22;
-  blocks(x, D.blocks, 396, y0 - 14);
+    R2 = two
+      ? D.box2.flatMap(([h, rows]) => [[h, true], ...rows.flatMap(r => wrap(x, r, 11, 200).map(l => [l, false]))])
+      : [],
+    rows = L.slice(0, two ? 10 : 6),
+    h2 = two ? R2.length * 13 + (D.box2.length - 1) * 4 - 17 : 0, // the right column starts at the title line
+    hgt = Math.max(rows.length * 15, h2),
+    y0 = 684 - 10 - hgt - 22;
+  blocks(x, D.blocks, 200 + ph, y0 - 14);
   scLine(
     x,
     [
@@ -35,5 +44,28 @@ export function drawSmartAar(x, D) {
   );
   scText(x, 16, y0 + 17, 12, D.boxTitle || 'SOP TANKER', { c: RED, w: 700 });
   rows.forEach((l, i) => scText(x, l.startsWith('   ') ? 26 : 16, y0 + 34 + i * 15, 12, l.trim()));
+  if (two) {
+    scLine(
+      x,
+      [
+        [234, y0 + 8],
+        [234, 676],
+      ],
+      { w: 1, c: RED }
+    );
+    let y = y0 + 17;
+    for (const [t, head] of R2) {
+      if (head && y > y0 + 17) y += 4;
+      scText(
+        x,
+        head ? 244 : t.startsWith('   ') ? 252 : 244,
+        y,
+        head ? 12 : 11,
+        t.trim(),
+        head ? { c: RED, w: 700 } : {}
+      );
+      y += 13;
+    }
+  }
   scEnd(x);
 }

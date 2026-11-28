@@ -14,6 +14,7 @@ import {
   procedure,
   offset,
   racetrack,
+  TANKER_KCAS,
   KM_NM,
 } from '../app/js/core/aar.js';
 import { prefer } from '../app/js/rules/tankers.js';
@@ -172,5 +173,6 @@ ok(
 const o = offset({ x: 0, y: 0 }, { x: 0, y: -6 * KM_NM });
 ok('offset 180°, 6 NM ' + JSON.stringify(o), o.brg == 180 && o.rngFt == 36457);
 
+ok('the tanker flies 310 KCAS (measured behind a KC-135 in BMS 4.38.2)', TANKER_KCAS === 310);
 console.log(bad ? `${bad} of ${n} FAILED` : `aar: ${n} checks ok`);
 process.exit(bad ? 1 : 0);

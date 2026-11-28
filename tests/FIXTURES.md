@@ -8,7 +8,8 @@ Some tests compare the program with files that Falcon BMS itself wrote. These fi
    `node tools/make-local.mjs --objects <Data\TerrData\Objects> --campaign <Data\Campaign> --sim <Data\Sim>`
    (writes `app/js/data/local/index.js`, `missilefallback.js`, `bombfallback.js`, `acfallback.js` with the readers of the program).
 2. Copy the files below into `tests/fixtures/` (spaces of a file name become `_`).
-3. `npm run test:update` writes `tests/golden/golden.json` (the datacards of the campaigns below): run it again after a change of the cards that is wanted.
+3. The DTC of the browser tests: `node tools/make-testdtc.mjs <User\Config\<callsign>.ini saved with Bear Trap> tests/fixtures/beartrap/PSI_BEAR_TRAP_26.cam` (the route of the flight of the player, three targets, four lines; the rest as BMS wrote it).
+4. `npm run test:update` writes `tests/golden/golden.json` (the datacards of the campaigns below): run it again after a change of the cards that is wanted.
 
 | File (in `tests/fixtures/`)                                                           | Used by                                                                  | Where it comes from                                |
 | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
